@@ -1,0 +1,404 @@
+<div class="admin-page">
+
+  <div class="admin-header">
+    <h1>{{pageTitle}}</h1>
+    <nav class="admin-nav">
+      <a href="/admin">Dashboard</a>
+      <a href="/admin/content">Content</a>
+      <a href="/admin/structure" class="active">Structure</a>
+      <a href="/admin/menus">Menus</a>
+    </nav>
+  </div>
+
+  {{#if hasFlash}}
+  <div class="flash flash-{{flash.type}}">
+    {{flash.message}}
+  </div>
+  {{/if}}
+
+  <div class="breadcrumb">
+    <a href="/admin">Dashboard</a> &rarr;
+    <a href="/admin/menus">Menus</a> &rarr;
+    <span>{{menu.title}}</span>
+  </div>
+
+  <div class="admin-section">
+    <div class="section-header-row">
+      <div>
+        <h2>{{menu.title}} Items</h2>
+        <p class="section-description">{{menu.description}}</p>
+      </div>
+      <button class="btn btn-primary" onclick="toggleForm('create-item', null)">Add Item</button>
+    </div>
+
+    <div id="create-item" class="form-panel" style="display: none;">
+      <h3>Create Menu Item</h3>
+      <form method="POST" action="/admin/menus/{{menuName}}/add">
+        {{csrfField}}
+        <input type="hidden" id="parent_id" name="parent_id" value="">
+        <div class="form-group">
+          <label for="title">Title</label>
+          <input type="text" id="title" name="title" required placeholder="e.g., Home">
+        </div>
+        <div class="form-group">
+          <label for="url">URL</label>
+          <input type="text" id="url" name="url" required placeholder="/page-slug or https://example.com">
+          <small>Internal path or external URL</small>
+        </div>
+        <div class="form-group">
+          <label for="weight">Weight</label>
+          <input type="number" id="weight" name="weight" value="0" step="1">
+          <small>Lower weights appear first</small>
+        </div>
+        <div class="form-group">
+          <label for="parent_select">Parent Item</label>
+          <select id="parent_select" name="parent_id">
+            <option value="">-- None (top level) --</option>
+            {{#each items}}
+            <option value="{{id}}">{{indent}}{{title}}</option>
+            {{/each}}
+          </select>
+        </div>
+        <div class="form-group">
+          <label class="checkbox-label">
+            <input type="checkbox" id="enabled" name="enabled" value="true" checked>
+            Enabled
+          </label>
+        </div>
+        <div class="form-actions">
+          <button type="submit" class="btn btn-primary">Create</button>
+          <button type="button" class="btn btn-secondary" onclick="toggleForm('create-item', null)">Cancel</button>
+        </div>
+      </form>
+    </div>
+
+    {{#if items.length}}
+    <div class="items-list">
+      {{#each items}}
+      <div class="item-row" data-item-id="{{id}}" data-depth="{{depth}}" style="margin-left: {{depth}}rem;">
+        <div class="item-content">
+          <div class="item-handle">⋮⋮</div>
+          <div class="item-info">
+            <strong class="item-title">{{title}}</strong>
+            <small class="item-url">{{link}}</small>
+          </div>
+          <div class="item-meta">
+            <span class="weight-badge">W: {{weight}}</span>
+            {{#unless enabled}}
+            <span class="status-badge status-disabled">Disabled</span>
+            {{/unless}}
+            {{#if children.length}}
+            <span class="children-badge">{{children.length}} children</span>
+            {{/if}}
+          </div>
+          <div class="item-actions">
+            <button class="btn btn-sm" onclick="toggleForm('create-item', '{{id}}')">Add Child</button>
+            <button class="btn btn-sm btn-secondary" onclick="toggleForm('edit-{{id}}', null)">Edit</button>
+            <form method="POST" action="/admin/menus/{{../menuName}}/{{id}}/delete" style="display: inline;">
+              {{../../csrfField}}
+              <button type="submit" class="btn btn-sm btn-danger" onclick="return confirm('Delete this menu item{{#if children.length}} and its {{children.length}} children{{/if}}?')">Delete</button>
+            </form>
+          </div>
+        </div>
+
+        <div id="edit-{{id}}" class="edit-panel" style="display: none;">
+          <h4>Edit Menu Item</h4>
+          <form method="POST" action="/admin/menus/{{../menuName}}/{{id}}">
+            {{../../csrfField}}
+            <input type="hidden" name="_method" value="PUT">
+            <div class="form-group">
+              <label>Title</label>
+              <input type="text" name="title" value="{{title}}" required>
+            </div>
+            <div class="form-group">
+              <label>URL</label>
+              <input type="text" name="url" value="{{link}}" required>
+            </div>
+            <div class="form-group">
+              <label>Weight</label>
+              <input type="number" name="weight" value="{{weight}}" step="1">
+            </div>
+            <div class="form-group">
+              <label>Parent Item</label>
+              <select name="parent_id">
+                <option value="">-- None (top level) --</option>
+                {{#each ../items}}
+                {{#unless (eq id ../id)}}
+                <option value="{{id}}" {{#if (eq id ../parentId)}}selected{{/if}}>{{indent}}{{title}}</option>
+                {{/unless}}
+                {{/each}}
+              </select>
+            </div>
+            <div class="form-group">
+              <label class="checkbox-label">
+                <input type="checkbox" name="enabled" value="true" {{#if enabled}}checked{{/if}}>
+                Enabled
+              </label>
+            </div>
+            <div class="form-actions">
+              <button type="submit" class="btn btn-primary btn-sm">Save</button>
+              <button type="button" class="btn btn-secondary btn-sm" onclick="toggleForm('edit-{{id}}', null)">Cancel</button>
+            </div>
+          </form>
+        </div>
+      </div>
+      {{/each}}
+    </div>
+    {{else}}
+    <p class="empty-message">No menu items yet. Click "Add Item" to create your first navigation link.</p>
+    {{/if}}
+  </div>
+
+  <div class="admin-section">
+    <h2>Menu Structure Tips</h2>
+    <div class="info-grid">
+      <div class="info-card">
+        <h3>Drag to Reorder</h3>
+        <p>Grab the handle (⋮⋮) to drag items into a different order or change their parent for nested navigation.</p>
+      </div>
+      <div class="info-card">
+        <h3>Weight vs Order</h3>
+        <p>Items with lower weights appear first. You can also drag items to reorder visually.</p>
+      </div>
+      <div class="info-card">
+        <h3>Nested Menus</h3>
+        <p>Create dropdown navigation by making items children of other items. Most themes support 2-3 levels of nesting.</p>
+      </div>
+      <div class="info-card">
+        <h3>URLs</h3>
+        <p>Use internal paths like /about or full URLs like https://example.com. External links will open in new tabs.</p>
+      </div>
+    </div>
+  </div>
+
+  <style>
+    .section-header-row {
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-start;
+      margin-bottom: 1rem;
+    }
+    .section-header-row h2 {
+      margin: 0 0 0.25rem 0;
+    }
+    .section-description {
+      color: #6b7280;
+      font-size: 0.9rem;
+      margin: 0;
+    }
+    .form-panel {
+      background: #f9fafb;
+      border: 1px solid #e5e7eb;
+      border-radius: 8px;
+      padding: 1.5rem;
+      margin-bottom: 1.5rem;
+    }
+    .form-panel h3 {
+      margin: 0 0 1rem 0;
+      font-size: 1.1rem;
+    }
+    .form-group {
+      margin-bottom: 1rem;
+    }
+    .form-group label {
+      display: block;
+      margin-bottom: 0.25rem;
+      font-size: 0.9rem;
+      font-weight: 500;
+      color: #374151;
+    }
+    .form-group input[type="text"],
+    .form-group input[type="number"],
+    .form-group select {
+      width: 100%;
+      padding: 0.5rem;
+      border: 1px solid #d1d5db;
+      border-radius: 4px;
+      font-size: 0.9rem;
+    }
+    .form-group small {
+      display: block;
+      margin-top: 0.25rem;
+      font-size: 0.8rem;
+      color: #6b7280;
+    }
+    .checkbox-label {
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+      font-weight: normal;
+      cursor: pointer;
+    }
+    .form-actions {
+      display: flex;
+      gap: 0.5rem;
+      margin-top: 1rem;
+    }
+    .items-list {
+      border: 1px solid #e5e7eb;
+      border-radius: 8px;
+      overflow: hidden;
+    }
+    .item-row {
+      border-bottom: 1px solid #e5e7eb;
+      background: white;
+    }
+    .item-row:last-child {
+      border-bottom: none;
+    }
+    .item-content {
+      display: flex;
+      align-items: center;
+      gap: 1rem;
+      padding: 0.75rem 1rem;
+    }
+    .item-handle {
+      cursor: grab;
+      color: #9ca3af;
+      font-size: 1rem;
+      user-select: none;
+    }
+    .item-handle:active {
+      cursor: grabbing;
+    }
+    .item-info {
+      flex: 1;
+    }
+    .item-title {
+      display: block;
+      color: #111827;
+      font-size: 0.95rem;
+    }
+    .item-url {
+      display: block;
+      color: #6b7280;
+      font-size: 0.8rem;
+      margin-top: 0.25rem;
+      font-family: monospace;
+    }
+    .item-meta {
+      display: flex;
+      gap: 0.5rem;
+      align-items: center;
+    }
+    .weight-badge {
+      background: #f3f4f6;
+      color: #6b7280;
+      padding: 0.25rem 0.5rem;
+      border-radius: 4px;
+      font-size: 0.75rem;
+      font-weight: 500;
+    }
+    .children-badge {
+      background: #e0e7ff;
+      color: #3730a3;
+      padding: 0.25rem 0.5rem;
+      border-radius: 4px;
+      font-size: 0.75rem;
+      font-weight: 500;
+    }
+    .status-badge {
+      display: inline-block;
+      padding: 0.25rem 0.5rem;
+      border-radius: 4px;
+      font-size: 0.75rem;
+      font-weight: 500;
+    }
+    .status-disabled {
+      background: #f3f4f6;
+      color: #6b7280;
+    }
+    .item-actions {
+      display: flex;
+      gap: 0.5rem;
+    }
+    .edit-panel {
+      background: #f9fafb;
+      border-top: 1px solid #e5e7eb;
+      padding: 1rem;
+    }
+    .edit-panel h4 {
+      margin: 0 0 0.75rem 0;
+      font-size: 0.95rem;
+    }
+    .btn {
+      display: inline-block;
+      padding: 0.5rem 1rem;
+      border: none;
+      border-radius: 4px;
+      font-size: 0.9rem;
+      cursor: pointer;
+      text-decoration: none;
+    }
+    .btn-primary {
+      background: #2563eb;
+      color: white;
+    }
+    .btn-primary:hover {
+      background: #1d4ed8;
+    }
+    .btn-secondary {
+      background: #e5e7eb;
+      color: #374151;
+    }
+    .btn-secondary:hover {
+      background: #d1d5db;
+    }
+    .btn-danger {
+      background: #dc2626;
+      color: white;
+    }
+    .btn-danger:hover {
+      background: #b91c1c;
+    }
+    .btn-sm {
+      padding: 0.25rem 0.5rem;
+      font-size: 0.8rem;
+    }
+    .empty-message {
+      text-align: center;
+      padding: 2rem;
+      color: #6b7280;
+      font-style: italic;
+    }
+    .info-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+      gap: 1rem;
+    }
+    .info-card {
+      background: #f9fafb;
+      border: 1px solid #e5e7eb;
+      border-radius: 8px;
+      padding: 1rem;
+    }
+    .info-card h3 {
+      margin: 0 0 0.5rem 0;
+      font-size: 1rem;
+      color: #111827;
+    }
+    .info-card p {
+      margin: 0;
+      font-size: 0.85rem;
+      color: #6b7280;
+    }
+  </style>
+  <script>
+    function toggleForm(id, parentId) {
+      const el = document.getElementById(id);
+      if (el) {
+        const isVisible = el.style.display !== 'none';
+        el.style.display = isVisible ? 'none' : 'block';
+
+        if (!isVisible && parentId && id === 'create-item') {
+          const parentField = document.getElementById('parent_id');
+          const parentSelect = document.getElementById('parent_select');
+          if (parentField) parentField.value = parentId;
+          if (parentSelect) parentSelect.value = parentId;
+        }
+      }
+    }
+  </script>
+  <script src="/public/js/shortcuts.js"></script>
+  <script>Shortcuts.init({ context: 'global' });</script>
+</div>

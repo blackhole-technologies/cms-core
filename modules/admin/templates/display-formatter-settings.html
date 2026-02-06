@@ -1,0 +1,446 @@
+<!-- Text Formatter Settings -->
+{{#if (eq formatterType 'text')}}
+<div class="formatter-settings-form">
+  <div class="form-group">
+    <label for="trimLength">
+      Trim Length
+      <span class="help-text">Maximum number of characters to display (0 = no limit)</span>
+    </label>
+    <input type="number"
+           id="trimLength"
+           name="settings[trimLength]"
+           value="{{settings.trimLength}}"
+           min="0"
+           class="form-control">
+  </div>
+
+  <div class="form-group">
+    <label>
+      <input type="checkbox"
+             name="settings[trimAtWordBoundary]"
+             value="1"
+             {{#if settings.trimAtWordBoundary}}checked{{/if}}>
+      Trim at word boundary
+    </label>
+  </div>
+
+  <div class="form-group">
+    <label for="textFormat">
+      Text Format
+      <span class="help-text">How to process the text content</span>
+    </label>
+    <select id="textFormat" name="settings[textFormat]" class="form-control">
+      <option value="plain" {{#if (eq settings.textFormat 'plain')}}selected{{/if}}>Plain Text</option>
+      <option value="html" {{#if (eq settings.textFormat 'html')}}selected{{/if}}>HTML</option>
+      <option value="markdown" {{#if (eq settings.textFormat 'markdown')}}selected{{/if}}>Markdown</option>
+      <option value="filtered" {{#if (eq settings.textFormat 'filtered')}}selected{{/if}}>Filtered HTML</option>
+    </select>
+  </div>
+
+  <div class="form-group">
+    <label>
+      <input type="checkbox"
+             name="settings[stripTags]"
+             value="1"
+             {{#if settings.stripTags}}checked{{/if}}>
+      Strip HTML tags
+    </label>
+  </div>
+</div>
+{{/if}}
+
+<!-- Image Formatter Settings -->
+{{#if (eq formatterType 'image')}}
+<div class="formatter-settings-form">
+  <div class="form-group">
+    <label for="imageStyle">
+      Image Style
+      <span class="help-text">Derivative image style to use</span>
+    </label>
+    <select id="imageStyle" name="settings[imageStyle]" class="form-control">
+      <option value="original" {{#if (eq settings.imageStyle 'original')}}selected{{/if}}>Original</option>
+      {{#each imageStyles}}
+      <option value="{{this.name}}" {{#if (eq ../settings.imageStyle this.name)}}selected{{/if}}>
+        {{this.label}} ({{this.width}}x{{this.height}})
+      </option>
+      {{/each}}
+    </select>
+  </div>
+
+  <div class="form-group">
+    <label>
+      <input type="checkbox"
+             name="settings[linkToContent]"
+             value="1"
+             {{#if settings.linkToContent}}checked{{/if}}>
+      Link image to content
+    </label>
+  </div>
+
+  <div class="form-group">
+    <label for="altSource">
+      Alt Text Source
+    </label>
+    <select id="altSource" name="settings[altSource]" class="form-control">
+      <option value="field" {{#if (eq settings.altSource 'field')}}selected{{/if}}>From Field</option>
+      <option value="title" {{#if (eq settings.altSource 'title')}}selected{{/if}}>Content Title</option>
+      <option value="filename" {{#if (eq settings.altSource 'filename')}}selected{{/if}}>Filename</option>
+      <option value="custom" {{#if (eq settings.altSource 'custom')}}selected{{/if}}>Custom Text</option>
+    </select>
+  </div>
+
+  <div class="form-group" id="customAltGroup" style="{{#unless (eq settings.altSource 'custom')}}display: none;{{/unless}}">
+    <label for="customAlt">
+      Custom Alt Text
+    </label>
+    <input type="text"
+           id="customAlt"
+           name="settings[customAlt]"
+           value="{{settings.customAlt}}"
+           class="form-control">
+  </div>
+
+  <div class="form-group">
+    <label>
+      <input type="checkbox"
+             name="settings[lazyLoad]"
+             value="1"
+             {{#if settings.lazyLoad}}checked{{/if}}>
+      Enable lazy loading
+    </label>
+  </div>
+</div>
+
+<script>
+document.getElementById('altSource').addEventListener('change', function(e) {
+  const customGroup = document.getElementById('customAltGroup');
+  customGroup.style.display = e.target.value === 'custom' ? 'block' : 'none';
+});
+</script>
+{{/if}}
+
+<!-- Reference Formatter Settings -->
+{{#if (eq formatterType 'reference')}}
+<div class="formatter-settings-form">
+  <div class="form-group">
+    <label>
+      <input type="checkbox"
+             name="settings[displayAsLink]"
+             value="1"
+             {{#if settings.displayAsLink}}checked{{/if}}>
+      Display as link
+    </label>
+  </div>
+
+  <div class="form-group">
+    <label for="renderMode">
+      Render Mode
+      <span class="help-text">How to display the referenced content</span>
+    </label>
+    <select id="renderMode" name="settings[renderMode]" class="form-control">
+      <option value="label" {{#if (eq settings.renderMode 'label')}}selected{{/if}}>Label Only</option>
+      <option value="full" {{#if (eq settings.renderMode 'full')}}selected{{/if}}>Full Content</option>
+      <option value="teaser" {{#if (eq settings.renderMode 'teaser')}}selected{{/if}}>Teaser</option>
+      <option value="custom" {{#if (eq settings.renderMode 'custom')}}selected{{/if}}>Custom View Mode</option>
+    </select>
+  </div>
+
+  <div class="form-group" id="customViewModeGroup" style="{{#unless (eq settings.renderMode 'custom')}}display: none;{{/unless}}">
+    <label for="customViewMode">
+      Custom View Mode
+    </label>
+    <select id="customViewMode" name="settings[customViewMode]" class="form-control">
+      {{#each viewModes}}
+      <option value="{{this.name}}" {{#if (eq ../settings.customViewMode this.name)}}selected{{/if}}>
+        {{this.label}}
+      </option>
+      {{/each}}
+    </select>
+  </div>
+
+  <div class="form-group">
+    <label>
+      <input type="checkbox"
+             name="settings[openInNewTab]"
+             value="1"
+             {{#if settings.openInNewTab}}checked{{/if}}>
+      Open in new tab
+    </label>
+  </div>
+
+  <div class="form-group">
+    <label for="separatorMultiple">
+      Separator (for multiple values)
+    </label>
+    <input type="text"
+           id="separatorMultiple"
+           name="settings[separator]"
+           value="{{settings.separator}}"
+           placeholder=", "
+           class="form-control">
+  </div>
+</div>
+
+<script>
+document.getElementById('renderMode').addEventListener('change', function(e) {
+  const customGroup = document.getElementById('customViewModeGroup');
+  customGroup.style.display = e.target.value === 'custom' ? 'block' : 'none';
+});
+</script>
+{{/if}}
+
+<!-- Date Formatter Settings -->
+{{#if (eq formatterType 'date')}}
+<div class="formatter-settings-form">
+  <div class="form-group">
+    <label for="dateFormat">
+      Date Format
+      <span class="help-text">How to display the date</span>
+    </label>
+    <select id="dateFormat" name="settings[dateFormat]" class="form-control">
+      <option value="short" {{#if (eq settings.dateFormat 'short')}}selected{{/if}}>Short (12/31/2025)</option>
+      <option value="medium" {{#if (eq settings.dateFormat 'medium')}}selected{{/if}}>Medium (Dec 31, 2025)</option>
+      <option value="long" {{#if (eq settings.dateFormat 'long')}}selected{{/if}}>Long (December 31, 2025)</option>
+      <option value="full" {{#if (eq settings.dateFormat 'full')}}selected{{/if}}>Full (Thursday, December 31, 2025)</option>
+      <option value="iso" {{#if (eq settings.dateFormat 'iso')}}selected{{/if}}>ISO 8601 (2025-12-31)</option>
+      <option value="relative" {{#if (eq settings.dateFormat 'relative')}}selected{{/if}}>Relative (2 days ago)</option>
+      <option value="custom" {{#if (eq settings.dateFormat 'custom')}}selected{{/if}}>Custom Format</option>
+    </select>
+  </div>
+
+  <div class="form-group" id="customDateFormatGroup" style="{{#unless (eq settings.dateFormat 'custom')}}display: none;{{/unless}}">
+    <label for="customDateFormat">
+      Custom Format
+      <span class="help-text">Use PHP date() format codes</span>
+    </label>
+    <input type="text"
+           id="customDateFormat"
+           name="settings[customFormat]"
+           value="{{settings.customFormat}}"
+           placeholder="Y-m-d H:i:s"
+           class="form-control">
+    <small class="form-text">
+      Examples:
+      <code>Y-m-d</code> = 2025-12-31,
+      <code>F j, Y</code> = December 31, 2025,
+      <code>M d</code> = Dec 31
+    </small>
+  </div>
+
+  <div class="form-group">
+    <label>
+      <input type="checkbox"
+             name="settings[includeTime]"
+             value="1"
+             {{#if settings.includeTime}}checked{{/if}}>
+      Include time
+    </label>
+  </div>
+
+  <div class="form-group" id="timeFormatGroup" style="{{#unless settings.includeTime}}display: none;{{/unless}}">
+    <label for="timeFormat">
+      Time Format
+    </label>
+    <select id="timeFormat" name="settings[timeFormat]" class="form-control">
+      <option value="12h" {{#if (eq settings.timeFormat '12h')}}selected{{/if}}>12-hour (3:45 PM)</option>
+      <option value="24h" {{#if (eq settings.timeFormat '24h')}}selected{{/if}}>24-hour (15:45)</option>
+    </select>
+  </div>
+
+  <div class="form-group">
+    <label for="timezone">
+      Timezone
+    </label>
+    <select id="timezone" name="settings[timezone]" class="form-control">
+      <option value="user" {{#if (eq settings.timezone 'user')}}selected{{/if}}>User's Timezone</option>
+      <option value="site" {{#if (eq settings.timezone 'site')}}selected{{/if}}>Site Default</option>
+      <option value="utc" {{#if (eq settings.timezone 'utc')}}selected{{/if}}>UTC</option>
+    </select>
+  </div>
+</div>
+
+<script>
+document.getElementById('dateFormat').addEventListener('change', function(e) {
+  const customGroup = document.getElementById('customDateFormatGroup');
+  customGroup.style.display = e.target.value === 'custom' ? 'block' : 'none';
+});
+
+document.querySelector('input[name="settings[includeTime]"]').addEventListener('change', function(e) {
+  const timeGroup = document.getElementById('timeFormatGroup');
+  timeGroup.style.display = e.target.checked ? 'block' : 'none';
+});
+</script>
+{{/if}}
+
+<!-- Number Formatter Settings -->
+{{#if (eq formatterType 'number')}}
+<div class="formatter-settings-form">
+  <div class="form-group">
+    <label for="decimals">
+      Decimal Places
+    </label>
+    <input type="number"
+           id="decimals"
+           name="settings[decimals]"
+           value="{{settings.decimals}}"
+           min="0"
+           max="10"
+           class="form-control">
+  </div>
+
+  <div class="form-group">
+    <label for="decimalSeparator">
+      Decimal Separator
+    </label>
+    <select id="decimalSeparator" name="settings[decimalSeparator]" class="form-control">
+      <option value="." {{#if (eq settings.decimalSeparator '.')}}selected{{/if}}>. (period)</option>
+      <option value="," {{#if (eq settings.decimalSeparator ',')}}selected{{/if}}>, (comma)</option>
+    </select>
+  </div>
+
+  <div class="form-group">
+    <label for="thousandsSeparator">
+      Thousands Separator
+    </label>
+    <select id="thousandsSeparator" name="settings[thousandsSeparator]" class="form-control">
+      <option value="" {{#if (eq settings.thousandsSeparator '')}}selected{{/if}}>None</option>
+      <option value="," {{#if (eq settings.thousandsSeparator ',')}}selected{{/if}}>, (comma)</option>
+      <option value="." {{#if (eq settings.thousandsSeparator '.')}}selected{{/if}}>. (period)</option>
+      <option value=" " {{#if (eq settings.thousandsSeparator ' ')}}selected{{/if}}>  (space)</option>
+    </select>
+  </div>
+
+  <div class="form-group">
+    <label for="prefix">
+      Prefix
+      <span class="help-text">Text to display before the number (e.g., $)</span>
+    </label>
+    <input type="text"
+           id="prefix"
+           name="settings[prefix]"
+           value="{{settings.prefix}}"
+           class="form-control">
+  </div>
+
+  <div class="form-group">
+    <label for="suffix">
+      Suffix
+      <span class="help-text">Text to display after the number (e.g., %)</span>
+    </label>
+    <input type="text"
+           id="suffix"
+           name="settings[suffix]"
+           value="{{settings.suffix}}"
+           class="form-control">
+  </div>
+</div>
+{{/if}}
+
+<!-- Boolean Formatter Settings -->
+{{#if (eq formatterType 'boolean')}}
+<div class="formatter-settings-form">
+  <div class="form-group">
+    <label for="displayFormat">
+      Display Format
+    </label>
+    <select id="displayFormat" name="settings[displayFormat]" class="form-control">
+      <option value="yes-no" {{#if (eq settings.displayFormat 'yes-no')}}selected{{/if}}>Yes / No</option>
+      <option value="true-false" {{#if (eq settings.displayFormat 'true-false')}}selected{{/if}}>True / False</option>
+      <option value="on-off" {{#if (eq settings.displayFormat 'on-off')}}selected{{/if}}>On / Off</option>
+      <option value="enabled-disabled" {{#if (eq settings.displayFormat 'enabled-disabled')}}selected{{/if}}>Enabled / Disabled</option>
+      <option value="checkmark" {{#if (eq settings.displayFormat 'checkmark')}}selected{{/if}}>✓ / ✗</option>
+      <option value="custom" {{#if (eq settings.displayFormat 'custom')}}selected{{/if}}>Custom Text</option>
+    </select>
+  </div>
+
+  <div id="customBooleanGroup" style="{{#unless (eq settings.displayFormat 'custom')}}display: none;{{/unless}}">
+    <div class="form-group">
+      <label for="customTrue">
+        Custom Text for True
+      </label>
+      <input type="text"
+             id="customTrue"
+             name="settings[customTrue]"
+             value="{{settings.customTrue}}"
+             class="form-control">
+    </div>
+
+    <div class="form-group">
+      <label for="customFalse">
+        Custom Text for False
+      </label>
+      <input type="text"
+             id="customFalse"
+             name="settings[customFalse]"
+             value="{{settings.customFalse}}"
+             class="form-control">
+    </div>
+  </div>
+</div>
+
+<script>
+document.getElementById('displayFormat').addEventListener('change', function(e) {
+  const customGroup = document.getElementById('customBooleanGroup');
+  customGroup.style.display = e.target.value === 'custom' ? 'block' : 'none';
+});
+</script>
+{{/if}}
+
+<style>
+.formatter-settings-form {
+  padding: 10px 0;
+}
+
+.form-group {
+  margin-bottom: 20px;
+}
+
+.form-group label {
+  display: block;
+  font-weight: 600;
+  margin-bottom: 6px;
+  color: #212529;
+}
+
+.help-text {
+  display: block;
+  font-size: 12px;
+  font-weight: 400;
+  color: #6c757d;
+  margin-top: 2px;
+}
+
+.form-control {
+  width: 100%;
+  padding: 8px 12px;
+  font-size: 14px;
+  border: 1px solid #ced4da;
+  border-radius: 4px;
+  transition: border-color 0.15s ease-in-out;
+}
+
+.form-control:focus {
+  outline: none;
+  border-color: #80bdff;
+  box-shadow: 0 0 0 0.2rem rgba(0, 123, 255, 0.25);
+}
+
+.form-text {
+  display: block;
+  margin-top: 6px;
+  font-size: 12px;
+  color: #6c757d;
+}
+
+.form-text code {
+  background: #f8f9fa;
+  padding: 2px 4px;
+  border-radius: 3px;
+  font-family: 'Courier New', monospace;
+  font-size: 11px;
+}
+
+input[type="checkbox"] {
+  margin-right: 6px;
+}
+</style>

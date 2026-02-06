@@ -1,0 +1,20 @@
+{
+  "id": "1770205345936-dkpn4",
+  "type": "menu-item",
+  "created": "2026-02-04T11:42:25.936Z",
+  "updated": "2026-02-04T11:42:25.936Z",
+  "menuId": "main",
+  "title": "Contact",
+  "itemType": "internal",
+  "link": "/contact",
+  "parentId": null,
+  "weight": 2,
+  "depth": 0,
+  "classes": [],
+  "attributes": {},
+  "enabled": true,
+  "expanded": false,
+  "roles": [],
+  "permissions": [],
+  "status": "draft"
+}

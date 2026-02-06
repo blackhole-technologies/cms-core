@@ -1,0 +1,6 @@
+{
+  "name": "admin",
+  "version": "0.0.1",
+  "description": "Web-based admin interface for content and module management",
+  "dependencies": ["users"]
+}

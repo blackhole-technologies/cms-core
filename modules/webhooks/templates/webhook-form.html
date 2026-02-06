@@ -1,0 +1,107 @@
+<div class="admin-page">
+  <link rel="stylesheet" href="/public/css/admin.css">
+
+  <div class="admin-header">
+    <h1>{{#if isCreate}}Create Webhook{{else}}Edit Webhook{{/if}}</h1>
+    <nav class="admin-nav">
+      <a href="/admin">Dashboard</a>
+      <a href="/admin/content">Content</a>
+      <a href="/admin/users">Users</a>
+      <a href="/admin/webhooks" class="active">Webhooks</a>
+      <a href="/admin/modules">Modules</a>
+      <a href="/logout" class="nav-logout">Logout</a>
+    </nav>
+  </div>
+
+  <div class="breadcrumb">
+    <a href="/admin">Dashboard</a> &rarr;
+    <a href="/admin/webhooks">Webhooks</a> &rarr;
+    <span>{{#if isCreate}}Create{{else}}Edit{{/if}}</span>
+  </div>
+
+  {{#if hasFlash}}
+  <div class="flash flash-{{flash.type}}">
+    {{flash.message}}
+  </div>
+  {{/if}}
+
+  <div class="admin-section">
+    <div class="form-container">
+      <form method="POST" action="/admin/webhooks" class="content-form">
+        <div class="form-group">
+          <label for="event">Event *</label>
+          <select name="event" id="event" class="form-input" required>
+            <option value="">Select an event...</option>
+            {{#each events}}
+            <option value="{{value}}">{{label}} ({{value}})</option>
+            {{/each}}
+          </select>
+          <p class="form-help">Which event should trigger this webhook?</p>
+        </div>
+
+        <div class="form-group">
+          <label for="url">URL *</label>
+          <input type="url" name="url" id="url" class="form-input"
+                 placeholder="https://example.com/webhook" required>
+          <p class="form-help">The URL to POST to when the event fires.</p>
+        </div>
+
+        <div class="form-group">
+          <label for="secret">Secret (optional)</label>
+          <input type="text" name="secret" id="secret" class="form-input"
+                 placeholder="your-secret-key">
+          <p class="form-help">
+            If provided, requests will include an <code>X-Webhook-Signature</code> header
+            containing <code>sha256=&lt;hmac&gt;</code> of the JSON body.
+          </p>
+        </div>
+
+        <div class="form-actions">
+          <button type="submit" class="btn btn-primary">
+            {{#if isCreate}}Create Webhook{{else}}Save Changes{{/if}}
+          </button>
+          <a href="/admin/webhooks" class="btn btn-secondary">Cancel</a>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <div class="admin-section">
+    <h3>Payload Format</h3>
+    <p>When triggered, the webhook will receive a POST request with this JSON body:</p>
+    <pre class="code-block">{
+  "event": "content:afterCreate",
+  "type": "greeting",
+  "item": {
+    "id": "1705123456789-x7k9m",
+    "type": "greeting",
+    "created": "2024-01-13T10:30:00.000Z",
+    "updated": "2024-01-13T10:30:00.000Z",
+    "name": "Ernie",
+    "message": "Welcome!"
+  },
+  "timestamp": "2024-01-13T10:30:00.000Z"
+}</pre>
+  </div>
+
+  <style>
+    .form-help {
+      margin-top: 5px;
+      font-size: 0.9em;
+      color: #666;
+    }
+    .form-help code {
+      background: #f4f4f4;
+      padding: 2px 5px;
+      border-radius: 3px;
+    }
+    .code-block {
+      background: #f4f4f4;
+      padding: 15px;
+      border-radius: 5px;
+      overflow-x: auto;
+      font-family: monospace;
+      font-size: 0.9em;
+    }
+  </style>
+</div>

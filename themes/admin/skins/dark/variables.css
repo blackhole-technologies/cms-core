@@ -1,0 +1,12 @@
+/* Admin Dark Skin */
+:root {
+  --admin-bg: #1a1a1a;
+  --admin-surface: #2d2d2d;
+  --admin-border: #404040;
+  --admin-text: #e0e0e0;
+  --admin-text-dim: #a0a0a0;
+  --admin-primary: #64b5f6;
+  --admin-success: #81c784;
+  --admin-warning: #ffb74d;
+  --admin-error: #e57373;
+}

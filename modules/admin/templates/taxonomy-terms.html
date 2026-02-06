@@ -1,0 +1,373 @@
+<div class="admin-page">
+
+  <div class="admin-header">
+    <h1>{{pageTitle}}</h1>
+    <nav class="admin-nav">
+      <a href="/admin">Dashboard</a>
+      <a href="/admin/content">Content</a>
+      <a href="/admin/structure" class="active">Structure</a>
+      <a href="/admin/taxonomy">Taxonomy</a>
+    </nav>
+  </div>
+
+  {{#if hasFlash}}
+  <div class="flash flash-{{flash.type}}">
+    {{flash.message}}
+  </div>
+  {{/if}}
+
+  <div class="breadcrumb">
+    <a href="/admin">Dashboard</a> &rarr;
+    <a href="/admin/taxonomy">Taxonomy</a> &rarr;
+    <span>{{vocabulary.name}}</span>
+  </div>
+
+  <div class="admin-section">
+    <div class="section-header-row">
+      <div>
+        <h2>{{vocabulary.name}} Terms</h2>
+        <p class="section-description">{{vocabulary.description}}</p>
+      </div>
+      <button class="btn btn-primary" onclick="toggleForm('create-term', null)">Add Term</button>
+    </div>
+
+    <div id="create-term" class="form-panel" style="display: none;">
+      <h3>Create Term</h3>
+      <form method="POST" action="/admin/taxonomy/{{vocabulary.machine_name}}/terms">
+        {{csrfField}}
+        <input type="hidden" id="parent_id" name="parent_id" value="">
+        <div class="form-group">
+          <label for="name">Name</label>
+          <input type="text" id="name" name="name" required placeholder="e.g., Technology">
+        </div>
+        <div class="form-group">
+          <label for="description">Description</label>
+          <textarea id="description" name="description" rows="2" placeholder="Optional description"></textarea>
+        </div>
+        <div class="form-group">
+          <label for="weight">Weight</label>
+          <input type="number" id="weight" name="weight" value="0" step="1">
+          <small>Lower weights appear first</small>
+        </div>
+        {{#if vocabulary.hierarchical}}
+        <div class="form-group">
+          <label for="parent_select">Parent Term</label>
+          <select id="parent_select" name="parent_id">
+            <option value="">-- None (top level) --</option>
+            {{#each terms}}
+            <option value="{{id}}" data-depth="{{depth}}">{{indent}}{{name}}</option>
+            {{/each}}
+          </select>
+        </div>
+        {{/if}}
+        <div class="form-actions">
+          <button type="submit" class="btn btn-primary">Create</button>
+          <button type="button" class="btn btn-secondary" onclick="toggleForm('create-term', null)">Cancel</button>
+        </div>
+      </form>
+    </div>
+
+    {{#if terms.length}}
+    <div class="terms-list">
+      {{#each terms}}
+      <div class="term-item" data-term-id="{{id}}" data-depth="{{depth}}" style="margin-left: {{depth}}rem;">
+        <div class="term-content">
+          <div class="term-handle">⋮⋮</div>
+          <div class="term-info">
+            <strong class="term-name">{{name}}</strong>
+            {{#if description}}
+            <small class="term-description">{{description}}</small>
+            {{/if}}
+          </div>
+          <div class="term-meta">
+            <span class="weight-badge">Weight: {{weight}}</span>
+            {{#if children.length}}
+            <span class="children-badge">{{children.length}} children</span>
+            {{/if}}
+          </div>
+          <div class="term-actions">
+            {{#if ../vocabulary.hierarchical}}
+            <button class="btn btn-sm" onclick="toggleForm('create-term', '{{id}}')">Add Child</button>
+            {{/if}}
+            <button class="btn btn-sm btn-secondary" onclick="toggleForm('edit-{{id}}', null)">Edit</button>
+            <form method="POST" action="/admin/taxonomy/{{../vocabulary.machine_name}}/terms/{{id}}/delete" style="display: inline;">
+              {{../../csrfField}}
+              <button type="submit" class="btn btn-sm btn-danger" onclick="return confirm('Delete this term{{#if children.length}} and its {{children.length}} children{{/if}}?')">Delete</button>
+            </form>
+          </div>
+        </div>
+
+        <div id="edit-{{id}}" class="edit-panel" style="display: none;">
+          <h4>Edit Term</h4>
+          <form method="POST" action="/admin/taxonomy/{{../vocabulary.machine_name}}/terms/{{id}}">
+            {{../../csrfField}}
+            <input type="hidden" name="_method" value="PUT">
+            <div class="form-group">
+              <label>Name</label>
+              <input type="text" name="name" value="{{name}}" required>
+            </div>
+            <div class="form-group">
+              <label>Description</label>
+              <textarea name="description" rows="2">{{description}}</textarea>
+            </div>
+            <div class="form-group">
+              <label>Weight</label>
+              <input type="number" name="weight" value="{{weight}}" step="1">
+            </div>
+            {{#if ../vocabulary.hierarchical}}
+            <div class="form-group">
+              <label>Parent Term</label>
+              <select name="parent_id">
+                <option value="">-- None (top level) --</option>
+                {{#each ../terms}}
+                {{#unless (eq id ../id)}}
+                <option value="{{id}}" {{#if (eq id ../parent_id)}}selected{{/if}}>{{indent}}{{name}}</option>
+                {{/unless}}
+                {{/each}}
+              </select>
+            </div>
+            {{/if}}
+            <div class="form-actions">
+              <button type="submit" class="btn btn-primary btn-sm">Save</button>
+              <button type="button" class="btn btn-secondary btn-sm" onclick="toggleForm('edit-{{id}}', null)">Cancel</button>
+            </div>
+          </form>
+        </div>
+      </div>
+      {{/each}}
+    </div>
+    {{else}}
+    <p class="empty-message">No terms yet. Click "Add Term" to create your first taxonomy term.</p>
+    {{/if}}
+  </div>
+
+  {{#if vocabulary.hierarchical}}
+  <div class="admin-section">
+    <h2>Hierarchy Tips</h2>
+    <div class="info-grid">
+      <div class="info-card">
+        <h3>Drag to Reorder</h3>
+        <p>Grab the handle (⋮⋮) to drag terms into a different order or change their parent.</p>
+      </div>
+      <div class="info-card">
+        <h3>Add Children</h3>
+        <p>Use "Add Child" to create a sub-term, or select a parent when creating/editing.</p>
+      </div>
+      <div class="info-card">
+        <h3>Weight</h3>
+        <p>Terms with lower weights appear first within their hierarchy level.</p>
+      </div>
+    </div>
+  </div>
+  {{/if}}
+
+  <style>
+    .section-header-row {
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-start;
+      margin-bottom: 1rem;
+    }
+    .section-header-row h2 {
+      margin: 0 0 0.25rem 0;
+    }
+    .section-description {
+      color: #6b7280;
+      font-size: 0.9rem;
+      margin: 0;
+    }
+    .form-panel {
+      background: #f9fafb;
+      border: 1px solid #e5e7eb;
+      border-radius: 8px;
+      padding: 1.5rem;
+      margin-bottom: 1.5rem;
+    }
+    .form-panel h3 {
+      margin: 0 0 1rem 0;
+      font-size: 1.1rem;
+    }
+    .form-group {
+      margin-bottom: 1rem;
+    }
+    .form-group label {
+      display: block;
+      margin-bottom: 0.25rem;
+      font-size: 0.9rem;
+      font-weight: 500;
+      color: #374151;
+    }
+    .form-group input[type="text"],
+    .form-group input[type="number"],
+    .form-group textarea,
+    .form-group select {
+      width: 100%;
+      padding: 0.5rem;
+      border: 1px solid #d1d5db;
+      border-radius: 4px;
+      font-size: 0.9rem;
+    }
+    .form-group small {
+      display: block;
+      margin-top: 0.25rem;
+      font-size: 0.8rem;
+      color: #6b7280;
+    }
+    .form-actions {
+      display: flex;
+      gap: 0.5rem;
+      margin-top: 1rem;
+    }
+    .terms-list {
+      border: 1px solid #e5e7eb;
+      border-radius: 8px;
+      overflow: hidden;
+    }
+    .term-item {
+      border-bottom: 1px solid #e5e7eb;
+      background: white;
+    }
+    .term-item:last-child {
+      border-bottom: none;
+    }
+    .term-content {
+      display: flex;
+      align-items: center;
+      gap: 1rem;
+      padding: 0.75rem 1rem;
+    }
+    .term-handle {
+      cursor: grab;
+      color: #9ca3af;
+      font-size: 1rem;
+      user-select: none;
+    }
+    .term-handle:active {
+      cursor: grabbing;
+    }
+    .term-info {
+      flex: 1;
+    }
+    .term-name {
+      display: block;
+      color: #111827;
+      font-size: 0.95rem;
+    }
+    .term-description {
+      display: block;
+      color: #6b7280;
+      font-size: 0.85rem;
+      margin-top: 0.25rem;
+    }
+    .term-meta {
+      display: flex;
+      gap: 0.5rem;
+      align-items: center;
+    }
+    .weight-badge,
+    .children-badge {
+      background: #f3f4f6;
+      color: #6b7280;
+      padding: 0.25rem 0.5rem;
+      border-radius: 4px;
+      font-size: 0.75rem;
+      font-weight: 500;
+    }
+    .children-badge {
+      background: #e0e7ff;
+      color: #3730a3;
+    }
+    .term-actions {
+      display: flex;
+      gap: 0.5rem;
+    }
+    .edit-panel {
+      background: #f9fafb;
+      border-top: 1px solid #e5e7eb;
+      padding: 1rem;
+    }
+    .edit-panel h4 {
+      margin: 0 0 0.75rem 0;
+      font-size: 0.95rem;
+    }
+    .btn {
+      display: inline-block;
+      padding: 0.5rem 1rem;
+      border: none;
+      border-radius: 4px;
+      font-size: 0.9rem;
+      cursor: pointer;
+      text-decoration: none;
+    }
+    .btn-primary {
+      background: #2563eb;
+      color: white;
+    }
+    .btn-primary:hover {
+      background: #1d4ed8;
+    }
+    .btn-secondary {
+      background: #e5e7eb;
+      color: #374151;
+    }
+    .btn-secondary:hover {
+      background: #d1d5db;
+    }
+    .btn-danger {
+      background: #dc2626;
+      color: white;
+    }
+    .btn-danger:hover {
+      background: #b91c1c;
+    }
+    .btn-sm {
+      padding: 0.25rem 0.5rem;
+      font-size: 0.8rem;
+    }
+    .empty-message {
+      text-align: center;
+      padding: 2rem;
+      color: #6b7280;
+      font-style: italic;
+    }
+    .info-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+      gap: 1rem;
+    }
+    .info-card {
+      background: #f9fafb;
+      border: 1px solid #e5e7eb;
+      border-radius: 8px;
+      padding: 1rem;
+    }
+    .info-card h3 {
+      margin: 0 0 0.5rem 0;
+      font-size: 1rem;
+      color: #111827;
+    }
+    .info-card p {
+      margin: 0;
+      font-size: 0.85rem;
+      color: #6b7280;
+    }
+  </style>
+  <script>
+    function toggleForm(id, parentId) {
+      const el = document.getElementById(id);
+      if (el) {
+        const isVisible = el.style.display !== 'none';
+        el.style.display = isVisible ? 'none' : 'block';
+
+        if (!isVisible && parentId && id === 'create-term') {
+          const parentField = document.getElementById('parent_id');
+          const parentSelect = document.getElementById('parent_select');
+          if (parentField) parentField.value = parentId;
+          if (parentSelect) parentSelect.value = parentId;
+        }
+      }
+    }
+  </script>
+  <script src="/public/js/shortcuts.js"></script>
+  <script>Shortcuts.init({ context: 'global' });</script>
+</div>

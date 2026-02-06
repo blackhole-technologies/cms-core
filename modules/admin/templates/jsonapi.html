@@ -1,0 +1,269 @@
+{{> admin-header title="JSON:API Explorer"}}
+
+<div class="admin-content">
+  <div class="page-header">
+    <h1>JSON:API Explorer</h1>
+  </div>
+
+  <p class="description">
+    This CMS provides a <a href="https://jsonapi.org" target="_blank">JSON:API 1.1</a> compliant API 
+    for headless CMS usage. All content types are automatically exposed as resources.
+  </p>
+
+  <div class="api-info">
+    <h2>API Configuration</h2>
+    <dl class="config-list">
+      <dt>Base URL</dt>
+      <dd><code>{{basePath}}</code></dd>
+      
+      <dt>Default Page Limit</dt>
+      <dd>{{config.defaultPageLimit}}</dd>
+      
+      <dt>Max Page Limit</dt>
+      <dd>{{config.maxPageLimit}}</dd>
+      
+      <dt>Include Depth</dt>
+      <dd>{{config.includeDepth}}</dd>
+      
+      <dt>Anonymous Read</dt>
+      <dd>{{#if config.allowAnonymousRead}}Allowed{{else}}Requires Auth{{/if}}</dd>
+    </dl>
+  </div>
+
+  <div class="section">
+    <h2>Available Resources</h2>
+    <table class="data-table">
+      <thead>
+        <tr>
+          <th>Type</th>
+          <th>Collection URL</th>
+          <th>Actions</th>
+        </tr>
+      </thead>
+      <tbody>
+        {{#each types}}
+        <tr>
+          <td><code>{{type}}</code></td>
+          <td><code>{{../basePath}}/{{type}}</code></td>
+          <td>
+            <a href="{{../basePath}}/{{type}}" target="_blank" class="btn btn-sm">View JSON</a>
+          </td>
+        </tr>
+        {{/each}}
+      </tbody>
+    </table>
+  </div>
+
+  <div class="section">
+    <h2>API Reference</h2>
+    
+    <div class="endpoint-card">
+      <h3>List Resources</h3>
+      <code class="endpoint">GET {{basePath}}/{type}</code>
+      <p>Returns a paginated list of resources.</p>
+      <h4>Query Parameters</h4>
+      <table class="params-table">
+        <tr>
+          <td><code>page[offset]</code></td>
+          <td>Pagination offset (default: 0)</td>
+        </tr>
+        <tr>
+          <td><code>page[limit]</code></td>
+          <td>Items per page (default: 20, max: 100)</td>
+        </tr>
+        <tr>
+          <td><code>sort</code></td>
+          <td>Sort field, prefix with <code>-</code> for descending</td>
+        </tr>
+        <tr>
+          <td><code>filter[field]</code></td>
+          <td>Filter by field value</td>
+        </tr>
+        <tr>
+          <td><code>filter[field][op]</code></td>
+          <td>Filter with operator (eq, ne, gt, gte, lt, lte, contains)</td>
+        </tr>
+        <tr>
+          <td><code>include</code></td>
+          <td>Comma-separated relationships to include</td>
+        </tr>
+        <tr>
+          <td><code>fields[type]</code></td>
+          <td>Sparse fieldset - only return specified fields</td>
+        </tr>
+      </table>
+    </div>
+
+    <div class="endpoint-card">
+      <h3>Get Single Resource</h3>
+      <code class="endpoint">GET {{basePath}}/{type}/{id}</code>
+      <p>Returns a single resource by ID.</p>
+    </div>
+
+    <div class="endpoint-card">
+      <h3>Create Resource</h3>
+      <code class="endpoint">POST {{basePath}}/{type}</code>
+      <p>Creates a new resource. Request body must be a JSON:API document.</p>
+      <pre class="example">{
+  "data": {
+    "type": "article",
+    "attributes": {
+      "title": "My Article",
+      "body": "Content here..."
+    }
+  }
+}</pre>
+    </div>
+
+    <div class="endpoint-card">
+      <h3>Update Resource</h3>
+      <code class="endpoint">PATCH {{basePath}}/{type}/{id}</code>
+      <p>Updates an existing resource.</p>
+    </div>
+
+    <div class="endpoint-card">
+      <h3>Delete Resource</h3>
+      <code class="endpoint">DELETE {{basePath}}/{type}/{id}</code>
+      <p>Deletes a resource. Returns 204 No Content on success.</p>
+    </div>
+  </div>
+
+  <div class="section">
+    <h2>Example Requests</h2>
+    
+    <div class="example-card">
+      <h4>List with pagination and sorting</h4>
+      <code class="example-url">GET {{basePath}}/article?page[limit]=10&sort=-created</code>
+    </div>
+
+    <div class="example-card">
+      <h4>Filter by field</h4>
+      <code class="example-url">GET {{basePath}}/article?filter[status]=published</code>
+    </div>
+
+    <div class="example-card">
+      <h4>Include relationships</h4>
+      <code class="example-url">GET {{basePath}}/article/123?include=author,tags</code>
+    </div>
+
+    <div class="example-card">
+      <h4>Sparse fieldsets</h4>
+      <code class="example-url">GET {{basePath}}/article?fields[article]=title,created</code>
+    </div>
+  </div>
+</div>
+
+<style>
+.description {
+  color: #666;
+  margin-bottom: 2rem;
+}
+.description a {
+  color: #1976d2;
+}
+.api-info {
+  background: #e3f2fd;
+  padding: 1.5rem;
+  border-radius: 8px;
+  margin-bottom: 2rem;
+}
+.api-info h2 {
+  margin-top: 0;
+  color: #1565c0;
+}
+.config-list {
+  display: grid;
+  grid-template-columns: 150px 1fr;
+  gap: 0.5rem;
+  margin: 0;
+}
+.config-list dt {
+  font-weight: 600;
+}
+.config-list dd {
+  margin: 0;
+}
+.section {
+  margin-bottom: 3rem;
+}
+.section h2 {
+  margin-bottom: 1rem;
+  padding-bottom: 0.5rem;
+  border-bottom: 2px solid #1976d2;
+}
+.data-table {
+  width: 100%;
+  border-collapse: collapse;
+  background: white;
+}
+.data-table th,
+.data-table td {
+  padding: 0.75rem;
+  text-align: left;
+  border-bottom: 1px solid #ddd;
+}
+.data-table th {
+  background: #f5f5f5;
+  font-weight: 600;
+}
+.endpoint-card {
+  background: white;
+  border: 1px solid #ddd;
+  border-radius: 8px;
+  padding: 1.5rem;
+  margin-bottom: 1rem;
+}
+.endpoint-card h3 {
+  margin-top: 0;
+  margin-bottom: 0.5rem;
+}
+.endpoint {
+  display: block;
+  background: #263238;
+  color: #4caf50;
+  padding: 0.75rem 1rem;
+  border-radius: 4px;
+  margin-bottom: 1rem;
+  font-size: 0.875rem;
+}
+.endpoint-card h4 {
+  margin: 1rem 0 0.5rem;
+  font-size: 0.875rem;
+  color: #666;
+}
+.params-table {
+  width: 100%;
+  font-size: 0.875rem;
+}
+.params-table td {
+  padding: 0.5rem;
+  border-bottom: 1px solid #eee;
+}
+.params-table td:first-child {
+  width: 180px;
+}
+pre.example {
+  background: #f5f5f5;
+  padding: 1rem;
+  border-radius: 4px;
+  overflow-x: auto;
+  font-size: 0.875rem;
+}
+.example-card {
+  background: #f5f5f5;
+  padding: 1rem;
+  border-radius: 4px;
+  margin-bottom: 0.5rem;
+}
+.example-card h4 {
+  margin: 0 0 0.5rem;
+  font-size: 0.875rem;
+  color: #666;
+}
+.example-url {
+  font-size: 0.875rem;
+  word-break: break-all;
+}
+</style>
+
+{{> admin-footer}}

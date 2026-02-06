@@ -1,0 +1,15 @@
+{
+  "id": "minimal",
+  "name": "Minimal",
+  "description": "Clean and simple - maximum readability",
+  "version": "1.0.0",
+  "compatibleLayouts": ["immersive", "classic"],
+  "variables": "variables.css",
+  "overrides": "overrides.css",
+  "colors": {
+    "primary": "#333333",
+    "secondary": "#666666",
+    "background": "#ffffff",
+    "text": "#222222"
+  }
+}

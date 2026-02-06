@@ -1,0 +1,171 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{{#isNew}}Create{{/isNew}}{{^isNew}}Edit{{/isNew}} Content Type - Admin</title>
+</head>
+<body>
+    <div class="content-type-edit">
+        <header class="page-header">
+            <h1>{{#isNew}}Create Content Type{{/isNew}}{{^isNew}}Edit Content Type: {{contentType.label}}{{/isNew}}</h1>
+            <div class="actions">
+                <a href="/admin/content-types" class="btn btn-secondary">Back to List</a>
+            </div>
+        </header>
+
+        <form method="POST" action="{{formAction}}" class="content-type-form">
+            <input type="hidden" name="csrf_token" value="{{csrfToken}}">
+
+            <!-- Basic Information -->
+            <fieldset class="form-section">
+                <legend>Basic Information</legend>
+
+                {{#isNew}}
+                <div class="form-group">
+                    <label for="machine-name">Machine Name *</label>
+                    <input type="text" id="machine-name" name="machineName"
+                           value="{{contentType.machineName}}"
+                           pattern="[a-z][a-z0-9_]*"
+                           required
+                           placeholder="article">
+                    <small class="help-text">Lowercase letters, numbers, and underscores only. Cannot be changed after creation.</small>
+                    {{#errors.machineName}}
+                    <span class="error">{{errors.machineName}}</span>
+                    {{/errors.machineName}}
+                </div>
+                {{/isNew}}
+
+                {{^isNew}}
+                <div class="form-group">
+                    <label>Machine Name</label>
+                    <input type="text" value="{{contentType.machineName}}" disabled>
+                    <small class="help-text">Machine name cannot be changed.</small>
+                </div>
+                {{/isNew}}
+
+                <div class="form-group">
+                    <label for="label">Label *</label>
+                    <input type="text" id="label" name="label"
+                           value="{{contentType.label}}"
+                           required
+                           placeholder="Article">
+                    {{#errors.label}}
+                    <span class="error">{{errors.label}}</span>
+                    {{/errors.label}}
+                </div>
+
+                <div class="form-group">
+                    <label for="description">Description</label>
+                    <textarea id="description" name="description"
+                              rows="3"
+                              placeholder="A content type for blog articles and news posts">{{contentType.description}}</textarea>
+                    {{#errors.description}}
+                    <span class="error">{{errors.description}}</span>
+                    {{/errors.description}}
+                </div>
+
+                <div class="form-group">
+                    <label for="bundle">Bundle *</label>
+                    <select id="bundle" name="bundle" required>
+                        <option value="">Select a bundle</option>
+                        {{#bundles}}
+                        <option value="{{value}}" {{#selected}}selected{{/selected}}>{{label}}</option>
+                        {{/bundles}}
+                    </select>
+                    <small class="help-text">Group related content types together.</small>
+                    {{#errors.bundle}}
+                    <span class="error">{{errors.bundle}}</span>
+                    {{/errors.bundle}}
+                </div>
+            </fieldset>
+
+            <!-- Settings -->
+            <fieldset class="form-section">
+                <legend>Content Settings</legend>
+
+                <div class="form-group checkbox-group">
+                    <label>
+                        <input type="checkbox" name="publishable" value="1"
+                               {{#contentType.publishable}}checked{{/contentType.publishable}}>
+                        Publishable
+                    </label>
+                    <small class="help-text">Content can be published/unpublished.</small>
+                </div>
+
+                <div class="form-group checkbox-group">
+                    <label>
+                        <input type="checkbox" name="revisions" value="1"
+                               {{#contentType.revisions}}checked{{/contentType.revisions}}>
+                        Enable Revisions
+                    </label>
+                    <small class="help-text">Track content changes over time.</small>
+                </div>
+
+                <div class="form-group checkbox-group">
+                    <label>
+                        <input type="checkbox" name="preview" value="1"
+                               {{#contentType.preview}}checked{{/contentType.preview}}>
+                        Enable Preview
+                    </label>
+                    <small class="help-text">Allow previewing content before publishing.</small>
+                </div>
+            </fieldset>
+
+            <!-- Fields Preview (if editing existing) -->
+            {{^isNew}}
+            <fieldset class="form-section">
+                <legend>Fields</legend>
+                <p>
+                    This content type has <strong>{{fieldCount}}</strong> field(s).
+                    <a href="/admin/content-types/{{contentType.machineName}}/fields" class="btn btn-sm btn-secondary">Manage Fields</a>
+                </p>
+            </fieldset>
+            {{/isNew}}
+
+            <!-- Form Actions -->
+            <div class="form-actions">
+                <button type="submit" class="btn btn-primary">
+                    {{#isNew}}Create Content Type{{/isNew}}
+                    {{^isNew}}Save Changes{{/isNew}}
+                </button>
+                <a href="/admin/content-types" class="btn btn-secondary">Cancel</a>
+            </div>
+        </form>
+    </div>
+
+    <script>
+        // Auto-generate machine name from label (new types only)
+        {{#isNew}}
+        const labelInput = document.getElementById('label');
+        const machineNameInput = document.getElementById('machine-name');
+        let manuallyEdited = false;
+
+        machineNameInput.addEventListener('input', () => {
+            manuallyEdited = machineNameInput.value.length > 0;
+        });
+
+        labelInput.addEventListener('input', (e) => {
+            if (!manuallyEdited) {
+                const machineName = e.target.value
+                    .toLowerCase()
+                    .replace(/[^a-z0-9]+/g, '_')
+                    .replace(/^_+|_+$/g, '')
+                    .replace(/^([0-9])/, '_$1');
+                machineNameInput.value = machineName;
+            }
+        });
+        {{/isNew}}
+
+        // Form validation
+        document.querySelector('.content-type-form').addEventListener('submit', (e) => {
+            const machineNameInput = document.getElementById('machine-name');
+            if (machineNameInput && !/^[a-z][a-z0-9_]*$/.test(machineNameInput.value)) {
+                e.preventDefault();
+                alert('Machine name must start with a lowercase letter and contain only lowercase letters, numbers, and underscores.');
+                machineNameInput.focus();
+            }
+        });
+    </script>
+</body>
+</html>

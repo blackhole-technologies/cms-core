@@ -1,0 +1,471 @@
+<div class="admin-page">
+
+  <div class="admin-header">
+    <h1>{{pageTitle}}</h1>
+    <nav class="admin-nav">
+      <a href="/admin">Dashboard</a>
+      <a href="/admin/content">Content</a>
+      <a href="/admin/cron">Cron Tasks</a>
+    </nav>
+  </div>
+
+  <div class="breadcrumb">
+    <a href="/admin">Dashboard</a> &rarr;
+    <a href="/admin/cron">Cron Tasks</a> &rarr;
+    <span>Execution Logs</span>
+  </div>
+
+  {{#if hasFlash}}
+  <div class="flash flash-{{flash.type}}">
+    {{flash.message}}
+  </div>
+  {{/if}}
+
+  <!-- Filter Section -->
+  <div class="admin-section">
+    <h2>Filters</h2>
+    <form method="GET" action="/admin/cron/logs" class="filter-form">
+      <div class="form-grid">
+        <div class="form-group">
+          <label for="task">Task</label>
+          <select name="task" id="task" class="form-control">
+            <option value="">All Tasks</option>
+            {{#each availableTasks}}
+            <option value="{{id}}" {{#if (eq ../filters.task id)}}selected{{/if}}>
+              {{name}}
+            </option>
+            {{/each}}
+          </select>
+        </div>
+
+        <div class="form-group">
+          <label for="status">Status</label>
+          <select name="status" id="status" class="form-control">
+            <option value="">All Statuses</option>
+            <option value="success" {{#if (eq filters.status 'success')}}selected{{/if}}>Success</option>
+            <option value="failed" {{#if (eq filters.status 'failed')}}selected{{/if}}>Failed</option>
+            <option value="timeout" {{#if (eq filters.status 'timeout')}}selected{{/if}}>Timeout</option>
+          </select>
+        </div>
+
+        <div class="form-group">
+          <label for="dateFrom">From Date</label>
+          <input type="date" name="dateFrom" id="dateFrom" class="form-control" value="{{filters.dateFrom}}">
+        </div>
+
+        <div class="form-group">
+          <label for="dateTo">To Date</label>
+          <input type="date" name="dateTo" id="dateTo" class="form-control" value="{{filters.dateTo}}">
+        </div>
+      </div>
+
+      <div class="filter-actions">
+        <button type="submit" class="btn btn-primary">Apply Filters</button>
+        <a href="/admin/cron/logs" class="btn btn-secondary">Clear Filters</a>
+        {{#if hasLogs}}
+        <form method="POST" action="/admin/cron/logs/clear" class="inline-form" style="margin-left: auto;">
+          {{csrfField}}
+          <input type="hidden" name="olderThan" value="30">
+          <button type="submit" class="btn btn-warning" onclick="return confirm('Clear logs older than 30 days?')">
+            Clear Old Logs
+          </button>
+        </form>
+        {{/if}}
+      </div>
+    </form>
+  </div>
+
+  <!-- Summary Stats -->
+  {{#if hasLogs}}
+  <div class="stats-grid">
+    <div class="stat-card">
+      <div class="stat-value">{{stats.total}}</div>
+      <div class="stat-label">Total Runs</div>
+    </div>
+    <div class="stat-card stat-success">
+      <div class="stat-value">{{stats.successful}}</div>
+      <div class="stat-label">Successful</div>
+    </div>
+    <div class="stat-card stat-error">
+      <div class="stat-value">{{stats.failed}}</div>
+      <div class="stat-label">Failed</div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-value">{{stats.avgDuration}}s</div>
+      <div class="stat-label">Avg Duration</div>
+    </div>
+  </div>
+  {{/if}}
+
+  <!-- Logs Table -->
+  <div class="admin-section">
+    <div class="section-header">
+      <h2>Execution History</h2>
+      {{#if hasLogs}}
+      <span class="result-count">Showing {{logs.length}} of {{stats.total}} runs</span>
+      {{/if}}
+    </div>
+
+    {{#if hasLogs}}
+    <div class="logs-container">
+      {{#each logs}}
+      <div class="log-entry log-{{status}}">
+        <div class="log-header">
+          <div class="log-task">
+            <span class="task-name">{{taskName}}</span>
+            <span class="module-badge">{{module}}</span>
+          </div>
+          <div class="log-meta">
+            <span class="log-time">{{startedFormatted}}</span>
+            <span class="status-badge status-{{status}}">{{status}}</span>
+          </div>
+        </div>
+
+        <div class="log-summary">
+          <div class="log-stat">
+            <span class="stat-label">Duration:</span>
+            <span class="stat-value">{{duration}}s</span>
+          </div>
+          {{#if itemsProcessed}}
+          <div class="log-stat">
+            <span class="stat-label">Items Processed:</span>
+            <span class="stat-value">{{itemsProcessed}}</span>
+          </div>
+          {{/if}}
+          {{#if memoryUsed}}
+          <div class="log-stat">
+            <span class="stat-label">Memory:</span>
+            <span class="stat-value">{{memoryUsed}}</span>
+          </div>
+          {{/if}}
+          <div class="log-stat">
+            <span class="stat-label">Trigger:</span>
+            <span class="stat-value">{{trigger}}</span>
+          </div>
+        </div>
+
+        {{#if error}}
+        <div class="log-error">
+          <strong>Error:</strong> {{error}}
+          {{#if errorStack}}
+          <details class="error-stack">
+            <summary>Stack Trace</summary>
+            <pre>{{errorStack}}</pre>
+          </details>
+          {{/if}}
+        </div>
+        {{/if}}
+
+        {{#if output}}
+        <details class="log-details">
+          <summary>Output ({{output.length}} lines)</summary>
+          <pre class="log-output">{{output}}</pre>
+        </details>
+        {{/if}}
+
+        {{#if hasMetrics}}
+        <details class="log-details">
+          <summary>Metrics</summary>
+          <div class="metrics-grid">
+            {{#each metrics}}
+            <div class="metric-item">
+              <span class="metric-label">{{label}}:</span>
+              <span class="metric-value">{{value}}</span>
+            </div>
+            {{/each}}
+          </div>
+        </details>
+        {{/if}}
+      </div>
+      {{/each}}
+    </div>
+
+    <!-- Pagination -->
+    {{#if pagination.hasPages}}
+    <div class="pagination">
+      {{#if pagination.hasPrev}}
+      <a href="?page={{pagination.prevPage}}{{filters.queryString}}" class="btn btn-small">Previous</a>
+      {{/if}}
+
+      <span class="page-info">
+        Page {{pagination.currentPage}} of {{pagination.totalPages}}
+      </span>
+
+      {{#if pagination.hasNext}}
+      <a href="?page={{pagination.nextPage}}{{filters.queryString}}" class="btn btn-small">Next</a>
+      {{/if}}
+    </div>
+    {{/if}}
+
+    {{else}}
+    <div class="empty-state">
+      <p>No execution logs found.</p>
+      {{#if hasFilters}}
+      <p class="text-muted">Try adjusting your filters or <a href="/admin/cron/logs">clear all filters</a>.</p>
+      {{else}}
+      <p class="text-muted">Cron tasks have not run yet.</p>
+      {{/if}}
+    </div>
+    {{/if}}
+  </div>
+</div>
+
+<style>
+  .filter-form {
+    background: #f8f9fa;
+    padding: 1.5rem;
+    border-radius: 8px;
+    border: 1px solid #dee2e6;
+  }
+  .form-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+    gap: 1rem;
+    margin-bottom: 1rem;
+  }
+  .form-group {
+    display: flex;
+    flex-direction: column;
+  }
+  .form-group label {
+    font-weight: 500;
+    margin-bottom: 0.25rem;
+    font-size: 0.875rem;
+  }
+  .form-control {
+    padding: 0.5rem;
+    border: 1px solid #ced4da;
+    border-radius: 4px;
+    font-size: 0.875rem;
+  }
+  .filter-actions {
+    display: flex;
+    gap: 0.5rem;
+    align-items: center;
+  }
+  .stats-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+    gap: 1rem;
+    margin-bottom: 1.5rem;
+  }
+  .stat-card {
+    background: #f8f9fa;
+    padding: 1.5rem;
+    border-radius: 8px;
+    text-align: center;
+    border: 1px solid #dee2e6;
+  }
+  .stat-card.stat-success {
+    background: #d4edda;
+    border-color: #c3e6cb;
+  }
+  .stat-card.stat-error {
+    background: #f8d7da;
+    border-color: #f5c6cb;
+  }
+  .stat-value {
+    font-size: 2rem;
+    font-weight: bold;
+    color: #212529;
+  }
+  .stat-label {
+    color: #6c757d;
+    font-size: 0.875rem;
+    margin-top: 0.25rem;
+  }
+  .section-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 1rem;
+  }
+  .result-count {
+    color: #6c757d;
+    font-size: 0.875rem;
+  }
+  .logs-container {
+    display: flex;
+    flex-direction: column;
+    gap: 1rem;
+  }
+  .log-entry {
+    background: white;
+    border: 1px solid #dee2e6;
+    border-radius: 8px;
+    padding: 1rem;
+  }
+  .log-entry.log-failed {
+    border-color: #dc3545;
+    background: #fff8f8;
+  }
+  .log-entry.log-timeout {
+    border-color: #ffc107;
+    background: #fffdf0;
+  }
+  .log-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    margin-bottom: 0.75rem;
+    padding-bottom: 0.75rem;
+    border-bottom: 1px solid #e9ecef;
+  }
+  .log-task {
+    display: flex;
+    gap: 0.5rem;
+    align-items: center;
+  }
+  .task-name {
+    font-weight: 500;
+    font-size: 1rem;
+  }
+  .module-badge {
+    display: inline-block;
+    padding: 0.25rem 0.5rem;
+    background: #e9ecef;
+    border-radius: 4px;
+    font-size: 0.75rem;
+    font-weight: 500;
+  }
+  .log-meta {
+    display: flex;
+    gap: 0.5rem;
+    align-items: center;
+  }
+  .log-time {
+    color: #6c757d;
+    font-size: 0.875rem;
+  }
+  .status-badge {
+    display: inline-block;
+    padding: 0.25rem 0.5rem;
+    border-radius: 4px;
+    font-size: 0.75rem;
+    font-weight: 500;
+  }
+  .status-success {
+    background: #28a745;
+    color: white;
+  }
+  .status-failed {
+    background: #dc3545;
+    color: white;
+  }
+  .status-timeout {
+    background: #ffc107;
+    color: #212529;
+  }
+  .log-summary {
+    display: flex;
+    gap: 1.5rem;
+    flex-wrap: wrap;
+    margin-bottom: 0.75rem;
+  }
+  .log-stat {
+    display: flex;
+    gap: 0.5rem;
+    font-size: 0.875rem;
+  }
+  .log-stat .stat-label {
+    color: #6c757d;
+  }
+  .log-stat .stat-value {
+    font-weight: 500;
+  }
+  .log-error {
+    background: #f8d7da;
+    border: 1px solid #f5c6cb;
+    border-radius: 4px;
+    padding: 0.75rem;
+    margin-bottom: 0.75rem;
+    color: #721c24;
+    font-size: 0.875rem;
+  }
+  .error-stack {
+    margin-top: 0.5rem;
+  }
+  .error-stack summary {
+    cursor: pointer;
+    color: #0d6efd;
+    font-size: 0.875rem;
+  }
+  .error-stack pre {
+    background: #212529;
+    color: #f8f9fa;
+    padding: 0.75rem;
+    border-radius: 4px;
+    overflow-x: auto;
+    margin-top: 0.5rem;
+    font-size: 0.75rem;
+  }
+  .log-details {
+    margin-top: 0.5rem;
+  }
+  .log-details summary {
+    cursor: pointer;
+    color: #0d6efd;
+    font-size: 0.875rem;
+    padding: 0.5rem;
+    background: #f8f9fa;
+    border-radius: 4px;
+  }
+  .log-details summary:hover {
+    background: #e9ecef;
+  }
+  .log-output {
+    background: #212529;
+    color: #f8f9fa;
+    padding: 1rem;
+    border-radius: 4px;
+    overflow-x: auto;
+    margin-top: 0.5rem;
+    font-size: 0.75rem;
+    font-family: monospace;
+  }
+  .metrics-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+    gap: 0.75rem;
+    padding: 1rem;
+    background: #f8f9fa;
+    border-radius: 4px;
+    margin-top: 0.5rem;
+  }
+  .metric-item {
+    display: flex;
+    gap: 0.5rem;
+    font-size: 0.875rem;
+  }
+  .metric-label {
+    color: #6c757d;
+  }
+  .metric-value {
+    font-weight: 500;
+  }
+  .pagination {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    gap: 1rem;
+    margin-top: 1.5rem;
+    padding-top: 1.5rem;
+    border-top: 1px solid #dee2e6;
+  }
+  .page-info {
+    color: #6c757d;
+    font-size: 0.875rem;
+  }
+  .inline-form {
+    display: inline;
+  }
+  .empty-state {
+    padding: 3rem;
+    text-align: center;
+    background: #f8f9fa;
+    border-radius: 8px;
+  }
+  .text-muted {
+    color: #6c757d;
+  }
+</style>

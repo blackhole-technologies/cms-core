@@ -1,0 +1,314 @@
+<div class="admin-page">
+
+  <div class="admin-header">
+    <h1>{{pageTitle}}</h1>
+    <nav class="admin-nav">
+      <a href="/admin">Dashboard</a>
+      <a href="/admin/content">Content</a>
+      <a href="/admin/feeds">Feeds</a>
+      <a href="/admin/seo" class="active">SEO</a>
+    </nav>
+  </div>
+
+  {{#if hasFlash}}
+  <div class="flash flash-{{flash.type}}">
+    {{flash.message}}
+  </div>
+  {{/if}}
+
+  <div class="breadcrumb">
+    <a href="/admin">Dashboard</a> &rarr;
+    <a href="/admin/seo">SEO</a> &rarr;
+    <span>Audit Results</span>
+  </div>
+
+  <div class="admin-section">
+    <div class="section-header-row">
+      <h2>Audit Summary</h2>
+    </div>
+
+    <div class="stats-grid">
+      <div class="stat-card">
+        <span class="stat-value">{{audit.summary.total}}</span>
+        <span class="stat-label">Total Checked</span>
+      </div>
+      <div class="stat-card stat-success">
+        <span class="stat-value">{{audit.summary.passed}}</span>
+        <span class="stat-label">Passed</span>
+      </div>
+      <div class="stat-card stat-warning">
+        <span class="stat-value">{{audit.warnings.length}}</span>
+        <span class="stat-label">Warnings</span>
+      </div>
+      <div class="stat-card stat-error">
+        <span class="stat-value">{{audit.errors.length}}</span>
+        <span class="stat-label">Errors</span>
+      </div>
+    </div>
+  </div>
+
+  <div class="admin-section">
+    <div class="section-header-row">
+      <h2>Filters</h2>
+    </div>
+
+    <div class="filter-bar">
+      <a href="/admin/seo/audit" class="filter-btn {{#unless filterSeverity}}active{{/unless}}">All</a>
+      <a href="/admin/seo/audit?severity=error" class="filter-btn filter-error {{#if (eq filterSeverity 'error')}}active{{/if}}">Errors ({{audit.errors.length}})</a>
+      <a href="/admin/seo/audit?severity=warning" class="filter-btn filter-warning {{#if (eq filterSeverity 'warning')}}active{{/if}}">Warnings ({{audit.warnings.length}})</a>
+      <a href="/admin/seo/audit?severity=info" class="filter-btn filter-info {{#if (eq filterSeverity 'info')}}active{{/if}}">Info ({{audit.info.length}})</a>
+    </div>
+  </div>
+
+  <div class="admin-section">
+    <div class="section-header-row">
+      <h2>Issues ({{issues.length}})</h2>
+    </div>
+
+    {{#if issues.length}}
+    <table class="data-table">
+      <thead>
+        <tr>
+          <th>Severity</th>
+          <th>Type</th>
+          <th>ID</th>
+          <th>Field</th>
+          <th>Issue</th>
+          <th>Suggestion</th>
+          <th>Action</th>
+        </tr>
+      </thead>
+      <tbody>
+        {{#each issues}}
+        <tr class="issue-row issue-{{severity}}">
+          <td>
+            <span class="severity-badge severity-{{severity}}">
+              {{#if (eq severity 'error')}}Error{{/if}}
+              {{#if (eq severity 'warning')}}Warning{{/if}}
+              {{#if (eq severity 'info')}}Info{{/if}}
+            </span>
+          </td>
+          <td>{{type}}</td>
+          <td><code>{{id}}</code></td>
+          <td>{{field}}</td>
+          <td>{{message}}</td>
+          <td class="suggestion">{{suggestion}}</td>
+          <td>
+            <a href="/admin/content/{{type}}/{{id}}" class="btn btn-sm">Edit</a>
+          </td>
+        </tr>
+        {{/each}}
+      </tbody>
+    </table>
+    {{else}}
+    <p class="empty-message">No issues found matching your filters.</p>
+    {{/if}}
+  </div>
+
+  <div class="admin-section">
+    <h2>SEO Best Practices</h2>
+    <div class="practices-grid">
+      <div class="practice-card">
+        <h3>Title Tags</h3>
+        <p>Keep titles under 60 characters for optimal display in search results.</p>
+      </div>
+      <div class="practice-card">
+        <h3>Meta Descriptions</h3>
+        <p>Write compelling descriptions under 160 characters to improve click-through rates.</p>
+      </div>
+      <div class="practice-card">
+        <h3>URL Slugs</h3>
+        <p>Use descriptive, keyword-rich slugs separated by hyphens.</p>
+      </div>
+      <div class="practice-card">
+        <h3>Image Alt Text</h3>
+        <p>Add descriptive alt attributes to all images for accessibility and SEO.</p>
+      </div>
+      <div class="practice-card">
+        <h3>Heading Structure</h3>
+        <p>Use one H1 per page and structure headings hierarchically (H1 > H2 > H3).</p>
+      </div>
+      <div class="practice-card">
+        <h3>Content Length</h3>
+        <p>Aim for comprehensive content. Longer, quality content often ranks better.</p>
+      </div>
+    </div>
+  </div>
+
+  <style>
+    .section-header-row {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 1rem;
+    }
+    .section-header-row h2 {
+      margin: 0;
+    }
+    .stats-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+      gap: 1rem;
+      margin-bottom: 1rem;
+    }
+    .stat-card {
+      background: #f9fafb;
+      border: 1px solid #e5e7eb;
+      border-radius: 8px;
+      padding: 1rem;
+      text-align: center;
+    }
+    .stat-card.stat-success {
+      border-color: #86efac;
+      background: #f0fdf4;
+    }
+    .stat-card.stat-warning {
+      border-color: #fcd34d;
+      background: #fefce8;
+    }
+    .stat-card.stat-error {
+      border-color: #fca5a5;
+      background: #fef2f2;
+    }
+    .stat-value {
+      display: block;
+      font-size: 1.75rem;
+      font-weight: 600;
+      color: #111827;
+    }
+    .stat-label {
+      font-size: 0.8rem;
+      color: #6b7280;
+    }
+    .filter-bar {
+      display: flex;
+      gap: 0.5rem;
+      flex-wrap: wrap;
+    }
+    .filter-btn {
+      padding: 0.5rem 1rem;
+      border-radius: 4px;
+      text-decoration: none;
+      font-size: 0.85rem;
+      background: #f3f4f6;
+      color: #374151;
+    }
+    .filter-btn:hover {
+      background: #e5e7eb;
+    }
+    .filter-btn.active {
+      background: #2563eb;
+      color: white;
+    }
+    .filter-error.active {
+      background: #dc2626;
+    }
+    .filter-warning.active {
+      background: #d97706;
+    }
+    .filter-info.active {
+      background: #0284c7;
+    }
+    .data-table {
+      width: 100%;
+      border-collapse: collapse;
+    }
+    .data-table th,
+    .data-table td {
+      padding: 0.75rem;
+      text-align: left;
+      border-bottom: 1px solid #e5e7eb;
+      font-size: 0.85rem;
+    }
+    .data-table th {
+      background: #f9fafb;
+      font-weight: 500;
+      text-transform: uppercase;
+      color: #6b7280;
+      font-size: 0.75rem;
+    }
+    .issue-row.issue-error {
+      background: #fef2f2;
+    }
+    .issue-row.issue-warning {
+      background: #fefce8;
+    }
+    .issue-row.issue-info {
+      background: #f0f9ff;
+    }
+    .severity-badge {
+      display: inline-block;
+      padding: 0.25rem 0.5rem;
+      border-radius: 4px;
+      font-size: 0.7rem;
+      font-weight: 600;
+      text-transform: uppercase;
+    }
+    .severity-error {
+      background: #fee2e2;
+      color: #dc2626;
+    }
+    .severity-warning {
+      background: #fef3c7;
+      color: #d97706;
+    }
+    .severity-info {
+      background: #dbeafe;
+      color: #2563eb;
+    }
+    .suggestion {
+      color: #6b7280;
+      font-style: italic;
+    }
+    .empty-message {
+      text-align: center;
+      padding: 2rem;
+      color: #6b7280;
+      font-style: italic;
+    }
+    .practices-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+      gap: 1rem;
+    }
+    .practice-card {
+      background: #f9fafb;
+      border: 1px solid #e5e7eb;
+      border-radius: 8px;
+      padding: 1rem;
+    }
+    .practice-card h3 {
+      margin: 0 0 0.5rem 0;
+      font-size: 1rem;
+      color: #111827;
+    }
+    .practice-card p {
+      margin: 0;
+      font-size: 0.85rem;
+      color: #6b7280;
+    }
+    .btn {
+      display: inline-block;
+      padding: 0.25rem 0.5rem;
+      border: none;
+      border-radius: 4px;
+      font-size: 0.8rem;
+      cursor: pointer;
+      text-decoration: none;
+      background: #e5e7eb;
+      color: #374151;
+    }
+    .btn:hover {
+      background: #d1d5db;
+    }
+    code {
+      font-family: monospace;
+      font-size: 0.8rem;
+      background: #e5e7eb;
+      padding: 0.125rem 0.25rem;
+      border-radius: 2px;
+    }
+  </style>
+  <script src="/public/js/shortcuts.js"></script>
+  <script>Shortcuts.init({ context: 'global' });</script>
+</div>

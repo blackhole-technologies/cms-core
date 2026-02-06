@@ -1,0 +1,128 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Execute Action - CMS Admin</title>
+</head>
+<body>
+    <div class="admin-content">
+        <header class="page-header">
+            <h1>Execute Action</h1>
+        </header>
+
+        <div class="action-execute-container">
+            <!-- Selected Items Summary -->
+            <section class="summary-section">
+                <h2>Selected Items</h2>
+                <div class="items-count">
+                    <span class="count-number">{{itemsCount}}</span>
+                    <span class="count-label">{{#plural}}items{{/plural}}{{^plural}}item{{/plural}} selected</span>
+                </div>
+                <div class="items-list">
+                    {{#items}}
+                    <div class="item-card">
+                        <span class="item-type">{{type}}</span>
+                        <span class="item-name">{{name}}</span>
+                    </div>
+                    {{/items}}
+                </div>
+            </section>
+
+            <!-- Action Details -->
+            <section class="action-section">
+                <h2>Action</h2>
+                <div class="action-details">
+                    <div class="action-name">{{action.name}}</div>
+                    {{#action.description}}
+                    <div class="action-description">{{action.description}}</div>
+                    {{/action.description}}
+                </div>
+
+                <!-- Action Settings -->
+                {{#action.settings}}
+                <div class="action-settings">
+                    <h3>Settings</h3>
+                    {{#fields}}
+                    <div class="form-group">
+                        <label for="setting-{{key}}">{{label}}</label>
+                        {{#isSelect}}
+                        <select id="setting-{{key}}" name="{{key}}">
+                            {{#options}}
+                            <option value="{{value}}" {{#selected}}selected{{/selected}}>{{label}}</option>
+                            {{/options}}
+                        </select>
+                        {{/isSelect}}
+                        {{#isTextarea}}
+                        <textarea id="setting-{{key}}" name="{{key}}" rows="4">{{value}}</textarea>
+                        {{/isTextarea}}
+                        {{^isSelect}}{{^isTextarea}}
+                        <input type="text" id="setting-{{key}}" name="{{key}}" value="{{value}}">
+                        {{/isTextarea}}{{/isSelect}}
+                    </div>
+                    {{/fields}}
+                </div>
+                {{/action.settings}}
+            </section>
+
+            <!-- Progress/Status -->
+            <section class="progress-section">
+                {{#inProgress}}
+                <div class="progress-indicator">
+                    <h3>Processing...</h3>
+                    <div class="progress-bar">
+                        <div class="progress-fill" style="width: {{progressPercent}}%"></div>
+                    </div>
+                    <div class="progress-stats">
+                        <span>{{processedCount}} of {{totalCount}} items</span>
+                        {{#estimatedTime}}
+                        <span class="eta">~{{estimatedTime}} remaining</span>
+                        {{/estimatedTime}}
+                    </div>
+                </div>
+                {{/inProgress}}
+
+                {{#completed}}
+                <div class="results-section">
+                    <h3>Results</h3>
+                    <div class="results-summary {{status}}">
+                        <span class="icon-{{status}}"></span>
+                        <div class="summary-text">
+                            <strong>{{successCount}}</strong> {{#pluralSuccess}}items{{/pluralSuccess}}{{^pluralSuccess}}item{{/pluralSuccess}} processed successfully
+                            {{#failureCount}}
+                            <br><strong>{{failureCount}}</strong> {{#pluralFailure}}items{{/pluralFailure}}{{^pluralFailure}}item{{/pluralFailure}} failed
+                            {{/failureCount}}
+                        </div>
+                    </div>
+
+                    {{#failures}}
+                    <div class="failures-list">
+                        <h4>Failed Items</h4>
+                        {{#items}}
+                        <div class="failure-item">
+                            <span class="item-name">{{name}}</span>
+                            <span class="error-message">{{error}}</span>
+                        </div>
+                        {{/items}}
+                    </div>
+                    {{/failures}}
+                </div>
+                {{/completed}}
+            </section>
+
+            <!-- Actions -->
+            <div class="action-buttons">
+                {{^inProgress}}
+                {{^completed}}
+                <button class="btn btn-secondary" data-action="cancel">Cancel</button>
+                <button class="btn btn-primary" data-action="execute">Execute Action</button>
+                {{/completed}}
+                {{#completed}}
+                <button class="btn btn-primary" data-action="done">Done</button>
+                {{/completed}}
+                {{/inProgress}}
+            </div>
+        </div>
+    </div>
+</body>
+</html>

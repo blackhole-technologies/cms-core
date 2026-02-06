@@ -1,0 +1,20 @@
+{
+  "id": "1770205337100-z5z12",
+  "type": "menu-item",
+  "created": "2026-02-04T11:42:17.100Z",
+  "updated": "2026-02-04T11:42:17.100Z",
+  "menuId": "main",
+  "title": "Home",
+  "itemType": "internal",
+  "link": "/",
+  "parentId": null,
+  "weight": 0,
+  "depth": 0,
+  "classes": [],
+  "attributes": {},
+  "enabled": true,
+  "expanded": false,
+  "roles": [],
+  "permissions": [],
+  "status": "draft"
+}

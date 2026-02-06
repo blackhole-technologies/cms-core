@@ -1,0 +1,20 @@
+{
+  "id": "1770205341380-48orx",
+  "type": "menu-item",
+  "created": "2026-02-04T11:42:21.380Z",
+  "updated": "2026-02-04T11:42:21.380Z",
+  "menuId": "main",
+  "title": "About",
+  "itemType": "internal",
+  "link": "/about",
+  "parentId": null,
+  "weight": 1,
+  "depth": 0,
+  "classes": [],
+  "attributes": {},
+  "enabled": true,
+  "expanded": false,
+  "roles": [],
+  "permissions": [],
+  "status": "draft"
+}

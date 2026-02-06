@@ -1,0 +1,12 @@
+/* Admin High Contrast Skin */
+:root {
+  --admin-bg: #000000;
+  --admin-surface: #000000;
+  --admin-border: #ffffff;
+  --admin-text: #ffffff;
+  --admin-text-dim: #ffff00;
+  --admin-primary: #00ffff;
+  --admin-success: #00ff00;
+  --admin-warning: #ffff00;
+  --admin-error: #ff0000;
+}

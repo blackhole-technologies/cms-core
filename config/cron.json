@@ -1,0 +1,7 @@
+{
+  "tasks": {},
+  "settings": {
+    "maxConcurrent": 3,
+    "logRetention": 30
+  }
+}

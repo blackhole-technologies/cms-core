@@ -1,0 +1,241 @@
+<div class="admin-page">
+
+  <div class="admin-header">
+    <h1>{{pageTitle}}</h1>
+    <nav class="admin-nav">
+      <a href="/admin">Dashboard</a>
+      <a href="/admin/content">Content</a>
+      <a href="/admin/activity" class="active">Activity</a>
+    </nav>
+  </div>
+
+  {{#if hasFlash}}
+  <div class="flash flash-{{flash.type}}">
+    {{flash.message}}
+  </div>
+  {{/if}}
+
+  <div class="breadcrumb">
+    <a href="/admin">Dashboard</a> &rarr;
+    {{#if isUserView}}
+    <a href="/admin/activity">Activity</a> &rarr;
+    <span>{{userId}}</span>
+    {{else}}
+    <span>Activity Feed</span>
+    {{/if}}
+  </div>
+
+  {{#unless isUserView}}
+  <div class="admin-section stats-summary">
+    <h3>Last 7 Days</h3>
+    <div class="stats-row">
+      <div class="stat-mini">
+        <span class="stat-value">{{stats.totalWeek}}</span>
+        <span class="stat-label">Total Activities</span>
+      </div>
+      {{#each stats.topActions}}
+      <div class="stat-mini">
+        <span class="stat-value">{{count}}</span>
+        <span class="stat-label">{{action}}</span>
+      </div>
+      {{/each}}
+    </div>
+  </div>
+  {{/unless}}
+
+  <div class="admin-section">
+    {{#if hasActivities}}
+    <div class="activity-feed">
+      {{#each activities}}
+      <div class="activity-entry">
+        <div class="activity-icon-wrap">
+          <span class="activity-dot {{iconClass}}"></span>
+        </div>
+        <div class="activity-content">
+          <div class="activity-main">
+            <a href="/admin/activity/user/{{actor.id}}" class="activity-actor">{{actor.username}}</a>
+            <span class="activity-action">{{label}}</span>
+            {{#if target}}
+            <a href="{{targetUrl}}" class="activity-target">
+              {{target.title}}
+            </a>
+            <span class="activity-type-badge">{{target.type}}</span>
+            {{/if}}
+            {{#if countDisplay}}
+            <span class="activity-count">{{countDisplay}}</span>
+            {{/if}}
+          </div>
+          <div class="activity-meta">
+            <span class="activity-time">{{relativeTime}}</span>
+            {{#if data.fields}}
+            <span class="activity-fields">Changed: {{data.fields}}</span>
+            {{/if}}
+          </div>
+        </div>
+      </div>
+      {{/each}}
+    </div>
+
+    <div class="pagination">
+      {{#if hasPrevPage}}
+      <a href="?page={{prevPage}}{{#if actionFilter}}&action={{actionFilter}}{{/if}}{{#if userFilter}}&user={{userFilter}}{{/if}}" class="btn btn-small">&larr; Newer</a>
+      {{/if}}
+      <span class="page-info">Page {{page}} of {{totalPages}} ({{total}} total)</span>
+      {{#if hasNextPage}}
+      <a href="?page={{nextPage}}{{#if actionFilter}}&action={{actionFilter}}{{/if}}{{#if userFilter}}&user={{userFilter}}{{/if}}" class="btn btn-small">Older &rarr;</a>
+      {{/if}}
+    </div>
+    {{else}}
+    <div class="empty-state">
+      <p>No activity recorded yet.</p>
+      <p class="hint">Activity will appear here as you create, update, and manage content.</p>
+    </div>
+    {{/if}}
+  </div>
+
+  <style>
+    .stats-summary {
+      background: #f8fafc;
+      border-radius: 8px;
+      padding: 1rem;
+      margin-bottom: 1.5rem;
+    }
+    .stats-summary h3 {
+      margin: 0 0 0.75rem 0;
+      font-size: 0.9rem;
+      color: #64748b;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+    }
+    .stats-row {
+      display: flex;
+      gap: 2rem;
+      flex-wrap: wrap;
+    }
+    .stat-mini {
+      display: flex;
+      flex-direction: column;
+    }
+    .stat-mini .stat-value {
+      font-size: 1.5rem;
+      font-weight: 600;
+      color: #0f172a;
+    }
+    .stat-mini .stat-label {
+      font-size: 0.75rem;
+      color: #64748b;
+      text-transform: capitalize;
+    }
+
+    .activity-feed {
+      display: flex;
+      flex-direction: column;
+    }
+    .activity-entry {
+      display: flex;
+      gap: 1rem;
+      padding: 1rem 0;
+      border-bottom: 1px solid #e2e8f0;
+    }
+    .activity-entry:last-child {
+      border-bottom: none;
+    }
+    .activity-icon-wrap {
+      flex-shrink: 0;
+      width: 24px;
+      display: flex;
+      justify-content: center;
+    }
+    .activity-dot {
+      width: 10px;
+      height: 10px;
+      border-radius: 50%;
+      background: #94a3b8;
+      margin-top: 6px;
+    }
+    .activity-dot.icon-plus { background: #22c55e; }
+    .activity-dot.icon-edit { background: #f59e0b; }
+    .activity-dot.icon-trash { background: #ef4444; }
+    .activity-dot.icon-check { background: #3b82f6; }
+    .activity-dot.icon-upload { background: #8b5cf6; }
+    .activity-dot.icon-login { background: #06b6d4; }
+
+    .activity-content {
+      flex: 1;
+    }
+    .activity-main {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      gap: 0.375rem;
+      line-height: 1.5;
+    }
+    .activity-actor {
+      font-weight: 600;
+      color: #0f172a;
+      text-decoration: none;
+    }
+    .activity-actor:hover {
+      text-decoration: underline;
+    }
+    .activity-action {
+      color: #64748b;
+    }
+    .activity-target {
+      color: #0284c7;
+      text-decoration: none;
+      font-weight: 500;
+    }
+    .activity-target:hover {
+      text-decoration: underline;
+    }
+    .activity-type-badge {
+      font-size: 0.7rem;
+      padding: 0.125rem 0.375rem;
+      background: #e2e8f0;
+      color: #475569;
+      border-radius: 3px;
+    }
+    .activity-count {
+      color: #94a3b8;
+      font-size: 0.85rem;
+    }
+    .activity-meta {
+      margin-top: 0.25rem;
+      font-size: 0.8rem;
+      color: #94a3b8;
+    }
+    .activity-time {
+      margin-right: 1rem;
+    }
+    .activity-fields {
+      color: #64748b;
+    }
+
+    .pagination {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 1rem;
+      margin-top: 1.5rem;
+      padding-top: 1rem;
+      border-top: 1px solid #e2e8f0;
+    }
+    .page-info {
+      color: #64748b;
+      font-size: 0.9rem;
+    }
+
+    .empty-state {
+      text-align: center;
+      padding: 3rem;
+      color: #64748b;
+    }
+    .empty-state .hint {
+      font-size: 0.85rem;
+      margin-top: 0.5rem;
+    }
+  </style>
+  <script src="/public/js/shortcuts.js"></script>
+  <script>Shortcuts.init({ context: 'global' });</script>
+</div>

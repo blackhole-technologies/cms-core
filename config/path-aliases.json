@@ -1,0 +1,18 @@
+{
+  "patterns": {
+    "page": {
+      "pattern": "/[title]",
+      "enabled": true
+    },
+    "article": {
+      "pattern": "/blog/[date:Y]/[date:m]/[title]",
+      "enabled": true
+    },
+    "product": {
+      "pattern": "/products/[title]",
+      "enabled": true
+    }
+  },
+  "aliases": {},
+  "redirects": {}
+}

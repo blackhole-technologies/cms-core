@@ -1,0 +1,374 @@
+<div class="admin-page">
+
+  <div class="admin-header">
+    <h1>{{pageTitle}}</h1>
+    <nav class="admin-nav">
+      <a href="/admin">Dashboard</a>
+      <a href="/admin/content">Content</a>
+      <a href="/admin/cron" class="active">Cron Tasks</a>
+    </nav>
+  </div>
+
+  <div class="breadcrumb">
+    <a href="/admin">Dashboard</a> &rarr;
+    <span>Cron Tasks</span>
+  </div>
+
+  {{#if hasFlash}}
+  <div class="flash flash-{{flash.type}}">
+    {{flash.message}}
+  </div>
+  {{/if}}
+
+  <!-- Stats Summary -->
+  <div class="stats-grid">
+    <div class="stat-card">
+      <div class="stat-value">{{stats.total}}</div>
+      <div class="stat-label">Total Tasks</div>
+    </div>
+    <div class="stat-card stat-success">
+      <div class="stat-value">{{stats.enabled}}</div>
+      <div class="stat-label">Enabled</div>
+    </div>
+    <div class="stat-card stat-running">
+      <div class="stat-value">{{stats.running}}</div>
+      <div class="stat-label">Running</div>
+    </div>
+    <div class="stat-card stat-error">
+      <div class="stat-value">{{stats.failed}}</div>
+      <div class="stat-label">Failed (Last Run)</div>
+    </div>
+  </div>
+
+  <div class="admin-section">
+    <div class="section-header">
+      <h2>Cron Tasks</h2>
+      <div class="section-actions">
+        <form method="POST" action="/admin/cron/run-all" class="inline-form">
+          {{csrfField}}
+          <button type="submit" class="btn btn-primary">Run All Tasks</button>
+        </form>
+        <a href="/admin/cron/logs" class="btn btn-secondary">View Logs</a>
+      </div>
+    </div>
+
+    {{#if hasTasks}}
+    <div class="table-container">
+      <table class="data-table">
+        <thead>
+          <tr>
+            <th>Task Name</th>
+            <th>Module</th>
+            <th>Schedule</th>
+            <th>Next Run</th>
+            <th>Last Run</th>
+            <th>Status</th>
+            <th>Result</th>
+            <th>Actions</th>
+          </tr>
+        </thead>
+        <tbody>
+          {{#each tasks}}
+          <tr class="task-row {{#unless enabled}}task-disabled{{/unless}}">
+            <td>
+              <div class="task-name">{{name}}</div>
+              {{#if description}}
+              <div class="task-description">{{description}}</div>
+              {{/if}}
+            </td>
+            <td>
+              <span class="module-badge">{{module}}</span>
+            </td>
+            <td>
+              <code class="cron-expr">{{schedule}}</code>
+              {{#if scheduleHuman}}
+              <div class="schedule-human">{{scheduleHuman}}</div>
+              {{/if}}
+            </td>
+            <td>
+              {{#if nextRun}}
+                <span class="time-value">{{nextRunFormatted}}</span>
+                <div class="time-relative">{{nextRunRelative}}</div>
+              {{else}}
+                <span class="text-muted">-</span>
+              {{/if}}
+            </td>
+            <td>
+              {{#if lastRun}}
+                <span class="time-value">{{lastRunFormatted}}</span>
+                <div class="time-relative">{{lastRunRelative}}</div>
+              {{else}}
+                <span class="text-muted">Never</span>
+              {{/if}}
+            </td>
+            <td>
+              <div class="status-indicators">
+                {{#if enabled}}
+                  <span class="status-badge status-enabled">Enabled</span>
+                {{else}}
+                  <span class="status-badge status-disabled">Disabled</span>
+                {{/if}}
+                {{#if running}}
+                  <span class="status-badge status-running">Running</span>
+                {{/if}}
+              </div>
+            </td>
+            <td>
+              {{#if lastResult}}
+                {{#if (eq lastResult.status 'success')}}
+                  <span class="result-badge result-success">Success</span>
+                  {{#if lastResult.itemsProcessed}}
+                    <div class="result-detail">{{lastResult.itemsProcessed}} items</div>
+                  {{/if}}
+                {{else}}
+                  <span class="result-badge result-error">Failed</span>
+                  {{#if lastResult.error}}
+                    <div class="result-detail result-error-text" title="{{lastResult.error}}">
+                      {{lastResult.errorShort}}
+                    </div>
+                  {{/if}}
+                {{/if}}
+                {{#if lastResult.duration}}
+                  <div class="result-detail">{{lastResult.duration}}s</div>
+                {{/if}}
+              {{else}}
+                <span class="text-muted">-</span>
+              {{/if}}
+            </td>
+            <td>
+              <div class="action-buttons">
+                <form method="POST" action="/admin/cron/{{id}}/run" class="inline-form">
+                  {{../csrfField}}
+                  <button type="submit" class="btn btn-small btn-primary" {{#if running}}disabled{{/if}}>
+                    Run Now
+                  </button>
+                </form>
+                <a href="/admin/cron/{{id}}/edit" class="btn btn-small">Edit</a>
+                <form method="POST" action="/admin/cron/{{id}}/toggle" class="inline-form">
+                  {{../csrfField}}
+                  <button type="submit" class="btn btn-small {{#if enabled}}btn-warning{{else}}btn-success{{/if}}">
+                    {{#if enabled}}Disable{{else}}Enable{{/if}}
+                  </button>
+                </form>
+              </div>
+            </td>
+          </tr>
+          {{/each}}
+        </tbody>
+      </table>
+    </div>
+    {{else}}
+    <div class="empty-state">
+      <p>No cron tasks configured.</p>
+      <p class="text-muted">Cron tasks are registered by modules during initialization.</p>
+    </div>
+    {{/if}}
+  </div>
+
+  <div class="admin-section">
+    <h3>Cron System Information</h3>
+    <div class="info-box">
+      <ul>
+        <li><strong>Status:</strong> {{#if cronStatus.enabled}}Active{{else}}Inactive{{/if}}</li>
+        <li><strong>Check interval:</strong> {{cronStatus.checkInterval}} seconds</li>
+        <li><strong>Max concurrent tasks:</strong> {{cronStatus.maxConcurrent}}</li>
+        <li><strong>Timeout default:</strong> {{cronStatus.defaultTimeout}} seconds</li>
+        <li><strong>Last check:</strong> {{cronStatus.lastCheckFormatted}}</li>
+      </ul>
+    </div>
+  </div>
+</div>
+
+<style>
+  .stats-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+    gap: 1rem;
+    margin-bottom: 1.5rem;
+  }
+  .stat-card {
+    background: #f8f9fa;
+    padding: 1.5rem;
+    border-radius: 8px;
+    text-align: center;
+    border: 1px solid #dee2e6;
+  }
+  .stat-card.stat-running {
+    background: #e7f3ff;
+    border-color: #b6d4fe;
+  }
+  .stat-card.stat-success {
+    background: #d4edda;
+    border-color: #c3e6cb;
+  }
+  .stat-card.stat-error {
+    background: #f8d7da;
+    border-color: #f5c6cb;
+  }
+  .stat-value {
+    font-size: 2rem;
+    font-weight: bold;
+    color: #212529;
+  }
+  .stat-label {
+    color: #6c757d;
+    font-size: 0.875rem;
+    margin-top: 0.25rem;
+  }
+  .section-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 1rem;
+  }
+  .section-actions {
+    display: flex;
+    gap: 0.5rem;
+  }
+  .table-container {
+    overflow-x: auto;
+  }
+  .data-table {
+    width: 100%;
+    border-collapse: collapse;
+    background: white;
+  }
+  .data-table th,
+  .data-table td {
+    padding: 0.75rem;
+    text-align: left;
+    border-bottom: 1px solid #dee2e6;
+  }
+  .data-table th {
+    background: #f8f9fa;
+    font-weight: 600;
+    color: #495057;
+  }
+  .task-row.task-disabled {
+    opacity: 0.6;
+  }
+  .task-name {
+    font-weight: 500;
+    color: #212529;
+  }
+  .task-description {
+    font-size: 0.875rem;
+    color: #6c757d;
+    margin-top: 0.25rem;
+  }
+  .module-badge {
+    display: inline-block;
+    padding: 0.25rem 0.5rem;
+    background: #e9ecef;
+    border-radius: 4px;
+    font-size: 0.875rem;
+    font-weight: 500;
+  }
+  .cron-expr {
+    font-family: monospace;
+    font-size: 0.875rem;
+    background: #f8f9fa;
+    padding: 0.125rem 0.375rem;
+    border-radius: 4px;
+    display: inline-block;
+  }
+  .schedule-human {
+    font-size: 0.75rem;
+    color: #6c757d;
+    margin-top: 0.25rem;
+  }
+  .time-value {
+    display: block;
+    font-size: 0.875rem;
+  }
+  .time-relative {
+    font-size: 0.75rem;
+    color: #6c757d;
+    margin-top: 0.25rem;
+  }
+  .status-indicators {
+    display: flex;
+    flex-direction: column;
+    gap: 0.25rem;
+  }
+  .status-badge {
+    display: inline-block;
+    padding: 0.25rem 0.5rem;
+    border-radius: 4px;
+    font-size: 0.75rem;
+    font-weight: 500;
+    text-align: center;
+  }
+  .status-enabled {
+    background: #28a745;
+    color: white;
+  }
+  .status-disabled {
+    background: #6c757d;
+    color: white;
+  }
+  .status-running {
+    background: #0d6efd;
+    color: white;
+  }
+  .result-badge {
+    display: inline-block;
+    padding: 0.25rem 0.5rem;
+    border-radius: 4px;
+    font-size: 0.75rem;
+    font-weight: 500;
+  }
+  .result-success {
+    background: #d4edda;
+    color: #155724;
+    border: 1px solid #c3e6cb;
+  }
+  .result-error {
+    background: #f8d7da;
+    color: #721c24;
+    border: 1px solid #f5c6cb;
+  }
+  .result-detail {
+    font-size: 0.75rem;
+    color: #6c757d;
+    margin-top: 0.25rem;
+  }
+  .result-error-text {
+    color: #dc3545;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    max-width: 200px;
+  }
+  .action-buttons {
+    display: flex;
+    gap: 0.25rem;
+    flex-wrap: wrap;
+  }
+  .inline-form {
+    display: inline;
+  }
+  .empty-state {
+    padding: 3rem;
+    text-align: center;
+    background: #f8f9fa;
+    border-radius: 8px;
+  }
+  .text-muted {
+    color: #6c757d;
+  }
+  .info-box {
+    background: #e7f3ff;
+    border: 1px solid #b6d4fe;
+    border-radius: 4px;
+    padding: 1rem;
+  }
+  .info-box ul {
+    margin: 0;
+    padding: 0;
+    list-style: none;
+  }
+  .info-box li {
+    margin-bottom: 0.25rem;
+  }
+</style>

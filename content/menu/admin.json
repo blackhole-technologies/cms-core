@@ -1,0 +1,9 @@
+{
+  "id": "admin",
+  "title": "Administration",
+  "description": "Admin menu",
+  "locked": true,
+  "maxDepth": 2,
+  "created": "2026-02-04T11:36:30.176Z",
+  "updated": "2026-02-04T11:36:30.176Z"
+}

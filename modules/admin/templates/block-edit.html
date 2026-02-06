@@ -1,0 +1,394 @@
+<div class="admin-page">
+
+  <div class="admin-header">
+    <h1>{{pageTitle}}</h1>
+    <nav class="admin-nav">
+      <a href="/admin">Dashboard</a>
+      <a href="/admin/content">Content</a>
+      <a href="/admin/structure" class="active">Structure</a>
+      <a href="/admin/blocks">Blocks</a>
+    </nav>
+  </div>
+
+  {{#if hasFlash}}
+  <div class="flash flash-{{flash.type}}">
+    {{flash.message}}
+  </div>
+  {{/if}}
+
+  <div class="breadcrumb">
+    <a href="/admin">Dashboard</a> &rarr;
+    <a href="/admin/blocks">Blocks</a> &rarr;
+    <span>{{#if block.id}}Edit{{else}}Create{{/if}} Block</span>
+  </div>
+
+  <form method="POST" action="{{#if block.id}}/admin/blocks/{{block.id}}{{else}}/admin/blocks{{/if}}" class="block-form">
+    {{csrfField}}
+    {{#if block.id}}
+    <input type="hidden" name="_method" value="PUT">
+    {{/if}}
+
+    <div class="form-layout">
+      <div class="form-main">
+        <div class="admin-section">
+          <h2>Block Configuration</h2>
+
+          {{#unless block.id}}
+          <div class="form-group">
+            <label for="type">Block Type *</label>
+            <select id="type" name="type" required onchange="toggleTypeFields(this.value)">
+              <option value="">-- Select Type --</option>
+              <option value="content" {{#if (eq block.type 'content')}}selected{{/if}}>Content Block</option>
+              <option value="html" {{#if (eq block.type 'html')}}selected{{/if}}>HTML Block</option>
+              <option value="menu" {{#if (eq block.type 'menu')}}selected{{/if}}>Menu Block</option>
+              <option value="view" {{#if (eq block.type 'view')}}selected{{/if}}>View Block</option>
+            </select>
+            <small>Cannot be changed after creation</small>
+          </div>
+          {{else}}
+          <input type="hidden" name="type" value="{{block.type}}">
+          <div class="form-group">
+            <label>Block Type</label>
+            <div class="readonly-field">
+              <span class="block-type-badge">{{block.type}}</span>
+            </div>
+          </div>
+          {{/unless}}
+
+          <div class="form-group">
+            <label for="title">Block Title *</label>
+            <input type="text" id="title" name="title" value="{{block.title}}" required placeholder="e.g., Sidebar Navigation">
+          </div>
+
+          <div class="form-group">
+            <label for="description">Description</label>
+            <textarea id="description" name="description" rows="2" placeholder="Optional description for admin use">{{block.description}}</textarea>
+          </div>
+
+          <div class="form-group">
+            <label for="label">Display Label</label>
+            <input type="text" id="label" name="label" value="{{block.label}}" placeholder="Optional label shown above block">
+            <small>Leave empty to hide label on frontend</small>
+          </div>
+        </div>
+
+        <div class="admin-section type-fields" id="fields-content" style="{{#unless (eq block.type 'content')}}display: none;{{/unless}}">
+          <h2>Content</h2>
+          <div class="form-group">
+            <label for="content">Block Content *</label>
+            <textarea id="content" name="content" rows="10" placeholder="Enter your content...">{{block.content}}</textarea>
+          </div>
+          <div class="form-group">
+            <label for="format">Format</label>
+            <select id="format" name="format">
+              <option value="plain" {{#if (eq block.format 'plain')}}selected{{/if}}>Plain Text</option>
+              <option value="html" {{#if (eq block.format 'html')}}selected{{/if}}>HTML</option>
+              <option value="markdown" {{#if (eq block.format 'markdown')}}selected{{/if}}>Markdown</option>
+            </select>
+          </div>
+        </div>
+
+        <div class="admin-section type-fields" id="fields-html" style="{{#unless (eq block.type 'html')}}display: none;{{/unless}}">
+          <h2>HTML Content</h2>
+          <div class="form-group">
+            <label for="html">HTML Code *</label>
+            <textarea id="html" name="html" rows="15" placeholder="<div>Your HTML here</div>" style="font-family: monospace;">{{block.html}}</textarea>
+            <small>Raw HTML will be rendered as-is. Ensure it's safe and properly formatted.</small>
+          </div>
+        </div>
+
+        <div class="admin-section type-fields" id="fields-menu" style="{{#unless (eq block.type 'menu')}}display: none;{{/unless}}">
+          <h2>Menu Settings</h2>
+          <div class="form-group">
+            <label for="menu_id">Select Menu *</label>
+            <select id="menu_id" name="menu_id">
+              <option value="">-- Select Menu --</option>
+              {{#each menus}}
+              <option value="{{machine_name}}" {{#if (eq ../block.menu_id machine_name)}}selected{{/if}}>{{title}}</option>
+              {{/each}}
+            </select>
+          </div>
+          <div class="form-group">
+            <label for="depth">Depth</label>
+            <input type="number" id="depth" name="depth" value="{{block.depth}}" min="1" max="5" placeholder="3">
+            <small>Maximum nesting levels to display (1-5)</small>
+          </div>
+        </div>
+
+        <div class="admin-section type-fields" id="fields-view" style="{{#unless (eq block.type 'view')}}display: none;{{/unless}}">
+          <h2>View Settings</h2>
+          <div class="form-group">
+            <label for="view_id">Select View *</label>
+            <select id="view_id" name="view_id">
+              <option value="">-- Select View --</option>
+              {{#each views}}
+              <option value="{{id}}" {{#if (eq ../block.view_id id)}}selected{{/if}}>{{title}}</option>
+              {{/each}}
+            </select>
+          </div>
+          <div class="form-group">
+            <label for="items_per_page">Items Per Page</label>
+            <input type="number" id="items_per_page" name="items_per_page" value="{{block.items_per_page}}" min="1" placeholder="10">
+          </div>
+        </div>
+
+        <div class="admin-section">
+          <h2>Visibility Conditions</h2>
+
+          <div class="form-group">
+            <label for="visibility_mode">Show block on</label>
+            <select id="visibility_mode" name="visibility.mode">
+              <option value="all" {{#if (eq block.visibility.mode 'all')}}selected{{/if}}>All pages except listed</option>
+              <option value="listed" {{#if (eq block.visibility.mode 'listed')}}selected{{/if}}>Only listed pages</option>
+            </select>
+          </div>
+
+          <div class="form-group">
+            <label for="visibility_paths">Page Paths</label>
+            <textarea id="visibility_paths" name="visibility.paths" rows="4" placeholder="/blog&#10;/about&#10;/products/*">{{block.visibility.paths}}</textarea>
+            <small>One path per line. Use * as wildcard. Example: /blog/*</small>
+          </div>
+
+          <div class="form-group">
+            <label for="visibility_types">Content Types</label>
+            <select id="visibility_types" name="visibility.content_types" multiple size="5">
+              {{#each contentTypes}}
+              <option value="{{machine_name}}" {{#if (includes ../block.visibility.content_types machine_name)}}selected{{/if}}>{{name}}</option>
+              {{/each}}
+            </select>
+            <small>Hold Ctrl/Cmd to select multiple</small>
+          </div>
+
+          <div class="form-group">
+            <label for="visibility_roles">User Roles</label>
+            <select id="visibility_roles" name="visibility.roles" multiple size="4">
+              <option value="anonymous" {{#if (includes block.visibility.roles 'anonymous')}}selected{{/if}}>Anonymous</option>
+              <option value="authenticated" {{#if (includes block.visibility.roles 'authenticated')}}selected{{/if}}>Authenticated</option>
+              <option value="admin" {{#if (includes block.visibility.roles 'admin')}}selected{{/if}}>Administrator</option>
+              <option value="editor" {{#if (includes block.visibility.roles 'editor')}}selected{{/if}}>Editor</option>
+            </select>
+            <small>Leave empty to show to all roles</small>
+          </div>
+        </div>
+      </div>
+
+      <div class="form-sidebar">
+        <div class="admin-section">
+          <h2>Placement</h2>
+
+          <div class="form-group">
+            <label for="region">Region</label>
+            <select id="region" name="region">
+              <option value="">-- Unassigned --</option>
+              {{#each regions}}
+              <option value="{{name}}" {{#if (eq ../block.region name)}}selected{{/if}}>{{label}}</option>
+              {{/each}}
+            </select>
+          </div>
+
+          <div class="form-group">
+            <label for="weight">Weight</label>
+            <input type="number" id="weight" name="weight" value="{{block.weight}}" step="1" placeholder="0">
+            <small>Lower weights appear first</small>
+          </div>
+
+          <div class="form-group">
+            <label class="checkbox-label">
+              <input type="checkbox" name="enabled" value="true" {{#if block.enabled}}checked{{/if}}>
+              Enabled
+            </label>
+          </div>
+        </div>
+
+        <div class="admin-section">
+          <h2>Styling</h2>
+
+          <div class="form-group">
+            <label for="css_class">CSS Classes</label>
+            <input type="text" id="css_class" name="css_class" value="{{block.css_class}}" placeholder="custom-class another-class">
+            <small>Space-separated class names</small>
+          </div>
+
+          <div class="form-group">
+            <label for="css_id">CSS ID</label>
+            <input type="text" id="css_id" name="css_id" value="{{block.css_id}}" placeholder="unique-id">
+          </div>
+        </div>
+
+        <div class="admin-section">
+          <h2>Caching</h2>
+
+          <div class="form-group">
+            <label for="cache">Cache Strategy</label>
+            <select id="cache" name="cache">
+              <option value="none" {{#if (eq block.cache 'none')}}selected{{/if}}>No Caching</option>
+              <option value="page" {{#if (eq block.cache 'page')}}selected{{/if}}>Per Page</option>
+              <option value="user" {{#if (eq block.cache 'user')}}selected{{/if}}>Per User</option>
+              <option value="global" {{#if (eq block.cache 'global')}}selected{{/if}}>Global</option>
+            </select>
+          </div>
+
+          <div class="form-group">
+            <label for="cache_ttl">Cache TTL (seconds)</label>
+            <input type="number" id="cache_ttl" name="cache_ttl" value="{{block.cache_ttl}}" placeholder="3600">
+          </div>
+        </div>
+
+        <div class="form-actions-sticky">
+          <button type="submit" class="btn btn-primary btn-block">{{#if block.id}}Update{{else}}Create{{/if}} Block</button>
+          <a href="/admin/blocks" class="btn btn-secondary btn-block">Cancel</a>
+          {{#if block.id}}
+          <form method="POST" action="/admin/blocks/{{block.id}}/delete">
+            {{csrfField}}
+            <button type="submit" class="btn btn-danger btn-block" onclick="return confirm('Delete this block?')">Delete Block</button>
+          </form>
+          {{/if}}
+        </div>
+      </div>
+    </div>
+  </form>
+
+  <style>
+    .block-form {
+      max-width: none;
+    }
+    .form-layout {
+      display: grid;
+      grid-template-columns: 1fr 320px;
+      gap: 1.5rem;
+    }
+    .form-main {
+      min-width: 0;
+    }
+    .form-sidebar {
+      position: sticky;
+      top: 1rem;
+      align-self: start;
+    }
+    .admin-section {
+      background: #f9fafb;
+      border: 1px solid #e5e7eb;
+      border-radius: 8px;
+      padding: 1.5rem;
+      margin-bottom: 1.5rem;
+    }
+    .admin-section h2 {
+      margin: 0 0 1rem 0;
+      font-size: 1.1rem;
+      color: #111827;
+    }
+    .form-group {
+      margin-bottom: 1rem;
+    }
+    .form-group:last-child {
+      margin-bottom: 0;
+    }
+    .form-group label {
+      display: block;
+      margin-bottom: 0.25rem;
+      font-size: 0.9rem;
+      font-weight: 500;
+      color: #374151;
+    }
+    .form-group input[type="text"],
+    .form-group input[type="number"],
+    .form-group textarea,
+    .form-group select {
+      width: 100%;
+      padding: 0.5rem;
+      border: 1px solid #d1d5db;
+      border-radius: 4px;
+      font-size: 0.9rem;
+    }
+    .form-group small {
+      display: block;
+      margin-top: 0.25rem;
+      font-size: 0.8rem;
+      color: #6b7280;
+    }
+    .checkbox-label {
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+      font-weight: normal;
+      cursor: pointer;
+    }
+    .readonly-field {
+      padding: 0.5rem;
+      background: #f3f4f6;
+      border-radius: 4px;
+    }
+    .block-type-badge {
+      background: #e5e7eb;
+      color: #4b5563;
+      padding: 0.25rem 0.5rem;
+      border-radius: 4px;
+      font-size: 0.8rem;
+      font-weight: 500;
+      text-transform: uppercase;
+    }
+    .form-actions-sticky {
+      position: sticky;
+      top: 1rem;
+      display: flex;
+      flex-direction: column;
+      gap: 0.5rem;
+    }
+    .btn {
+      display: inline-block;
+      padding: 0.5rem 1rem;
+      border: none;
+      border-radius: 4px;
+      font-size: 0.9rem;
+      cursor: pointer;
+      text-decoration: none;
+      text-align: center;
+    }
+    .btn-primary {
+      background: #2563eb;
+      color: white;
+    }
+    .btn-primary:hover {
+      background: #1d4ed8;
+    }
+    .btn-secondary {
+      background: #e5e7eb;
+      color: #374151;
+    }
+    .btn-secondary:hover {
+      background: #d1d5db;
+    }
+    .btn-danger {
+      background: #dc2626;
+      color: white;
+    }
+    .btn-danger:hover {
+      background: #b91c1c;
+    }
+    .btn-block {
+      width: 100%;
+    }
+
+    @media (max-width: 1024px) {
+      .form-layout {
+        grid-template-columns: 1fr;
+      }
+      .form-sidebar {
+        position: static;
+      }
+    }
+  </style>
+  <script>
+    function toggleTypeFields(type) {
+      document.querySelectorAll('.type-fields').forEach(el => {
+        el.style.display = 'none';
+      });
+      const typeField = document.getElementById('fields-' + type);
+      if (typeField) {
+        typeField.style.display = 'block';
+      }
+    }
+  </script>
+  <script src="/public/js/shortcuts.js"></script>
+  <script>Shortcuts.init({ context: 'global' });</script>
+</div>

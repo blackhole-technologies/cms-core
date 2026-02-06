@@ -1,0 +1,8 @@
+{
+  "id": "1769875369315-jd9kn",
+  "type": "greeting",
+  "created": "2026-01-31T16:02:49.315Z",
+  "updated": "2026-01-31T16:02:49.315Z",
+  "name": "Webhook Fire",
+  "message": "This should trigger the webhook"
+}

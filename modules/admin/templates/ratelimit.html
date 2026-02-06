@@ -1,0 +1,137 @@
+<div class="admin-page">
+
+  <div class="admin-header">
+    <h1>{{pageTitle}}</h1>
+    <nav class="admin-nav">
+      <a href="/admin">Dashboard</a>
+      <a href="/admin/content">Content</a>
+      <a href="/admin/modules">Modules</a>
+      <a href="/admin/cache">Cache</a>
+      <a href="/admin/ratelimit" class="active">Rate Limit</a>
+    </nav>
+  </div>
+
+  {{#if hasFlash}}
+  <div class="flash flash-{{flash.type}}">
+    {{flash.message}}
+  </div>
+  {{/if}}
+
+  <!-- Rate Limit Status -->
+  <div class="admin-section">
+    <h2>Status</h2>
+    <div class="stats-grid">
+      <div class="stat-card">
+        <div class="stat-value">{{#if enabled}}Enabled{{else}}Disabled{{/if}}</div>
+        <div class="stat-label">Status</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-value">{{totalRequests}}</div>
+        <div class="stat-label">Total Requests</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-value">{{blockedRequests}}</div>
+        <div class="stat-label">Blocked Requests</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-value">{{activeKeys}}</div>
+        <div class="stat-label">Active Keys</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-value">{{blockedKeys}}</div>
+        <div class="stat-label">Blocked Keys</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Configuration -->
+  <div class="admin-section">
+    <h2>Configuration</h2>
+    <table class="admin-table">
+      <thead>
+        <tr>
+          <th>Endpoint</th>
+          <th>Points</th>
+          <th>Duration</th>
+          <th>Block Duration</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td><code>/login</code></td>
+          <td>{{loginPoints}}</td>
+          <td>{{loginDuration}}s</td>
+          <td>{{loginBlockDuration}}s</td>
+        </tr>
+        <tr>
+          <td><code>/api/*</code></td>
+          <td>{{apiPoints}}</td>
+          <td>{{apiDuration}}s</td>
+          <td>-</td>
+        </tr>
+        <tr>
+          <td><code>/admin/*</code></td>
+          <td>{{adminPoints}}</td>
+          <td>{{adminDuration}}s</td>
+          <td>-</td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+
+  <!-- Blocked Keys -->
+  <div class="admin-section">
+    <h2>Blocked Keys</h2>
+
+    {{#if hasBlocked}}
+    <table class="admin-table">
+      <thead>
+        <tr>
+          <th>Key</th>
+          <th>Reason</th>
+          <th>Blocked At</th>
+          <th>Expires In</th>
+          <th>Actions</th>
+        </tr>
+      </thead>
+      <tbody>
+        {{#each blockedList}}
+        <tr>
+          <td><code>{{key}}</code></td>
+          <td>{{reason}}</td>
+          <td>{{blockedAt}}</td>
+          <td>{{remaining}}s</td>
+          <td>
+            <form method="POST" action="/admin/ratelimit/{{key}}/clear" class="inline-form">
+              {{csrfField}}
+              <button type="submit" class="btn btn-small btn-danger">Unblock</button>
+            </form>
+          </td>
+        </tr>
+        {{/each}}
+      </tbody>
+    </table>
+    {{else}}
+    <p class="empty-message">No blocked keys.</p>
+    {{/if}}
+  </div>
+
+  <!-- Help Text -->
+  <div class="help-text">
+    <strong>Rate Limit Configuration</strong>
+    <p>Configure rate limiting in <code>config/site.json</code>:</p>
+    <pre>{
+  "rateLimit": {
+    "enabled": true,
+    "login": { "points": 5, "duration": 60, "blockDuration": 300 },
+    "api": { "points": 100, "duration": 60 },
+    "admin": { "points": 60, "duration": 60 }
+  }
+}</pre>
+    <p>
+      <strong>points</strong>: Max requests allowed in window<br>
+      <strong>duration</strong>: Time window in seconds<br>
+      <strong>blockDuration</strong>: How long to block after exceeding limit
+    </p>
+  </div>
+</div>

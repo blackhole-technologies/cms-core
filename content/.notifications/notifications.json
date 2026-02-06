@@ -1,0 +1,16 @@
+{
+  "notif_b7fba019030e0d9c": {
+    "id": "notif_b7fba019030e0d9c",
+    "userId": "testuser",
+    "type": "system.alert",
+    "title": "Test Alert",
+    "message": "This is a test notification",
+    "link": null,
+    "data": {},
+    "read": false,
+    "createdAt": "2026-02-02T09:28:12.655Z",
+    "channels": [
+      "app"
+    ]
+  }
+}

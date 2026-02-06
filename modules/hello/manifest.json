@@ -1,0 +1,7 @@
+{
+  "name": "hello",
+  "version": "0.0.1",
+  "description": "Test module for discovery validation",
+  "core": "0.0.x",
+  "hooks": ["boot", "ready"]
+}

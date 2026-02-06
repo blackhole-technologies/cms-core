@@ -1,0 +1,130 @@
+{
+  "configs": {
+    "feeds": {
+      "name": "feeds",
+      "file": "feeds.json",
+      "schema": null,
+      "locked": false,
+      "registeredAt": "2026-02-03T08:58:08.137Z"
+    },
+    "image-styles": {
+      "name": "image-styles",
+      "file": "image-styles.json",
+      "schema": null,
+      "locked": false,
+      "registeredAt": "2026-02-03T08:58:08.138Z"
+    },
+    "modules": {
+      "name": "modules",
+      "file": "modules.json",
+      "schema": null,
+      "locked": false,
+      "registeredAt": "2026-02-03T08:58:08.138Z"
+    },
+    "path-aliases": {
+      "name": "path-aliases",
+      "file": "path-aliases.json",
+      "schema": null,
+      "locked": false,
+      "registeredAt": "2026-02-03T08:58:08.138Z"
+    },
+    "regions": {
+      "name": "regions",
+      "file": "regions.json",
+      "schema": null,
+      "locked": false,
+      "registeredAt": "2026-02-03T08:58:08.139Z"
+    },
+    "site": {
+      "name": "site",
+      "file": "site.json",
+      "schema": null,
+      "locked": false,
+      "registeredAt": "2026-02-03T08:58:08.139Z"
+    },
+    "text-formats": {
+      "name": "text-formats",
+      "file": "text-formats.json",
+      "schema": null,
+      "locked": false,
+      "registeredAt": "2026-02-03T08:58:35.840Z"
+    },
+    "cron": {
+      "name": "cron",
+      "file": "cron.json",
+      "schema": null,
+      "locked": false,
+      "registeredAt": "2026-02-03T11:13:22.764Z"
+    },
+    "permissions": {
+      "name": "permissions",
+      "file": "permissions.json",
+      "schema": null,
+      "locked": false,
+      "registeredAt": "2026-02-03T11:13:22.765Z"
+    },
+    "user-fields": {
+      "name": "user-fields",
+      "file": "user-fields.json",
+      "schema": null,
+      "locked": false,
+      "registeredAt": "2026-02-03T11:13:22.766Z"
+    },
+    "actions": {
+      "name": "actions",
+      "file": "actions.json",
+      "schema": null,
+      "locked": false,
+      "registeredAt": "2026-02-03T11:15:38.060Z"
+    },
+    "content-types": {
+      "name": "content-types",
+      "file": "content-types.json",
+      "schema": null,
+      "locked": false,
+      "registeredAt": "2026-02-03T11:15:38.061Z"
+    },
+    "display-modes": {
+      "name": "display-modes",
+      "file": "display-modes.json",
+      "schema": null,
+      "locked": false,
+      "registeredAt": "2026-02-03T11:15:38.061Z"
+    },
+    "tokens": {
+      "name": "tokens",
+      "file": "tokens.json",
+      "schema": null,
+      "locked": false,
+      "registeredAt": "2026-02-03T11:15:38.061Z"
+    },
+    "views": {
+      "name": "views",
+      "file": "views.json",
+      "schema": null,
+      "locked": false,
+      "registeredAt": "2026-02-03T11:15:38.061Z"
+    },
+    "workflows": {
+      "name": "workflows",
+      "file": "workflows.json",
+      "schema": null,
+      "locked": false,
+      "registeredAt": "2026-02-03T11:15:38.061Z"
+    },
+    "personalities": {
+      "name": "personalities",
+      "file": "personalities.json",
+      "schema": null,
+      "locked": false,
+      "registeredAt": "2026-02-06T16:42:44.170Z"
+    }
+  },
+  "environments": {
+    "development": {},
+    "staging": {},
+    "production": {}
+  },
+  "locked": [],
+  "history": []
+}

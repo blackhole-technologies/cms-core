@@ -1,0 +1,228 @@
+{{> admin-header title="Responsive Images"}}
+
+<div class="admin-content">
+  <div class="page-header">
+    <h1>Responsive Images</h1>
+    <div class="header-actions">
+      <a href="/admin/responsive-images/new" class="btn btn-primary">Create Style</a>
+    </div>
+  </div>
+
+  <p class="description">
+    Responsive image styles define how images are rendered at different screen sizes.
+    They map breakpoints to image styles for optimal performance.
+  </p>
+
+  <div class="section">
+    <h2>Breakpoints</h2>
+    <div class="breakpoints-table">
+      <table class="data-table">
+        <thead>
+          <tr>
+            <th>ID</th>
+            <th>Label</th>
+            <th>Range</th>
+            <th>Media Query</th>
+          </tr>
+        </thead>
+        <tbody>
+          {{#each breakpoints}}
+          <tr>
+            <td><code>{{id}}</code></td>
+            <td>{{label}}</td>
+            <td>
+              {{#if maxWidth}}
+              {{minWidth}}px - {{maxWidth}}px
+              {{else}}
+              {{minWidth}}px+
+              {{/if}}
+            </td>
+            <td><code class="small">{{mediaQuery}}</code></td>
+          </tr>
+          {{/each}}
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <div class="section">
+    <h2>Responsive Styles</h2>
+    <div class="styles-grid">
+      {{#each styles}}
+      <div class="style-card {{#if (eq source "builtin")}}builtin{{/if}}">
+        <div class="style-header">
+          <h3>{{label}}</h3>
+          {{#if (eq source "builtin")}}
+          <span class="badge">Built-in</span>
+          {{/if}}
+        </div>
+        
+        <p class="style-description">{{description}}</p>
+        
+        <div class="style-details">
+          <div class="detail">
+            <span class="label">ID:</span>
+            <code>{{id}}</code>
+          </div>
+          <div class="detail">
+            <span class="label">Fallback:</span>
+            <code>{{fallbackStyle}}</code>
+          </div>
+          <div class="detail">
+            <span class="label">Lazy Load:</span>
+            <span>{{#if lazyLoad}}Yes{{else}}No{{/if}}</span>
+          </div>
+        </div>
+
+        <div class="mappings">
+          <h4>Breakpoint Mappings</h4>
+          <table class="mappings-table">
+            {{#each mappings}}
+            <tr>
+              <td>{{@key}}</td>
+              <td>→</td>
+              <td><code>{{this}}</code></td>
+            </tr>
+            {{/each}}
+          </table>
+        </div>
+
+        {{#if sizes.length}}
+        <div class="sizes">
+          <h4>Sizes Attribute</h4>
+          <code class="sizes-value">{{join sizes ", "}}</code>
+        </div>
+        {{/if}}
+
+        {{#unless (eq source "builtin")}}
+        <div class="style-actions">
+          <a href="/admin/responsive-images/{{id}}/edit" class="btn btn-sm">Edit</a>
+        </div>
+        {{/unless}}
+      </div>
+      {{/each}}
+    </div>
+  </div>
+</div>
+
+<style>
+.description {
+  color: #666;
+  margin-bottom: 2rem;
+}
+.section {
+  margin-bottom: 3rem;
+}
+.section h2 {
+  margin-bottom: 1rem;
+  padding-bottom: 0.5rem;
+  border-bottom: 2px solid #1976d2;
+}
+.data-table {
+  width: 100%;
+  border-collapse: collapse;
+  background: white;
+}
+.data-table th,
+.data-table td {
+  padding: 0.75rem;
+  text-align: left;
+  border-bottom: 1px solid #ddd;
+}
+.data-table th {
+  background: #f5f5f5;
+  font-weight: 600;
+}
+code.small {
+  font-size: 0.75rem;
+}
+.styles-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(350px, 1fr));
+  gap: 1.5rem;
+}
+.style-card {
+  background: white;
+  border: 1px solid #ddd;
+  border-radius: 8px;
+  padding: 1.5rem;
+}
+.style-card.builtin {
+  border-left: 4px solid #1976d2;
+}
+.style-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 0.5rem;
+}
+.style-header h3 {
+  margin: 0;
+}
+.badge {
+  background: #e3f2fd;
+  color: #1976d2;
+  padding: 0.25rem 0.5rem;
+  border-radius: 4px;
+  font-size: 0.75rem;
+  font-weight: 600;
+}
+.style-description {
+  color: #666;
+  margin-bottom: 1rem;
+}
+.style-details {
+  background: #f5f5f5;
+  padding: 0.75rem;
+  border-radius: 4px;
+  margin-bottom: 1rem;
+}
+.detail {
+  display: flex;
+  gap: 0.5rem;
+  margin-bottom: 0.25rem;
+}
+.detail .label {
+  color: #666;
+}
+.mappings {
+  margin-bottom: 1rem;
+}
+.mappings h4 {
+  font-size: 0.875rem;
+  color: #666;
+  margin-bottom: 0.5rem;
+}
+.mappings-table {
+  width: 100%;
+  font-size: 0.875rem;
+}
+.mappings-table td {
+  padding: 0.25rem 0.5rem;
+}
+.mappings-table td:first-child {
+  font-weight: 600;
+}
+.mappings-table td:nth-child(2) {
+  color: #999;
+  text-align: center;
+  width: 30px;
+}
+.sizes h4 {
+  font-size: 0.875rem;
+  color: #666;
+  margin-bottom: 0.25rem;
+}
+.sizes-value {
+  font-size: 0.75rem;
+  display: block;
+  overflow-x: auto;
+}
+.style-actions {
+  margin-top: 1rem;
+  padding-top: 1rem;
+  border-top: 1px solid #eee;
+}
+</style>
+
+{{> admin-footer}}

@@ -1,0 +1,793 @@
+/**
+ * views.js - Views/Query Builder System
+ *
+ * WHY THIS EXISTS:
+ * =====================
+ * Views provide a powerful way to query, filter, sort, and display content.
+ * Inspired by Drupal Views, this system enables non-developers to create
+ * complex content listings without writing code.
+ *
+ * KEY CONCEPTS:
+ * - View definitions: Named query configurations stored in JSON
+ * - Filters: Conditions to narrow content selection
+ * - Sorts: Order results by field values
+ * - Fields: Select which properties to include in results
+ * - Display modes: Different renderings (page, block, embed)
+ * - Relationships: Join related content types
+ * - Contextual filters: Dynamic filters from URL/context
+ * - Aggregation: Count, sum, average numeric fields
+ *
+ * STORAGE STRATEGY:
+ * =================
+ * /config
+ *   /views.json          <- All view definitions
+ *
+ * WHY FLAT FILE:
+ * - Views are configuration, not content
+ * - Read frequently, written rarely
+ * - Easy to version control and deploy
+ * - Small data set (typically < 100 views)
+ *
+ * DESIGN DECISIONS:
+ * =================
+ * - Zero external dependencies (Node.js standard library only)
+ * - View execution uses content service under the hood
+ * - Caching is per-view configurable
+ * - Hooks allow extensibility (before/after query, render)
+ * - Filters use same operators as content service
+ */
+
+import { readFileSync, writeFileSync, existsSync, mkdirSync } from 'node:fs';
+import { join } from 'node:path';
+import * as hooks from './hooks.js';
+import * as cache from './cache.js';
+
+/**
+ * Module state
+ */
+let baseDir = null;
+let contentService = null;
+let hooksService = null;
+let viewsPath = null;
+let views = {};
+let config = {
+  enabled: true,
+  cacheEnabled: true,
+  cacheTTL: 300,
+  defaultLimit: 10,
+  maxLimit: 100,
+};
+
+/**
+ * Valid filter operators
+ */
+const OPERATORS = {
+  '=': 'eq',
+  '!=': 'ne',
+  '>': 'gt',
+  '>=': 'gte',
+  '<': 'lt',
+  '<=': 'lte',
+  'contains': 'contains',
+  'in': 'in',
+  'between': 'between',
+  'null': 'null',
+  'not_null': 'not_null',
+};
+
+/**
+ * Valid display modes
+ */
+const DISPLAY_MODES = ['page', 'block', 'embed', 'feed', 'attachment'];
+
+/**
+ * Valid pager types
+ */
+const PAGER_TYPES = ['full', 'mini', 'infinite', 'none'];
+
+/**
+ * Valid aggregation functions
+ */
+const AGGREGATIONS = ['count', 'sum', 'avg', 'min', 'max'];
+
+// ============================================
+// INITIALIZATION
+// ============================================
+
+/**
+ * Initialize views system
+ *
+ * @param {string} dir - Base directory
+ * @param {Object} content - Content service
+ * @param {Object} hooksRef - Hooks service reference
+ * @param {Object} viewsConfig - Configuration
+ */
+export function init(dir, content, hooksRef = null, viewsConfig = {}) {
+  baseDir = dir;
+  contentService = content;
+  hooksService = hooksRef || hooks;
+  config = { ...config, ...viewsConfig };
+
+  // Set up views storage path
+  const configDir = join(baseDir, 'config');
+  if (!existsSync(configDir)) {
+    mkdirSync(configDir, { recursive: true });
+  }
+
+  viewsPath = join(configDir, 'views.json');
+  loadViews();
+}
+
+// ============================================
+// STORAGE MANAGEMENT
+// ============================================
+
+/**
+ * Load views from disk
+ * WHY PRIVATE: Internal state management
+ */
+function loadViews() {
+  if (existsSync(viewsPath)) {
+    try {
+      const data = JSON.parse(readFileSync(viewsPath, 'utf-8'));
+      views = data;
+    } catch (e) {
+      console.error('[views] Failed to load views:', e.message);
+      views = {};
+    }
+  }
+}
+
+/**
+ * Save views to disk
+ * WHY ATOMIC: Write prevents corruption
+ */
+function saveViews() {
+  try {
+    writeFileSync(viewsPath, JSON.stringify(views, null, 2) + '\n');
+  } catch (e) {
+    console.error('[views] Failed to save views:', e.message);
+    throw new Error('Failed to save views configuration');
+  }
+}
+
+// ============================================
+// VIEW MANAGEMENT
+// ============================================
+
+/**
+ * Validate view configuration
+ *
+ * @param {Object} viewConfig - View configuration
+ * @throws {Error} If validation fails
+ */
+function validateViewConfig(viewConfig) {
+  if (!viewConfig.name) {
+    throw new Error('View name is required');
+  }
+
+  if (!viewConfig.contentType) {
+    throw new Error('View contentType is required');
+  }
+
+  if (viewConfig.display && !DISPLAY_MODES.includes(viewConfig.display)) {
+    throw new Error(`Invalid display mode: ${viewConfig.display}. Must be one of: ${DISPLAY_MODES.join(', ')}`);
+  }
+
+  if (viewConfig.pager?.type && !PAGER_TYPES.includes(viewConfig.pager.type)) {
+    throw new Error(`Invalid pager type: ${viewConfig.pager.type}. Must be one of: ${PAGER_TYPES.join(', ')}`);
+  }
+
+  // Validate filters
+  if (viewConfig.filters) {
+    if (!Array.isArray(viewConfig.filters)) {
+      throw new Error('View filters must be an array');
+    }
+
+    for (const filter of viewConfig.filters) {
+      if (!filter.field) {
+        throw new Error('Filter field is required');
+      }
+      if (!filter.op) {
+        throw new Error('Filter operator is required');
+      }
+      if (!OPERATORS[filter.op] && !['null', 'not_null'].includes(filter.op)) {
+        throw new Error(`Invalid filter operator: ${filter.op}`);
+      }
+      if (!['null', 'not_null'].includes(filter.op) && filter.value === undefined) {
+        throw new Error(`Filter value is required for operator: ${filter.op}`);
+      }
+    }
+  }
+
+  // Validate sort
+  if (viewConfig.sort) {
+    if (!Array.isArray(viewConfig.sort)) {
+      throw new Error('View sort must be an array');
+    }
+
+    for (const sort of viewConfig.sort) {
+      if (!sort.field) {
+        throw new Error('Sort field is required');
+      }
+      if (sort.dir && !['asc', 'desc'].includes(sort.dir)) {
+        throw new Error(`Invalid sort direction: ${sort.dir}. Must be 'asc' or 'desc'`);
+      }
+    }
+  }
+
+  // Validate aggregation
+  if (viewConfig.aggregation) {
+    if (!viewConfig.aggregation.function) {
+      throw new Error('Aggregation function is required');
+    }
+    if (!AGGREGATIONS.includes(viewConfig.aggregation.function)) {
+      throw new Error(`Invalid aggregation function: ${viewConfig.aggregation.function}. Must be one of: ${AGGREGATIONS.join(', ')}`);
+    }
+    if (['sum', 'avg', 'min', 'max'].includes(viewConfig.aggregation.function) && !viewConfig.aggregation.field) {
+      throw new Error(`Aggregation field is required for function: ${viewConfig.aggregation.function}`);
+    }
+  }
+}
+
+/**
+ * Create a new view
+ *
+ * @param {string} id - View ID
+ * @param {Object} viewConfig - View configuration
+ * @returns {Promise<Object>} Created view
+ */
+export async function createView(id, viewConfig) {
+  // Validate input
+  validateViewConfig(viewConfig);
+
+  // Check for duplicate ID
+  if (views[id]) {
+    throw new Error(`View "${id}" already exists`);
+  }
+
+  // Build view object
+  const now = new Date().toISOString();
+  const view = {
+    id,
+    name: viewConfig.name,
+    description: viewConfig.description || '',
+    contentType: viewConfig.contentType,
+    display: viewConfig.display || 'page',
+    path: viewConfig.path || null,
+    filters: viewConfig.filters || [],
+    contextualFilters: viewConfig.contextualFilters || [],
+    sort: viewConfig.sort || [],
+    pager: {
+      type: viewConfig.pager?.type || 'full',
+      limit: viewConfig.pager?.limit || config.defaultLimit,
+      offset: viewConfig.pager?.offset || 0,
+    },
+    fields: viewConfig.fields || [],
+    relationships: viewConfig.relationships || [],
+    aggregation: viewConfig.aggregation || null,
+    cache: {
+      enabled: viewConfig.cache?.enabled ?? config.cacheEnabled,
+      ttl: viewConfig.cache?.ttl || config.cacheTTL,
+    },
+    created: now,
+    updated: now,
+  };
+
+  // Fire before hook
+  await hooksService.trigger('views:beforeCreate', { id, viewConfig, view });
+
+  // Save view
+  views[id] = view;
+  saveViews();
+
+  // Fire after hook
+  await hooksService.trigger('views:afterCreate', { view });
+
+  return view;
+}
+
+/**
+ * Get a view by ID
+ *
+ * @param {string} id - View ID
+ * @returns {Object|null} View configuration or null
+ */
+export function getViewConfig(id) {
+  return views[id] || null;
+}
+
+/**
+ * Update a view
+ *
+ * @param {string} id - View ID
+ * @param {Object} updates - Fields to update
+ * @returns {Promise<Object>} Updated view
+ */
+export async function updateView(id, updates) {
+  const view = views[id];
+  if (!view) {
+    throw new Error(`View "${id}" not found`);
+  }
+
+  // Validate updates
+  const updated = { ...view, ...updates };
+  validateViewConfig(updated);
+
+  // Fire before hook
+  await hooksService.trigger('views:beforeUpdate', { view, updates });
+
+  // Apply updates
+  views[id] = {
+    ...updated,
+    id: view.id, // ID cannot be changed
+    created: view.created,
+    updated: new Date().toISOString(),
+  };
+
+  saveViews();
+
+  // Clear cache for this view
+  if (cache.isEnabled && cache.isEnabled()) {
+    cache.delete(`view:${id}`);
+  }
+
+  // Fire after hook
+  await hooksService.trigger('views:afterUpdate', { view: views[id] });
+
+  return views[id];
+}
+
+/**
+ * Delete a view
+ *
+ * @param {string} id - View ID
+ * @returns {Promise<void>}
+ */
+export async function deleteView(id) {
+  const view = views[id];
+  if (!view) {
+    throw new Error(`View "${id}" not found`);
+  }
+
+  // Fire before hook
+  await hooksService.trigger('views:beforeDelete', { view });
+
+  // Delete view
+  delete views[id];
+  saveViews();
+
+  // Clear cache
+  if (cache.isEnabled && cache.isEnabled()) {
+    cache.delete(`view:${id}`);
+  }
+
+  // Fire after hook
+  await hooksService.trigger('views:afterDelete', { viewId: id });
+}
+
+/**
+ * List all views
+ *
+ * @param {Object} options - Filtering options
+ * @returns {Array<Object>} Array of views
+ */
+export function listViews(options = {}) {
+  let viewList = Object.values(views);
+
+  // Filter by content type
+  if (options.contentType) {
+    viewList = viewList.filter(v => v.contentType === options.contentType);
+  }
+
+  // Filter by display mode
+  if (options.display) {
+    viewList = viewList.filter(v => v.display === options.display);
+  }
+
+  return viewList;
+}
+
+// ============================================
+// VIEW EXECUTION
+// ============================================
+
+/**
+ * Apply contextual filters to view
+ *
+ * @param {Object} view - View configuration
+ * @param {Object} context - Execution context
+ * @returns {Array} Resolved filters
+ */
+function applyContextualFilters(view, context) {
+  const filters = [...view.filters];
+
+  if (!view.contextualFilters || view.contextualFilters.length === 0) {
+    return filters;
+  }
+
+  for (const ctxFilter of view.contextualFilters) {
+    let value = null;
+
+    // Resolve contextual filter value
+    switch (ctxFilter.source) {
+      case 'url':
+        // URL argument: /articles/:category
+        value = context.params?.[ctxFilter.param];
+        break;
+
+      case 'user':
+        // Current user property
+        value = context.user?.[ctxFilter.field];
+        break;
+
+      case 'date':
+        // Date-based filtering
+        value = new Date().toISOString();
+        if (ctxFilter.adjust) {
+          // Apply date adjustments (e.g., -7 days)
+          const date = new Date(value);
+          if (ctxFilter.adjust.days) {
+            date.setDate(date.getDate() + ctxFilter.adjust.days);
+          }
+          value = date.toISOString();
+        }
+        break;
+
+      case 'query':
+        // Query string parameter
+        value = context.query?.[ctxFilter.param];
+        break;
+
+      default:
+        // Custom source via context
+        value = context[ctxFilter.source];
+    }
+
+    // Skip if no value and filter is optional
+    if (value === null || value === undefined) {
+      if (ctxFilter.required) {
+        throw new Error(`Required contextual filter not provided: ${ctxFilter.source}`);
+      }
+      continue;
+    }
+
+    // Add resolved filter
+    filters.push({
+      field: ctxFilter.field,
+      op: ctxFilter.op || '=',
+      value,
+    });
+  }
+
+  return filters;
+}
+
+/**
+ * Apply field selection to results
+ *
+ * @param {Array} items - Content items
+ * @param {Array} fields - Fields to select
+ * @returns {Array} Items with selected fields
+ */
+function selectFields(items, fields) {
+  if (!fields || fields.length === 0) {
+    return items;
+  }
+
+  return items.map(item => {
+    const selected = {};
+
+    // Always include system fields
+    selected.id = item.id;
+    selected.type = item.type;
+
+    // Include selected fields
+    for (const field of fields) {
+      if (item[field] !== undefined) {
+        selected[field] = item[field];
+      }
+    }
+
+    return selected;
+  });
+}
+
+/**
+ * Apply aggregation to results
+ *
+ * @param {Array} items - Content items
+ * @param {Object} aggregation - Aggregation config
+ * @returns {Object} Aggregated result
+ */
+function applyAggregation(items, aggregation) {
+  if (!aggregation) {
+    return null;
+  }
+
+  const func = aggregation.function;
+  const field = aggregation.field;
+
+  switch (func) {
+    case 'count':
+      return { count: items.length };
+
+    case 'sum':
+      return {
+        sum: items.reduce((acc, item) => {
+          const value = Number(item[field]) || 0;
+          return acc + value;
+        }, 0),
+      };
+
+    case 'avg':
+      if (items.length === 0) return { avg: 0 };
+      const sum = items.reduce((acc, item) => {
+        const value = Number(item[field]) || 0;
+        return acc + value;
+      }, 0);
+      return { avg: sum / items.length };
+
+    case 'min':
+      if (items.length === 0) return { min: null };
+      return {
+        min: items.reduce((min, item) => {
+          const value = Number(item[field]);
+          return value < min ? value : min;
+        }, Number.MAX_VALUE),
+      };
+
+    case 'max':
+      if (items.length === 0) return { max: null };
+      return {
+        max: items.reduce((max, item) => {
+          const value = Number(item[field]);
+          return value > max ? value : max;
+        }, Number.MIN_VALUE),
+      };
+
+    default:
+      return null;
+  }
+}
+
+/**
+ * Apply relationships to load referenced content
+ *
+ * @param {Array} items - Content items
+ * @param {Array} relationships - Relationship configs
+ * @returns {Promise<Array>} Items with related content loaded
+ */
+async function applyRelationships(items, relationships) {
+  if (!relationships || relationships.length === 0) {
+    return items;
+  }
+
+  for (const rel of relationships) {
+    for (const item of items) {
+      const refId = item[rel.field];
+      if (!refId) continue;
+
+      try {
+        const related = contentService.read(rel.contentType, refId);
+        item[rel.alias || `${rel.field}_ref`] = related;
+      } catch (e) {
+        // Related content not found - skip
+        item[rel.alias || `${rel.field}_ref`] = null;
+      }
+    }
+  }
+
+  return items;
+}
+
+/**
+ * Execute a view query
+ *
+ * @param {string} id - View ID
+ * @param {Object} context - Execution context
+ * @returns {Promise<Object>} Query results
+ */
+export async function executeView(id, context = {}) {
+  const view = views[id];
+  if (!view) {
+    throw new Error(`View "${id}" not found`);
+  }
+
+  // Check cache
+  const cacheKey = `view:${id}:${JSON.stringify(context)}`;
+  if (view.cache.enabled && cache.isEnabled && cache.isEnabled()) {
+    const cached = cache.get(cacheKey);
+    if (cached) {
+      return cached;
+    }
+  }
+
+  // Fire before query hook
+  await hooksService.trigger('views:beforeQuery', { view, context });
+
+  // Apply contextual filters
+  const filters = applyContextualFilters(view, context);
+
+  // Build query options
+  const queryOptions = {
+    filters: filters.map(f => ({
+      field: f.field,
+      op: OPERATORS[f.op] || f.op,
+      value: f.value,
+    })),
+    sort: view.sort[0]?.field || 'created',
+    order: view.sort[0]?.dir || 'desc',
+    offset: view.pager.offset,
+    limit: Math.min(view.pager.limit, config.maxLimit),
+  };
+
+  // Apply additional sorts (content service only supports single sort, so we handle multiple sorts post-query)
+  const additionalSorts = view.sort.slice(1);
+
+  // Execute query
+  let result = contentService.list(view.contentType, queryOptions);
+
+  // Apply additional sorts if needed
+  if (additionalSorts.length > 0) {
+    result.items.sort((a, b) => {
+      for (const sort of additionalSorts) {
+        const aVal = a[sort.field];
+        const bVal = b[sort.field];
+        const dir = sort.dir === 'desc' ? -1 : 1;
+
+        if (aVal < bVal) return -1 * dir;
+        if (aVal > bVal) return 1 * dir;
+      }
+      return 0;
+    });
+  }
+
+  // Fire after query hook (allows modification of results)
+  await hooksService.trigger('views:afterQuery', { view, context, result });
+
+  // Apply relationships
+  if (view.relationships.length > 0) {
+    result.items = await applyRelationships(result.items, view.relationships);
+  }
+
+  // Apply field selection
+  if (view.fields.length > 0) {
+    result.items = selectFields(result.items, view.fields);
+  }
+
+  // Apply aggregation
+  let aggregated = null;
+  if (view.aggregation) {
+    aggregated = applyAggregation(result.items, view.aggregation);
+  }
+
+  // Build final result
+  const finalResult = {
+    view: {
+      id: view.id,
+      name: view.name,
+      display: view.display,
+    },
+    items: result.items,
+    total: result.total,
+    offset: view.pager.offset,
+    limit: view.pager.limit,
+    pager: {
+      type: view.pager.type,
+      currentPage: Math.floor(view.pager.offset / view.pager.limit),
+      totalPages: Math.ceil(result.total / view.pager.limit),
+      hasNext: view.pager.offset + view.pager.limit < result.total,
+      hasPrev: view.pager.offset > 0,
+    },
+    aggregation: aggregated,
+  };
+
+  // Cache result
+  if (view.cache.enabled && cache.isEnabled && cache.isEnabled()) {
+    cache.set(cacheKey, finalResult, view.cache.ttl);
+  }
+
+  return finalResult;
+}
+
+/**
+ * Render view with template
+ *
+ * @param {string} id - View ID
+ * @param {Object} context - Execution context
+ * @param {Function} template - Template function (items, view) => string
+ * @returns {Promise<string>} Rendered HTML
+ */
+export async function renderView(id, context = {}, template = null) {
+  const result = await executeView(id, context);
+
+  // Fire before render hook
+  await hooksService.trigger('views:beforeRender', { view: result.view, result, context });
+
+  // Use provided template or default
+  let rendered = '';
+  if (template) {
+    rendered = template(result.items, result.view);
+  } else {
+    // Default JSON rendering
+    rendered = JSON.stringify(result, null, 2);
+  }
+
+  // Fire after render hook
+  await hooksService.trigger('views:afterRender', { view: result.view, result, rendered });
+
+  return rendered;
+}
+
+// ============================================
+// HELPER FUNCTIONS
+// ============================================
+
+/**
+ * Add filter to view
+ *
+ * @param {string} viewId - View ID
+ * @param {Object} filter - Filter configuration
+ * @returns {Promise<Object>} Updated view
+ */
+export async function addFilter(viewId, filter) {
+  const view = views[viewId];
+  if (!view) {
+    throw new Error(`View "${viewId}" not found`);
+  }
+
+  const filters = [...view.filters, filter];
+  return updateView(viewId, { filters });
+}
+
+/**
+ * Add sort to view
+ *
+ * @param {string} viewId - View ID
+ * @param {Object} sort - Sort configuration
+ * @returns {Promise<Object>} Updated view
+ */
+export async function addSort(viewId, sort) {
+  const view = views[viewId];
+  if (!view) {
+    throw new Error(`View "${viewId}" not found`);
+  }
+
+  const sorts = [...view.sort, sort];
+  return updateView(viewId, { sort: sorts });
+}
+
+/**
+ * Set fields to display
+ *
+ * @param {string} viewId - View ID
+ * @param {Array<string>} fields - Field names
+ * @returns {Promise<Object>} Updated view
+ */
+export async function setFields(viewId, fields) {
+  const view = views[viewId];
+  if (!view) {
+    throw new Error(`View "${viewId}" not found`);
+  }
+
+  return updateView(viewId, { fields });
+}
+
+/**
+ * Get configuration
+ *
+ * @returns {Object} Current configuration
+ */
+export function getConfig() {
+  return { ...config };
+}
+
+/**
+ * Check if views system is enabled
+ *
+ * @returns {boolean}
+ */
+export function isEnabled() {
+  return config.enabled;
+}

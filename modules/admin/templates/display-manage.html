@@ -1,0 +1,498 @@
+<div class="admin-page">
+
+  <div class="admin-header">
+    <h1>Manage Display: {{contentType.label}}</h1>
+    <nav class="admin-nav">
+      <a href="/admin">Dashboard</a>
+      <a href="/admin/structure" class="active">Structure</a>
+      <a href="/admin/content">Content</a>
+    </nav>
+  </div>
+
+  <div class="breadcrumb">
+    <a href="/admin">Dashboard</a> &rarr;
+    <a href="/admin/structure">Structure</a> &rarr;
+    <a href="/admin/structure/types">Content Types</a> &rarr;
+    <a href="/admin/structure/types/{{contentType.name}}">{{contentType.label}}</a> &rarr;
+    <span>Manage Display</span>
+  </div>
+
+  {{#if hasFlash}}
+  <div class="flash flash-{{flash.type}}">
+    {{flash.message}}
+  </div>
+  {{/if}}
+
+  <div class="admin-content">
+    <div class="display-tabs">
+      <nav class="tabs-nav">
+        {{#each viewModes}}
+        <button class="tab {{#if this.isActive}}active{{/if}}" data-tab="{{this.name}}">
+          {{this.label}}
+        </button>
+        {{/each}}
+      </nav>
+
+      {{#each viewModes}}
+      <div class="tab-content {{#if this.isActive}}active{{/if}}" id="tab-{{this.name}}">
+        <form method="POST" action="/admin/display/{{contentType.name}}/{{this.name}}">
+          <div class="fields-display-section">
+            <h3>Field Display Settings</h3>
+
+            <div class="field-display-list" id="fields-{{this.name}}">
+              {{#each this.fields}}
+              {{#unless this.hidden}}
+              <div class="field-display-row" data-field="{{this.name}}">
+                <div class="field-handle">
+                  <span class="drag-icon">⋮⋮</span>
+                </div>
+                <div class="field-info">
+                  <strong>{{this.label}}</strong>
+                  <span class="field-type">{{this.fieldType}}</span>
+                </div>
+                <div class="field-label-display">
+                  <label>
+                    Label:
+                    <select name="fields[{{this.name}}][label]" class="form-control-sm">
+                      <option value="above" {{#if (eq this.labelDisplay 'above')}}selected{{/if}}>Above</option>
+                      <option value="inline" {{#if (eq this.labelDisplay 'inline')}}selected{{/if}}>Inline</option>
+                      <option value="hidden" {{#if (eq this.labelDisplay 'hidden')}}selected{{/if}}>Hidden</option>
+                    </select>
+                  </label>
+                </div>
+                <div class="field-formatter">
+                  <label>
+                    Formatter:
+                    <select name="fields[{{this.name}}][formatter]" class="form-control-sm formatter-select" data-field="{{this.name}}">
+                      {{#each this.availableFormatters}}
+                      <option value="{{this.name}}" {{#if (eq ../formatter this.name)}}selected{{/if}}>
+                        {{this.label}}
+                      </option>
+                      {{/each}}
+                    </select>
+                  </label>
+                </div>
+                <div class="field-settings">
+                  <button type="button" class="btn btn-small btn-icon settings-btn"
+                          data-field="{{this.name}}"
+                          data-formatter="{{this.formatter}}"
+                          title="Configure formatter settings">
+                    ⚙️
+                  </button>
+                </div>
+                <div class="field-visibility">
+                  <button type="button" class="btn btn-small hide-field-btn"
+                          data-field="{{this.name}}"
+                          title="Hide this field">
+                    Hide
+                  </button>
+                </div>
+                <input type="hidden" name="fields[{{this.name}}][weight]" value="{{this.weight}}" class="field-weight">
+              </div>
+              {{/unless}}
+              {{/each}}
+            </div>
+
+            {{#if this.hiddenFields.length}}
+            <div class="hidden-fields-section">
+              <h4>Hidden Fields</h4>
+              <div class="hidden-fields-list">
+                {{#each this.hiddenFields}}
+                <div class="hidden-field-item" data-field="{{this.name}}">
+                  <span>{{this.label}}</span>
+                  <span class="field-type">{{this.fieldType}}</span>
+                  <button type="button" class="btn btn-small show-field-btn"
+                          data-field="{{this.name}}">
+                    Show
+                  </button>
+                </div>
+                {{/each}}
+              </div>
+            </div>
+            {{/if}}
+          </div>
+
+          <div class="form-actions">
+            <button type="submit" class="btn btn-primary">Save Display Settings</button>
+            <a href="/admin/structure/types/{{contentType.name}}" class="btn btn-secondary">Cancel</a>
+          </div>
+        </form>
+      </div>
+      {{/each}}
+    </div>
+  </div>
+</div>
+
+<!-- Formatter Settings Modal -->
+<div id="formatterSettingsModal" class="modal" style="display: none;">
+  <div class="modal-overlay"></div>
+  <div class="modal-content">
+    <div class="modal-header">
+      <h3>Formatter Settings: <span id="modalFieldName"></span></h3>
+      <button type="button" class="modal-close">&times;</button>
+    </div>
+    <div class="modal-body" id="formatterSettingsBody">
+      <!-- Dynamic content loaded here -->
+    </div>
+    <div class="modal-footer">
+      <button type="button" class="btn btn-primary save-formatter-settings">Save</button>
+      <button type="button" class="btn btn-secondary cancel-formatter-settings">Cancel</button>
+    </div>
+  </div>
+</div>
+
+<style>
+.display-tabs {
+  margin-top: 20px;
+}
+
+.tabs-nav {
+  display: flex;
+  border-bottom: 2px solid #dee2e6;
+  gap: 4px;
+  margin-bottom: 20px;
+}
+
+.tab {
+  padding: 10px 20px;
+  background: none;
+  border: none;
+  border-bottom: 2px solid transparent;
+  cursor: pointer;
+  font-size: 14px;
+  color: #495057;
+  margin-bottom: -2px;
+}
+
+.tab:hover {
+  color: #0056b3;
+}
+
+.tab.active {
+  color: #0056b3;
+  border-bottom-color: #0056b3;
+  font-weight: 600;
+}
+
+.tab-content {
+  display: none;
+}
+
+.tab-content.active {
+  display: block;
+}
+
+.fields-display-section {
+  background: #f8f9fa;
+  padding: 20px;
+  border-radius: 4px;
+  margin-bottom: 20px;
+}
+
+.field-display-list {
+  margin-top: 15px;
+}
+
+.field-display-row {
+  display: grid;
+  grid-template-columns: 30px 2fr 1fr 2fr 40px 70px;
+  gap: 10px;
+  align-items: center;
+  padding: 12px;
+  background: white;
+  border: 1px solid #dee2e6;
+  border-radius: 4px;
+  margin-bottom: 8px;
+  cursor: move;
+}
+
+.field-display-row:hover {
+  background: #f8f9fa;
+}
+
+.field-handle {
+  cursor: grab;
+  color: #6c757d;
+  text-align: center;
+}
+
+.field-handle:active {
+  cursor: grabbing;
+}
+
+.drag-icon {
+  font-size: 16px;
+  user-select: none;
+}
+
+.field-info {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.field-type {
+  font-size: 12px;
+  color: #6c757d;
+}
+
+.field-label-display select,
+.field-formatter select {
+  width: 100%;
+}
+
+.form-control-sm {
+  padding: 4px 8px;
+  font-size: 14px;
+  border: 1px solid #ced4da;
+  border-radius: 3px;
+}
+
+.btn-icon {
+  padding: 4px 8px;
+  font-size: 16px;
+}
+
+.hidden-fields-section {
+  margin-top: 30px;
+  padding-top: 20px;
+  border-top: 1px solid #dee2e6;
+}
+
+.hidden-fields-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-top: 10px;
+}
+
+.hidden-field-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 12px;
+  background: #e9ecef;
+  border-radius: 4px;
+}
+
+.hidden-field-item .field-type {
+  margin-left: auto;
+  margin-right: 10px;
+}
+
+.form-actions {
+  margin-top: 20px;
+  display: flex;
+  gap: 10px;
+}
+
+.modal {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 1000;
+}
+
+.modal-overlay {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0, 0, 0, 0.5);
+}
+
+.modal-content {
+  position: relative;
+  background: white;
+  width: 600px;
+  max-width: 90%;
+  max-height: 80vh;
+  margin: 50px auto;
+  border-radius: 8px;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.2);
+  display: flex;
+  flex-direction: column;
+}
+
+.modal-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 20px;
+  border-bottom: 1px solid #dee2e6;
+}
+
+.modal-header h3 {
+  margin: 0;
+  font-size: 18px;
+}
+
+.modal-close {
+  background: none;
+  border: none;
+  font-size: 24px;
+  cursor: pointer;
+  color: #6c757d;
+  padding: 0;
+  width: 30px;
+  height: 30px;
+  line-height: 1;
+}
+
+.modal-close:hover {
+  color: #000;
+}
+
+.modal-body {
+  padding: 20px;
+  overflow-y: auto;
+  flex: 1;
+}
+
+.modal-footer {
+  padding: 15px 20px;
+  border-top: 1px solid #dee2e6;
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+}
+</style>
+
+<script>
+// Tab switching
+document.querySelectorAll('.tab').forEach(tab => {
+  tab.addEventListener('click', function() {
+    const tabName = this.dataset.tab;
+
+    document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+    document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
+
+    this.classList.add('active');
+    document.getElementById('tab-' + tabName).classList.add('active');
+  });
+});
+
+// Drag and drop reordering
+document.querySelectorAll('.field-display-list').forEach(list => {
+  let draggedElement = null;
+
+  list.addEventListener('dragstart', function(e) {
+    if (e.target.classList.contains('field-display-row')) {
+      draggedElement = e.target;
+      e.target.style.opacity = '0.5';
+    }
+  });
+
+  list.addEventListener('dragend', function(e) {
+    if (e.target.classList.contains('field-display-row')) {
+      e.target.style.opacity = '';
+      updateWeights(list);
+    }
+  });
+
+  list.addEventListener('dragover', function(e) {
+    e.preventDefault();
+    const afterElement = getDragAfterElement(list, e.clientY);
+    if (afterElement == null) {
+      list.appendChild(draggedElement);
+    } else {
+      list.insertBefore(draggedElement, afterElement);
+    }
+  });
+
+  list.querySelectorAll('.field-display-row').forEach(row => {
+    row.setAttribute('draggable', 'true');
+  });
+});
+
+function getDragAfterElement(container, y) {
+  const draggableElements = [...container.querySelectorAll('.field-display-row:not(.dragging)')];
+
+  return draggableElements.reduce((closest, child) => {
+    const box = child.getBoundingClientRect();
+    const offset = y - box.top - box.height / 2;
+
+    if (offset < 0 && offset > closest.offset) {
+      return { offset: offset, element: child };
+    } else {
+      return closest;
+    }
+  }, { offset: Number.NEGATIVE_INFINITY }).element;
+}
+
+function updateWeights(list) {
+  const rows = list.querySelectorAll('.field-display-row');
+  rows.forEach((row, index) => {
+    row.querySelector('.field-weight').value = index;
+  });
+}
+
+// Hide/Show field buttons
+document.querySelectorAll('.hide-field-btn').forEach(btn => {
+  btn.addEventListener('click', function() {
+    const fieldName = this.dataset.field;
+    // Implementation: move to hidden fields section
+    console.log('Hide field:', fieldName);
+  });
+});
+
+document.querySelectorAll('.show-field-btn').forEach(btn => {
+  btn.addEventListener('click', function() {
+    const fieldName = this.dataset.field;
+    // Implementation: move to visible fields section
+    console.log('Show field:', fieldName);
+  });
+});
+
+// Formatter settings modal
+const modal = document.getElementById('formatterSettingsModal');
+const modalClose = document.querySelector('.modal-close');
+const cancelBtn = document.querySelector('.cancel-formatter-settings');
+
+document.querySelectorAll('.settings-btn').forEach(btn => {
+  btn.addEventListener('click', function() {
+    const fieldName = this.dataset.field;
+    const formatter = this.dataset.formatter;
+
+    document.getElementById('modalFieldName').textContent = fieldName;
+
+    // Load formatter-specific settings
+    loadFormatterSettings(fieldName, formatter);
+
+    modal.style.display = 'block';
+  });
+});
+
+modalClose.addEventListener('click', () => modal.style.display = 'none');
+cancelBtn.addEventListener('click', () => modal.style.display = 'none');
+
+modal.querySelector('.modal-overlay').addEventListener('click', () => {
+  modal.style.display = 'none';
+});
+
+document.querySelector('.save-formatter-settings').addEventListener('click', function() {
+  // Save formatter settings
+  console.log('Save formatter settings');
+  modal.style.display = 'none';
+});
+
+function loadFormatterSettings(fieldName, formatter) {
+  // This would be replaced with actual AJAX call
+  const settingsBody = document.getElementById('formatterSettingsBody');
+  settingsBody.innerHTML = '<p>Loading settings for ' + formatter + '...</p>';
+
+  // Simulate loading different formatter settings
+  setTimeout(() => {
+    settingsBody.innerHTML = `
+      <div class="formatter-settings-form">
+        <p class="text-muted">Settings for field: <strong>${fieldName}</strong></p>
+        <p class="text-muted">Formatter: <strong>${formatter}</strong></p>
+        <p>Formatter-specific settings would be loaded here via AJAX.</p>
+      </div>
+    `;
+  }, 300);
+}
+</script>

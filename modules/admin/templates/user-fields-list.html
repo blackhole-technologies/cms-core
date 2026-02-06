@@ -1,0 +1,195 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>User Profile Fields - {{site_name}}</title>
+</head>
+<body>
+    <div class="admin-content">
+        <header class="content-header">
+            <h1>User Profile Fields</h1>
+            <div class="header-actions">
+                <a href="/admin/user-fields/add" class="btn btn-primary">Add Field</a>
+            </div>
+        </header>
+
+        <div class="fields-container">
+            {{#categories}}
+            <div class="field-category" data-category="{{machine_name}}">
+                <div class="category-header">
+                    <h2>{{label}}</h2>
+                    <span class="field-count">{{field_count}} fields</span>
+                    <button class="toggle-category" aria-expanded="true">
+                        <span class="icon-collapse">▼</span>
+                    </button>
+                </div>
+
+                <div class="category-content">
+                    {{#has_fields}}
+                    <table class="fields-table sortable">
+                        <thead>
+                            <tr>
+                                <th class="drag-handle"></th>
+                                <th>Field Name</th>
+                                <th>Type</th>
+                                <th>Visibility</th>
+                                <th>Registration</th>
+                                <th>Required</th>
+                                <th>Weight</th>
+                                <th>Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {{#fields}}
+                            <tr data-field-id="{{field_id}}" data-weight="{{weight}}">
+                                <td class="drag-handle">
+                                    <span class="icon-drag">⋮⋮</span>
+                                </td>
+                                <td>
+                                    <strong>{{label}}</strong>
+                                    <div class="field-meta">{{machine_name}}</div>
+                                </td>
+                                <td>
+                                    <span class="field-type">{{type_label}}</span>
+                                </td>
+                                <td>
+                                    <span class="visibility-badge visibility-{{visibility}}">
+                                        {{visibility_label}}
+                                    </span>
+                                </td>
+                                <td>
+                                    {{#show_on_registration}}
+                                    <span class="badge badge-success">Yes</span>
+                                    {{/show_on_registration}}
+                                    {{^show_on_registration}}
+                                    <span class="badge badge-muted">No</span>
+                                    {{/show_on_registration}}
+                                </td>
+                                <td>
+                                    {{#required}}
+                                    <span class="badge badge-warning">Required</span>
+                                    {{/required}}
+                                    {{^required}}
+                                    <span class="badge badge-muted">Optional</span>
+                                    {{/required}}
+                                </td>
+                                <td class="weight-cell">{{weight}}</td>
+                                <td class="actions-cell">
+                                    <a href="/admin/user-fields/edit/{{field_id}}" class="btn btn-sm">Edit</a>
+                                    {{^is_system}}
+                                    <button class="btn btn-sm btn-danger delete-field" data-field-id="{{field_id}}">Delete</button>
+                                    {{/is_system}}
+                                </td>
+                            </tr>
+                            {{/fields}}
+                        </tbody>
+                    </table>
+                    {{/has_fields}}
+
+                    {{^has_fields}}
+                    <div class="empty-state">
+                        <p>No fields in this category.</p>
+                    </div>
+                    {{/has_fields}}
+                </div>
+            </div>
+            {{/categories}}
+
+            {{^has_categories}}
+            <div class="empty-state">
+                <h3>No profile fields configured</h3>
+                <p>Get started by adding your first user profile field.</p>
+                <a href="/admin/user-fields/add" class="btn btn-primary">Add Field</a>
+            </div>
+            {{/has_categories}}
+        </div>
+    </div>
+
+    <script>
+        // Drag-and-drop reordering
+        document.addEventListener('DOMContentLoaded', function() {
+            const tables = document.querySelectorAll('.sortable tbody');
+
+            tables.forEach(tbody => {
+                let draggedRow = null;
+
+                tbody.querySelectorAll('tr').forEach(row => {
+                    row.draggable = true;
+
+                    row.addEventListener('dragstart', function(e) {
+                        draggedRow = this;
+                        this.classList.add('dragging');
+                    });
+
+                    row.addEventListener('dragend', function(e) {
+                        this.classList.remove('dragging');
+                        saveOrder();
+                    });
+
+                    row.addEventListener('dragover', function(e) {
+                        e.preventDefault();
+                        const afterElement = getDragAfterElement(tbody, e.clientY);
+                        if (afterElement == null) {
+                            tbody.appendChild(draggedRow);
+                        } else {
+                            tbody.insertBefore(draggedRow, afterElement);
+                        }
+                    });
+                });
+            });
+
+            function getDragAfterElement(container, y) {
+                const draggableElements = [...container.querySelectorAll('tr:not(.dragging)')];
+
+                return draggableElements.reduce((closest, child) => {
+                    const box = child.getBoundingClientRect();
+                    const offset = y - box.top - box.height / 2;
+
+                    if (offset < 0 && offset > closest.offset) {
+                        return { offset: offset, element: child };
+                    } else {
+                        return closest;
+                    }
+                }, { offset: Number.NEGATIVE_INFINITY }).element;
+            }
+
+            function saveOrder() {
+                const category = draggedRow.closest('.field-category').dataset.category;
+                const rows = draggedRow.closest('tbody').querySelectorAll('tr');
+                const order = Array.from(rows).map((row, index) => ({
+                    field_id: row.dataset.fieldId,
+                    weight: index
+                }));
+
+                fetch('/admin/user-fields/reorder', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ category, order })
+                });
+            }
+
+            // Category toggle
+            document.querySelectorAll('.toggle-category').forEach(btn => {
+                btn.addEventListener('click', function() {
+                    const content = this.closest('.field-category').querySelector('.category-content');
+                    const expanded = this.getAttribute('aria-expanded') === 'true';
+
+                    content.style.display = expanded ? 'none' : 'block';
+                    this.setAttribute('aria-expanded', !expanded);
+                });
+            });
+
+            // Delete confirmation
+            document.querySelectorAll('.delete-field').forEach(btn => {
+                btn.addEventListener('click', function() {
+                    if (confirm('Delete this field? User data will be permanently lost.')) {
+                        const fieldId = this.dataset.fieldId;
+                        window.location.href = '/admin/user-fields/delete/' + fieldId;
+                    }
+                });
+            });
+        });
+    </script>
+</body>
+</html>

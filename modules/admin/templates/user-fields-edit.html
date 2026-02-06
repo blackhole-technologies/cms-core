@@ -1,0 +1,331 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{{#is_new}}Add{{/is_new}}{{^is_new}}Edit{{/is_new}} User Profile Field - {{site_name}}</title>
+</head>
+<body>
+    <div class="admin-content">
+        <header class="content-header">
+            <h1>{{#is_new}}Add{{/is_new}}{{^is_new}}Edit{{/is_new}} User Profile Field</h1>
+            <a href="/admin/user-fields" class="btn btn-secondary">Back to List</a>
+        </header>
+
+        {{#error}}
+        <div class="alert alert-error">{{error}}</div>
+        {{/error}}
+
+        <form action="/admin/user-fields/save" method="POST" class="field-form">
+            {{^is_new}}
+            <input type="hidden" name="field_id" value="{{field_id}}">
+            {{/is_new}}
+
+            <div class="form-section">
+                <h2>Basic Information</h2>
+
+                <div class="form-group">
+                    <label for="machine_name">
+                        Machine Name
+                        {{#is_new}}<span class="required">*</span>{{/is_new}}
+                    </label>
+                    {{#is_new}}
+                    <input
+                        type="text"
+                        id="machine_name"
+                        name="machine_name"
+                        value="{{machine_name}}"
+                        required
+                        pattern="[a-z0-9_]+"
+                        maxlength="64"
+                    >
+                    <div class="field-help">
+                        Lowercase letters, numbers, and underscores only. Cannot be changed after creation.
+                    </div>
+                    {{/is_new}}
+                    {{^is_new}}
+                    <input type="text" value="{{machine_name}}" disabled>
+                    <div class="field-help">Machine name cannot be changed.</div>
+                    {{/is_new}}
+                </div>
+
+                <div class="form-group">
+                    <label for="label">
+                        Label <span class="required">*</span>
+                    </label>
+                    <input
+                        type="text"
+                        id="label"
+                        name="label"
+                        value="{{label}}"
+                        required
+                        maxlength="255"
+                    >
+                    <div class="field-help">Display name shown to users.</div>
+                </div>
+
+                <div class="form-group">
+                    <label for="type">
+                        Field Type <span class="required">*</span>
+                    </label>
+                    <select id="type" name="type" required {{^is_new}}disabled{{/is_new}}>
+                        <option value="">Select type...</option>
+                        {{#field_types}}
+                        <option value="{{value}}" {{#selected}}selected{{/selected}}>{{label}}</option>
+                        {{/field_types}}
+                    </select>
+                    {{^is_new}}
+                    <input type="hidden" name="type" value="{{type}}">
+                    <div class="field-help">Field type cannot be changed.</div>
+                    {{/is_new}}
+                </div>
+
+                <div class="form-group">
+                    <label for="category">Category</label>
+                    <select id="category" name="category">
+                        <option value="">Uncategorized</option>
+                        {{#categories}}
+                        <option value="{{value}}" {{#selected}}selected{{/selected}}>{{label}}</option>
+                        {{/categories}}
+                    </select>
+                </div>
+
+                <div class="form-group">
+                    <label for="description">Description</label>
+                    <textarea
+                        id="description"
+                        name="description"
+                        rows="3"
+                        maxlength="1000"
+                    >{{description}}</textarea>
+                    <div class="field-help">Optional help text shown to users.</div>
+                </div>
+            </div>
+
+            <div class="form-section">
+                <h2>Permissions & Visibility</h2>
+
+                <div class="form-group">
+                    <label for="visibility">Visibility</label>
+                    <select id="visibility" name="visibility">
+                        <option value="public" {{#visibility_public}}selected{{/visibility_public}}>
+                            Public - Visible to everyone
+                        </option>
+                        <option value="authenticated" {{#visibility_authenticated}}selected{{/visibility_authenticated}}>
+                            Authenticated - Visible to logged-in users only
+                        </option>
+                        <option value="admin" {{#visibility_admin}}selected{{/visibility_admin}}>
+                            Admin - Visible to administrators only
+                        </option>
+                        <option value="private" {{#visibility_private}}selected{{/visibility_private}}>
+                            Private - Visible only to the user and admins
+                        </option>
+                    </select>
+                </div>
+
+                <div class="form-group checkbox-group">
+                    <label>
+                        <input
+                            type="checkbox"
+                            name="show_on_registration"
+                            value="1"
+                            {{#show_on_registration}}checked{{/show_on_registration}}
+                        >
+                        Show on registration form
+                    </label>
+                </div>
+
+                <div class="form-group checkbox-group">
+                    <label>
+                        <input
+                            type="checkbox"
+                            name="user_can_edit"
+                            value="1"
+                            {{#user_can_edit}}checked{{/user_can_edit}}
+                        >
+                        User can edit their own value
+                    </label>
+                </div>
+
+                <div class="form-group checkbox-group">
+                    <label>
+                        <input
+                            type="checkbox"
+                            name="required"
+                            value="1"
+                            {{#required}}checked{{/required}}
+                        >
+                        Required field
+                    </label>
+                </div>
+            </div>
+
+            <div class="form-section">
+                <h2>Display Settings</h2>
+
+                <div class="form-group">
+                    <label for="weight">Weight (Order)</label>
+                    <input
+                        type="number"
+                        id="weight"
+                        name="weight"
+                        value="{{weight}}"
+                        min="-100"
+                        max="100"
+                    >
+                    <div class="field-help">Lower numbers appear first. Default: 0</div>
+                </div>
+            </div>
+
+            <!-- Type-specific settings -->
+            <div id="type-settings" class="form-section" style="{{^has_type_settings}}display:none{{/has_type_settings}}">
+                <h2>Field Type Settings</h2>
+
+                <!-- Text field settings -->
+                <div class="type-settings-group" data-type="text" style="display:none">
+                    <div class="form-group">
+                        <label for="max_length">Maximum Length</label>
+                        <input
+                            type="number"
+                            id="max_length"
+                            name="settings[max_length]"
+                            value="{{settings.max_length}}"
+                            min="1"
+                            max="1000"
+                        >
+                    </div>
+
+                    <div class="form-group">
+                        <label for="placeholder">Placeholder Text</label>
+                        <input
+                            type="text"
+                            id="placeholder"
+                            name="settings[placeholder]"
+                            value="{{settings.placeholder}}"
+                        >
+                    </div>
+                </div>
+
+                <!-- Select/Radio/Checkbox settings -->
+                <div class="type-settings-group" data-type="select,radio,checkboxes" style="display:none">
+                    <div class="form-group">
+                        <label for="options">Options (one per line)</label>
+                        <textarea
+                            id="options"
+                            name="settings[options]"
+                            rows="6"
+                            placeholder="key|Label&#10;another_key|Another Label"
+                        >{{settings.options}}</textarea>
+                        <div class="field-help">Format: machine_name|Display Label</div>
+                    </div>
+                </div>
+
+                <!-- URL field settings -->
+                <div class="type-settings-group" data-type="url" style="display:none">
+                    <div class="form-group checkbox-group">
+                        <label>
+                            <input
+                                type="checkbox"
+                                name="settings[open_in_new_tab]"
+                                value="1"
+                                {{#settings.open_in_new_tab}}checked{{/settings.open_in_new_tab}}
+                            >
+                            Open links in new tab
+                        </label>
+                    </div>
+                </div>
+
+                <!-- Date field settings -->
+                <div class="type-settings-group" data-type="date" style="display:none">
+                    <div class="form-group">
+                        <label for="date_format">Display Format</label>
+                        <select id="date_format" name="settings[date_format]">
+                            <option value="Y-m-d" {{#settings.format_ymd}}selected{{/settings.format_ymd}}>2026-02-03</option>
+                            <option value="m/d/Y" {{#settings.format_mdy}}selected{{/settings.format_mdy}}>02/03/2026</option>
+                            <option value="d/m/Y" {{#settings.format_dmy}}selected{{/settings.format_dmy}}>03/02/2026</option>
+                            <option value="F j, Y" {{#settings.format_long}}selected{{/settings.format_long}}>February 3, 2026</option>
+                        </select>
+                    </div>
+                </div>
+            </div>
+
+            <div class="form-actions">
+                <button type="submit" class="btn btn-primary">Save Field</button>
+                <a href="/admin/user-fields" class="btn btn-secondary">Cancel</a>
+                {{^is_new}}
+                {{^is_system}}
+                <button type="button" class="btn btn-danger delete-btn" data-field-id="{{field_id}}">
+                    Delete Field
+                </button>
+                {{/is_system}}
+                {{/is_new}}
+            </div>
+        </form>
+    </div>
+
+    <script>
+        document.addEventListener('DOMContentLoaded', function() {
+            const typeSelect = document.getElementById('type');
+            const typeSettings = document.getElementById('type-settings');
+
+            function updateTypeSettings() {
+                const selectedType = typeSelect.value;
+
+                // Hide all type-specific settings
+                document.querySelectorAll('.type-settings-group').forEach(group => {
+                    group.style.display = 'none';
+                });
+
+                // Show relevant settings for selected type
+                if (selectedType) {
+                    typeSettings.style.display = 'block';
+
+                    document.querySelectorAll('.type-settings-group').forEach(group => {
+                        const types = group.dataset.type.split(',');
+                        if (types.includes(selectedType)) {
+                            group.style.display = 'block';
+                        }
+                    });
+                } else {
+                    typeSettings.style.display = 'none';
+                }
+            }
+
+            typeSelect.addEventListener('change', updateTypeSettings);
+            updateTypeSettings(); // Initialize on page load
+
+            // Delete confirmation
+            const deleteBtn = document.querySelector('.delete-btn');
+            if (deleteBtn) {
+                deleteBtn.addEventListener('click', function() {
+                    if (confirm('Delete this field? User data will be permanently lost.')) {
+                        window.location.href = '/admin/user-fields/delete/' + this.dataset.fieldId;
+                    }
+                });
+            }
+
+            // Auto-generate machine name from label for new fields
+            const labelInput = document.getElementById('label');
+            const machineNameInput = document.getElementById('machine_name');
+
+            if (labelInput && machineNameInput && !machineNameInput.disabled) {
+                let manuallyEdited = false;
+
+                machineNameInput.addEventListener('input', function() {
+                    manuallyEdited = true;
+                });
+
+                labelInput.addEventListener('input', function() {
+                    if (!manuallyEdited) {
+                        const machineName = this.value
+                            .toLowerCase()
+                            .replace(/[^a-z0-9]+/g, '_')
+                            .replace(/^_+|_+$/g, '');
+                        machineNameInput.value = machineName;
+                    }
+                });
+            }
+        });
+    </script>
+</body>
+</html>

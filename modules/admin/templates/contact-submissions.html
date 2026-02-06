@@ -1,0 +1,176 @@
+<div class="admin-page">
+
+  <div class="admin-header">
+    <h1>{{pageTitle}}</h1>
+    <nav class="admin-nav">
+      <a href="/admin">Dashboard</a>
+      <a href="/admin/content">Content</a>
+      <a href="/admin/structure" class="active">Structure</a>
+    </nav>
+  </div>
+
+  {{#if hasFlash}}
+  <div class="flash flash-{{flash.type}}">
+    {{flash.message}}
+  </div>
+  {{/if}}
+
+  <div class="breadcrumb">
+    <a href="/admin">Dashboard</a> &rarr;
+    <a href="/admin/structure">Structure</a> &rarr;
+    <a href="/admin/contact-forms">Contact Forms</a> &rarr;
+    <span>Submissions: {{formTitle}}</span>
+  </div>
+
+  <div class="admin-section">
+    <div class="section-header-row">
+      <h2>Submissions ({{totalCount}})</h2>
+      <div class="header-actions">
+        <a href="/admin/contact-forms" class="btn btn-secondary">Back to Forms</a>
+        {{#if hasSubmissions}}
+        <form method="POST" action="/admin/contact-forms/{{formId}}/submissions/delete-all" style="display: inline;">
+          {{csrfField}}
+          <button type="submit" class="btn btn-danger" onclick="return confirm('Delete all submissions? This cannot be undone.')">Delete All</button>
+        </form>
+        {{/if}}
+      </div>
+    </div>
+
+    {{#if hasSubmissions}}
+    <table class="submissions-table">
+      <thead>
+        <tr>
+          <th>Name</th>
+          <th>Email</th>
+          <th>Subject</th>
+          <th>Date</th>
+          <th>Actions</th>
+        </tr>
+      </thead>
+      <tbody>
+        {{#each submissions}}
+        <tr class="{{#unless read}}submission-unread{{/unless}}">
+          <td>
+            {{#unless read}}<span class="unread-badge">New</span>{{/unless}}
+            {{name}}
+          </td>
+          <td>{{email}}</td>
+          <td>{{subject}}</td>
+          <td>{{createdFormatted}}</td>
+          <td class="actions-cell">
+            <a href="/admin/contact-forms/{{../formId}}/submissions/{{id}}" class="btn btn-sm btn-secondary">View</a>
+            <form method="POST" action="/admin/contact-forms/{{../formId}}/submissions/{{id}}/delete" style="display: inline;">
+              {{../../csrfField}}
+              <button type="submit" class="btn btn-sm btn-danger" onclick="return confirm('Delete this submission?')">Delete</button>
+            </form>
+          </td>
+        </tr>
+        {{/each}}
+      </tbody>
+    </table>
+    {{else}}
+    <p class="empty-message">No submissions yet for this form.</p>
+    {{/if}}
+  </div>
+
+  <style>
+    .section-header-row {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 1rem;
+    }
+    .section-header-row h2 {
+      margin: 0;
+    }
+    .header-actions {
+      display: flex;
+      gap: 0.5rem;
+      align-items: center;
+    }
+    .submissions-table {
+      width: 100%;
+      border-collapse: collapse;
+      background: white;
+      border-radius: 8px;
+      overflow: hidden;
+    }
+    .submissions-table thead {
+      background: #f9fafb;
+      border-bottom: 1px solid #e5e7eb;
+    }
+    .submissions-table th {
+      padding: 0.75rem;
+      text-align: left;
+      font-size: 0.85rem;
+      font-weight: 600;
+      color: #374151;
+    }
+    .submissions-table td {
+      padding: 0.75rem;
+      border-bottom: 1px solid #e5e7eb;
+      font-size: 0.9rem;
+    }
+    .submission-unread {
+      background: #eff6ff;
+    }
+    .submission-unread td {
+      font-weight: 500;
+    }
+    .unread-badge {
+      display: inline-block;
+      background: #2563eb;
+      color: white;
+      padding: 0.125rem 0.375rem;
+      border-radius: 9999px;
+      font-size: 0.7rem;
+      font-weight: 600;
+      margin-right: 0.5rem;
+    }
+    .actions-cell {
+      white-space: nowrap;
+    }
+    .btn {
+      display: inline-block;
+      padding: 0.5rem 1rem;
+      border: none;
+      border-radius: 4px;
+      font-size: 0.9rem;
+      cursor: pointer;
+      text-decoration: none;
+    }
+    .btn-primary {
+      background: #2563eb;
+      color: white;
+    }
+    .btn-primary:hover {
+      background: #1d4ed8;
+    }
+    .btn-secondary {
+      background: #e5e7eb;
+      color: #374151;
+    }
+    .btn-secondary:hover {
+      background: #d1d5db;
+    }
+    .btn-danger {
+      background: #dc2626;
+      color: white;
+    }
+    .btn-danger:hover {
+      background: #b91c1c;
+    }
+    .btn-sm {
+      padding: 0.25rem 0.5rem;
+      font-size: 0.8rem;
+    }
+    .empty-message {
+      text-align: center;
+      padding: 2rem;
+      color: #6b7280;
+      font-style: italic;
+    }
+  </style>
+  <script src="/public/js/shortcuts.js"></script>
+  <script>Shortcuts.init({ context: 'global' });</script>
+</div>

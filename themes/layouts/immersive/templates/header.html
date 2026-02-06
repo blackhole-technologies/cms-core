@@ -1,0 +1,10 @@
+<header class="site-header">
+  <div class="header-inner">
+    <a href="/" class="site-logo">{{site.name}}</a>
+    <nav class="main-nav">
+      {{#each navigation}}
+      <a href="{{url}}" class="{{#if active}}active{{/if}}">{{title}}</a>
+      {{/each}}
+    </nav>
+  </div>
+</header>

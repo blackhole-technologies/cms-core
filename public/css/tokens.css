@@ -1,0 +1,400 @@
+/**
+ * RSES Design System Tokens
+ *
+ * Three-layer token architecture:
+ * 1. Primitive tokens (raw values)
+ * 2. Semantic tokens (contextual meaning)
+ * 3. Component tokens (specific applications)
+ *
+ * RULE: Only semantic tokens should be used in component CSS.
+ */
+
+:root {
+  /* ========================================
+     PRIMITIVE TOKENS
+     These should NEVER be used directly in components.
+     ======================================== */
+
+  /* Gray Scale */
+  --gray-50:  #fafafa;
+  --gray-100: #f5f5f5;
+  --gray-200: #e5e5e5;
+  --gray-300: #d4d4d4;
+  --gray-400: #a3a3a3;
+  --gray-500: #737373;
+  --gray-600: #525252;
+  --gray-700: #404040;
+  --gray-800: #262626;
+  --gray-900: #171717;
+  --gray-950: #0a0a0a;
+
+  /* Brand Colors - RSES Blue */
+  --rses-50:  #f0f9ff;
+  --rses-100: #e0f2fe;
+  --rses-200: #bae6fd;
+  --rses-300: #7dd3fc;
+  --rses-400: #38bdf8;
+  --rses-500: #0ea5e9;
+  --rses-600: #0284c7;
+  --rses-700: #0369a1;
+  --rses-800: #075985;
+  --rses-900: #0c4a6e;
+  --rses-950: #082f49;
+
+  /* Status Colors */
+  --green-50:  #f0fdf4;
+  --green-100: #dcfce7;
+  --green-500: #22c55e;
+  --green-600: #16a34a;
+  --green-700: #15803d;
+
+  --yellow-50:  #fefce8;
+  --yellow-100: #fef9c3;
+  --yellow-500: #eab308;
+  --yellow-600: #ca8a04;
+
+  --red-50:  #fef2f2;
+  --red-100: #fee2e2;
+  --red-500: #ef4444;
+  --red-600: #dc2626;
+  --red-700: #b91c1c;
+
+  /* ========================================
+     SPACING (8px Grid, Golden Ratio)
+     ======================================== */
+
+  --spacing-unit: 8px;
+  --grid-ratio: 1.618;
+
+  --space-xs:  5px;   /* ~8/1.618 */
+  --space-sm:  8px;
+  --space-md:  13px;  /* ~8*1.618 */
+  --space-lg:  21px;  /* ~13*1.618 */
+  --space-xl:  34px;  /* ~21*1.618 */
+  --space-2xl: 55px;  /* ~34*1.618 */
+  --space-3xl: 89px;  /* Fibonacci continuation */
+
+  /* ========================================
+     TYPOGRAPHY (Major Third Scale: 1.25)
+     ======================================== */
+
+  /* Font Families */
+  --font-sans: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  --font-mono: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Monaco, Consolas, monospace;
+
+  /* Font Sizes */
+  --font-size-xs:   0.64rem;   /* 10.24px */
+  --font-size-sm:   0.8rem;    /* 12.8px  */
+  --font-size-base: 1rem;      /* 16px    */
+  --font-size-md:   1.25rem;   /* 20px    */
+  --font-size-lg:   1.563rem;  /* 25px    */
+  --font-size-xl:   1.953rem;  /* 31.25px */
+  --font-size-2xl:  2.441rem;  /* 39.06px */
+  --font-size-3xl:  3.052rem;  /* 48.83px */
+
+  /* Font Weights */
+  --font-regular: 400;
+  --font-medium: 500;
+  --font-semibold: 600;
+  --font-bold: 700;
+
+  /* Line Heights */
+  --leading-none: 1;
+  --leading-tight: 1.25;
+  --leading-snug: 1.375;
+  --leading-normal: 1.5;
+  --leading-relaxed: 1.625;
+  --leading-loose: 2;
+
+  /* Letter Spacing */
+  --tracking-tighter: -0.05em;
+  --tracking-tight: -0.025em;
+  --tracking-normal: 0;
+  --tracking-wide: 0.025em;
+  --tracking-wider: 0.05em;
+  --tracking-widest: 0.1em;
+
+  /* ========================================
+     BORDER RADIUS
+     ======================================== */
+
+  --radius-none: 0;
+  --radius-sm: 4px;
+  --radius-md: 8px;
+  --radius-lg: 12px;
+  --radius-xl: 16px;
+  --radius-2xl: 24px;
+  --radius-full: 9999px;
+
+  /* ========================================
+     SHADOWS
+     ======================================== */
+
+  --shadow-xs: 0 1px 2px rgba(0, 0, 0, 0.05);
+  --shadow-sm: 0 1px 3px rgba(0, 0, 0, 0.1), 0 1px 2px rgba(0, 0, 0, 0.06);
+  --shadow-md: 0 4px 6px rgba(0, 0, 0, 0.1), 0 2px 4px rgba(0, 0, 0, 0.06);
+  --shadow-lg: 0 10px 15px rgba(0, 0, 0, 0.1), 0 4px 6px rgba(0, 0, 0, 0.05);
+  --shadow-xl: 0 20px 25px rgba(0, 0, 0, 0.1), 0 10px 10px rgba(0, 0, 0, 0.04);
+  --shadow-2xl: 0 25px 50px rgba(0, 0, 0, 0.25);
+  --shadow-inner: inset 0 2px 4px rgba(0, 0, 0, 0.06);
+  --shadow-none: 0 0 0 rgba(0, 0, 0, 0);
+
+  /* ========================================
+     MOTION / ANIMATION
+     ======================================== */
+
+  --duration-instant: 100ms;
+  --duration-quick: 200ms;
+  --duration-normal: 300ms;
+  --duration-slow: 500ms;
+  --duration-slower: 700ms;
+
+  --easing-default: cubic-bezier(0.4, 0.0, 0.2, 1);
+  --easing-linear: linear;
+  --easing-in: cubic-bezier(0.4, 0.0, 1, 1);
+  --easing-out: cubic-bezier(0.0, 0.0, 0.2, 1);
+  --easing-in-out: cubic-bezier(0.4, 0.0, 0.2, 1);
+  --easing-bounce: cubic-bezier(0.34, 1.56, 0.64, 1);
+
+  /* ========================================
+     BREAKPOINTS (for reference in JS)
+     ======================================== */
+
+  --breakpoint-sm: 640px;
+  --breakpoint-md: 768px;
+  --breakpoint-lg: 1024px;
+  --breakpoint-xl: 1280px;
+  --breakpoint-2xl: 1536px;
+
+  /* ========================================
+     SEMANTIC TOKENS - LIGHT MODE (default)
+     These are the tokens to use in components.
+     ======================================== */
+
+  /* Surfaces */
+  --surface-page: var(--gray-50);
+  --surface-primary: white;
+  --surface-secondary: var(--gray-100);
+  --surface-tertiary: var(--gray-200);
+  --surface-disabled: var(--gray-100);
+  --surface-inverse: var(--gray-900);
+
+  /* Text */
+  --text-primary: var(--gray-900);
+  --text-secondary: var(--gray-600);
+  --text-tertiary: var(--gray-400);
+  --text-disabled: var(--gray-300);
+  --text-inverse: white;
+  --text-link: var(--rses-600);
+  --text-link-hover: var(--rses-700);
+
+  /* Borders */
+  --border-subtle: var(--gray-200);
+  --border-default: var(--gray-300);
+  --border-strong: var(--gray-400);
+  --border-hover: var(--gray-400);
+  --border-focus: var(--rses-500);
+
+  /* Interactive / Accent */
+  --accent-primary: var(--rses-500);
+  --accent-primary-hover: var(--rses-600);
+  --accent-primary-active: var(--rses-700);
+  --accent-subtle: var(--rses-50);
+  --accent-subtle-hover: var(--rses-100);
+
+  /* Status */
+  --status-success: var(--green-500);
+  --status-success-subtle: var(--green-50);
+  --status-success-text: var(--green-700);
+
+  --status-warning: var(--yellow-500);
+  --status-warning-subtle: var(--yellow-50);
+  --status-warning-text: var(--yellow-600);
+
+  --status-error: var(--red-500);
+  --status-error-subtle: var(--red-50);
+  --status-error-text: var(--red-700);
+
+  --status-info: var(--rses-500);
+  --status-info-subtle: var(--rses-50);
+  --status-info-text: var(--rses-700);
+
+  /* Focus */
+  --focus-ring: var(--rses-500);
+  --focus-ring-offset: 2px;
+  --focus-ring-width: 2px;
+
+  /* ========================================
+     COMPONENT TOKENS
+     ======================================== */
+
+  /* Buttons */
+  --btn-height-sm: 32px;
+  --btn-height-md: 40px;
+  --btn-height-lg: 48px;
+  --btn-padding-x: var(--space-lg);
+  --btn-font-size: var(--font-size-sm);
+  --btn-font-weight: var(--font-medium);
+  --btn-radius: var(--radius-md);
+  --btn-transition: all var(--duration-instant) var(--easing-default);
+
+  /* Inputs */
+  --input-height: 44px;
+  --input-padding-x: var(--space-md);
+  --input-padding-y: var(--space-sm);
+  --input-font-size: var(--font-size-base);
+  --input-radius: var(--radius-md);
+  --input-border: var(--border-default);
+  --input-border-focus: var(--accent-primary);
+  --input-bg: var(--surface-primary);
+
+  /* Cards */
+  --card-padding: var(--space-lg);
+  --card-radius: var(--radius-lg);
+  --card-border: var(--border-subtle);
+  --card-bg: var(--surface-primary);
+  --card-shadow: var(--shadow-sm);
+  --card-shadow-hover: var(--shadow-md);
+
+  /* Switch */
+  --switch-width: 52px;
+  --switch-height: 32px;
+  --switch-thumb-size: 28px;
+  --switch-thumb-offset: 2px;
+  --switch-bg-off: var(--gray-300);
+  --switch-bg-on: var(--accent-primary);
+  --switch-transition: var(--duration-quick) var(--easing-default);
+
+  /* Navigation */
+  --nav-height: 64px;
+  --nav-height-mobile: 80px;
+  --nav-item-padding: var(--space-sm) var(--space-md);
+
+  /* Sidebar */
+  --sidebar-width: 280px;
+  --sidebar-collapsed-width: 72px;
+  --sidebar-bg: var(--surface-primary);
+  --sidebar-border: var(--border-subtle);
+
+  /* Modal / Dialog */
+  --dialog-radius: var(--radius-xl);
+  --dialog-padding: var(--space-xl);
+  --dialog-shadow: var(--shadow-2xl);
+  --dialog-backdrop: rgba(0, 0, 0, 0.5);
+
+  /* Toast */
+  --toast-radius: var(--radius-lg);
+  --toast-padding: var(--space-md) var(--space-lg);
+  --toast-shadow: var(--shadow-lg);
+}
+
+/* ========================================
+   DARK MODE
+   ======================================== */
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    /* Surfaces */
+    --surface-page: var(--gray-950);
+    --surface-primary: var(--gray-900);
+    --surface-secondary: var(--gray-800);
+    --surface-tertiary: var(--gray-700);
+    --surface-disabled: var(--gray-800);
+    --surface-inverse: var(--gray-50);
+
+    /* Text */
+    --text-primary: var(--gray-50);
+    --text-secondary: var(--gray-400);
+    --text-tertiary: var(--gray-500);
+    --text-disabled: var(--gray-600);
+    --text-inverse: var(--gray-900);
+    --text-link: var(--rses-400);
+    --text-link-hover: var(--rses-300);
+
+    /* Borders */
+    --border-subtle: var(--gray-800);
+    --border-default: var(--gray-700);
+    --border-strong: var(--gray-600);
+    --border-hover: var(--gray-600);
+
+    /* Interactive / Accent */
+    --accent-subtle: var(--rses-950);
+    --accent-subtle-hover: var(--rses-900);
+
+    /* Status - darker backgrounds */
+    --status-success-subtle: rgba(34, 197, 94, 0.1);
+    --status-success-text: var(--green-500);
+
+    --status-warning-subtle: rgba(234, 179, 8, 0.1);
+    --status-warning-text: var(--yellow-500);
+
+    --status-error-subtle: rgba(239, 68, 68, 0.1);
+    --status-error-text: var(--red-500);
+
+    --status-info-subtle: rgba(14, 165, 233, 0.1);
+    --status-info-text: var(--rses-400);
+
+    /* Component adjustments */
+    --switch-bg-off: var(--gray-600);
+    --card-border: var(--gray-800);
+    --card-shadow: 0 4px 6px rgba(0, 0, 0, 0.3);
+    --card-shadow-hover: 0 10px 15px rgba(0, 0, 0, 0.4);
+
+    --dialog-backdrop: rgba(0, 0, 0, 0.75);
+  }
+}
+
+/* Manual dark mode class (for user preference override) */
+.dark {
+  --surface-page: var(--gray-950);
+  --surface-primary: var(--gray-900);
+  --surface-secondary: var(--gray-800);
+  --surface-tertiary: var(--gray-700);
+  --surface-disabled: var(--gray-800);
+  --surface-inverse: var(--gray-50);
+
+  --text-primary: var(--gray-50);
+  --text-secondary: var(--gray-400);
+  --text-tertiary: var(--gray-500);
+  --text-disabled: var(--gray-600);
+  --text-inverse: var(--gray-900);
+  --text-link: var(--rses-400);
+  --text-link-hover: var(--rses-300);
+
+  --border-subtle: var(--gray-800);
+  --border-default: var(--gray-700);
+  --border-strong: var(--gray-600);
+  --border-hover: var(--gray-600);
+
+  --accent-subtle: var(--rses-950);
+  --accent-subtle-hover: var(--rses-900);
+
+  --status-success-subtle: rgba(34, 197, 94, 0.1);
+  --status-success-text: var(--green-500);
+  --status-warning-subtle: rgba(234, 179, 8, 0.1);
+  --status-warning-text: var(--yellow-500);
+  --status-error-subtle: rgba(239, 68, 68, 0.1);
+  --status-error-text: var(--red-500);
+  --status-info-subtle: rgba(14, 165, 233, 0.1);
+  --status-info-text: var(--rses-400);
+
+  --switch-bg-off: var(--gray-600);
+  --card-border: var(--gray-800);
+  --card-shadow: 0 4px 6px rgba(0, 0, 0, 0.3);
+  --card-shadow-hover: 0 10px 15px rgba(0, 0, 0, 0.4);
+  --dialog-backdrop: rgba(0, 0, 0, 0.75);
+}
+
+/* ========================================
+   REDUCED MOTION
+   ======================================== */
+
+@media (prefers-reduced-motion: reduce) {
+  :root {
+    --duration-instant: 0ms;
+    --duration-quick: 0ms;
+    --duration-normal: 0ms;
+    --duration-slow: 0ms;
+    --duration-slower: 0ms;
+  }
+}

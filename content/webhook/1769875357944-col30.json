@@ -1,0 +1,10 @@
+{
+  "id": "1769875357944-col30",
+  "type": "webhook",
+  "created": "2026-01-31T16:02:37.944Z",
+  "updated": "2026-01-31T16:02:37.944Z",
+  "event": "content:afterCreate",
+  "url": "https://httpbin.org/post",
+  "secret": "test-secret",
+  "enabled": true
+}

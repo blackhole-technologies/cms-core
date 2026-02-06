@@ -1,0 +1,18 @@
+{
+  "id": "immersive",
+  "name": "Immersive",
+  "description": "Full-width, distraction-free layout for deep content experiences",
+  "version": "1.0.0",
+  "regions": ["header", "content", "footer"],
+  "compatibleSkins": ["consciousness-dark", "consciousness-light", "minimal"],
+  "templates": {
+    "page": "page.html",
+    "header": "header.html",
+    "footer": "footer.html"
+  },
+  "settings": {
+    "maxWidth": "none",
+    "headerStyle": "minimal",
+    "footerStyle": "minimal"
+  }
+}

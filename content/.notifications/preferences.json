@@ -1,0 +1,40 @@
+{
+  "testuser": {
+    "content.published": {
+      "app": true,
+      "email": true
+    },
+    "content.updated": {
+      "app": true,
+      "email": false
+    },
+    "content.commented": {
+      "app": true,
+      "email": true
+    },
+    "content.mentioned": {
+      "app": true,
+      "email": true
+    },
+    "workflow.pending": {
+      "app": true,
+      "email": true
+    },
+    "workflow.approved": {
+      "app": true,
+      "email": false
+    },
+    "workflow.rejected": {
+      "app": true,
+      "email": true
+    },
+    "user.welcome": {
+      "app": true,
+      "email": true
+    },
+    "system.alert": {
+      "app": true,
+      "email": false
+    }
+  }
+}

@@ -1,0 +1,10 @@
+<div class="sidebar-widgets">
+  {{#each sidebarWidgets}}
+  <div class="widget widget-{{type}}">
+    {{#if title}}<h3 class="widget-title">{{title}}</h3>{{/if}}
+    <div class="widget-content">
+      {{{content}}}
+    </div>
+  </div>
+  {{/each}}
+</div>

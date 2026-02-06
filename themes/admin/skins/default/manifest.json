@@ -1,0 +1,7 @@
+{
+  "id": "default",
+  "name": "Default",
+  "description": "Clean professional admin interface",
+  "version": "1.0.0",
+  "variables": "variables.css"
+}

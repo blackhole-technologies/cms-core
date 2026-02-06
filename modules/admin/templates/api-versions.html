@@ -1,0 +1,451 @@
+<div class="admin-page">
+
+  <div class="admin-header">
+    <h1>{{pageTitle}}</h1>
+    <nav class="admin-nav">
+      <a href="/admin">Dashboard</a>
+      <a href="/admin/content">Content</a>
+      <a href="/admin/api" class="active">API</a>
+    </nav>
+  </div>
+
+  {{#if hasFlash}}
+  <div class="flash flash-{{flash.type}}">
+    {{flash.message}}
+  </div>
+  {{/if}}
+
+  <div class="breadcrumb">
+    <a href="/admin">Dashboard</a> &rarr;
+    <a href="/admin/api">API</a> &rarr;
+    <span>Versions</span>
+  </div>
+
+  <div class="admin-section">
+    <div class="section-header-row">
+      <h2>API Versions</h2>
+      <div class="section-meta">
+        <span class="meta-item">Default: <code>{{defaultVersion}}</code></span>
+        <span class="meta-item">{{totalRequests}} requests (30 days)</span>
+      </div>
+    </div>
+
+    {{#if hasVersions}}
+    <div class="version-grid">
+      {{#each versions}}
+      <div class="version-card {{status}}">
+        <div class="version-header">
+          <span class="version-name">{{version}}</span>
+          <span class="version-status-badge">{{status}}</span>
+        </div>
+
+        <div class="version-stats">
+          <div class="stat">
+            <span class="stat-value">{{requests7d}}</span>
+            <span class="stat-label">requests (7d)</span>
+          </div>
+        </div>
+
+        {{#if releasedAt}}
+        <div class="version-date">
+          <span class="date-label">Released:</span>
+          <span class="date-value">{{releasedAt}}</span>
+        </div>
+        {{/if}}
+
+        {{#if deprecatedAt}}
+        <div class="version-date warning">
+          <span class="date-label">Deprecated:</span>
+          <span class="date-value">{{deprecatedAt}}</span>
+        </div>
+        {{/if}}
+
+        {{#if sunsetAt}}
+        <div class="version-date danger">
+          <span class="date-label">Sunset:</span>
+          <span class="date-value">{{sunsetAt}}</span>
+        </div>
+        {{/if}}
+
+        {{#if topEndpoints.length}}
+        <div class="top-endpoints">
+          <h4>Top Endpoints</h4>
+          <ul>
+            {{#each topEndpoints}}
+            <li>
+              <code>{{endpoint}}</code>
+              <span class="endpoint-count">{{count}}</span>
+            </li>
+            {{/each}}
+          </ul>
+        </div>
+        {{/if}}
+      </div>
+      {{/each}}
+    </div>
+    {{else}}
+    <p class="empty-message">No API versions configured.</p>
+    {{/if}}
+  </div>
+
+  {{#if hasDeprecations}}
+  <div class="admin-section warning-section">
+    <h2>&#x26A0; Deprecation Warnings</h2>
+    <div class="deprecation-table">
+      <table class="admin-table">
+        <thead>
+          <tr>
+            <th>Type</th>
+            <th>Target</th>
+            <th>Deprecated</th>
+            <th>Sunset</th>
+            <th>Details</th>
+          </tr>
+        </thead>
+        <tbody>
+          {{#each deprecations}}
+          <tr>
+            <td>
+              <span class="type-badge type-{{type}}">{{type}}</span>
+            </td>
+            <td>
+              {{#if (eq type 'version')}}
+              <code>{{version}}</code>
+              {{else}}
+              <code>{{version}} {{endpoint}}</code>
+              {{/if}}
+            </td>
+            <td>{{deprecatedAt}}</td>
+            <td>{{#if sunsetAt}}{{sunsetAt}}{{else}}-{{/if}}</td>
+            <td>
+              {{message}}
+              {{#if alternative}}<br><small>Use: <code>{{alternative}}</code></small>{{/if}}
+            </td>
+          </tr>
+          {{/each}}
+        </tbody>
+      </table>
+    </div>
+  </div>
+  {{/if}}
+
+  {{#if hasChangelog}}
+  <div class="admin-section">
+    <h2>Changelog</h2>
+    <div class="changelog">
+      {{#each changelog}}
+      <div class="changelog-entry">
+        <div class="changelog-header">
+          <span class="changelog-version">{{version}}</span>
+          {{#if releasedAt}}<span class="changelog-date">{{releasedAt}}</span>{{/if}}
+          <span class="changelog-status {{status}}">{{status}}</span>
+        </div>
+        <ul class="changelog-changes">
+          {{#each changes}}
+          <li>{{this}}</li>
+          {{/each}}
+        </ul>
+      </div>
+      {{/each}}
+    </div>
+  </div>
+  {{/if}}
+
+  <div class="admin-section">
+    <h2>Version Negotiation</h2>
+    <p>Clients can specify the desired API version using these methods (in priority order):</p>
+
+    <ol class="negotiation-list">
+      <li>
+        <strong>URL Prefix</strong>
+        <code>/api/v2/content/...</code>
+      </li>
+      <li>
+        <strong>X-API-Version Header</strong>
+        <code>X-API-Version: 2</code>
+      </li>
+      <li>
+        <strong>Accept Header</strong>
+        <code>Accept: application/vnd.cms.v2+json</code>
+      </li>
+      <li>
+        <strong>Query Parameter</strong>
+        <code>?api_version=2</code>
+      </li>
+      <li>
+        <strong>Default</strong>
+        Falls back to <code>{{defaultVersion}}</code>
+      </li>
+    </ol>
+
+    <h3>Response Headers</h3>
+    <table class="admin-table">
+      <thead>
+        <tr>
+          <th>Header</th>
+          <th>Description</th>
+          <th>Example</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td><code>X-API-Version</code></td>
+          <td>The API version used for this response</td>
+          <td><code>v2</code></td>
+        </tr>
+        <tr>
+          <td><code>Deprecation</code></td>
+          <td>Present when using a deprecated version</td>
+          <td><code>true</code></td>
+        </tr>
+        <tr>
+          <td><code>Sunset</code></td>
+          <td>Date when deprecated version will be removed</td>
+          <td><code>Sat, 01 Jun 2024 00:00:00 GMT</code></td>
+        </tr>
+        <tr>
+          <td><code>Link</code></td>
+          <td>Points to successor version when deprecated</td>
+          <td><code>&lt;/api/v2/&gt;; rel="successor-version"</code></td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+
+  <style>
+    .section-header-row {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 1.5rem;
+    }
+    .section-header-row h2 {
+      margin: 0;
+    }
+    .section-meta {
+      display: flex;
+      gap: 1.5rem;
+    }
+    .meta-item {
+      color: #6b7280;
+      font-size: 0.9rem;
+    }
+    .meta-item code {
+      background: #f3f4f6;
+      padding: 0.125rem 0.375rem;
+      border-radius: 3px;
+    }
+    .version-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+      gap: 1.5rem;
+    }
+    .version-card {
+      background: #f9fafb;
+      border: 1px solid #e5e7eb;
+      border-radius: 8px;
+      padding: 1.25rem;
+    }
+    .version-card.stable {
+      border-color: #86efac;
+      background: #f0fdf4;
+    }
+    .version-card.deprecated {
+      border-color: #fcd34d;
+      background: #fffbeb;
+    }
+    .version-card.beta {
+      border-color: #93c5fd;
+      background: #eff6ff;
+    }
+    .version-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 1rem;
+    }
+    .version-name {
+      font-size: 1.5rem;
+      font-weight: 600;
+      color: #111827;
+    }
+    .version-status-badge {
+      padding: 0.25rem 0.75rem;
+      border-radius: 9999px;
+      font-size: 0.75rem;
+      font-weight: 500;
+      text-transform: uppercase;
+    }
+    .stable .version-status-badge {
+      background: #d1fae5;
+      color: #065f46;
+    }
+    .deprecated .version-status-badge {
+      background: #fef3c7;
+      color: #92400e;
+    }
+    .beta .version-status-badge {
+      background: #dbeafe;
+      color: #1e40af;
+    }
+    .version-stats {
+      margin-bottom: 1rem;
+    }
+    .version-stats .stat {
+      display: flex;
+      align-items: baseline;
+      gap: 0.5rem;
+    }
+    .version-stats .stat-value {
+      font-size: 1.75rem;
+      font-weight: 600;
+      color: #111827;
+    }
+    .version-stats .stat-label {
+      font-size: 0.85rem;
+      color: #6b7280;
+    }
+    .version-date {
+      display: flex;
+      justify-content: space-between;
+      padding: 0.375rem 0;
+      font-size: 0.85rem;
+      border-top: 1px solid #e5e7eb;
+    }
+    .version-date.warning {
+      color: #92400e;
+    }
+    .version-date.danger {
+      color: #991b1b;
+      font-weight: 500;
+    }
+    .date-label {
+      color: #6b7280;
+    }
+    .top-endpoints {
+      margin-top: 1rem;
+      padding-top: 1rem;
+      border-top: 1px solid #e5e7eb;
+    }
+    .top-endpoints h4 {
+      margin: 0 0 0.5rem 0;
+      font-size: 0.8rem;
+      color: #6b7280;
+      text-transform: uppercase;
+    }
+    .top-endpoints ul {
+      list-style: none;
+      padding: 0;
+      margin: 0;
+    }
+    .top-endpoints li {
+      display: flex;
+      justify-content: space-between;
+      padding: 0.25rem 0;
+      font-size: 0.8rem;
+    }
+    .top-endpoints code {
+      font-size: 0.75rem;
+      color: #4b5563;
+    }
+    .endpoint-count {
+      color: #9ca3af;
+    }
+    .warning-section {
+      background: #fffbeb;
+      border: 1px solid #fcd34d;
+    }
+    .warning-section h2 {
+      color: #92400e;
+    }
+    .type-badge {
+      padding: 0.125rem 0.5rem;
+      border-radius: 4px;
+      font-size: 0.75rem;
+      font-weight: 500;
+    }
+    .type-version {
+      background: #fef3c7;
+      color: #92400e;
+    }
+    .type-endpoint {
+      background: #dbeafe;
+      color: #1e40af;
+    }
+    .changelog {
+      display: flex;
+      flex-direction: column;
+      gap: 1.5rem;
+    }
+    .changelog-entry {
+      background: #f9fafb;
+      border: 1px solid #e5e7eb;
+      border-radius: 8px;
+      padding: 1rem;
+    }
+    .changelog-header {
+      display: flex;
+      align-items: center;
+      gap: 1rem;
+      margin-bottom: 0.75rem;
+    }
+    .changelog-version {
+      font-size: 1.1rem;
+      font-weight: 600;
+    }
+    .changelog-date {
+      color: #6b7280;
+      font-size: 0.85rem;
+    }
+    .changelog-status {
+      padding: 0.125rem 0.5rem;
+      border-radius: 4px;
+      font-size: 0.7rem;
+      text-transform: uppercase;
+    }
+    .changelog-status.stable {
+      background: #d1fae5;
+      color: #065f46;
+    }
+    .changelog-status.deprecated {
+      background: #fef3c7;
+      color: #92400e;
+    }
+    .changelog-status.beta {
+      background: #dbeafe;
+      color: #1e40af;
+    }
+    .changelog-changes {
+      margin: 0;
+      padding-left: 1.25rem;
+      color: #4b5563;
+    }
+    .changelog-changes li {
+      margin-bottom: 0.25rem;
+    }
+    .negotiation-list {
+      padding-left: 1.25rem;
+    }
+    .negotiation-list li {
+      margin-bottom: 0.75rem;
+    }
+    .negotiation-list strong {
+      display: block;
+      margin-bottom: 0.25rem;
+    }
+    .negotiation-list code {
+      background: #f3f4f6;
+      padding: 0.25rem 0.5rem;
+      border-radius: 4px;
+      font-size: 0.85rem;
+    }
+    .empty-message {
+      color: #6b7280;
+      font-style: italic;
+      text-align: center;
+      padding: 2rem;
+    }
+  </style>
+  <script src="/public/js/shortcuts.js"></script>
+  <script>Shortcuts.init({ context: 'global' });</script>
+</div>

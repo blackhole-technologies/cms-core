@@ -1,0 +1,1184 @@
+/**
+ * editor.js - WYSIWYG Editor Configuration & Integration
+ *
+ * WHY THIS EXISTS:
+ * =================
+ * Rich text editing is essential for content management. This module provides:
+ *
+ * - Editor format configurations (full, basic, minimal)
+ * - Toolbar button definitions
+ * - Media embed integration
+ * - Text format integration
+ * - Pluggable editor backends (Quill, TipTap, ContentEditable, etc.)
+ *
+ * DESIGN PHILOSOPHY:
+ * ==================
+ * Unlike Drupal's CKEditor integration which bundles a specific editor,
+ * this module is BACKEND-AGNOSTIC. It provides:
+ *
+ * 1. Configuration management (toolbar buttons, formats, plugins)
+ * 2. Server-side content processing (sanitization, media embeds)
+ * 3. API for frontend editors to consume
+ *
+ * The frontend can use any WYSIWYG library (Quill, TipTap, ProseMirror,
+ * CKEditor, TinyMCE, or even contenteditable) and this module provides
+ * the configuration and processing layer.
+ *
+ * WHY NOT BUNDLE AN EDITOR:
+ * - Keeps core lightweight
+ * - Allows choice of editor (some prefer minimal, others feature-rich)
+ * - Separates concerns (config vs rendering)
+ * - Enables server-side rendering without JS editor
+ *
+ * STORAGE STRATEGY:
+ * =================
+ * /config
+ *   /editor-formats.json   <- Format definitions
+ *
+ * INTEGRATION:
+ * ============
+ * - text-formats.js: Sanitization and processing
+ * - media-library.js: Media embed handling
+ * - oembed.js: Remote embed handling
+ */
+
+import { readFileSync, writeFileSync, existsSync, mkdirSync } from 'node:fs';
+import { join } from 'node:path';
+
+// ============================================
+// MODULE STATE
+// ============================================
+
+let baseDir = null;
+let textFormatsService = null;
+let mediaLibraryService = null;
+let oembedService = null;
+let hooksService = null;
+
+/**
+ * Editor format definitions
+ * Structure: { formatId: EditorFormat, ... }
+ */
+const formats = {};
+
+/**
+ * Available toolbar buttons
+ * Structure: { buttonId: ButtonDefinition, ... }
+ */
+const buttons = {};
+
+/**
+ * Configuration
+ */
+let config = {
+  enabled: true,
+  defaultFormat: 'basic',
+  sanitizeOnSave: true,
+  processMediaEmbeds: true,
+  processOembeds: true,
+};
+
+// ============================================
+// TYPE DEFINITIONS (JSDoc)
+// ============================================
+
+/**
+ * @typedef {Object} EditorFormat
+ * @property {string} id - Format identifier
+ * @property {string} label - Human-readable name
+ * @property {string} description - What this format is for
+ * @property {string[][]} toolbar - Toolbar rows and groups
+ * @property {Object} settings - Format-specific settings
+ * @property {string} textFormat - Text format to use for processing
+ * @property {string[]} allowedHtmlTags - Allowed HTML tags
+ * @property {Object} allowedHtmlAttributes - Allowed attributes per tag
+ * @property {Object} plugins - Enabled plugins and their config
+ */
+
+/**
+ * @typedef {Object} ButtonDefinition
+ * @property {string} id - Button identifier
+ * @property {string} label - Button label (for accessibility)
+ * @property {string} icon - Icon identifier
+ * @property {string} category - Button category (formatting, lists, etc.)
+ * @property {string} command - Editor command to execute
+ * @property {Object} options - Command options
+ * @property {boolean} toggle - Is this a toggle button
+ * @property {string[]} tags - HTML tags this button produces
+ */
+
+// ============================================
+// INITIALIZATION
+// ============================================
+
+/**
+ * Initialize the editor system
+ *
+ * @param {Object} options - Initialization options
+ */
+export function init(options = {}) {
+  baseDir = options.baseDir;
+  textFormatsService = options.textFormats;
+  mediaLibraryService = options.mediaLibrary;
+  oembedService = options.oembed;
+  hooksService = options.hooks;
+
+  if (options.config) {
+    config = { ...config, ...options.config };
+  }
+
+  // Ensure config directory exists
+  const configDir = join(baseDir, 'config');
+  if (!existsSync(configDir)) {
+    mkdirSync(configDir, { recursive: true });
+  }
+
+  // Register built-in buttons
+  registerBuiltinButtons();
+
+  // Register built-in formats
+  registerBuiltinFormats();
+
+  // Load custom formats from config
+  loadFormats();
+
+  console.log(`[editor] Initialized (${Object.keys(formats).length} formats, ${Object.keys(buttons).length} buttons)`);
+}
+
+/**
+ * Load format definitions from config/editor-formats.json
+ */
+function loadFormats() {
+  const formatsPath = join(baseDir, 'config', 'editor-formats.json');
+
+  if (existsSync(formatsPath)) {
+    try {
+      const data = JSON.parse(readFileSync(formatsPath, 'utf-8'));
+      Object.assign(formats, data);
+    } catch (e) {
+      console.error('[editor] Failed to load formats:', e.message);
+    }
+  }
+}
+
+/**
+ * Save formats to disk
+ */
+function saveFormats() {
+  const formatsPath = join(baseDir, 'config', 'editor-formats.json');
+
+  // Only save custom formats (not built-ins)
+  const customFormats = {};
+  for (const [id, format] of Object.entries(formats)) {
+    if (format.source !== 'builtin') {
+      customFormats[id] = format;
+    }
+  }
+
+  writeFileSync(formatsPath, JSON.stringify(customFormats, null, 2) + '\n');
+}
+
+// ============================================
+// BUILT-IN BUTTONS
+// ============================================
+
+/**
+ * Register all built-in toolbar buttons
+ *
+ * WHY DEFINE BUTTONS:
+ * - Provides a catalog of available formatting options
+ * - Frontend editors can use this for toolbar rendering
+ * - Enables format-based filtering of allowed buttons
+ */
+function registerBuiltinButtons() {
+  // ---- TEXT FORMATTING ----
+  buttons.bold = {
+    id: 'bold',
+    label: 'Bold',
+    icon: 'bold',
+    category: 'formatting',
+    command: 'bold',
+    toggle: true,
+    tags: ['strong', 'b'],
+    shortcut: 'Ctrl+B',
+  };
+
+  buttons.italic = {
+    id: 'italic',
+    label: 'Italic',
+    icon: 'italic',
+    category: 'formatting',
+    command: 'italic',
+    toggle: true,
+    tags: ['em', 'i'],
+    shortcut: 'Ctrl+I',
+  };
+
+  buttons.underline = {
+    id: 'underline',
+    label: 'Underline',
+    icon: 'underline',
+    category: 'formatting',
+    command: 'underline',
+    toggle: true,
+    tags: ['u'],
+    shortcut: 'Ctrl+U',
+  };
+
+  buttons.strikethrough = {
+    id: 'strikethrough',
+    label: 'Strikethrough',
+    icon: 'strikethrough',
+    category: 'formatting',
+    command: 'strikethrough',
+    toggle: true,
+    tags: ['s', 'del'],
+  };
+
+  buttons.subscript = {
+    id: 'subscript',
+    label: 'Subscript',
+    icon: 'subscript',
+    category: 'formatting',
+    command: 'subscript',
+    toggle: true,
+    tags: ['sub'],
+  };
+
+  buttons.superscript = {
+    id: 'superscript',
+    label: 'Superscript',
+    icon: 'superscript',
+    category: 'formatting',
+    command: 'superscript',
+    toggle: true,
+    tags: ['sup'],
+  };
+
+  buttons.code = {
+    id: 'code',
+    label: 'Inline Code',
+    icon: 'code',
+    category: 'formatting',
+    command: 'code',
+    toggle: true,
+    tags: ['code'],
+  };
+
+  // ---- HEADINGS ----
+  buttons.heading1 = {
+    id: 'heading1',
+    label: 'Heading 1',
+    icon: 'heading-1',
+    category: 'headings',
+    command: 'heading',
+    options: { level: 1 },
+    tags: ['h1'],
+  };
+
+  buttons.heading2 = {
+    id: 'heading2',
+    label: 'Heading 2',
+    icon: 'heading-2',
+    category: 'headings',
+    command: 'heading',
+    options: { level: 2 },
+    tags: ['h2'],
+  };
+
+  buttons.heading3 = {
+    id: 'heading3',
+    label: 'Heading 3',
+    icon: 'heading-3',
+    category: 'headings',
+    command: 'heading',
+    options: { level: 3 },
+    tags: ['h3'],
+  };
+
+  buttons.heading4 = {
+    id: 'heading4',
+    label: 'Heading 4',
+    icon: 'heading-4',
+    category: 'headings',
+    command: 'heading',
+    options: { level: 4 },
+    tags: ['h4'],
+  };
+
+  buttons.heading5 = {
+    id: 'heading5',
+    label: 'Heading 5',
+    icon: 'heading-5',
+    category: 'headings',
+    command: 'heading',
+    options: { level: 5 },
+    tags: ['h5'],
+  };
+
+  buttons.heading6 = {
+    id: 'heading6',
+    label: 'Heading 6',
+    icon: 'heading-6',
+    category: 'headings',
+    command: 'heading',
+    options: { level: 6 },
+    tags: ['h6'],
+  };
+
+  buttons.paragraph = {
+    id: 'paragraph',
+    label: 'Paragraph',
+    icon: 'paragraph',
+    category: 'headings',
+    command: 'paragraph',
+    tags: ['p'],
+  };
+
+  // ---- LISTS ----
+  buttons.bulletList = {
+    id: 'bulletList',
+    label: 'Bullet List',
+    icon: 'list-ul',
+    category: 'lists',
+    command: 'bulletList',
+    toggle: true,
+    tags: ['ul', 'li'],
+  };
+
+  buttons.orderedList = {
+    id: 'orderedList',
+    label: 'Ordered List',
+    icon: 'list-ol',
+    category: 'lists',
+    command: 'orderedList',
+    toggle: true,
+    tags: ['ol', 'li'],
+  };
+
+  buttons.indent = {
+    id: 'indent',
+    label: 'Increase Indent',
+    icon: 'indent',
+    category: 'lists',
+    command: 'indent',
+  };
+
+  buttons.outdent = {
+    id: 'outdent',
+    label: 'Decrease Indent',
+    icon: 'outdent',
+    category: 'lists',
+    command: 'outdent',
+  };
+
+  // ---- ALIGNMENT ----
+  buttons.alignLeft = {
+    id: 'alignLeft',
+    label: 'Align Left',
+    icon: 'align-left',
+    category: 'alignment',
+    command: 'align',
+    options: { alignment: 'left' },
+  };
+
+  buttons.alignCenter = {
+    id: 'alignCenter',
+    label: 'Align Center',
+    icon: 'align-center',
+    category: 'alignment',
+    command: 'align',
+    options: { alignment: 'center' },
+  };
+
+  buttons.alignRight = {
+    id: 'alignRight',
+    label: 'Align Right',
+    icon: 'align-right',
+    category: 'alignment',
+    command: 'align',
+    options: { alignment: 'right' },
+  };
+
+  buttons.alignJustify = {
+    id: 'alignJustify',
+    label: 'Justify',
+    icon: 'align-justify',
+    category: 'alignment',
+    command: 'align',
+    options: { alignment: 'justify' },
+  };
+
+  // ---- LINKS & MEDIA ----
+  buttons.link = {
+    id: 'link',
+    label: 'Insert Link',
+    icon: 'link',
+    category: 'insert',
+    command: 'link',
+    dialog: 'link',
+    tags: ['a'],
+    shortcut: 'Ctrl+K',
+  };
+
+  buttons.unlink = {
+    id: 'unlink',
+    label: 'Remove Link',
+    icon: 'unlink',
+    category: 'insert',
+    command: 'unlink',
+  };
+
+  buttons.image = {
+    id: 'image',
+    label: 'Insert Image',
+    icon: 'image',
+    category: 'insert',
+    command: 'image',
+    dialog: 'media',
+    tags: ['img'],
+  };
+
+  buttons.media = {
+    id: 'media',
+    label: 'Insert Media',
+    icon: 'media',
+    category: 'insert',
+    command: 'media',
+    dialog: 'media',
+  };
+
+  buttons.video = {
+    id: 'video',
+    label: 'Insert Video',
+    icon: 'video',
+    category: 'insert',
+    command: 'video',
+    dialog: 'video',
+    tags: ['video', 'iframe'],
+  };
+
+  // ---- BLOCKS ----
+  buttons.blockquote = {
+    id: 'blockquote',
+    label: 'Block Quote',
+    icon: 'quote',
+    category: 'blocks',
+    command: 'blockquote',
+    toggle: true,
+    tags: ['blockquote'],
+  };
+
+  buttons.codeBlock = {
+    id: 'codeBlock',
+    label: 'Code Block',
+    icon: 'code-block',
+    category: 'blocks',
+    command: 'codeBlock',
+    toggle: true,
+    tags: ['pre', 'code'],
+  };
+
+  buttons.horizontalRule = {
+    id: 'horizontalRule',
+    label: 'Horizontal Rule',
+    icon: 'horizontal-rule',
+    category: 'blocks',
+    command: 'horizontalRule',
+    tags: ['hr'],
+  };
+
+  // ---- TABLES ----
+  buttons.table = {
+    id: 'table',
+    label: 'Insert Table',
+    icon: 'table',
+    category: 'tables',
+    command: 'table',
+    dialog: 'table',
+    tags: ['table', 'thead', 'tbody', 'tr', 'th', 'td'],
+  };
+
+  buttons.tableAddRowBefore = {
+    id: 'tableAddRowBefore',
+    label: 'Add Row Above',
+    icon: 'table-row-add-before',
+    category: 'tables',
+    command: 'tableAddRowBefore',
+  };
+
+  buttons.tableAddRowAfter = {
+    id: 'tableAddRowAfter',
+    label: 'Add Row Below',
+    icon: 'table-row-add-after',
+    category: 'tables',
+    command: 'tableAddRowAfter',
+  };
+
+  buttons.tableAddColumnBefore = {
+    id: 'tableAddColumnBefore',
+    label: 'Add Column Left',
+    icon: 'table-column-add-before',
+    category: 'tables',
+    command: 'tableAddColumnBefore',
+  };
+
+  buttons.tableAddColumnAfter = {
+    id: 'tableAddColumnAfter',
+    label: 'Add Column Right',
+    icon: 'table-column-add-after',
+    category: 'tables',
+    command: 'tableAddColumnAfter',
+  };
+
+  buttons.tableDeleteRow = {
+    id: 'tableDeleteRow',
+    label: 'Delete Row',
+    icon: 'table-row-delete',
+    category: 'tables',
+    command: 'tableDeleteRow',
+  };
+
+  buttons.tableDeleteColumn = {
+    id: 'tableDeleteColumn',
+    label: 'Delete Column',
+    icon: 'table-column-delete',
+    category: 'tables',
+    command: 'tableDeleteColumn',
+  };
+
+  buttons.tableDelete = {
+    id: 'tableDelete',
+    label: 'Delete Table',
+    icon: 'table-delete',
+    category: 'tables',
+    command: 'tableDelete',
+  };
+
+  // ---- HISTORY ----
+  buttons.undo = {
+    id: 'undo',
+    label: 'Undo',
+    icon: 'undo',
+    category: 'history',
+    command: 'undo',
+    shortcut: 'Ctrl+Z',
+  };
+
+  buttons.redo = {
+    id: 'redo',
+    label: 'Redo',
+    icon: 'redo',
+    category: 'history',
+    command: 'redo',
+    shortcut: 'Ctrl+Y',
+  };
+
+  // ---- UTILITIES ----
+  buttons.clearFormatting = {
+    id: 'clearFormatting',
+    label: 'Clear Formatting',
+    icon: 'clear-formatting',
+    category: 'utilities',
+    command: 'clearFormatting',
+  };
+
+  buttons.source = {
+    id: 'source',
+    label: 'Source Code',
+    icon: 'source',
+    category: 'utilities',
+    command: 'source',
+    toggle: true,
+  };
+
+  buttons.fullscreen = {
+    id: 'fullscreen',
+    label: 'Fullscreen',
+    icon: 'fullscreen',
+    category: 'utilities',
+    command: 'fullscreen',
+    toggle: true,
+  };
+
+  buttons.specialCharacters = {
+    id: 'specialCharacters',
+    label: 'Special Characters',
+    icon: 'omega',
+    category: 'utilities',
+    command: 'specialCharacters',
+    dialog: 'specialCharacters',
+  };
+}
+
+// ============================================
+// BUILT-IN FORMATS
+// ============================================
+
+/**
+ * Register built-in editor formats
+ */
+function registerBuiltinFormats() {
+  // Minimal format - for simple text fields
+  formats.minimal = {
+    id: 'minimal',
+    label: 'Minimal',
+    description: 'Basic formatting only (bold, italic, links)',
+    source: 'builtin',
+    toolbar: [
+      ['bold', 'italic', 'link', 'unlink'],
+    ],
+    settings: {
+      enterMode: 'br',
+      autoParagraph: false,
+    },
+    textFormat: 'plain',
+    allowedHtmlTags: ['p', 'br', 'strong', 'b', 'em', 'i', 'a'],
+    allowedHtmlAttributes: {
+      a: ['href', 'target', 'rel'],
+    },
+    plugins: {},
+  };
+
+  // Basic format - for most content
+  formats.basic = {
+    id: 'basic',
+    label: 'Basic',
+    description: 'Standard formatting for most content',
+    source: 'builtin',
+    toolbar: [
+      ['bold', 'italic', 'underline', '|', 'link', 'unlink'],
+      ['heading2', 'heading3', 'paragraph', '|', 'bulletList', 'orderedList'],
+      ['blockquote', '|', 'undo', 'redo'],
+    ],
+    settings: {
+      enterMode: 'p',
+      autoParagraph: true,
+    },
+    textFormat: 'basic_html',
+    allowedHtmlTags: [
+      'p', 'br', 'h2', 'h3', 'h4',
+      'strong', 'b', 'em', 'i', 'u',
+      'a', 'ul', 'ol', 'li',
+      'blockquote',
+    ],
+    allowedHtmlAttributes: {
+      a: ['href', 'target', 'rel', 'title'],
+    },
+    plugins: {},
+  };
+
+  // Full format - for power users
+  formats.full = {
+    id: 'full',
+    label: 'Full',
+    description: 'Full-featured editor with all formatting options',
+    source: 'builtin',
+    toolbar: [
+      ['bold', 'italic', 'underline', 'strikethrough', '|', 'subscript', 'superscript', '|', 'clearFormatting'],
+      ['heading1', 'heading2', 'heading3', 'heading4', 'paragraph', '|', 'bulletList', 'orderedList', 'indent', 'outdent'],
+      ['alignLeft', 'alignCenter', 'alignRight', 'alignJustify'],
+      ['link', 'unlink', '|', 'image', 'media', 'video', '|', 'table'],
+      ['blockquote', 'codeBlock', 'code', 'horizontalRule'],
+      ['undo', 'redo', '|', 'source', 'fullscreen'],
+    ],
+    settings: {
+      enterMode: 'p',
+      autoParagraph: true,
+      allowSourceEditing: true,
+    },
+    textFormat: 'full_html',
+    allowedHtmlTags: [
+      'p', 'br', 'h1', 'h2', 'h3', 'h4', 'h5', 'h6',
+      'strong', 'b', 'em', 'i', 'u', 's', 'del', 'sub', 'sup', 'code',
+      'a', 'ul', 'ol', 'li',
+      'blockquote', 'pre', 'hr',
+      'table', 'thead', 'tbody', 'tr', 'th', 'td',
+      'img', 'figure', 'figcaption',
+      'video', 'audio', 'source', 'iframe',
+      'div', 'span',
+    ],
+    allowedHtmlAttributes: {
+      '*': ['class', 'id', 'style'],
+      a: ['href', 'target', 'rel', 'title'],
+      img: ['src', 'alt', 'width', 'height', 'loading'],
+      video: ['src', 'width', 'height', 'controls', 'autoplay', 'muted', 'loop'],
+      audio: ['src', 'controls'],
+      source: ['src', 'type'],
+      iframe: ['src', 'width', 'height', 'frameborder', 'allowfullscreen'],
+      table: ['border', 'cellpadding', 'cellspacing'],
+      td: ['colspan', 'rowspan'],
+      th: ['colspan', 'rowspan', 'scope'],
+    },
+    plugins: {
+      table: { enabled: true },
+      media: { enabled: true },
+      image: { enabled: true },
+    },
+  };
+
+  // Code format - for developers
+  formats.code = {
+    id: 'code',
+    label: 'Code',
+    description: 'Optimized for code and technical content',
+    source: 'builtin',
+    toolbar: [
+      ['bold', 'italic', '|', 'code', 'codeBlock'],
+      ['heading2', 'heading3', '|', 'bulletList', 'orderedList'],
+      ['link', '|', 'undo', 'redo', '|', 'source'],
+    ],
+    settings: {
+      enterMode: 'p',
+      autoParagraph: true,
+      tabSize: 2,
+    },
+    textFormat: 'code_html',
+    allowedHtmlTags: [
+      'p', 'br', 'h2', 'h3', 'h4',
+      'strong', 'em', 'code', 'pre',
+      'a', 'ul', 'ol', 'li',
+      'blockquote',
+    ],
+    allowedHtmlAttributes: {
+      a: ['href', 'target', 'rel'],
+      pre: ['class', 'data-language'],
+      code: ['class'],
+    },
+    plugins: {
+      syntaxHighlight: { enabled: true },
+    },
+  };
+}
+
+// ============================================
+// FORMAT MANAGEMENT
+// ============================================
+
+/**
+ * Register a custom editor format
+ *
+ * @param {EditorFormat} format - Format definition
+ * @returns {EditorFormat}
+ */
+export async function registerFormat(format) {
+  if (!format.id) {
+    throw new Error('Format ID is required');
+  }
+
+  // Don't allow overwriting built-ins
+  if (formats[format.id]?.source === 'builtin') {
+    throw new Error(`Cannot overwrite built-in format: ${format.id}`);
+  }
+
+  // Validate toolbar buttons exist
+  const flatToolbar = format.toolbar.flat().filter(b => b !== '|');
+  for (const buttonId of flatToolbar) {
+    if (!buttons[buttonId]) {
+      throw new Error(`Unknown toolbar button: ${buttonId}`);
+    }
+  }
+
+  // Fire hook
+  if (hooksService) {
+    await hooksService.trigger('editor:beforeRegisterFormat', { format });
+  }
+
+  formats[format.id] = {
+    id: format.id,
+    label: format.label || format.id,
+    description: format.description || '',
+    source: 'custom',
+    toolbar: format.toolbar,
+    settings: format.settings || {},
+    textFormat: format.textFormat || 'basic_html',
+    allowedHtmlTags: format.allowedHtmlTags || [],
+    allowedHtmlAttributes: format.allowedHtmlAttributes || {},
+    plugins: format.plugins || {},
+    created: new Date().toISOString(),
+  };
+
+  saveFormats();
+
+  // Fire hook
+  if (hooksService) {
+    await hooksService.trigger('editor:afterRegisterFormat', { format: formats[format.id] });
+  }
+
+  return formats[format.id];
+}
+
+/**
+ * Get a format definition
+ *
+ * @param {string} id - Format ID
+ * @returns {EditorFormat|null}
+ */
+export function getFormat(id) {
+  return formats[id] || null;
+}
+
+/**
+ * List all formats
+ *
+ * @returns {EditorFormat[]}
+ */
+export function listFormats() {
+  return Object.values(formats);
+}
+
+/**
+ * Update a custom format
+ *
+ * @param {string} id - Format ID
+ * @param {Object} updates - Updates to apply
+ * @returns {EditorFormat}
+ */
+export async function updateFormat(id, updates) {
+  const format = formats[id];
+  if (!format) {
+    throw new Error(`Format "${id}" not found`);
+  }
+
+  if (format.source === 'builtin') {
+    throw new Error(`Cannot modify built-in format: ${id}`);
+  }
+
+  // Fire hook
+  if (hooksService) {
+    await hooksService.trigger('editor:beforeUpdateFormat', { format, updates });
+  }
+
+  Object.assign(format, updates, { updated: new Date().toISOString() });
+  saveFormats();
+
+  // Fire hook
+  if (hooksService) {
+    await hooksService.trigger('editor:afterUpdateFormat', { format });
+  }
+
+  return format;
+}
+
+/**
+ * Delete a custom format
+ *
+ * @param {string} id - Format ID
+ * @returns {boolean}
+ */
+export async function deleteFormat(id) {
+  const format = formats[id];
+  if (!format) {
+    throw new Error(`Format "${id}" not found`);
+  }
+
+  if (format.source === 'builtin') {
+    throw new Error(`Cannot delete built-in format: ${id}`);
+  }
+
+  // Fire hook
+  if (hooksService) {
+    await hooksService.trigger('editor:beforeDeleteFormat', { format });
+  }
+
+  delete formats[id];
+  saveFormats();
+
+  // Fire hook
+  if (hooksService) {
+    await hooksService.trigger('editor:afterDeleteFormat', { id });
+  }
+
+  return true;
+}
+
+// ============================================
+// BUTTON MANAGEMENT
+// ============================================
+
+/**
+ * Register a custom button
+ *
+ * @param {ButtonDefinition} button - Button definition
+ * @returns {ButtonDefinition}
+ */
+export function registerButton(button) {
+  if (!button.id) {
+    throw new Error('Button ID is required');
+  }
+
+  buttons[button.id] = {
+    id: button.id,
+    label: button.label || button.id,
+    icon: button.icon || 'default',
+    category: button.category || 'custom',
+    command: button.command || button.id,
+    options: button.options || {},
+    toggle: button.toggle || false,
+    tags: button.tags || [],
+    dialog: button.dialog || null,
+    shortcut: button.shortcut || null,
+  };
+
+  return buttons[button.id];
+}
+
+/**
+ * Get a button definition
+ *
+ * @param {string} id - Button ID
+ * @returns {ButtonDefinition|null}
+ */
+export function getButton(id) {
+  return buttons[id] || null;
+}
+
+/**
+ * List all buttons
+ *
+ * @param {string} category - Filter by category
+ * @returns {ButtonDefinition[]}
+ */
+export function listButtons(category = null) {
+  const allButtons = Object.values(buttons);
+
+  if (category) {
+    return allButtons.filter(b => b.category === category);
+  }
+
+  return allButtons;
+}
+
+/**
+ * List button categories
+ *
+ * @returns {string[]}
+ */
+export function listButtonCategories() {
+  const categories = new Set();
+  for (const button of Object.values(buttons)) {
+    categories.add(button.category);
+  }
+  return Array.from(categories).sort();
+}
+
+// ============================================
+// CONTENT PROCESSING
+// ============================================
+
+/**
+ * Process content before saving
+ *
+ * @param {string} html - HTML content
+ * @param {string} formatId - Editor format ID
+ * @returns {Promise<string>} - Processed HTML
+ */
+export async function processContent(html, formatId) {
+  const format = getFormat(formatId) || getFormat(config.defaultFormat);
+  if (!format) {
+    throw new Error(`Editor format not found: ${formatId}`);
+  }
+
+  let processed = html;
+
+  // Fire before hook
+  if (hooksService) {
+    const result = await hooksService.trigger('editor:beforeProcess', { html, format });
+    processed = result?.html ?? processed;
+  }
+
+  // Process media embeds
+  if (config.processMediaEmbeds && mediaLibraryService) {
+    processed = await processMediaEmbeds(processed);
+  }
+
+  // Process oembeds
+  if (config.processOembeds && oembedService) {
+    processed = await processOembeds(processed);
+  }
+
+  // Sanitize using text formats service
+  if (config.sanitizeOnSave && textFormatsService) {
+    processed = await textFormatsService.process(format.textFormat, processed);
+  }
+
+  // Fire after hook
+  if (hooksService) {
+    const result = await hooksService.trigger('editor:afterProcess', { html: processed, format });
+    processed = result?.html ?? processed;
+  }
+
+  return processed;
+}
+
+/**
+ * Process media embed placeholders
+ *
+ * @param {string} html - HTML content
+ * @returns {Promise<string>}
+ */
+async function processMediaEmbeds(html) {
+  // Replace media placeholders with actual embeds
+  // Format: <media-embed data-media-id="xxx" />
+  const mediaPattern = /<media-embed\s+data-media-id="([^"]+)"[^>]*><\/media-embed>/g;
+
+  let result = html;
+  let match;
+
+  while ((match = mediaPattern.exec(html)) !== null) {
+    const mediaId = match[1];
+    const entity = mediaLibraryService.get(mediaId);
+
+    if (entity) {
+      let embed = '';
+
+      switch (entity.mediaType) {
+        case 'image':
+          embed = `<figure class="media-embed media-image">
+            <img src="${mediaLibraryService.getUrl(entity)}" alt="${escapeHtml(entity.alt || '')}" />
+            ${entity.caption ? `<figcaption>${escapeHtml(entity.caption)}</figcaption>` : ''}
+          </figure>`;
+          break;
+
+        case 'video':
+          embed = `<figure class="media-embed media-video">
+            <video controls>
+              <source src="${mediaLibraryService.getUrl(entity)}" type="${entity.mimeType}" />
+            </video>
+          </figure>`;
+          break;
+
+        case 'remote_video':
+          embed = `<figure class="media-embed media-remote-video">
+            ${mediaLibraryService.getEmbed(entity)}
+          </figure>`;
+          break;
+
+        case 'audio':
+          embed = `<figure class="media-embed media-audio">
+            <audio controls>
+              <source src="${mediaLibraryService.getUrl(entity)}" type="${entity.mimeType}" />
+            </audio>
+          </figure>`;
+          break;
+
+        default:
+          embed = `<a href="${mediaLibraryService.getUrl(entity)}" class="media-embed media-document">${escapeHtml(entity.name)}</a>`;
+      }
+
+      result = result.replace(match[0], embed);
+    }
+  }
+
+  return result;
+}
+
+/**
+ * Process oembed URLs
+ *
+ * @param {string} html - HTML content
+ * @returns {Promise<string>}
+ */
+async function processOembeds(html) {
+  // Replace oembed placeholders with actual embeds
+  // Format: <oembed url="https://..." />
+  const oembedPattern = /<oembed\s+url="([^"]+)"[^>]*><\/oembed>/g;
+
+  let result = html;
+  let match;
+
+  while ((match = oembedPattern.exec(html)) !== null) {
+    const url = match[1];
+
+    try {
+      const embedData = await oembedService.fetch(url);
+      if (embedData && embedData.html) {
+        result = result.replace(match[0], `<div class="oembed">${embedData.html}</div>`);
+      }
+    } catch (e) {
+      console.warn(`[editor] Failed to fetch oembed for ${url}:`, e.message);
+    }
+  }
+
+  return result;
+}
+
+/**
+ * Escape HTML special characters
+ *
+ * @param {string} str - String to escape
+ * @returns {string}
+ */
+function escapeHtml(str) {
+  if (typeof str !== 'string') return '';
+  return str
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;');
+}
+
+// ============================================
+// API FOR FRONTEND EDITORS
+// ============================================
+
+/**
+ * Get editor configuration for frontend
+ *
+ * @param {string} formatId - Format ID
+ * @returns {Object} - Configuration for frontend editor
+ */
+export function getEditorConfig(formatId) {
+  const format = getFormat(formatId) || getFormat(config.defaultFormat);
+  if (!format) {
+    throw new Error(`Editor format not found: ${formatId}`);
+  }
+
+  // Resolve toolbar buttons
+  const resolvedToolbar = format.toolbar.map(row =>
+    row.map(item => {
+      if (item === '|') return { type: 'separator' };
+      const button = getButton(item);
+      return button ? { type: 'button', ...button } : null;
+    }).filter(Boolean)
+  );
+
+  return {
+    format: {
+      id: format.id,
+      label: format.label,
+    },
+    toolbar: resolvedToolbar,
+    settings: format.settings,
+    allowedHtmlTags: format.allowedHtmlTags,
+    allowedHtmlAttributes: format.allowedHtmlAttributes,
+    plugins: format.plugins,
+    endpoints: {
+      mediaLibrary: '/admin/media/library/browse',
+      linkAutocomplete: '/api/content/search',
+      oembed: '/api/oembed',
+    },
+  };
+}
+
+// ============================================
+// CONFIGURATION
+// ============================================
+
+/**
+ * Get configuration
+ *
+ * @returns {Object}
+ */
+export function getConfig() {
+  return { ...config };
+}
+
+/**
+ * Check if editor is enabled
+ *
+ * @returns {boolean}
+ */
+export function isEnabled() {
+  return config.enabled;
+}

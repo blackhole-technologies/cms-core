@@ -1,0 +1,176 @@
+<div class="admin-page">
+  <div class="admin-header">
+    <h1>{{pageTitle}}</h1>
+    <p>{{enabledCount}} enabled / {{totalCount}} installed</p>
+  </div>
+
+  {{#if hasFlash}}
+  <div class="flash flash-{{flash.type}}">
+    {{flash.message}}
+  </div>
+  {{/if}}
+
+  {{#if hasChangedPlugins}}
+  <div class="changed-plugins-notice">
+    <strong>{{changedCount}} plugin(s) with pending changes</strong>
+    {{#if autoReloadEnabled}}
+      <span class="auto-reload-badge enabled">Auto-reload: ON</span>
+    {{else}}
+      {{#if autoReloadPrompt}}
+        <span class="auto-reload-badge prompt">Auto-reload: PROMPT</span>
+      {{else}}
+        <span class="auto-reload-badge disabled">Auto-reload: OFF</span>
+      {{/if}}
+    {{/if}}
+  </div>
+  {{/if}}
+
+  {{#if hasPlugins}}
+  <div class="plugins-list">
+    <table class="admin-table">
+      <thead>
+        <tr>
+          <th>Status</th>
+          <th>Plugin</th>
+          <th>Version</th>
+          <th>Description</th>
+          <th>Permissions</th>
+          <th>Actions</th>
+        </tr>
+      </thead>
+      <tbody>
+        {{#each plugins}}
+        <tr class="{{#if error}}row-error{{/if}} {{#if hasChanges}}row-changed{{/if}}">
+          <td>
+            {{#if enabled}}
+              {{#if status}}
+                {{#if error}}
+                  <span class="badge badge-error" title="Error">✗</span>
+                {{else}}
+                  {{#if status}}
+                    <span class="badge badge-success" title="Active">✓</span>
+                  {{/if}}
+                {{/if}}
+              {{else}}
+                <span class="badge badge-warning" title="Loaded">○</span>
+              {{/if}}
+            {{else}}
+              <span class="badge badge-inactive" title="Disabled">-</span>
+            {{/if}}
+            {{#if hasChanges}}
+              <span class="badge badge-changed" title="Changed">!</span>
+            {{/if}}
+          </td>
+          <td>
+            <strong>{{name}}</strong>
+            {{#if author}}<br><small>by {{author}}</small>{{/if}}
+            {{#if hasChanges}}<br><small class="text-changed">Files changed</small>{{/if}}
+          </td>
+          <td>{{version}}</td>
+          <td>
+            {{description}}
+            {{#if error}}<br><small class="text-error">Error: {{error}}</small>{{/if}}
+          </td>
+          <td>
+            {{#if permissions}}
+              <small>{{permissions}}</small>
+            {{else}}
+              <small class="text-muted">none</small>
+            {{/if}}
+          </td>
+          <td>
+            <a href="/admin/plugins/{{name}}" class="btn btn-small">Details</a>
+            {{#if hasChanges}}
+              <form method="POST" action="/admin/plugins/{{name}}/reload" style="display:inline;">
+                {{csrfField}}
+                <button type="submit" class="btn btn-small btn-warning">Reload</button>
+              </form>
+            {{/if}}
+          </td>
+        </tr>
+        {{/each}}
+      </tbody>
+    </table>
+  </div>
+  {{else}}
+  <div class="empty-state">
+    <p>No plugins installed.</p>
+    <p>Create one with: <code>node index.js plugins:create &lt;name&gt;</code></p>
+  </div>
+  {{/if}}
+
+  <div class="admin-section">
+    <h2>Plugin Auto-Reload</h2>
+    <p>Auto-reload mode: <strong>{{autoReloadMode}}</strong></p>
+    <ul>
+      <li><code>node index.js plugins:autoload on</code> - Automatically reload on file change</li>
+      <li><code>node index.js plugins:autoload off</code> - Ignore file changes</li>
+      <li><code>node index.js plugins:autoload prompt</code> - Log changes, require manual reload</li>
+      <li><code>node index.js plugins:watch</code> - Watch for changes in real-time</li>
+      <li><code>node index.js plugins:reload-changed</code> - Reload all changed plugins</li>
+    </ul>
+  </div>
+
+  <div class="admin-section">
+    <h2>Plugin Management</h2>
+    <p>Plugins are third-party extensions with restricted permissions.</p>
+    <ul>
+      <li><strong>Enable/Disable:</strong> <code>node index.js plugins:enable &lt;name&gt;</code></li>
+      <li><strong>Create new:</strong> <code>node index.js plugins:create &lt;name&gt;</code></li>
+      <li><strong>Validate:</strong> <code>node index.js plugins:validate &lt;name&gt;</code></li>
+      <li><strong>Hot-reload:</strong> <code>node index.js plugins:reload &lt;name&gt;</code></li>
+    </ul>
+  </div>
+
+  <div class="admin-section">
+    <h2>Status Legend</h2>
+    <ul class="legend">
+      <li><span class="badge badge-success">✓</span> Active - Plugin is enabled and running</li>
+      <li><span class="badge badge-warning">○</span> Loaded - Plugin loaded but not activated</li>
+      <li><span class="badge badge-error">✗</span> Error - Plugin failed to load or activate</li>
+      <li><span class="badge badge-inactive">-</span> Disabled - Plugin is not enabled</li>
+      <li><span class="badge badge-changed">!</span> Changed - Plugin has pending file changes</li>
+    </ul>
+  </div>
+</div>
+
+<style>
+.plugins-list { margin: 1.5rem 0; }
+.badge { display: inline-block; padding: 0.25em 0.5em; border-radius: 3px; font-size: 0.85em; }
+.badge-success { background: #28a745; color: white; }
+.badge-warning { background: #ffc107; color: black; }
+.badge-error { background: #dc3545; color: white; }
+.badge-inactive { background: #6c757d; color: white; }
+.badge-changed { background: #17a2b8; color: white; }
+.row-error { background: #fff5f5; }
+.row-changed { background: #e8f4f8; }
+.text-error { color: #dc3545; }
+.text-muted { color: #6c757d; }
+.text-changed { color: #17a2b8; }
+.legend { list-style: none; padding: 0; }
+.legend li { margin: 0.5rem 0; }
+.legend .badge { margin-right: 0.5rem; }
+.empty-state { padding: 2rem; text-align: center; background: #f8f9fa; border-radius: 4px; }
+.admin-section { margin-top: 2rem; padding-top: 1rem; border-top: 1px solid #ddd; }
+.admin-section h2 { font-size: 1.2rem; margin-bottom: 0.5rem; }
+.changed-plugins-notice {
+  padding: 0.75rem 1rem;
+  background: #e8f4f8;
+  border: 1px solid #17a2b8;
+  border-radius: 4px;
+  margin-bottom: 1rem;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+.auto-reload-badge {
+  padding: 0.25em 0.5em;
+  border-radius: 3px;
+  font-size: 0.85em;
+}
+.auto-reload-badge.enabled { background: #28a745; color: white; }
+.auto-reload-badge.prompt { background: #ffc107; color: black; }
+.auto-reload-badge.disabled { background: #6c757d; color: white; }
+.btn-warning { background: #ffc107; color: black; border-color: #e0a800; }
+.btn-warning:hover { background: #e0a800; }
+</style>

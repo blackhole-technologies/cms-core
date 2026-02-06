@@ -1,0 +1,8 @@
+{
+  "id": "1769874874916-5i33r",
+  "type": "greeting",
+  "created": "2026-01-31T15:54:34.916Z",
+  "updated": "2026-01-31T15:54:34.916Z",
+  "name": "Webhook Test",
+  "message": "Testing lifecycle hooks"
+}

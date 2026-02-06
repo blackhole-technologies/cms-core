@@ -1,0 +1,32 @@
+{
+  "example_article_list": {
+    "id": "example_article_list",
+    "name": "Article List",
+    "description": "Example view showing list of articles",
+    "contentType": "article",
+    "display": "page",
+    "path": "/articles",
+    "filters": [],
+    "contextualFilters": [],
+    "sort": [
+      {
+        "field": "created",
+        "dir": "desc"
+      }
+    ],
+    "pager": {
+      "type": "full",
+      "limit": 10,
+      "offset": 0
+    },
+    "fields": ["title", "created", "author"],
+    "relationships": [],
+    "aggregation": null,
+    "cache": {
+      "enabled": true,
+      "ttl": 300
+    },
+    "created": "2026-02-03T00:00:00.000Z",
+    "updated": "2026-02-03T00:00:00.000Z"
+  }
+}

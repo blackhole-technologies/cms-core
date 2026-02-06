@@ -1,0 +1,63 @@
+{
+  "themes": {
+    "default": {
+      "regions": {
+        "header": {
+          "label": "Header",
+          "weight": -100,
+          "responsive": {
+            "mobile": true,
+            "tablet": true,
+            "desktop": true
+          }
+        },
+        "navigation": {
+          "label": "Navigation",
+          "weight": -90,
+          "responsive": {
+            "mobile": true,
+            "tablet": true,
+            "desktop": true
+          }
+        },
+        "sidebar_first": {
+          "label": "Left Sidebar",
+          "weight": 0,
+          "responsive": {
+            "mobile": false,
+            "tablet": true,
+            "desktop": true
+          }
+        },
+        "content": {
+          "label": "Main Content",
+          "weight": 10,
+          "responsive": {
+            "mobile": true,
+            "tablet": true,
+            "desktop": true
+          }
+        },
+        "sidebar_second": {
+          "label": "Right Sidebar",
+          "weight": 20,
+          "responsive": {
+            "mobile": false,
+            "tablet": false,
+            "desktop": true
+          }
+        },
+        "footer": {
+          "label": "Footer",
+          "weight": 100,
+          "responsive": {
+            "mobile": true,
+            "tablet": true,
+            "desktop": true
+          }
+        }
+      }
+    }
+  },
+  "assignments": {}
+}

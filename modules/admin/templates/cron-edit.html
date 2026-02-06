@@ -1,0 +1,520 @@
+<div class="admin-page">
+
+  <div class="admin-header">
+    <h1>{{pageTitle}}</h1>
+    <nav class="admin-nav">
+      <a href="/admin">Dashboard</a>
+      <a href="/admin/content">Content</a>
+      <a href="/admin/cron">Cron Tasks</a>
+    </nav>
+  </div>
+
+  <div class="breadcrumb">
+    <a href="/admin">Dashboard</a> &rarr;
+    <a href="/admin/cron">Cron Tasks</a> &rarr;
+    <span>{{task.name}}</span>
+  </div>
+
+  {{#if hasFlash}}
+  <div class="flash flash-{{flash.type}}">
+    {{flash.message}}
+  </div>
+  {{/if}}
+
+  <div class="admin-section">
+    <div class="section-header">
+      <h2>Task Settings</h2>
+      <div class="task-info">
+        <span class="module-badge">{{task.module}}</span>
+        <span class="status-badge status-{{task.statusClass}}">
+          {{#if task.enabled}}Enabled{{else}}Disabled{{/if}}
+        </span>
+      </div>
+    </div>
+
+    <form method="POST" action="/admin/cron/{{task.id}}/update" class="cron-form">
+      {{csrfField}}
+
+      <!-- Basic Info -->
+      <div class="form-section">
+        <h3>Basic Information</h3>
+
+        <div class="form-group">
+          <label class="toggle-label">
+            <input type="checkbox" name="enabled" value="1" {{#if task.enabled}}checked{{/if}} class="toggle-input">
+            <span class="toggle-slider"></span>
+            <span class="toggle-text">Enable this task</span>
+          </label>
+          <p class="help-text">When disabled, the task will not run on schedule but can still be triggered manually.</p>
+        </div>
+
+        <div class="form-group">
+          <label for="name">Task Name</label>
+          <input type="text" id="name" name="name" class="form-control" value="{{task.name}}" readonly>
+          <p class="help-text">Task names are defined by modules and cannot be changed.</p>
+        </div>
+
+        <div class="form-group">
+          <label for="description">Description</label>
+          <textarea id="description" name="description" class="form-control" rows="2" readonly>{{task.description}}</textarea>
+        </div>
+      </div>
+
+      <!-- Schedule Configuration -->
+      <div class="form-section">
+        <h3>Schedule Configuration</h3>
+
+        <div class="form-group">
+          <label for="schedule">Cron Expression</label>
+          <div class="input-with-helper">
+            <input type="text" id="schedule" name="schedule" class="form-control monospace" value="{{task.schedule}}" required>
+            <button type="button" class="btn btn-small btn-secondary" onclick="toggleCronHelper()">Helper</button>
+          </div>
+          <p class="help-text">
+            Format: <code>* * * * *</code> (minute hour day month weekday)
+            {{#if task.scheduleHuman}}
+            <br><strong>Current:</strong> {{task.scheduleHuman}}
+            {{/if}}
+          </p>
+        </div>
+
+        <div id="cronHelper" class="cron-helper" style="display: none;">
+          <h4>Common Schedules</h4>
+          <div class="preset-buttons">
+            <button type="button" class="preset-btn" data-cron="* * * * *">Every Minute</button>
+            <button type="button" class="preset-btn" data-cron="*/5 * * * *">Every 5 Minutes</button>
+            <button type="button" class="preset-btn" data-cron="*/15 * * * *">Every 15 Minutes</button>
+            <button type="button" class="preset-btn" data-cron="*/30 * * * *">Every 30 Minutes</button>
+            <button type="button" class="preset-btn" data-cron="0 * * * *">Every Hour</button>
+            <button type="button" class="preset-btn" data-cron="0 0 * * *">Daily at Midnight</button>
+            <button type="button" class="preset-btn" data-cron="0 2 * * *">Daily at 2 AM</button>
+            <button type="button" class="preset-btn" data-cron="0 0 * * 0">Weekly (Sunday)</button>
+            <button type="button" class="preset-btn" data-cron="0 0 1 * *">Monthly (1st)</button>
+          </div>
+
+          <div class="cron-builder">
+            <div class="builder-field">
+              <label>Minute (0-59)</label>
+              <input type="text" id="cronMinute" placeholder="*" class="form-control-small">
+            </div>
+            <div class="builder-field">
+              <label>Hour (0-23)</label>
+              <input type="text" id="cronHour" placeholder="*" class="form-control-small">
+            </div>
+            <div class="builder-field">
+              <label>Day (1-31)</label>
+              <input type="text" id="cronDay" placeholder="*" class="form-control-small">
+            </div>
+            <div class="builder-field">
+              <label>Month (1-12)</label>
+              <input type="text" id="cronMonth" placeholder="*" class="form-control-small">
+            </div>
+            <div class="builder-field">
+              <label>Weekday (0-6)</label>
+              <input type="text" id="cronWeekday" placeholder="*" class="form-control-small">
+            </div>
+            <button type="button" class="btn btn-small" onclick="buildCronExpression()">Build</button>
+          </div>
+        </div>
+
+        {{#if task.nextRun}}
+        <div class="info-box">
+          <strong>Next scheduled run:</strong> {{task.nextRunFormatted}} ({{task.nextRunRelative}})
+        </div>
+        {{/if}}
+      </div>
+
+      <!-- Execution Settings -->
+      <div class="form-section">
+        <h3>Execution Settings</h3>
+
+        <div class="form-group">
+          <label for="timeout">Timeout (seconds)</label>
+          <input type="number" id="timeout" name="timeout" class="form-control" value="{{task.timeout}}" min="10" max="3600">
+          <p class="help-text">Maximum execution time. Task will be terminated if it exceeds this limit.</p>
+        </div>
+
+        <div class="form-group">
+          <label for="maxRetries">Max Retries</label>
+          <input type="number" id="maxRetries" name="maxRetries" class="form-control" value="{{task.maxRetries}}" min="0" max="10">
+          <p class="help-text">Number of times to retry the task if it fails.</p>
+        </div>
+
+        <div class="form-group">
+          <label for="retryDelay">Retry Delay (seconds)</label>
+          <input type="number" id="retryDelay" name="retryDelay" class="form-control" value="{{task.retryDelay}}" min="0" max="3600">
+          <p class="help-text">Time to wait before retrying a failed task.</p>
+        </div>
+
+        <div class="form-group">
+          <label class="checkbox-label">
+            <input type="checkbox" name="allowConcurrent" value="1" {{#if task.allowConcurrent}}checked{{/if}}>
+            <span>Allow concurrent execution</span>
+          </label>
+          <p class="help-text">If enabled, multiple instances of this task can run simultaneously.</p>
+        </div>
+      </div>
+
+      <!-- Dependencies -->
+      {{#if hasDependencies}}
+      <div class="form-section">
+        <h3>Dependencies</h3>
+        <p class="help-text">This task will only run after these dependencies complete successfully:</p>
+
+        <div class="dependencies-list">
+          {{#each availableTasks}}
+          <label class="checkbox-label dependency-item">
+            <input type="checkbox" name="dependencies[]" value="{{id}}"
+              {{#if (includes ../task.dependencies id)}}checked{{/if}}
+              {{#if (eq id ../task.id)}}disabled{{/if}}>
+            <span class="dependency-name">{{name}}</span>
+            <span class="module-badge">{{module}}</span>
+          </label>
+          {{/each}}
+        </div>
+      </div>
+      {{/if}}
+
+      <!-- Notifications -->
+      <div class="form-section">
+        <h3>Notifications</h3>
+
+        <div class="form-group">
+          <label class="checkbox-label">
+            <input type="checkbox" name="notifyOnFailure" value="1" {{#if task.notifyOnFailure}}checked{{/if}}>
+            <span>Send notification on failure</span>
+          </label>
+        </div>
+
+        <div class="form-group">
+          <label class="checkbox-label">
+            <input type="checkbox" name="notifyOnSuccess" value="1" {{#if task.notifyOnSuccess}}checked{{/if}}>
+            <span>Send notification on success</span>
+          </label>
+        </div>
+
+        <div class="form-group">
+          <label for="notificationEmail">Notification Email</label>
+          <input type="email" id="notificationEmail" name="notificationEmail" class="form-control"
+            value="{{task.notificationEmail}}" placeholder="admin@example.com">
+          <p class="help-text">Leave blank to use system default.</p>
+        </div>
+      </div>
+
+      <!-- Actions -->
+      <div class="form-actions">
+        <button type="submit" class="btn btn-primary">Save Changes</button>
+        <a href="/admin/cron" class="btn btn-secondary">Cancel</a>
+        <form method="POST" action="/admin/cron/{{task.id}}/run" class="inline-form" style="margin-left: auto;">
+          {{csrfField}}
+          <button type="submit" class="btn btn-success">Run Now</button>
+        </form>
+      </div>
+    </form>
+  </div>
+
+  <!-- Last Execution -->
+  {{#if task.lastRun}}
+  <div class="admin-section">
+    <h3>Last Execution</h3>
+    <div class="execution-summary">
+      <div class="summary-item">
+        <span class="summary-label">Time:</span>
+        <span class="summary-value">{{task.lastRunFormatted}}</span>
+      </div>
+      <div class="summary-item">
+        <span class="summary-label">Duration:</span>
+        <span class="summary-value">{{task.lastResult.duration}}s</span>
+      </div>
+      <div class="summary-item">
+        <span class="summary-label">Status:</span>
+        <span class="status-badge status-{{task.lastResult.statusClass}}">{{task.lastResult.status}}</span>
+      </div>
+      {{#if task.lastResult.itemsProcessed}}
+      <div class="summary-item">
+        <span class="summary-label">Items:</span>
+        <span class="summary-value">{{task.lastResult.itemsProcessed}}</span>
+      </div>
+      {{/if}}
+    </div>
+
+    <div class="execution-actions">
+      <a href="/admin/cron/logs?task={{task.id}}" class="btn btn-secondary">View Full History</a>
+    </div>
+  </div>
+  {{/if}}
+</div>
+
+<style>
+  .section-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 1.5rem;
+  }
+  .task-info {
+    display: flex;
+    gap: 0.5rem;
+    align-items: center;
+  }
+  .module-badge {
+    display: inline-block;
+    padding: 0.25rem 0.5rem;
+    background: #e9ecef;
+    border-radius: 4px;
+    font-size: 0.75rem;
+    font-weight: 500;
+  }
+  .status-badge {
+    display: inline-block;
+    padding: 0.25rem 0.5rem;
+    border-radius: 4px;
+    font-size: 0.75rem;
+    font-weight: 500;
+  }
+  .status-enabled {
+    background: #28a745;
+    color: white;
+  }
+  .status-disabled {
+    background: #6c757d;
+    color: white;
+  }
+  .cron-form {
+    max-width: 800px;
+  }
+  .form-section {
+    background: #f8f9fa;
+    padding: 1.5rem;
+    border-radius: 8px;
+    margin-bottom: 1.5rem;
+    border: 1px solid #dee2e6;
+  }
+  .form-section h3 {
+    margin-top: 0;
+    margin-bottom: 1rem;
+    font-size: 1.125rem;
+  }
+  .form-group {
+    margin-bottom: 1.25rem;
+  }
+  .form-group:last-child {
+    margin-bottom: 0;
+  }
+  .form-group label {
+    display: block;
+    font-weight: 500;
+    margin-bottom: 0.25rem;
+    font-size: 0.875rem;
+  }
+  .form-control {
+    width: 100%;
+    padding: 0.5rem;
+    border: 1px solid #ced4da;
+    border-radius: 4px;
+    font-size: 0.875rem;
+    background: white;
+  }
+  .form-control:disabled,
+  .form-control:readonly {
+    background: #e9ecef;
+    color: #6c757d;
+  }
+  .form-control-small {
+    padding: 0.375rem 0.5rem;
+    border: 1px solid #ced4da;
+    border-radius: 4px;
+    font-size: 0.875rem;
+    width: 100%;
+  }
+  .monospace {
+    font-family: monospace;
+  }
+  .help-text {
+    margin: 0.25rem 0 0 0;
+    font-size: 0.75rem;
+    color: #6c757d;
+  }
+  .help-text code {
+    background: #e9ecef;
+    padding: 0.125rem 0.375rem;
+    border-radius: 3px;
+    font-size: 0.75rem;
+  }
+  .toggle-label {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    cursor: pointer;
+  }
+  .toggle-input {
+    display: none;
+  }
+  .toggle-slider {
+    position: relative;
+    width: 50px;
+    height: 26px;
+    background: #ccc;
+    border-radius: 26px;
+    transition: background 0.3s;
+  }
+  .toggle-slider::before {
+    content: '';
+    position: absolute;
+    width: 20px;
+    height: 20px;
+    background: white;
+    border-radius: 50%;
+    top: 3px;
+    left: 3px;
+    transition: transform 0.3s;
+  }
+  .toggle-input:checked + .toggle-slider {
+    background: #28a745;
+  }
+  .toggle-input:checked + .toggle-slider::before {
+    transform: translateX(24px);
+  }
+  .toggle-text {
+    font-weight: 500;
+  }
+  .checkbox-label {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    cursor: pointer;
+    font-weight: normal;
+  }
+  .checkbox-label input[type="checkbox"] {
+    width: auto;
+  }
+  .input-with-helper {
+    display: flex;
+    gap: 0.5rem;
+  }
+  .input-with-helper input {
+    flex: 1;
+  }
+  .cron-helper {
+    background: white;
+    border: 1px solid #dee2e6;
+    border-radius: 4px;
+    padding: 1rem;
+    margin-top: 1rem;
+  }
+  .cron-helper h4 {
+    margin-top: 0;
+    margin-bottom: 0.75rem;
+    font-size: 0.875rem;
+  }
+  .preset-buttons {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+    margin-bottom: 1rem;
+  }
+  .preset-btn {
+    padding: 0.375rem 0.75rem;
+    background: #e9ecef;
+    border: 1px solid #ced4da;
+    border-radius: 4px;
+    font-size: 0.75rem;
+    cursor: pointer;
+  }
+  .preset-btn:hover {
+    background: #dee2e6;
+  }
+  .cron-builder {
+    display: grid;
+    grid-template-columns: repeat(5, 1fr) auto;
+    gap: 0.5rem;
+    align-items: end;
+  }
+  .builder-field {
+    display: flex;
+    flex-direction: column;
+  }
+  .builder-field label {
+    font-size: 0.75rem;
+    margin-bottom: 0.25rem;
+  }
+  .dependencies-list {
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+  }
+  .dependency-item {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0.5rem;
+    background: white;
+    border: 1px solid #dee2e6;
+    border-radius: 4px;
+  }
+  .dependency-name {
+    flex: 1;
+    font-weight: 500;
+  }
+  .info-box {
+    background: #e7f3ff;
+    border: 1px solid #b6d4fe;
+    border-radius: 4px;
+    padding: 0.75rem;
+    margin-top: 0.75rem;
+    font-size: 0.875rem;
+  }
+  .form-actions {
+    display: flex;
+    gap: 0.5rem;
+    padding-top: 1.5rem;
+  }
+  .inline-form {
+    display: inline;
+  }
+  .execution-summary {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+    gap: 1rem;
+    margin-bottom: 1rem;
+  }
+  .summary-item {
+    display: flex;
+    gap: 0.5rem;
+    font-size: 0.875rem;
+  }
+  .summary-label {
+    color: #6c757d;
+    font-weight: 500;
+  }
+  .summary-value {
+    font-weight: 500;
+  }
+  .execution-actions {
+    padding-top: 1rem;
+    border-top: 1px solid #dee2e6;
+  }
+</style>
+
+<script>
+  function toggleCronHelper() {
+    const helper = document.getElementById('cronHelper');
+    helper.style.display = helper.style.display === 'none' ? 'block' : 'none';
+  }
+
+  document.querySelectorAll('.preset-btn').forEach(btn => {
+    btn.addEventListener('click', function() {
+      document.getElementById('schedule').value = this.dataset.cron;
+    });
+  });
+
+  function buildCronExpression() {
+    const minute = document.getElementById('cronMinute').value || '*';
+    const hour = document.getElementById('cronHour').value || '*';
+    const day = document.getElementById('cronDay').value || '*';
+    const month = document.getElementById('cronMonth').value || '*';
+    const weekday = document.getElementById('cronWeekday').value || '*';
+
+    document.getElementById('schedule').value = `${minute} ${hour} ${day} ${month} ${weekday}`;
+  }
+</script>

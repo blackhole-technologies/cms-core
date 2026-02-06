@@ -1,0 +1,483 @@
+<div class="admin-page">
+
+  <div class="admin-header">
+    <h1>{{#if isNew}}Create Workflow{{else}}Edit Workflow{{/if}}</h1>
+    <nav class="admin-nav">
+      <a href="/admin">Dashboard</a>
+      <a href="/admin/content">Content</a>
+      <a href="/admin/workflows">Workflows</a>
+    </nav>
+  </div>
+
+  {{#if hasFlash}}
+  <div class="flash flash-{{flash.type}}">
+    {{flash.message}}
+  </div>
+  {{/if}}
+
+  {{#if error}}
+  <div class="flash flash-error">
+    {{error}}
+  </div>
+  {{/if}}
+
+  <div class="breadcrumb">
+    <a href="/admin">Dashboard</a> &rarr;
+    <a href="/admin/workflows">Workflows</a> &rarr;
+    <span>{{#if isNew}}New{{else}}{{workflow.name}}{{/if}}</span>
+  </div>
+
+  <form method="POST" action="{{formAction}}" class="workflow-form" id="workflowForm">
+    {{csrfField}}
+
+    <!-- Basic Info -->
+    <div class="admin-section">
+      <h2>Basic Information</h2>
+      <div class="form-grid">
+        <div class="form-group">
+          <label for="name">Name *</label>
+          <input type="text" id="name" name="name" value="{{workflow.name}}" required class="form-control">
+          <small class="form-help">Unique workflow identifier (e.g., "article-review")</small>
+        </div>
+
+        <div class="form-group">
+          <label for="description">Description</label>
+          <textarea id="description" name="description" rows="3" class="form-control">{{workflow.description}}</textarea>
+        </div>
+      </div>
+    </div>
+
+    <!-- States Section -->
+    <div class="admin-section">
+      <h2>States</h2>
+      <p class="section-description">Define the possible states content can be in.</p>
+
+      <div id="statesContainer">
+        {{#each workflow.states}}
+        <div class="state-item" data-state-id="{{id}}">
+          <div class="state-header">
+            <input type="text" name="states[{{@index}}][name]" value="{{name}}" placeholder="State name" required class="state-name-input">
+            <div class="state-flags">
+              <label title="Initial state for new content">
+                <input type="radio" name="initialState" value="{{name}}" {{#if isInitial}}checked{{/if}}>
+                <span>Initial</span>
+              </label>
+              <label title="Content is publicly visible in this state">
+                <input type="radio" name="publishedState" value="{{name}}" {{#if isPublished}}checked{{/if}}>
+                <span>Published</span>
+              </label>
+            </div>
+            <button type="button" class="btn-icon btn-danger" onclick="removeState(this)" title="Remove state">
+              &times;
+            </button>
+          </div>
+          <div class="state-body">
+            <label>Description</label>
+            <input type="text" name="states[{{@index}}][description]" value="{{description}}" placeholder="Optional description" class="form-control">
+          </div>
+        </div>
+        {{/each}}
+      </div>
+
+      <button type="button" class="btn btn-secondary" onclick="addState()">Add State</button>
+      <small class="form-help">At least one state required. Mark one as Initial and one as Published.</small>
+    </div>
+
+    <!-- Transitions Section -->
+    <div class="admin-section">
+      <h2>Transitions</h2>
+      <p class="section-description">Define allowed state changes and who can perform them.</p>
+
+      <div id="transitionsContainer">
+        {{#each workflow.transitions}}
+        <div class="transition-item">
+          <div class="transition-header">
+            <span class="transition-label">Transition {{add @index 1}}</span>
+            <button type="button" class="btn-icon btn-danger" onclick="removeTransition(this)" title="Remove transition">
+              &times;
+            </button>
+          </div>
+          <div class="transition-body">
+            <div class="form-grid-3">
+              <div class="form-group">
+                <label>From State(s)</label>
+                <select name="transitions[{{@index}}][from]" multiple size="3" class="form-control" required>
+                  {{#each ../workflow.states}}
+                  <option value="{{name}}" {{#if (includes ../../from name)}}selected{{/if}}>{{name}}</option>
+                  {{/each}}
+                </select>
+                <small class="form-help">Hold Ctrl/Cmd for multiple</small>
+              </div>
+              <div class="form-group">
+                <label>To State</label>
+                <select name="transitions[{{@index}}][to]" class="form-control" required>
+                  <option value="">Select state...</option>
+                  {{#each ../workflow.states}}
+                  <option value="{{name}}" {{#if (eq ../../to name)}}selected{{/if}}>{{name}}</option>
+                  {{/each}}
+                </select>
+              </div>
+              <div class="form-group">
+                <label>Allowed Roles</label>
+                <input type="text" name="transitions[{{@index}}][roles]" value="{{rolesStr}}" placeholder="e.g., editor, admin" class="form-control">
+                <small class="form-help">Comma-separated. Blank = all roles</small>
+              </div>
+            </div>
+            <div class="form-group">
+              <label>Label (optional)</label>
+              <input type="text" name="transitions[{{@index}}][label]" value="{{label}}" placeholder="e.g., 'Submit for Review', 'Approve'" class="form-control">
+            </div>
+          </div>
+        </div>
+        {{/each}}
+      </div>
+
+      <button type="button" class="btn btn-secondary" onclick="addTransition()">Add Transition</button>
+    </div>
+
+    <!-- Content Types Assignment -->
+    <div class="admin-section">
+      <h2>Assign to Content Types</h2>
+      <p class="section-description">Select which content types should use this workflow.</p>
+
+      <div class="content-types-grid">
+        {{#each availableContentTypes}}
+        <label class="checkbox-card">
+          <input type="checkbox" name="contentTypes" value="{{type}}" {{#if assigned}}checked{{/if}}>
+          <div class="checkbox-card-body">
+            <strong>{{type}}</strong>
+            <small>{{count}} items</small>
+          </div>
+        </label>
+        {{/each}}
+      </div>
+    </div>
+
+    <!-- Visual Workflow Diagram -->
+    {{#unless isNew}}
+    <div class="admin-section">
+      <h2>Workflow Diagram</h2>
+      <div class="workflow-diagram" id="workflowDiagram">
+        <div class="diagram-placeholder">
+          <p>Visual representation of workflow states and transitions</p>
+          <pre>{{diagramText}}</pre>
+        </div>
+      </div>
+    </div>
+    {{/unless}}
+
+    <!-- Form Actions -->
+    <div class="form-actions">
+      <button type="submit" class="btn btn-primary">{{#if isNew}}Create Workflow{{else}}Update Workflow{{/if}}</button>
+      <a href="/admin/workflows" class="btn btn-secondary">Cancel</a>
+      {{#unless isNew}}
+      <button type="button" class="btn btn-secondary" onclick="previewDiagram()">Preview Diagram</button>
+      {{/unless}}
+    </div>
+  </form>
+
+  <style>
+    .form-grid {
+      display: grid;
+      gap: 1.5rem;
+    }
+    .form-grid-3 {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 1rem;
+    }
+    .form-group {
+      display: flex;
+      flex-direction: column;
+      gap: 0.5rem;
+    }
+    .form-control {
+      padding: 0.5rem;
+      border: 1px solid #ced4da;
+      border-radius: 4px;
+      font-family: inherit;
+      font-size: 0.95rem;
+    }
+    .form-help {
+      color: #6c757d;
+      font-size: 0.85rem;
+    }
+    .section-description {
+      color: #6c757d;
+      margin-bottom: 1rem;
+    }
+
+    /* States */
+    .state-item {
+      border: 1px solid #dee2e6;
+      border-radius: 6px;
+      margin-bottom: 1rem;
+      background: #fff;
+    }
+    .state-header {
+      display: flex;
+      align-items: center;
+      gap: 1rem;
+      padding: 1rem;
+      background: #f8f9fa;
+      border-bottom: 1px solid #dee2e6;
+    }
+    .state-name-input {
+      flex: 1;
+      padding: 0.5rem;
+      border: 1px solid #ced4da;
+      border-radius: 4px;
+      font-weight: 600;
+    }
+    .state-flags {
+      display: flex;
+      gap: 1rem;
+    }
+    .state-flags label {
+      display: flex;
+      align-items: center;
+      gap: 0.25rem;
+      font-size: 0.85rem;
+      cursor: pointer;
+    }
+    .state-body {
+      padding: 1rem;
+    }
+
+    /* Transitions */
+    .transition-item {
+      border: 1px solid #dee2e6;
+      border-radius: 6px;
+      margin-bottom: 1rem;
+      background: #fff;
+    }
+    .transition-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 0.75rem 1rem;
+      background: #f8f9fa;
+      border-bottom: 1px solid #dee2e6;
+    }
+    .transition-label {
+      font-weight: 600;
+      color: #495057;
+    }
+    .transition-body {
+      padding: 1rem;
+    }
+
+    /* Content Types Grid */
+    .content-types-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+      gap: 1rem;
+    }
+    .checkbox-card {
+      display: flex;
+      align-items: flex-start;
+      gap: 0.75rem;
+      padding: 1rem;
+      border: 2px solid #dee2e6;
+      border-radius: 6px;
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+    .checkbox-card:hover {
+      border-color: #0d6efd;
+      background: #f8f9fa;
+    }
+    .checkbox-card input:checked + .checkbox-card-body {
+      font-weight: 600;
+    }
+    .checkbox-card input {
+      margin-top: 0.25rem;
+    }
+    .checkbox-card-body {
+      display: flex;
+      flex-direction: column;
+      gap: 0.25rem;
+    }
+
+    /* Buttons */
+    .btn-icon {
+      background: none;
+      border: none;
+      font-size: 1.5rem;
+      cursor: pointer;
+      padding: 0;
+      line-height: 1;
+      color: #dc3545;
+    }
+    .btn-icon:hover {
+      opacity: 0.7;
+    }
+
+    /* Diagram */
+    .workflow-diagram {
+      background: #f8f9fa;
+      border: 1px solid #dee2e6;
+      border-radius: 6px;
+      padding: 2rem;
+      overflow-x: auto;
+    }
+    .diagram-placeholder pre {
+      font-family: monospace;
+      white-space: pre;
+      line-height: 1.6;
+    }
+
+    .form-actions {
+      display: flex;
+      gap: 1rem;
+      padding-top: 2rem;
+      border-top: 1px solid #dee2e6;
+    }
+  </style>
+
+  <script>
+    let stateCounter = {{workflow.states.length}};
+    let transitionCounter = {{workflow.transitions.length}};
+
+    function addState() {
+      const container = document.getElementById('statesContainer');
+      const index = stateCounter++;
+      const html = `
+        <div class="state-item" data-state-id="${index}">
+          <div class="state-header">
+            <input type="text" name="states[${index}][name]" placeholder="State name" required class="state-name-input">
+            <div class="state-flags">
+              <label title="Initial state for new content">
+                <input type="radio" name="initialState" value="">
+                <span>Initial</span>
+              </label>
+              <label title="Content is publicly visible in this state">
+                <input type="radio" name="publishedState" value="">
+                <span>Published</span>
+              </label>
+            </div>
+            <button type="button" class="btn-icon btn-danger" onclick="removeState(this)" title="Remove state">&times;</button>
+          </div>
+          <div class="state-body">
+            <label>Description</label>
+            <input type="text" name="states[${index}][description]" placeholder="Optional description" class="form-control">
+          </div>
+        </div>
+      `;
+      container.insertAdjacentHTML('beforeend', html);
+    }
+
+    function removeState(btn) {
+      if (document.querySelectorAll('.state-item').length <= 1) {
+        alert('At least one state is required');
+        return;
+      }
+      if (confirm('Remove this state? Any transitions using it will become invalid.')) {
+        btn.closest('.state-item').remove();
+      }
+    }
+
+    function addTransition() {
+      const container = document.getElementById('transitionsContainer');
+      const index = transitionCounter++;
+      const states = Array.from(document.querySelectorAll('.state-name-input')).map(input => input.value).filter(Boolean);
+
+      const stateOptions = states.map(name => `<option value="${name}">${name}</option>`).join('');
+
+      const html = `
+        <div class="transition-item">
+          <div class="transition-header">
+            <span class="transition-label">Transition ${index + 1}</span>
+            <button type="button" class="btn-icon btn-danger" onclick="removeTransition(this)" title="Remove transition">&times;</button>
+          </div>
+          <div class="transition-body">
+            <div class="form-grid-3">
+              <div class="form-group">
+                <label>From State(s)</label>
+                <select name="transitions[${index}][from]" multiple size="3" class="form-control" required>
+                  ${stateOptions}
+                </select>
+                <small class="form-help">Hold Ctrl/Cmd for multiple</small>
+              </div>
+              <div class="form-group">
+                <label>To State</label>
+                <select name="transitions[${index}][to]" class="form-control" required>
+                  <option value="">Select state...</option>
+                  ${stateOptions}
+                </select>
+              </div>
+              <div class="form-group">
+                <label>Allowed Roles</label>
+                <input type="text" name="transitions[${index}][roles]" placeholder="e.g., editor, admin" class="form-control">
+                <small class="form-help">Comma-separated. Blank = all roles</small>
+              </div>
+            </div>
+            <div class="form-group">
+              <label>Label (optional)</label>
+              <input type="text" name="transitions[${index}][label]" placeholder="e.g., 'Submit for Review', 'Approve'" class="form-control">
+            </div>
+          </div>
+        </div>
+      `;
+      container.insertAdjacentHTML('beforeend', html);
+    }
+
+    function removeTransition(btn) {
+      if (confirm('Remove this transition?')) {
+        btn.closest('.transition-item').remove();
+      }
+    }
+
+    function previewDiagram() {
+      // Simple text-based diagram generation
+      const states = Array.from(document.querySelectorAll('.state-name-input')).map(input => input.value).filter(Boolean);
+      const transitions = Array.from(document.querySelectorAll('.transition-item')).map(item => {
+        const fromSelect = item.querySelector('select[name*="[from]"]');
+        const toSelect = item.querySelector('select[name*="[to]"]');
+        const from = Array.from(fromSelect.selectedOptions).map(opt => opt.value);
+        const to = toSelect.value;
+        return { from, to };
+      }).filter(t => t.from.length && t.to);
+
+      let diagram = 'Workflow Diagram:\n\n';
+      states.forEach(state => {
+        diagram += `[${state}]\n`;
+        const outgoing = transitions.filter(t => t.from.includes(state));
+        outgoing.forEach(t => {
+          diagram += `  --> [${t.to}]\n`;
+        });
+        diagram += '\n';
+      });
+
+      alert(diagram);
+    }
+
+    // Form validation
+    document.getElementById('workflowForm').addEventListener('submit', function(e) {
+      const states = Array.from(document.querySelectorAll('.state-name-input')).map(input => input.value).filter(Boolean);
+      if (states.length === 0) {
+        alert('At least one state is required');
+        e.preventDefault();
+        return;
+      }
+
+      const initialState = document.querySelector('input[name="initialState"]:checked');
+      const publishedState = document.querySelector('input[name="publishedState"]:checked');
+
+      if (!initialState) {
+        alert('Please mark one state as Initial');
+        e.preventDefault();
+        return;
+      }
+
+      if (!publishedState) {
+        alert('Please mark one state as Published');
+        e.preventDefault();
+        return;
+      }
+    });
+  </script>
+
+  <script src="/public/js/shortcuts.js"></script>
+  <script>Shortcuts.init({ context: 'workflow-edit' });</script>
+</div>

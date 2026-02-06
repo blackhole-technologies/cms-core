@@ -1,0 +1,12 @@
+{
+  "enabled": [
+    "hello",
+    "test",
+    "users",
+    "webhooks",
+    "media",
+    "admin",
+    "tasks",
+    "consciousness"
+  ]
+}

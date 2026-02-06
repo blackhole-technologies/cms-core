@@ -1,0 +1,245 @@
+<!-- Import page template -->
+<div class="admin-page">
+  <h1>Import</h1>
+
+  {{#if hasFlash}}
+  <div class="flash flash-{{flash.type}}">
+    {{flash.message}}
+  </div>
+  {{/if}}
+
+  <div class="admin-section">
+    <h2>Import Content</h2>
+    <p>Upload a JSON export file to import content into this site.</p>
+
+    <form method="POST" action="/admin/import" enctype="multipart/form-data" class="import-form">
+      {{csrfField}}
+      <div class="form-group">
+        <label for="file">Export File (JSON)</label>
+        <div class="file-upload">
+          <input type="file" id="file" name="file" accept=".json,application/json" required>
+          <div class="file-upload-text">
+            <p>Drag and drop a JSON file here, or click to browse</p>
+            <p class="text-muted">Accepted format: .json</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="form-group">
+        <label>Import Options</label>
+        <div class="checkbox-list">
+          <label class="checkbox-item">
+            <input type="checkbox" name="overwrite" value="on">
+            <span>Overwrite existing content</span>
+          </label>
+          <p class="help-text indent">If unchecked, existing content with matching IDs will be skipped</p>
+
+          <label class="checkbox-item">
+            <input type="checkbox" name="importConfig" value="on">
+            <span>Import configuration files</span>
+          </label>
+          <p class="help-text indent">Import site.json and modules.json (requires restart)</p>
+        </div>
+      </div>
+
+      <div class="form-actions">
+        <button type="submit" name="action" value="preview" class="btn btn-secondary">Preview Import</button>
+        <button type="submit" name="action" value="import" class="btn btn-primary">Import Now</button>
+      </div>
+    </form>
+  </div>
+
+  <div class="admin-section">
+    <h2>CLI Import</h2>
+    <p>Import can also be done via command line:</p>
+    <pre><code># Preview what would be imported (dry run)
+node index.js import:content backup.json --dry-run
+
+# Import content (skip existing)
+node index.js import:content backup.json
+
+# Import content (overwrite existing)
+node index.js import:content backup.json --overwrite
+
+# Full site import (content only by default)
+node index.js import:site site-backup.json --dry-run
+
+# Full site import with config
+node index.js import:site site-backup.json --import-config</code></pre>
+  </div>
+
+  <div class="admin-section">
+    <h2>Export Format</h2>
+    <p>The import expects JSON in this format:</p>
+    <pre><code>{
+  "version": "0.0.20",
+  "exported": "2024-01-15T12:00:00Z",
+  "content": {
+    "greeting": [
+      { "id": "123-abc", "type": "greeting", "name": "...", ... },
+      { "id": "456-def", "type": "greeting", "name": "...", ... }
+    ],
+    "user": [ ... ]
+  },
+  "config": {
+    "site": { ... },
+    "modules": { ... }
+  },
+  "media": [ ... ]
+}</code></pre>
+  </div>
+</div>
+
+<style>
+.import-form {
+  max-width: 600px;
+}
+
+.file-upload {
+  border: 2px dashed #ccc;
+  border-radius: 8px;
+  padding: 2rem;
+  text-align: center;
+  cursor: pointer;
+  transition: border-color 0.2s, background-color 0.2s;
+}
+
+.file-upload:hover,
+.file-upload:focus-within {
+  border-color: #007bff;
+  background: #f8f9fa;
+}
+
+.file-upload input[type="file"] {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  border: 0;
+}
+
+.file-upload-text p {
+  margin: 0.5rem 0;
+}
+
+.checkbox-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  margin-top: 0.5rem;
+}
+
+.checkbox-item {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  cursor: pointer;
+}
+
+.checkbox-item input[type="checkbox"] {
+  width: 18px;
+  height: 18px;
+}
+
+.help-text {
+  font-size: 0.9rem;
+  color: #666;
+  margin-top: 0.25rem;
+}
+
+.help-text.indent {
+  margin-left: 1.75rem;
+}
+
+.text-muted {
+  color: #999;
+}
+
+.admin-section {
+  margin-bottom: 2rem;
+  padding: 1.5rem;
+  background: #f8f9fa;
+  border-radius: 8px;
+}
+
+.admin-section h2 {
+  margin-top: 0;
+}
+
+pre {
+  background: #2d3748;
+  color: #e2e8f0;
+  padding: 1rem;
+  border-radius: 4px;
+  overflow-x: auto;
+}
+
+code {
+  font-family: 'Monaco', 'Menlo', monospace;
+  font-size: 0.9rem;
+}
+
+.form-actions {
+  display: flex;
+  gap: 1rem;
+  margin-top: 1.5rem;
+}
+</style>
+
+<script>
+// File upload drag and drop enhancement
+(function() {
+  const fileInput = document.getElementById('file');
+  const fileUpload = document.querySelector('.file-upload');
+  const fileText = document.querySelector('.file-upload-text');
+
+  if (!fileInput || !fileUpload) return;
+
+  // Update text when file is selected
+  fileInput.addEventListener('change', function() {
+    if (this.files && this.files.length > 0) {
+      fileText.innerHTML = '<p><strong>' + this.files[0].name + '</strong></p><p class="text-muted">' + formatBytes(this.files[0].size) + '</p>';
+    }
+  });
+
+  // Click to upload
+  fileUpload.addEventListener('click', function() {
+    fileInput.click();
+  });
+
+  // Drag and drop
+  fileUpload.addEventListener('dragover', function(e) {
+    e.preventDefault();
+    this.style.borderColor = '#007bff';
+    this.style.background = '#e7f3ff';
+  });
+
+  fileUpload.addEventListener('dragleave', function(e) {
+    e.preventDefault();
+    this.style.borderColor = '#ccc';
+    this.style.background = '';
+  });
+
+  fileUpload.addEventListener('drop', function(e) {
+    e.preventDefault();
+    this.style.borderColor = '#ccc';
+    this.style.background = '';
+
+    if (e.dataTransfer.files && e.dataTransfer.files.length > 0) {
+      fileInput.files = e.dataTransfer.files;
+      fileText.innerHTML = '<p><strong>' + e.dataTransfer.files[0].name + '</strong></p><p class="text-muted">' + formatBytes(e.dataTransfer.files[0].size) + '</p>';
+    }
+  });
+
+  function formatBytes(bytes) {
+    if (bytes === 0) return '0 Bytes';
+    const k = 1024;
+    const sizes = ['Bytes', 'KB', 'MB', 'GB'];
+    const i = Math.floor(Math.log(bytes) / Math.log(k));
+    return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
+  }
+})();
+</script>

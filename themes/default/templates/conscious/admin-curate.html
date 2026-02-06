@@ -1,0 +1,467 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Curate — Consciousness Engine</title>
+    <link rel="stylesheet" href="/public/css/tokens.css">
+    <link rel="stylesheet" href="/public/css/theme.css">
+    <link rel="stylesheet" href="/public/css/admin.css">
+    <style>
+        /* Page-specific layout */
+        .curate-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: var(--space-lg, 1.5rem);
+        }
+        
+        .curate-actions {
+            grid-column: 1 / -1;
+            display: flex;
+            gap: var(--space-md, 1rem);
+            justify-content: flex-end;
+            padding-top: var(--space-md, 1rem);
+        }
+        
+        .curate-recent {
+            grid-column: 1 / -1;
+            margin-top: var(--space-lg, 1.5rem);
+        }
+        
+        /* Form elements */
+        .form-group {
+            margin-bottom: var(--space-md, 1rem);
+        }
+        
+        .form-group label {
+            display: block;
+            margin-bottom: var(--space-xs, 0.5rem);
+            color: var(--text-dim, #888);
+            font-size: 0.9rem;
+        }
+        
+        .form-group input,
+        .form-group select,
+        .form-group textarea {
+            width: 100%;
+            background: var(--surface-2, #1a1a25);
+            border: 1px solid var(--border, #2a2a3a);
+            border-radius: var(--radius, 6px);
+            padding: var(--space-sm, 0.5rem) var(--space-md, 0.75rem);
+            color: var(--text, #e8e8f0);
+            font-size: 0.9rem;
+            font-family: inherit;
+        }
+        
+        .form-group textarea {
+            min-height: 300px;
+            resize: vertical;
+        }
+        
+        .form-group input:focus,
+        .form-group select:focus,
+        .form-group textarea:focus {
+            outline: none;
+            border-color: var(--primary, #d4a574);
+        }
+        
+        /* Preview */
+        .preview-content {
+            background: var(--surface-2, #1a1a25);
+            border-radius: var(--radius, 6px);
+            padding: var(--space-md, 1rem);
+            min-height: 200px;
+            max-height: 400px;
+            overflow-y: auto;
+            font-size: 0.9rem;
+        }
+        
+        /* Stats */
+        .stats {
+            display: flex;
+            gap: var(--space-lg, 1.5rem);
+            margin-top: var(--space-md, 1rem);
+            font-size: 0.85rem;
+            color: var(--text-dim, #888);
+        }
+        
+        .stats strong {
+            color: var(--primary, #d4a574);
+            font-family: monospace;
+        }
+        
+        /* Tag suggestions */
+        .tag-suggestions {
+            display: flex;
+            flex-wrap: wrap;
+            gap: var(--space-xs, 0.5rem);
+            margin-top: var(--space-xs, 0.5rem);
+        }
+        
+        .tag-suggestion {
+            background: var(--surface-2, #1a1a25);
+            border: 1px solid var(--border, #2a2a3a);
+            padding: 0.2rem 0.5rem;
+            border-radius: 4px;
+            font-size: 0.75rem;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+        
+        .tag-suggestion:hover {
+            border-color: var(--primary, #d4a574);
+            color: var(--primary, #d4a574);
+        }
+        
+        /* Category labels */
+        .tag-category {
+            font-size: 0.7rem;
+            color: var(--text-dim, #888);
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+            margin-top: var(--space-sm, 0.5rem);
+            margin-bottom: 0.25rem;
+        }
+        
+        /* Recent items */
+        .recent-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+            gap: var(--space-md, 1rem);
+        }
+        
+        .recent-item {
+            background: var(--surface-2, #1a1a25);
+            border: 1px solid var(--border, #2a2a3a);
+            border-radius: var(--radius, 6px);
+            padding: var(--space-md, 1rem);
+        }
+        
+        .recent-item h4 {
+            margin: 0 0 var(--space-xs, 0.5rem);
+            font-weight: normal;
+            font-size: 0.95rem;
+        }
+        
+        .recent-item .tags {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 0.25rem;
+            margin-bottom: var(--space-xs, 0.5rem);
+        }
+        
+        .recent-item .tag {
+            background: var(--surface, #12121a);
+            padding: 0.1rem 0.4rem;
+            border-radius: 3px;
+            font-size: 0.7rem;
+            color: var(--text-dim, #888);
+        }
+        
+        .recent-item .meta {
+            font-size: 0.8rem;
+            color: var(--text-dim, #888);
+        }
+        
+        /* Compact modal */
+        .modal-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: rgba(0, 0, 0, 0.8);
+            display: none;
+            align-items: center;
+            justify-content: center;
+            z-index: 1000;
+        }
+        
+        .modal-overlay.show {
+            display: flex;
+        }
+        
+        .modal {
+            background: var(--surface, #12121a);
+            border: 1px solid var(--border, #2a2a3a);
+            border-radius: var(--radius-lg, 12px);
+            padding: var(--space-xl, 2rem);
+            max-width: 600px;
+            width: 90%;
+        }
+        
+        .modal h2 {
+            font-weight: normal;
+            color: var(--primary, #d4a574);
+            margin-bottom: var(--space-md, 1rem);
+        }
+        
+        .modal textarea {
+            width: 100%;
+            height: 200px;
+            margin: var(--space-md, 1rem) 0;
+        }
+        
+        .modal-actions {
+            display: flex;
+            gap: var(--space-md, 1rem);
+            justify-content: flex-end;
+        }
+    </style>
+</head>
+<body>
+    <div class="admin-container">
+        <header class="admin-header">
+            <h1>📝 Curate Content</h1>
+            <nav>
+                <a href="/admin/consciousness">← Dashboard</a>
+                <a href="/explore" target="_blank">View Public</a>
+            </nav>
+        </header>
+        
+        <form id="curateForm" action="/admin/consciousness/curate" method="POST">
+            <div class="curate-grid">
+                <!-- Input Panel -->
+                <div class="panel">
+                    <h2>Paste Conversation</h2>
+                    <div class="form-group">
+                        <textarea name="content" id="contentInput" 
+                            placeholder="Paste your AI conversation here...
+
+Formats supported:
+• Human: / Assistant: chat format
+• JSON messages array
+• Plain text (treated as single block)"></textarea>
+                    </div>
+                    
+                    <div class="form-group">
+                        <label for="titleInput">Title</label>
+                        <input type="text" name="title" id="titleInput" placeholder="Brief description...">
+                    </div>
+                    
+                    <div class="form-group">
+                        <label for="topicsInput">Topics</label>
+                        <input type="text" name="topics" id="topicsInput" placeholder="consciousness, quantum, boundaries...">
+                        <div id="tagSuggestions" class="tag-suggestions"></div>
+                    </div>
+                    
+                    <div class="form-group">
+                        <label for="sourceInput">Source</label>
+                        <select name="source" id="sourceInput">
+                            <option value="claude">Claude</option>
+                            <option value="gpt">GPT</option>
+                            <option value="gemini">Gemini</option>
+                            <option value="other">Other</option>
+                        </select>
+                    </div>
+                    
+                    <div class="form-group">
+                        <label for="typeInput">Content Type</label>
+                        <select name="type" id="typeInput">
+                            <option value="conversation">Conversation</option>
+                            <option value="exploration">Exploration</option>
+                            <option value="synthesis">Synthesis</option>
+                        </select>
+                    </div>
+                </div>
+                
+                <!-- Preview Panel -->
+                <div class="panel">
+                    <h2>Preview</h2>
+                    <div class="preview-content" id="preview">
+                        <p style="color: var(--text-dim); font-style: italic;">
+                            Parsed content will appear here...
+                        </p>
+                    </div>
+                    <div class="stats" id="stats">
+                        <span>Turns: <strong id="statTurns">0</strong></span>
+                        <span>Words: <strong id="statWords">0</strong></span>
+                        <span>Topics: <strong id="statTopics">0</strong></span>
+                    </div>
+                </div>
+                
+                <!-- Actions -->
+                <div class="curate-actions">
+                    <button type="button" class="btn btn-secondary" onclick="clearForm()">Clear</button>
+                    <button type="button" class="btn btn-accent" onclick="showCompactModal()">Compact & Save</button>
+                    <button type="submit" class="btn btn-primary">Save Full</button>
+                </div>
+                
+                <!-- Recent Items -->
+                <div class="panel curate-recent">
+                    <h2>📋 Recent Additions</h2>
+                    <div class="recent-grid" id="recentList">
+                        <p style="color: var(--text-dim);">Loading...</p>
+                    </div>
+                </div>
+            </div>
+        </form>
+    </div>
+    
+    <!-- Compact Modal -->
+    <div class="modal-overlay" id="compactModal">
+        <div class="modal">
+            <h2>🗜️ Compact Conversation</h2>
+            <p style="color: var(--text-dim);">
+                Extract the core insights. Edit below or use auto-compact.
+            </p>
+            <textarea id="compactedContent" placeholder="Compacted content will appear here..."></textarea>
+            <div class="modal-actions">
+                <button type="button" class="btn btn-secondary" onclick="hideCompactModal()">Cancel</button>
+                <button type="button" class="btn btn-secondary" onclick="runAutoCompact()">Auto-Compact</button>
+                <button type="button" class="btn btn-primary" onclick="saveCompacted()">Save Compacted</button>
+            </div>
+        </div>
+    </div>
+
+    <script src="/public/js/curate.js"></script>
+    <script>
+        // State
+        let currentTurns = [];
+        let currentStats = null;
+        
+        // Elements
+        const contentInput = document.getElementById('contentInput');
+        const titleInput = document.getElementById('titleInput');
+        const topicsInput = document.getElementById('topicsInput');
+        const preview = document.getElementById('preview');
+        const tagSuggestions = document.getElementById('tagSuggestions');
+        
+        // Update preview on input
+        function updatePreview() {
+            const text = contentInput.value;
+            
+            if (!text.trim()) {
+                preview.innerHTML = '<p style="color: var(--text-dim); font-style: italic;">Parsed content will appear here...</p>';
+                document.getElementById('statTurns').textContent = '0';
+                document.getElementById('statWords').textContent = '0';
+                document.getElementById('statTopics').textContent = '0';
+                tagSuggestions.innerHTML = '';
+                return;
+            }
+            
+            // Parse and render
+            currentTurns = Curate.parseConversation(text);
+            currentStats = Curate.calculateStats(text, currentTurns);
+            
+            preview.innerHTML = Curate.renderPreview(currentTurns);
+            
+            // Update stats
+            document.getElementById('statTurns').textContent = currentStats.turns;
+            document.getElementById('statWords').textContent = currentStats.words;
+            document.getElementById('statTopics').textContent = currentStats.topics;
+            
+            // Show tag suggestions by category
+            const suggestions = Curate.suggestTagsByCategory(text);
+            const currentTopics = topicsInput.value.split(',').map(t => t.trim().toLowerCase());
+            
+            let html = '';
+            for (const [category, topics] of Object.entries(suggestions)) {
+                const newTopics = topics.filter(t => !currentTopics.includes(t.toLowerCase()));
+                if (newTopics.length > 0) {
+                    html += `<div class="tag-category">${category}</div>`;
+                    html += newTopics.map(t => 
+                        `<span class="tag-suggestion" onclick="addTopic('${t}')">${t}</span>`
+                    ).join('');
+                }
+            }
+            tagSuggestions.innerHTML = html;
+        }
+        
+        // Add topic from suggestion
+        function addTopic(topic) {
+            const current = topicsInput.value.split(',').map(t => t.trim()).filter(Boolean);
+            if (!current.map(t => t.toLowerCase()).includes(topic.toLowerCase())) {
+                current.push(topic);
+                topicsInput.value = current.join(', ');
+            }
+            updatePreview();
+        }
+        
+        // Clear form
+        function clearForm() {
+            contentInput.value = '';
+            titleInput.value = '';
+            topicsInput.value = '';
+            updatePreview();
+        }
+        
+        // Compact modal
+        function showCompactModal() {
+            const text = contentInput.value;
+            if (!text.trim()) {
+                alert('No content to compact');
+                return;
+            }
+            document.getElementById('compactedContent').value = '';
+            document.getElementById('compactModal').classList.add('show');
+        }
+        
+        function hideCompactModal() {
+            document.getElementById('compactModal').classList.remove('show');
+        }
+        
+        function runAutoCompact() {
+            const text = contentInput.value;
+            const compacted = Curate.autoCompact(text);
+            document.getElementById('compactedContent').value = compacted;
+        }
+        
+        async function saveCompacted() {
+            const compacted = document.getElementById('compactedContent').value;
+            if (!compacted.trim()) {
+                alert('No compacted content');
+                return;
+            }
+            
+            // Submit via form with compacted content
+            const form = document.getElementById('curateForm');
+            const hiddenInput = document.createElement('input');
+            hiddenInput.type = 'hidden';
+            hiddenInput.name = 'compacted';
+            hiddenInput.value = 'true';
+            form.appendChild(hiddenInput);
+            
+            contentInput.value = compacted;
+            form.submit();
+        }
+        
+        // Load recent items
+        async function loadRecent() {
+            try {
+                const response = await fetch('/api/consciousness/recent?type=conversation&limit=6');
+                const data = await response.json();
+                
+                const container = document.getElementById('recentList');
+                if (data.items && data.items.length > 0) {
+                    container.innerHTML = data.items.map(item => `
+                        <div class="recent-item">
+                            <h4>${item.title || 'Untitled'}</h4>
+                            <div class="tags">
+                                ${(item.topics || []).slice(0, 4).map(t => `<span class="tag">${t}</span>`).join('')}
+                            </div>
+                            <div class="meta">
+                                ${item.type || 'conversation'} · ${item.source || 'unknown'} · ${new Date(item.created || item.timestamp).toLocaleDateString()}
+                            </div>
+                        </div>
+                    `).join('');
+                } else {
+                    container.innerHTML = '<p style="color: var(--text-dim);">No recent additions</p>';
+                }
+            } catch (err) {
+                console.error('Failed to load recent:', err);
+                document.getElementById('recentList').innerHTML = '<p style="color: var(--text-dim);">Could not load recent items</p>';
+            }
+        }
+        
+        // Initialize
+        contentInput.addEventListener('input', updatePreview);
+        topicsInput.addEventListener('input', () => {
+            const count = topicsInput.value.split(',').filter(t => t.trim()).length;
+            document.getElementById('statTopics').textContent = count;
+        });
+        
+        loadRecent();
+    </script>
+</body>
+</html>

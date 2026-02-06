@@ -1,0 +1,159 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{{#rule}}Edit Rule: {{name}}{{/rule}}{{^rule}}Create Rule{{/rule}} - CMS Admin</title>
+</head>
+<body>
+    <div class="admin-content">
+        <header class="page-header">
+            <h1>{{#rule}}Edit Rule{{/rule}}{{^rule}}Create Rule{{/rule}}</h1>
+            <div class="header-actions">
+                <button class="btn btn-secondary" data-action="cancel">Cancel</button>
+                <button class="btn btn-primary" data-action="save">Save Rule</button>
+            </div>
+        </header>
+
+        <form class="rule-edit-form" data-rule-id="{{rule.id}}">
+            <!-- Basic Information -->
+            <section class="form-section">
+                <h2>Basic Information</h2>
+                <div class="form-group">
+                    <label for="rule-name">Rule Name *</label>
+                    <input type="text" id="rule-name" name="name" value="{{rule.name}}" required>
+                </div>
+                <div class="form-group">
+                    <label for="rule-description">Description</label>
+                    <textarea id="rule-description" name="description" rows="3">{{rule.description}}</textarea>
+                </div>
+                <div class="form-group">
+                    <label class="toggle-switch">
+                        <input type="checkbox" name="enabled" {{#rule.enabled}}checked{{/rule.enabled}}>
+                        <span class="toggle-slider"></span>
+                        <span class="toggle-label">Enable this rule</span>
+                    </label>
+                </div>
+            </section>
+
+            <!-- Event Selector -->
+            <section class="form-section">
+                <h2>Event Trigger</h2>
+                <div class="form-group">
+                    <label for="rule-event">When this event occurs *</label>
+                    <select id="rule-event" name="event" required>
+                        <option value="">Select an event...</option>
+                        {{#events}}
+                        <option value="{{value}}" {{#selected}}selected{{/selected}}>{{label}}</option>
+                        {{/events}}
+                    </select>
+                </div>
+            </section>
+
+            <!-- Conditions Section -->
+            <section class="form-section">
+                <div class="section-header">
+                    <h2>Conditions</h2>
+                    <button type="button" class="btn btn-secondary btn-sm" data-action="add-condition">
+                        <span class="icon-plus"></span> Add Condition
+                    </button>
+                </div>
+
+                <div class="conditions-logic">
+                    <label>Match conditions:</label>
+                    <div class="radio-group">
+                        <label>
+                            <input type="radio" name="conditionsLogic" value="AND" {{#rule.conditionsLogicAnd}}checked{{/rule.conditionsLogicAnd}}>
+                            All (AND)
+                        </label>
+                        <label>
+                            <input type="radio" name="conditionsLogic" value="OR" {{^rule.conditionsLogicAnd}}checked{{/rule.conditionsLogicAnd}}>
+                            Any (OR)
+                        </label>
+                    </div>
+                </div>
+
+                <div class="conditions-list">
+                    {{#rule.conditions}}
+                    <div class="condition-item" data-condition-id="{{id}}">
+                        <div class="condition-header">
+                            <span class="condition-type">{{type}}</span>
+                            <button type="button" class="btn btn-icon btn-sm" data-action="remove-condition" title="Remove">
+                                <span class="icon-delete"></span>
+                            </button>
+                        </div>
+                        <div class="condition-settings">
+                            {{#settings}}
+                            <div class="form-group">
+                                <label>{{label}}</label>
+                                <input type="text" name="conditions[{{../id}}][{{key}}]" value="{{value}}">
+                            </div>
+                            {{/settings}}
+                        </div>
+                    </div>
+                    {{/rule.conditions}}
+                    {{^rule.conditions}}
+                    <div class="empty-state">
+                        No conditions added. Rule will trigger for all events.
+                    </div>
+                    {{/rule.conditions}}
+                </div>
+            </section>
+
+            <!-- Actions Section -->
+            <section class="form-section">
+                <div class="section-header">
+                    <h2>Actions</h2>
+                    <button type="button" class="btn btn-secondary btn-sm" data-action="add-action">
+                        <span class="icon-plus"></span> Add Action
+                    </button>
+                </div>
+
+                <div class="actions-list sortable">
+                    {{#rule.actions}}
+                    <div class="action-item" data-action-id="{{id}}" draggable="true">
+                        <div class="action-header">
+                            <span class="drag-handle" title="Drag to reorder">
+                                <span class="icon-drag"></span>
+                            </span>
+                            <span class="action-order">{{order}}</span>
+                            <span class="action-type">{{type}}</span>
+                            <button type="button" class="btn btn-icon btn-sm" data-action="remove-action" title="Remove">
+                                <span class="icon-delete"></span>
+                            </button>
+                        </div>
+                        <div class="action-settings">
+                            {{#settings}}
+                            <div class="form-group">
+                                <label>{{label}}</label>
+                                {{#isSelect}}
+                                <select name="actions[{{../id}}][{{key}}]">
+                                    {{#options}}
+                                    <option value="{{value}}" {{#selected}}selected{{/selected}}>{{label}}</option>
+                                    {{/options}}
+                                </select>
+                                {{/isSelect}}
+                                {{^isSelect}}
+                                <input type="text" name="actions[{{../id}}][{{key}}]" value="{{value}}">
+                                {{/isSelect}}
+                            </div>
+                            {{/settings}}
+                        </div>
+                    </div>
+                    {{/rule.actions}}
+                    {{^rule.actions}}
+                    <div class="empty-state">
+                        No actions added. Add at least one action to execute when conditions are met.
+                    </div>
+                    {{/rule.actions}}
+                </div>
+            </section>
+
+            <div class="form-footer">
+                <button type="button" class="btn btn-secondary" data-action="cancel">Cancel</button>
+                <button type="submit" class="btn btn-primary">Save Rule</button>
+            </div>
+        </form>
+    </div>
+</body>
+</html>

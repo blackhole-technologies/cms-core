@@ -1,0 +1,145 @@
+<div class="admin-page">
+  <link rel="stylesheet" href="/public/css/admin.css">
+
+  <div class="admin-header">
+    <h1>Webhooks</h1>
+    <nav class="admin-nav">
+      <a href="/admin">Dashboard</a>
+      <a href="/admin/content">Content</a>
+      <a href="/admin/users">Users</a>
+      <a href="/admin/webhooks" class="active">Webhooks</a>
+      <a href="/admin/modules">Modules</a>
+      <a href="/logout" class="nav-logout">Logout</a>
+    </nav>
+  </div>
+
+  <div class="breadcrumb">
+    <a href="/admin">Dashboard</a> &rarr;
+    <span>Webhooks</span>
+  </div>
+
+  {{#if hasFlash}}
+  <div class="flash flash-{{flash.type}}">
+    {{flash.message}}
+  </div>
+  {{/if}}
+
+  <div class="admin-section">
+    <div class="section-header">
+      <h2>Configured Webhooks ({{webhookCount}})</h2>
+      <a href="/admin/webhooks/new" class="btn btn-primary">+ New Webhook</a>
+    </div>
+
+    {{#if hasWebhooks}}
+    <table class="admin-table">
+      <thead>
+        <tr>
+          <th>Event</th>
+          <th>URL</th>
+          <th>Secret</th>
+          <th>Status</th>
+          <th>Created</th>
+          <th>Actions</th>
+        </tr>
+      </thead>
+      <tbody>
+        {{#each webhooks}}
+        <tr>
+          <td><code>{{event}}</code></td>
+          <td class="url-cell" title="{{url}}">{{url}}</td>
+          <td>
+            {{#if hasSecret}}
+            <span class="badge badge-success">Yes</span>
+            {{else}}
+            <span class="badge badge-muted">No</span>
+            {{/if}}
+          </td>
+          <td>
+            {{#if enabled}}
+            <span class="badge badge-success">Enabled</span>
+            {{else}}
+            <span class="badge badge-muted">Disabled</span>
+            {{/if}}
+          </td>
+          <td>{{createdFormatted}}</td>
+          <td class="actions-cell">
+            <form method="POST" action="/admin/webhooks/{{id}}/test" style="display: inline;">
+              <button type="submit" class="btn btn-small">Test</button>
+            </form>
+            <form method="POST" action="/admin/webhooks/{{id}}/delete" style="display: inline;"
+                  onsubmit="return confirm('Delete this webhook?');">
+              <button type="submit" class="btn btn-small btn-danger">Delete</button>
+            </form>
+          </td>
+        </tr>
+        {{/each}}
+      </tbody>
+    </table>
+    {{else}}
+    <div class="empty-state">
+      <p>No webhooks configured yet.</p>
+      <p>Webhooks notify external services when content changes.</p>
+      <a href="/admin/webhooks/new" class="btn btn-primary">Create your first webhook</a>
+    </div>
+    {{/if}}
+  </div>
+
+  <div class="admin-section">
+    <h3>Available Events</h3>
+    <table class="admin-table">
+      <thead>
+        <tr>
+          <th>Event</th>
+          <th>Description</th>
+          <th>Payload</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td><code>content:afterCreate</code></td>
+          <td>Fires after new content is saved</td>
+          <td><code>{ event, type, item, timestamp }</code></td>
+        </tr>
+        <tr>
+          <td><code>content:afterUpdate</code></td>
+          <td>Fires after content is updated</td>
+          <td><code>{ event, type, item, timestamp }</code></td>
+        </tr>
+        <tr>
+          <td><code>content:afterDelete</code></td>
+          <td>Fires after content is deleted</td>
+          <td><code>{ event, type, id, timestamp }</code></td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+
+  <style>
+    .url-cell {
+      max-width: 300px;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+    .badge {
+      display: inline-block;
+      padding: 2px 8px;
+      border-radius: 4px;
+      font-size: 0.85em;
+    }
+    .badge-success {
+      background: #d4edda;
+      color: #155724;
+    }
+    .badge-muted {
+      background: #e9ecef;
+      color: #6c757d;
+    }
+    .actions-cell {
+      white-space: nowrap;
+    }
+    .actions-cell form {
+      margin-right: 5px;
+    }
+  </style>
+</div>

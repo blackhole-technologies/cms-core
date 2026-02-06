@@ -1,0 +1,103 @@
+{
+  "article": {
+    "label": "Article",
+    "description": "Use for time-sensitive content like news and blog posts",
+    "bundle": "content",
+    "locked": false,
+    "fields": {
+      "title": {
+        "type": "string",
+        "required": true,
+        "maxLength": 255,
+        "weight": 0,
+        "label": "Title"
+      },
+      "body": {
+        "type": "richtext",
+        "required": false,
+        "weight": 10,
+        "label": "Body"
+      },
+      "summary": {
+        "type": "text",
+        "required": false,
+        "weight": 5,
+        "label": "Summary",
+        "maxLength": 500
+      },
+      "created": {
+        "type": "datetime",
+        "required": true,
+        "weight": 997,
+        "label": "Created",
+        "readonly": true
+      },
+      "updated": {
+        "type": "datetime",
+        "required": true,
+        "weight": 998,
+        "label": "Updated",
+        "readonly": true
+      },
+      "status": {
+        "type": "select",
+        "options": ["draft", "published", "archived"],
+        "default": "draft",
+        "weight": 999,
+        "label": "Status"
+      }
+    },
+    "settings": {
+      "publishable": true,
+      "revisions": true,
+      "preview": true
+    }
+  },
+  "page": {
+    "label": "Basic Page",
+    "description": "Use for static content that rarely changes",
+    "bundle": "content",
+    "locked": false,
+    "fields": {
+      "title": {
+        "type": "string",
+        "required": true,
+        "maxLength": 255,
+        "weight": 0,
+        "label": "Title"
+      },
+      "body": {
+        "type": "richtext",
+        "required": false,
+        "weight": 10,
+        "label": "Body"
+      },
+      "created": {
+        "type": "datetime",
+        "required": true,
+        "weight": 997,
+        "label": "Created",
+        "readonly": true
+      },
+      "updated": {
+        "type": "datetime",
+        "required": true,
+        "weight": 998,
+        "label": "Updated",
+        "readonly": true
+      },
+      "status": {
+        "type": "select",
+        "options": ["draft", "published", "archived"],
+        "default": "draft",
+        "weight": 999,
+        "label": "Status"
+      }
+    },
+    "settings": {
+      "publishable": true,
+      "revisions": false,
+      "preview": false
+    }
+  }
+}

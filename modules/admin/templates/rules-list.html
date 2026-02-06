@@ -1,0 +1,68 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Rules - CMS Admin</title>
+</head>
+<body>
+    <div class="admin-content">
+        <header class="page-header">
+            <h1>Rules</h1>
+            <button class="btn btn-primary" data-action="create-rule">Create Rule</button>
+        </header>
+
+        <div class="rules-table-container">
+            <table class="data-table">
+                <thead>
+                    <tr>
+                        <th>Rule Name</th>
+                        <th>Event</th>
+                        <th>Conditions</th>
+                        <th>Actions</th>
+                        <th>Enabled</th>
+                        <th>Actions</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {{#rules}}
+                    <tr data-rule-id="{{id}}" class="{{#enabled}}enabled{{/enabled}}{{^enabled}}disabled{{/enabled}}">
+                        <td>
+                            <div class="rule-name">{{name}}</div>
+                            {{#description}}
+                            <div class="rule-description">{{description}}</div>
+                            {{/description}}
+                        </td>
+                        <td><span class="badge badge-event">{{event}}</span></td>
+                        <td class="text-center">{{conditionsCount}}</td>
+                        <td class="text-center">{{actionsCount}}</td>
+                        <td>
+                            <label class="toggle-switch">
+                                <input type="checkbox" data-action="toggle-enabled" data-id="{{id}}" {{#enabled}}checked{{/enabled}}>
+                                <span class="toggle-slider"></span>
+                            </label>
+                        </td>
+                        <td class="actions-cell">
+                            <button class="btn btn-sm btn-icon" data-action="edit" data-id="{{id}}" title="Edit">
+                                <span class="icon-edit"></span>
+                            </button>
+                            <button class="btn btn-sm btn-icon" data-action="duplicate" data-id="{{id}}" title="Duplicate">
+                                <span class="icon-copy"></span>
+                            </button>
+                            <button class="btn btn-sm btn-icon btn-danger" data-action="delete" data-id="{{id}}" title="Delete">
+                                <span class="icon-delete"></span>
+                            </button>
+                        </td>
+                    </tr>
+                    {{/rules}}
+                    {{^rules}}
+                    <tr>
+                        <td colspan="6" class="no-data">No rules found. Create a rule to automate your workflow.</td>
+                    </tr>
+                    {{/rules}}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</body>
+</html>

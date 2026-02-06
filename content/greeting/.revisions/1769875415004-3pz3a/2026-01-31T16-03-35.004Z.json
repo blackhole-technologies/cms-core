@@ -1,0 +1,8 @@
+{
+  "id": "1769875415004-3pz3a",
+  "type": "greeting",
+  "created": "2026-01-31T16:03:35.004Z",
+  "updated": "2026-01-31T16:03:35.004Z",
+  "name": "Webhook Test 2",
+  "message": "Should trigger webhook"
+}

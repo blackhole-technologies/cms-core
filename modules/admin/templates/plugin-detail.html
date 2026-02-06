@@ -1,0 +1,189 @@
+<div class="admin-page">
+  <div class="admin-header">
+    <h1>{{pageTitle}}</h1>
+    <p>
+      <a href="/admin/plugins">&larr; Back to Plugins</a>
+    </p>
+  </div>
+
+  {{#if hasFlash}}
+  <div class="flash flash-{{flash.type}}">
+    {{flash.message}}
+  </div>
+  {{/if}}
+
+  <div class="plugin-detail">
+    <div class="detail-section">
+      <h2>Plugin Information</h2>
+      <table class="detail-table">
+        <tr>
+          <th>Name</th>
+          <td>{{name}}</td>
+        </tr>
+        <tr>
+          <th>Version</th>
+          <td>{{version}}</td>
+        </tr>
+        <tr>
+          <th>Description</th>
+          <td>{{description}}</td>
+        </tr>
+        {{#if author}}
+        <tr>
+          <th>Author</th>
+          <td>{{author}}</td>
+        </tr>
+        {{/if}}
+        <tr>
+          <th>Status</th>
+          <td>
+            {{#if enabled}}
+              <span class="badge badge-success">Enabled</span>
+            {{else}}
+              <span class="badge badge-inactive">Disabled</span>
+            {{/if}}
+            {{#if error}}
+              <span class="badge badge-error">Error</span>
+            {{/if}}
+          </td>
+        </tr>
+        {{#if minCoreVersion}}
+        <tr>
+          <th>Min Core Version</th>
+          <td>{{minCoreVersion}}</td>
+        </tr>
+        {{/if}}
+      </table>
+
+      {{#if error}}
+      <div class="error-box">
+        <strong>Error:</strong> {{error}}
+      </div>
+      {{/if}}
+    </div>
+
+    {{#if hasPermissions}}
+    <div class="detail-section">
+      <h2>Permissions</h2>
+      <p>This plugin has access to the following APIs:</p>
+      <ul class="permissions-list">
+        {{#each permissions}}
+        <li>
+          <code>{{name}}</code>
+          <span class="perm-desc">{{description}}</span>
+        </li>
+        {{/each}}
+      </ul>
+    </div>
+    {{/if}}
+
+    {{#if hasDependencies}}
+    <div class="detail-section">
+      <h2>Dependencies</h2>
+      <p>This plugin requires the following plugins to be active:</p>
+      <ul>
+        {{#each dependencies}}
+        <li><code>{{.}}</code></li>
+        {{/each}}
+      </ul>
+    </div>
+    {{/if}}
+
+    <div class="detail-section">
+      <h2>Configuration</h2>
+      {{#if hasConfig}}
+      <form method="POST" action="/admin/plugins/{{name}}/config">
+        {{csrfField}}
+        <div class="form-group">
+          <label for="config">Plugin Configuration (JSON)</label>
+          <textarea name="config" id="config" rows="10" class="code-input">{{configJson}}</textarea>
+          <p class="help-text">Edit the JSON configuration for this plugin.</p>
+        </div>
+        <button type="submit" class="btn btn-primary">Save Configuration</button>
+      </form>
+      {{else}}
+      <p class="text-muted">This plugin has no configurable options.</p>
+      {{/if}}
+    </div>
+
+    <div class="detail-section">
+      <h2>Enable / Disable</h2>
+      <p>To enable or disable this plugin, use the CLI:</p>
+      {{#if enabled}}
+      <pre><code>node index.js plugins:disable {{name}}</code></pre>
+      {{else}}
+      <pre><code>node index.js plugins:enable {{name}}</code></pre>
+      {{/if}}
+      <p class="text-muted"><em>Server restart required after changes.</em></p>
+    </div>
+
+    <div class="detail-section">
+      <h2>Hot-Swap Controls</h2>
+      <p>Manage this plugin without restarting the server:</p>
+      <div class="hotswap-buttons">
+        {{#if status}}
+          {{#eq status "active"}}
+            <form method="POST" action="/admin/plugins/{{name}}/deactivate" style="display: inline-block;">
+              {{csrfField}}
+              <button type="submit" class="btn btn-warning">Deactivate</button>
+            </form>
+            <form method="POST" action="/admin/plugins/{{name}}/reload" style="display: inline-block;">
+              {{csrfField}}
+              <button type="submit" class="btn btn-info">Reload</button>
+            </form>
+          {{else}}
+            {{#if valid}}
+            <form method="POST" action="/admin/plugins/{{name}}/activate" style="display: inline-block;">
+              {{csrfField}}
+              <button type="submit" class="btn btn-success">Activate</button>
+            </form>
+            {{/if}}
+          {{/eq}}
+        {{else}}
+          {{#if valid}}
+          <form method="POST" action="/admin/plugins/{{name}}/activate" style="display: inline-block;">
+            {{csrfField}}
+            <button type="submit" class="btn btn-success">Activate</button>
+          </form>
+          {{/if}}
+        {{/if}}
+      </div>
+      <p class="help-text">
+        <strong>Activate:</strong> Hot-load the plugin without restart<br>
+        <strong>Deactivate:</strong> Hot-unload the plugin, removing its routes and CLI commands<br>
+        <strong>Reload:</strong> Reload the plugin code (useful after editing plugin files)
+      </p>
+    </div>
+  </div>
+</div>
+
+<style>
+.plugin-detail { max-width: 800px; }
+.detail-section { margin: 2rem 0; padding-bottom: 1.5rem; border-bottom: 1px solid #eee; }
+.detail-section h2 { font-size: 1.2rem; margin-bottom: 1rem; color: #333; }
+.detail-table { width: 100%; border-collapse: collapse; }
+.detail-table th { text-align: left; padding: 0.5rem; width: 150px; color: #666; }
+.detail-table td { padding: 0.5rem; }
+.badge { display: inline-block; padding: 0.25em 0.5em; border-radius: 3px; font-size: 0.85em; margin-right: 0.5rem; }
+.badge-success { background: #28a745; color: white; }
+.badge-inactive { background: #6c757d; color: white; }
+.badge-error { background: #dc3545; color: white; }
+.error-box { margin-top: 1rem; padding: 1rem; background: #fff5f5; border: 1px solid #dc3545; border-radius: 4px; color: #dc3545; }
+.permissions-list { list-style: none; padding: 0; }
+.permissions-list li { margin: 0.75rem 0; padding: 0.5rem; background: #f8f9fa; border-radius: 4px; }
+.permissions-list code { background: #e9ecef; padding: 0.2em 0.4em; border-radius: 3px; }
+.perm-desc { display: block; margin-top: 0.25rem; color: #666; font-size: 0.9em; }
+.code-input { width: 100%; font-family: monospace; padding: 0.75rem; border: 1px solid #ddd; border-radius: 4px; }
+.help-text { font-size: 0.9em; color: #666; margin-top: 0.5rem; }
+.text-muted { color: #6c757d; }
+pre { background: #f8f9fa; padding: 1rem; border-radius: 4px; overflow-x: auto; }
+pre code { background: none; padding: 0; }
+.hotswap-buttons { margin: 1rem 0; }
+.hotswap-buttons form { margin-right: 0.5rem; }
+.btn-warning { background: #ffc107; color: #212529; border: none; padding: 0.5rem 1rem; border-radius: 4px; cursor: pointer; }
+.btn-warning:hover { background: #e0a800; }
+.btn-info { background: #17a2b8; color: white; border: none; padding: 0.5rem 1rem; border-radius: 4px; cursor: pointer; }
+.btn-info:hover { background: #138496; }
+.btn-success { background: #28a745; color: white; border: none; padding: 0.5rem 1rem; border-radius: 4px; cursor: pointer; }
+.btn-success:hover { background: #218838; }
+</style>

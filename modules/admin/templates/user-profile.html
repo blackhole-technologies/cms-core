@@ -1,0 +1,155 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{{user.name}} - User Profile - {{site_name}}</title>
+</head>
+<body>
+    <div class="content">
+        <div class="profile-container">
+            <header class="profile-header">
+                <div class="profile-avatar">
+                    {{#user.avatar}}
+                    <img src="{{user.avatar}}" alt="{{user.name}}">
+                    {{/user.avatar}}
+                    {{^user.avatar}}
+                    <div class="avatar-placeholder">{{user.initials}}</div>
+                    {{/user.avatar}}
+                </div>
+
+                <div class="profile-info">
+                    <h1>{{user.name}}</h1>
+
+                    <div class="profile-meta">
+                        <span class="user-role role-{{user.role}}">{{user.role_label}}</span>
+                        {{#user.email_visible}}
+                        <span class="user-email">{{user.email}}</span>
+                        {{/user.email_visible}}
+                    </div>
+
+                    <div class="profile-stats">
+                        <div class="stat">
+                            <span class="stat-label">Member since</span>
+                            <span class="stat-value">{{user.created_date}}</span>
+                        </div>
+                        {{#user.last_login}}
+                        <div class="stat">
+                            <span class="stat-label">Last active</span>
+                            <span class="stat-value">{{user.last_login}}</span>
+                        </div>
+                        {{/user.last_login}}
+                    </div>
+                </div>
+
+                <div class="profile-actions">
+                    {{#can_edit}}
+                    <a href="/user/{{user.id}}/edit" class="btn btn-primary">Edit Profile</a>
+                    {{/can_edit}}
+
+                    {{#is_admin}}
+                    <div class="admin-actions">
+                        <a href="/admin/users/edit/{{user.id}}" class="btn btn-secondary">Admin Edit</a>
+
+                        <div class="view-mode-toggle">
+                            <label>View as:</label>
+                            <select id="view-mode" onchange="location.href='?view=' + this.value">
+                                <option value="public" {{#view_public}}selected{{/view_public}}>Public</option>
+                                <option value="authenticated" {{#view_authenticated}}selected{{/view_authenticated}}>Authenticated</option>
+                                <option value="admin" {{#view_admin}}selected{{/view_admin}}>Admin</option>
+                            </select>
+                        </div>
+                    </div>
+                    {{/is_admin}}
+                </div>
+            </header>
+
+            <div class="profile-content">
+                {{#has_fields}}
+                {{#categories}}
+                <section class="profile-category">
+                    <h2>{{label}}</h2>
+
+                    <div class="profile-fields">
+                        {{#fields}}
+                        <div class="profile-field field-{{type}}" data-field="{{machine_name}}">
+                            <div class="field-label">{{label}}</div>
+                            <div class="field-value">
+                                {{#has_value}}
+
+                                {{#is_text}}
+                                <p>{{value}}</p>
+                                {{/is_text}}
+
+                                {{#is_textarea}}
+                                <div class="field-text">{{{value_html}}}</div>
+                                {{/is_textarea}}
+
+                                {{#is_url}}
+                                <a href="{{value}}" {{#open_new_tab}}target="_blank" rel="noopener"{{/open_new_tab}}>
+                                    {{display_value}}
+                                </a>
+                                {{/is_url}}
+
+                                {{#is_email}}
+                                <a href="mailto:{{value}}">{{value}}</a>
+                                {{/is_email}}
+
+                                {{#is_date}}
+                                <time datetime="{{value_iso}}">{{value_formatted}}</time>
+                                {{/is_date}}
+
+                                {{#is_select}}
+                                <span class="select-value">{{value_label}}</span>
+                                {{/is_select}}
+
+                                {{#is_checkboxes}}
+                                <ul class="checkbox-values">
+                                    {{#values}}
+                                    <li>{{label}}</li>
+                                    {{/values}}
+                                </ul>
+                                {{/is_checkboxes}}
+
+                                {{#is_boolean}}
+                                <span class="boolean-value">
+                                    {{#value}}Yes{{/value}}
+                                    {{^value}}No{{/value}}
+                                </span>
+                                {{/is_boolean}}
+
+                                {{#is_file}}
+                                <a href="{{value}}" class="file-link" download>
+                                    {{filename}}
+                                </a>
+                                {{/is_file}}
+
+                                {{#is_image}}
+                                <img src="{{value}}" alt="{{label}}" class="profile-image">
+                                {{/is_image}}
+
+                                {{/has_value}}
+                                {{^has_value}}
+                                <span class="field-empty">Not specified</span>
+                                {{/has_value}}
+                            </div>
+                        </div>
+                        {{/fields}}
+                    </div>
+                </section>
+                {{/categories}}
+                {{/has_fields}}
+
+                {{^has_fields}}
+                <div class="empty-state">
+                    <p>No profile information available.</p>
+                    {{#can_edit}}
+                    <a href="/user/{{user.id}}/edit" class="btn btn-primary">Add Profile Information</a>
+                    {{/can_edit}}
+                </div>
+                {{/has_fields}}
+            </div>
+        </div>
+    </div>
+</body>
+</html>

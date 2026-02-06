@@ -1,0 +1,338 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{{#isNew}}Create{{/isNew}}{{^isNew}}Edit{{/isNew}} Image Style - {{siteName}}</title>
+    <style>
+        .effects-list {
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            margin: 1rem 0;
+        }
+        .effect-item {
+            padding: 1rem;
+            border-bottom: 1px solid #ddd;
+            background: #f9f9f9;
+            cursor: move;
+        }
+        .effect-item:last-child {
+            border-bottom: none;
+        }
+        .effect-item.dragging {
+            opacity: 0.5;
+        }
+        .effect-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 0.5rem;
+        }
+        .effect-config {
+            background: white;
+            padding: 1rem;
+            border-radius: 4px;
+            margin-top: 0.5rem;
+        }
+        .form-row {
+            display: flex;
+            gap: 1rem;
+            margin-bottom: 1rem;
+        }
+        .form-group {
+            flex: 1;
+        }
+        .preview-container {
+            margin-top: 2rem;
+            padding: 1rem;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            background: #f5f5f5;
+        }
+        .preview-image {
+            max-width: 100%;
+            height: auto;
+        }
+    </style>
+</head>
+<body>
+    <div class="admin-container">
+        <header class="admin-header">
+            <h1>{{#isNew}}Create{{/isNew}}{{^isNew}}Edit{{/isNew}} Image Style</h1>
+        </header>
+
+        <main class="admin-main">
+            <form id="styleForm" onsubmit="saveStyle(event)">
+                <div class="form-group">
+                    <label for="name">Machine Name *</label>
+                    <input type="text" id="name" name="name" value="{{style.name}}"
+                           {{^isNew}}readonly{{/isNew}} required
+                           pattern="[a-z0-9_]+"
+                           title="Lowercase letters, numbers, and underscores only">
+                    <small>Machine-readable name (lowercase, underscores only)</small>
+                </div>
+
+                <div class="form-group">
+                    <label for="label">Label *</label>
+                    <input type="text" id="label" name="label" value="{{style.label}}" required>
+                    <small>Human-readable label</small>
+                </div>
+
+                <h2>Effects</h2>
+                <div id="effectsList" class="effects-list">
+                    {{#style.effects}}
+                    <div class="effect-item" draggable="true" data-effect-id="{{id}}">
+                        <div class="effect-header">
+                            <strong>{{type}}</strong>
+                            <div>
+                                <span class="drag-handle">☰</span>
+                                <button type="button" class="btn btn-sm btn-danger" onclick="removeEffect('{{id}}')">Remove</button>
+                            </div>
+                        </div>
+                        <div class="effect-config">
+                            {{{configHTML}}}
+                        </div>
+                    </div>
+                    {{/style.effects}}
+                </div>
+
+                <div class="form-group">
+                    <label for="newEffectType">Add Effect</label>
+                    <select id="newEffectType" onchange="addEffect(this.value)">
+                        <option value="">-- Select Effect Type --</option>
+                        <option value="resize">Resize</option>
+                        <option value="scale">Scale</option>
+                        <option value="crop">Crop</option>
+                        <option value="rotate">Rotate</option>
+                        <option value="desaturate">Desaturate</option>
+                    </select>
+                </div>
+
+                <div class="preview-container">
+                    <h3>Preview</h3>
+                    <div id="previewArea">
+                        {{#previewImage}}
+                        <img src="{{previewImage}}" class="preview-image" alt="Preview">
+                        {{/previewImage}}
+                        {{^previewImage}}
+                        <p><em>Upload a sample image to preview effects</em></p>
+                        <input type="file" id="previewUpload" accept="image/*" onchange="uploadPreview(this)">
+                        {{/previewImage}}
+                    </div>
+                </div>
+
+                <div class="form-actions">
+                    <button type="submit" class="btn btn-primary">Save Style</button>
+                    <button type="button" class="btn btn-secondary" onclick="location.href='/admin/config/media/image-styles'">Cancel</button>
+                </div>
+            </form>
+        </main>
+    </div>
+
+    <script>
+        let effectCounter = {{style.effects.length}} || 0;
+        let draggedElement = null;
+
+        // Effect templates
+        const effectTemplates = {
+            resize: (id) => `
+                <div class="form-row">
+                    <div class="form-group">
+                        <label>Width</label>
+                        <input type="number" name="effects[${id}][width]" min="1">
+                    </div>
+                    <div class="form-group">
+                        <label>Height</label>
+                        <input type="number" name="effects[${id}][height]" min="1">
+                    </div>
+                </div>
+                <input type="hidden" name="effects[${id}][type]" value="resize">
+            `,
+            scale: (id) => `
+                <div class="form-row">
+                    <div class="form-group">
+                        <label>Width</label>
+                        <input type="number" name="effects[${id}][width]" min="1">
+                    </div>
+                    <div class="form-group">
+                        <label>Height</label>
+                        <input type="number" name="effects[${id}][height]" min="1">
+                    </div>
+                    <div class="form-group">
+                        <label>Upscale?</label>
+                        <input type="checkbox" name="effects[${id}][upscale]">
+                    </div>
+                </div>
+                <input type="hidden" name="effects[${id}][type]" value="scale">
+            `,
+            crop: (id) => `
+                <div class="form-row">
+                    <div class="form-group">
+                        <label>Width</label>
+                        <input type="number" name="effects[${id}][width]" min="1" required>
+                    </div>
+                    <div class="form-group">
+                        <label>Height</label>
+                        <input type="number" name="effects[${id}][height]" min="1" required>
+                    </div>
+                    <div class="form-group">
+                        <label>Anchor</label>
+                        <select name="effects[${id}][anchor]">
+                            <option value="center">Center</option>
+                            <option value="top-left">Top Left</option>
+                            <option value="top">Top</option>
+                            <option value="top-right">Top Right</option>
+                            <option value="left">Left</option>
+                            <option value="right">Right</option>
+                            <option value="bottom-left">Bottom Left</option>
+                            <option value="bottom">Bottom</option>
+                            <option value="bottom-right">Bottom Right</option>
+                        </select>
+                    </div>
+                </div>
+                <input type="hidden" name="effects[${id}][type]" value="crop">
+            `,
+            rotate: (id) => `
+                <div class="form-row">
+                    <div class="form-group">
+                        <label>Degrees</label>
+                        <input type="number" name="effects[${id}][degrees]" min="-360" max="360" step="1" required>
+                    </div>
+                    <div class="form-group">
+                        <label>Background Color (hex)</label>
+                        <input type="text" name="effects[${id}][bgcolor]" value="#FFFFFF" pattern="#[0-9A-Fa-f]{6}">
+                    </div>
+                </div>
+                <input type="hidden" name="effects[${id}][type]" value="rotate">
+            `,
+            desaturate: (id) => `
+                <p><em>Converts image to grayscale (no configuration needed)</em></p>
+                <input type="hidden" name="effects[${id}][type]" value="desaturate">
+            `
+        };
+
+        function addEffect(type) {
+            if (!type) return;
+
+            const id = ++effectCounter;
+            const effectItem = document.createElement('div');
+            effectItem.className = 'effect-item';
+            effectItem.draggable = true;
+            effectItem.dataset.effectId = id;
+
+            effectItem.innerHTML = `
+                <div class="effect-header">
+                    <strong>${type}</strong>
+                    <div>
+                        <span class="drag-handle">☰</span>
+                        <button type="button" class="btn btn-sm btn-danger" onclick="removeEffect(${id})">Remove</button>
+                    </div>
+                </div>
+                <div class="effect-config">
+                    ${effectTemplates[type](id)}
+                </div>
+            `;
+
+            setupDragAndDrop(effectItem);
+            document.getElementById('effectsList').appendChild(effectItem);
+            document.getElementById('newEffectType').value = '';
+        }
+
+        function removeEffect(id) {
+            const element = document.querySelector(`[data-effect-id="${id}"]`);
+            if (element && confirm('Remove this effect?')) {
+                element.remove();
+            }
+        }
+
+        function setupDragAndDrop(element) {
+            element.addEventListener('dragstart', handleDragStart);
+            element.addEventListener('dragover', handleDragOver);
+            element.addEventListener('drop', handleDrop);
+            element.addEventListener('dragend', handleDragEnd);
+        }
+
+        function handleDragStart(e) {
+            draggedElement = this;
+            this.classList.add('dragging');
+            e.dataTransfer.effectAllowed = 'move';
+        }
+
+        function handleDragOver(e) {
+            e.preventDefault();
+            e.dataTransfer.dropEffect = 'move';
+            const afterElement = getDragAfterElement(e.clientY);
+            if (afterElement == null) {
+                this.parentElement.appendChild(draggedElement);
+            } else {
+                this.parentElement.insertBefore(draggedElement, afterElement);
+            }
+        }
+
+        function handleDrop(e) {
+            e.stopPropagation();
+            return false;
+        }
+
+        function handleDragEnd(e) {
+            this.classList.remove('dragging');
+        }
+
+        function getDragAfterElement(y) {
+            const draggableElements = [...document.querySelectorAll('.effect-item:not(.dragging)')];
+            return draggableElements.reduce((closest, child) => {
+                const box = child.getBoundingClientRect();
+                const offset = y - box.top - box.height / 2;
+                if (offset < 0 && offset > closest.offset) {
+                    return { offset: offset, element: child };
+                } else {
+                    return closest;
+                }
+            }, { offset: Number.NEGATIVE_INFINITY }).element;
+        }
+
+        function uploadPreview(input) {
+            if (input.files && input.files[0]) {
+                const formData = new FormData();
+                formData.append('image', input.files[0]);
+
+                fetch('/admin/api/image-styles/preview', { method: 'POST', body: formData })
+                    .then(response => response.json())
+                    .then(data => {
+                        if (data.success) {
+                            document.getElementById('previewArea').innerHTML =
+                                `<img src="${data.url}" class="preview-image" alt="Preview">`;
+                        }
+                    });
+            }
+        }
+
+        function saveStyle(e) {
+            e.preventDefault();
+
+            const formData = new FormData(e.target);
+            const styleName = formData.get('name');
+            const url = {{#isNew}}'/admin/api/image-styles'{{/isNew}}{{^isNew}}`/admin/api/image-styles/${styleName}`{{/isNew}};
+            const method = {{#isNew}}'POST'{{/isNew}}{{^isNew}}'PUT'{{/isNew}};
+
+            fetch(url, {
+                method: method,
+                body: formData
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    alert('Style saved successfully');
+                    location.href = '/admin/config/media/image-styles';
+                } else {
+                    alert('Error: ' + (data.error || 'Unknown error'));
+                }
+            })
+            .catch(err => alert('Request failed: ' + err.message));
+        }
+
+        // Initialize drag and drop for existing effects
+        document.querySelectorAll('.effect-item').forEach(setupDragAndDrop);
+    </script>
+</body>
+</html>

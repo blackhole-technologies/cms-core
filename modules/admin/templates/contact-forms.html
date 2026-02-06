@@ -1,0 +1,303 @@
+<div class="admin-page">
+
+  <div class="admin-header">
+    <h1>{{pageTitle}}</h1>
+    <nav class="admin-nav">
+      <a href="/admin">Dashboard</a>
+      <a href="/admin/content">Content</a>
+      <a href="/admin/structure" class="active">Structure</a>
+    </nav>
+  </div>
+
+  {{#if hasFlash}}
+  <div class="flash flash-{{flash.type}}">
+    {{flash.message}}
+  </div>
+  {{/if}}
+
+  <div class="breadcrumb">
+    <a href="/admin">Dashboard</a> &rarr;
+    <a href="/admin/structure">Structure</a> &rarr;
+    <span>Contact Forms</span>
+  </div>
+
+  <div class="admin-section">
+    <div class="section-header-row">
+      <h2>Contact Forms</h2>
+      <button class="btn btn-primary" onclick="toggleForm('create-form')">Create Form</button>
+    </div>
+
+    <div id="create-form" class="form-panel" style="display: none;">
+      <h3>Create Contact Form</h3>
+      <form method="POST" action="/admin/contact-forms">
+        {{csrfField}}
+        <div class="form-group">
+          <label for="title">Title</label>
+          <input type="text" id="title" name="title" required placeholder="e.g., General Inquiry">
+        </div>
+        <div class="form-group">
+          <label for="id">Machine Name</label>
+          <input type="text" id="id" name="id" required placeholder="e.g., general-inquiry" pattern="[a-z0-9-]+">
+          <small>Lowercase letters, numbers, and hyphens only</small>
+        </div>
+        <div class="form-group">
+          <label for="recipients">Recipients</label>
+          <textarea id="recipients" name="recipients" rows="3" required placeholder="admin@example.com&#10;support@example.com"></textarea>
+          <small>One email per line</small>
+        </div>
+        <div class="form-group">
+          <label for="reply">Auto-reply Message</label>
+          <textarea id="reply" name="reply" rows="4" placeholder="Thank you for contacting us. We'll get back to you soon."></textarea>
+        </div>
+        <div class="form-group">
+          <label for="message">Success Message</label>
+          <input type="text" id="message" name="message" placeholder="Your message has been sent. We'll respond within 24 hours.">
+        </div>
+        <div class="form-actions">
+          <button type="submit" class="btn btn-primary">Create</button>
+          <button type="button" class="btn btn-secondary" onclick="toggleForm('create-form')">Cancel</button>
+        </div>
+      </form>
+    </div>
+
+    {{#if hasForms}}
+    <table class="forms-table">
+      <thead>
+        <tr>
+          <th>Title</th>
+          <th>Recipients</th>
+          <th>Submissions</th>
+          <th>Status</th>
+          <th>Actions</th>
+        </tr>
+      </thead>
+      <tbody>
+        {{#each forms}}
+        <tr>
+          <td><strong>{{title}}</strong><br><code>{{id}}</code></td>
+          <td class="recipients-cell">{{recipients}}</td>
+          <td class="center">{{submissionCount}}</td>
+          <td class="center">
+            {{#if enabled}}
+            <span class="badge badge-enabled">Enabled</span>
+            {{else}}
+            <span class="badge badge-disabled">Disabled</span>
+            {{/if}}
+          </td>
+          <td class="actions-cell">
+            <a href="/admin/contact-forms/{{id}}/edit" class="btn btn-sm btn-secondary">Edit</a>
+            <a href="/admin/contact-forms/{{id}}/submissions" class="btn btn-sm btn-secondary">Submissions</a>
+            <form method="POST" action="/admin/contact-forms/{{id}}/delete" style="display: inline;">
+              {{../csrfField}}
+              <button type="submit" class="btn btn-sm btn-danger" onclick="return confirm('Delete this form and all submissions?')">Delete</button>
+            </form>
+          </td>
+        </tr>
+        {{/each}}
+      </tbody>
+    </table>
+    {{else}}
+    <p class="empty-message">No contact forms defined. Create one to start receiving submissions.</p>
+    {{/if}}
+  </div>
+
+  <div class="admin-section">
+    <h2>About Contact Forms</h2>
+    <div class="info-grid">
+      <div class="info-card">
+        <h3>Form Management</h3>
+        <p>Create multiple contact forms for different purposes (general inquiry, support, sales, etc.). Each form can have unique recipients and confirmation messages.</p>
+      </div>
+      <div class="info-card">
+        <h3>Email Notifications</h3>
+        <p>Submissions are emailed to configured recipients. Optional auto-reply messages can be sent to users who submit forms.</p>
+      </div>
+      <div class="info-card">
+        <h3>Submission Tracking</h3>
+        <p>All submissions are logged and accessible in the admin interface. Track unread messages and respond directly from the dashboard.</p>
+      </div>
+    </div>
+  </div>
+
+  <style>
+    .section-header-row {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 1rem;
+    }
+    .section-header-row h2 {
+      margin: 0;
+    }
+    .form-panel {
+      background: #f9fafb;
+      border: 1px solid #e5e7eb;
+      border-radius: 8px;
+      padding: 1.5rem;
+      margin-bottom: 1.5rem;
+    }
+    .form-panel h3 {
+      margin: 0 0 1rem 0;
+      font-size: 1.1rem;
+    }
+    .form-group {
+      margin-bottom: 1rem;
+    }
+    .form-group label {
+      display: block;
+      margin-bottom: 0.25rem;
+      font-size: 0.9rem;
+      font-weight: 500;
+      color: #374151;
+    }
+    .form-group input[type="text"],
+    .form-group textarea {
+      width: 100%;
+      padding: 0.5rem;
+      border: 1px solid #d1d5db;
+      border-radius: 4px;
+      font-size: 0.9rem;
+    }
+    .form-group small {
+      display: block;
+      margin-top: 0.25rem;
+      font-size: 0.8rem;
+      color: #6b7280;
+    }
+    .form-actions {
+      display: flex;
+      gap: 0.5rem;
+      margin-top: 1rem;
+    }
+    .forms-table {
+      width: 100%;
+      border-collapse: collapse;
+      background: white;
+      border-radius: 8px;
+      overflow: hidden;
+    }
+    .forms-table thead {
+      background: #f9fafb;
+      border-bottom: 1px solid #e5e7eb;
+    }
+    .forms-table th {
+      padding: 0.75rem;
+      text-align: left;
+      font-size: 0.85rem;
+      font-weight: 600;
+      color: #374151;
+    }
+    .forms-table td {
+      padding: 0.75rem;
+      border-bottom: 1px solid #e5e7eb;
+      font-size: 0.9rem;
+    }
+    .forms-table code {
+      background: #f3f4f6;
+      padding: 0.125rem 0.375rem;
+      border-radius: 4px;
+      font-size: 0.8rem;
+      color: #6b7280;
+    }
+    .recipients-cell {
+      font-size: 0.85rem;
+      color: #6b7280;
+      max-width: 200px;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+    .center {
+      text-align: center;
+    }
+    .actions-cell {
+      white-space: nowrap;
+    }
+    .badge {
+      display: inline-block;
+      padding: 0.25rem 0.5rem;
+      border-radius: 9999px;
+      font-size: 0.75rem;
+      font-weight: 500;
+    }
+    .badge-enabled {
+      background: #d1fae5;
+      color: #065f46;
+    }
+    .badge-disabled {
+      background: #fee2e2;
+      color: #991b1b;
+    }
+    .btn {
+      display: inline-block;
+      padding: 0.5rem 1rem;
+      border: none;
+      border-radius: 4px;
+      font-size: 0.9rem;
+      cursor: pointer;
+      text-decoration: none;
+    }
+    .btn-primary {
+      background: #2563eb;
+      color: white;
+    }
+    .btn-primary:hover {
+      background: #1d4ed8;
+    }
+    .btn-secondary {
+      background: #e5e7eb;
+      color: #374151;
+    }
+    .btn-secondary:hover {
+      background: #d1d5db;
+    }
+    .btn-danger {
+      background: #dc2626;
+      color: white;
+    }
+    .btn-danger:hover {
+      background: #b91c1c;
+    }
+    .btn-sm {
+      padding: 0.25rem 0.5rem;
+      font-size: 0.8rem;
+    }
+    .empty-message {
+      text-align: center;
+      padding: 2rem;
+      color: #6b7280;
+      font-style: italic;
+    }
+    .info-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+      gap: 1rem;
+    }
+    .info-card {
+      background: #f9fafb;
+      border: 1px solid #e5e7eb;
+      border-radius: 8px;
+      padding: 1rem;
+    }
+    .info-card h3 {
+      margin: 0 0 0.5rem 0;
+      font-size: 1rem;
+      color: #111827;
+    }
+    .info-card p {
+      margin: 0;
+      font-size: 0.85rem;
+      color: #6b7280;
+    }
+  </style>
+  <script>
+    function toggleForm(id) {
+      const el = document.getElementById(id);
+      if (el) {
+        el.style.display = el.style.display === 'none' ? 'block' : 'none';
+      }
+    }
+  </script>
+  <script src="/public/js/shortcuts.js"></script>
+  <script>Shortcuts.init({ context: 'global' });</script>
+</div>

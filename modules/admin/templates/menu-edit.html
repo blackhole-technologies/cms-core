@@ -1,0 +1,180 @@
+<div class="admin-page">
+
+  <div class="admin-header">
+    <h1>{{pageTitle}}</h1>
+    <nav class="admin-nav">
+      <a href="/admin">Dashboard</a>
+      <a href="/admin/content">Content</a>
+      <a href="/admin/structure" class="active">Structure</a>
+      <a href="/admin/menus">Menus</a>
+    </nav>
+  </div>
+
+  {{#if hasFlash}}
+  <div class="flash flash-{{flash.type}}">
+    {{flash.message}}
+  </div>
+  {{/if}}
+
+  <div class="breadcrumb">
+    <a href="/admin">Dashboard</a> &rarr;
+    <a href="/admin/menus">Menus</a> &rarr;
+    <a href="/admin/menus/{{menuName}}">{{menu.title}}</a> &rarr;
+    <span>Edit: {{item.title}}</span>
+  </div>
+
+  <div class="admin-section">
+    <form method="POST" action="/admin/menus/{{menuName}}/{{item.id}}">
+      {{csrfField}}
+
+      <div class="form-group">
+        <label for="title">Title</label>
+        <input type="text" id="title" name="title" value="{{item.title}}" required>
+      </div>
+
+      <div class="form-group">
+        <label for="url">URL</label>
+        <input type="text" id="url" name="url" value="{{item.link}}" required>
+        <small>Internal path (e.g., /about) or external URL (e.g., https://example.com)</small>
+      </div>
+
+      <div class="form-group">
+        <label for="weight">Weight</label>
+        <input type="number" id="weight" name="weight" value="{{item.weight}}" step="1">
+        <small>Lower weights appear first in the menu</small>
+      </div>
+
+      <div class="form-group">
+        <label for="parent">Parent Item</label>
+        <select id="parent" name="parent">
+          <option value="">-- None (top level) --</option>
+          {{#each items}}
+          <option value="{{id}}" {{#if (eq id ../item.parentId)}}selected{{/if}}>{{title}}</option>
+          {{/each}}
+        </select>
+      </div>
+
+      <div class="form-group">
+        <label class="checkbox-label">
+          <input type="checkbox" name="enabled" value="on" {{#if item.enabled}}checked{{/if}}>
+          Enabled
+        </label>
+      </div>
+
+      <div class="form-actions">
+        <button type="submit" class="btn btn-primary">Save Changes</button>
+        <a href="/admin/menus/{{menuName}}" class="btn btn-secondary">Cancel</a>
+        <form method="POST" action="/admin/menus/{{menuName}}/{{item.id}}/delete" style="display: inline; margin-left: auto;">
+          {{csrfField}}
+          <button type="submit" class="btn btn-danger" onclick="return confirm('Delete this menu item?')">Delete</button>
+        </form>
+      </div>
+    </form>
+  </div>
+
+  <div class="admin-section">
+    <h3>Item Details</h3>
+    <table class="details-table">
+      <tr><td>ID</td><td><code>{{item.id}}</code></td></tr>
+      <tr><td>Type</td><td>{{item.itemType}}</td></tr>
+      <tr><td>Depth</td><td>{{item.depth}}</td></tr>
+      <tr><td>Created</td><td>{{item.created}}</td></tr>
+      <tr><td>Updated</td><td>{{item.updated}}</td></tr>
+    </table>
+  </div>
+
+  <style>
+    .form-group {
+      margin-bottom: 1.25rem;
+    }
+    .form-group label {
+      display: block;
+      margin-bottom: 0.25rem;
+      font-size: 0.9rem;
+      font-weight: 500;
+      color: #374151;
+    }
+    .form-group input[type="text"],
+    .form-group input[type="number"],
+    .form-group select {
+      width: 100%;
+      padding: 0.5rem;
+      border: 1px solid #d1d5db;
+      border-radius: 4px;
+      font-size: 0.9rem;
+    }
+    .form-group small {
+      display: block;
+      margin-top: 0.25rem;
+      font-size: 0.8rem;
+      color: #6b7280;
+    }
+    .checkbox-label {
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+      font-weight: normal;
+      cursor: pointer;
+    }
+    .form-actions {
+      display: flex;
+      gap: 0.5rem;
+      align-items: center;
+      margin-top: 1.5rem;
+      padding-top: 1rem;
+      border-top: 1px solid #e5e7eb;
+    }
+    .btn {
+      display: inline-block;
+      padding: 0.5rem 1rem;
+      border: none;
+      border-radius: 4px;
+      font-size: 0.9rem;
+      cursor: pointer;
+      text-decoration: none;
+    }
+    .btn-primary {
+      background: #2563eb;
+      color: white;
+    }
+    .btn-primary:hover {
+      background: #1d4ed8;
+    }
+    .btn-secondary {
+      background: #e5e7eb;
+      color: #374151;
+    }
+    .btn-secondary:hover {
+      background: #d1d5db;
+    }
+    .btn-danger {
+      background: #dc2626;
+      color: white;
+    }
+    .btn-danger:hover {
+      background: #b91c1c;
+    }
+    .details-table {
+      width: 100%;
+      border-collapse: collapse;
+    }
+    .details-table td {
+      padding: 0.5rem;
+      border-bottom: 1px solid #e5e7eb;
+      font-size: 0.9rem;
+    }
+    .details-table td:first-child {
+      font-weight: 500;
+      color: #374151;
+      width: 120px;
+    }
+    .details-table code {
+      background: #f3f4f6;
+      padding: 0.125rem 0.375rem;
+      border-radius: 4px;
+      font-size: 0.85rem;
+    }
+  </style>
+  <script src="/public/js/shortcuts.js"></script>
+  <script>Shortcuts.init({ context: 'global' });</script>
+</div>

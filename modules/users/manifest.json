@@ -1,0 +1,6 @@
+{
+  "name": "users",
+  "version": "0.0.1",
+  "description": "User authentication and session management",
+  "provides": ["auth", "user content type"]
+}

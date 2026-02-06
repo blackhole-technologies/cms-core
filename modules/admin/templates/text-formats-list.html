@@ -1,0 +1,291 @@
+<div class="text-formats-admin">
+  <div class="page-header">
+    <h1>Text Formats</h1>
+    <button class="btn btn-primary" onclick="location.href='/admin/config/content/text-formats/add'">
+      Create Format
+    </button>
+  </div>
+
+  {{#hasFormats}}
+  <div class="help-text">
+    <p>Text formats define how content is filtered and displayed. Drag to reorder (affects fallback priority).</p>
+  </div>
+
+  <table class="admin-table sortable" data-sortable="text-formats">
+    <thead>
+      <tr>
+        <th class="drag-handle"></th>
+        <th>Format Name</th>
+        <th>Filters Enabled</th>
+        <th>Roles</th>
+        <th>Default</th>
+        <th class="actions-col">Actions</th>
+      </tr>
+    </thead>
+    <tbody id="formats-list">
+      {{#formats}}
+      <tr data-format-id="{{id}}" data-weight="{{weight}}">
+        <td class="drag-handle">
+          <span class="drag-icon">⋮⋮</span>
+        </td>
+        <td>
+          <strong>{{name}}</strong>
+          <div class="machine-name">{{machineName}}</div>
+        </td>
+        <td>
+          <ul class="filter-list">
+            {{#filters}}
+            <li>{{name}}</li>
+            {{/filters}}
+            {{^filters}}
+            <em>No filters</em>
+            {{/filters}}
+          </ul>
+        </td>
+        <td>
+          {{#roles}}
+          <span class="badge">{{name}}</span>
+          {{/roles}}
+          {{^roles}}
+          <span class="badge badge-warning">No roles</span>
+          {{/roles}}
+        </td>
+        <td>
+          {{#isDefault}}
+          <span class="badge badge-success">Default</span>
+          {{/isDefault}}
+        </td>
+        <td class="actions-col">
+          <a href="/admin/config/content/text-formats/{{id}}/edit" class="btn btn-sm">Edit</a>
+          {{^isDefault}}
+          <button class="btn btn-sm btn-danger" onclick="deleteFormat('{{id}}', '{{name}}')">Delete</button>
+          {{/isDefault}}
+        </td>
+      </tr>
+      {{/formats}}
+    </tbody>
+  </table>
+  {{/hasFormats}}
+
+  {{^hasFormats}}
+  <div class="empty-state">
+    <p>No text formats configured.</p>
+    <button class="btn btn-primary" onclick="location.href='/admin/config/content/text-formats/add'">
+      Create First Format
+    </button>
+  </div>
+  {{/hasFormats}}
+</div>
+
+<script>
+// Drag-and-drop reordering
+function initSortable() {
+  const tbody = document.getElementById('formats-list');
+  if (!tbody) return;
+
+  let draggedRow = null;
+
+  tbody.addEventListener('dragstart', (e) => {
+    if (e.target.closest('.drag-handle')) {
+      draggedRow = e.target.closest('tr');
+      draggedRow.classList.add('dragging');
+    }
+  });
+
+  tbody.addEventListener('dragend', (e) => {
+    if (draggedRow) {
+      draggedRow.classList.remove('dragging');
+      draggedRow = null;
+      saveOrder();
+    }
+  });
+
+  tbody.addEventListener('dragover', (e) => {
+    e.preventDefault();
+    const afterElement = getDragAfterElement(tbody, e.clientY);
+    if (draggedRow) {
+      if (afterElement == null) {
+        tbody.appendChild(draggedRow);
+      } else {
+        tbody.insertBefore(draggedRow, afterElement);
+      }
+    }
+  });
+}
+
+function getDragAfterElement(container, y) {
+  const draggableElements = [...container.querySelectorAll('tr:not(.dragging)')];
+  return draggableElements.reduce((closest, child) => {
+    const box = child.getBoundingClientRect();
+    const offset = y - box.top - box.height / 2;
+    if (offset < 0 && offset > closest.offset) {
+      return { offset: offset, element: child };
+    } else {
+      return closest;
+    }
+  }, { offset: Number.NEGATIVE_INFINITY }).element;
+}
+
+function saveOrder() {
+  const rows = document.querySelectorAll('#formats-list tr');
+  const order = Array.from(rows).map((row, index) => ({
+    id: row.dataset.formatId,
+    weight: index
+  }));
+
+  fetch('/admin/config/content/text-formats/reorder', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ order })
+  }).catch(err => {
+    console.error('Failed to save order:', err);
+    alert('Failed to save order. Please try again.');
+  });
+}
+
+function deleteFormat(id, name) {
+  if (!confirm(`Delete text format "${name}"? This cannot be undone.`)) {
+    return;
+  }
+
+  fetch(`/admin/config/content/text-formats/${id}`, {
+    method: 'DELETE'
+  }).then(response => {
+    if (response.ok) {
+      location.reload();
+    } else {
+      throw new Error('Delete failed');
+    }
+  }).catch(err => {
+    console.error('Failed to delete format:', err);
+    alert('Failed to delete format. It may be in use.');
+  });
+}
+
+document.addEventListener('DOMContentLoaded', initSortable);
+</script>
+
+<style>
+.text-formats-admin {
+  padding: 20px;
+}
+
+.page-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 20px;
+}
+
+.help-text {
+  margin-bottom: 15px;
+  color: #666;
+}
+
+.admin-table {
+  width: 100%;
+  border-collapse: collapse;
+  background: white;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+}
+
+.admin-table th,
+.admin-table td {
+  padding: 12px;
+  text-align: left;
+  border-bottom: 1px solid #e0e0e0;
+}
+
+.admin-table th {
+  background: #f5f5f5;
+  font-weight: 600;
+}
+
+.drag-handle {
+  width: 30px;
+  cursor: move;
+  text-align: center;
+}
+
+.drag-icon {
+  color: #999;
+  font-size: 16px;
+}
+
+tr.dragging {
+  opacity: 0.5;
+}
+
+.machine-name {
+  font-size: 0.85em;
+  color: #666;
+  font-family: monospace;
+}
+
+.filter-list {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+}
+
+.filter-list li {
+  display: inline-block;
+  margin-right: 8px;
+  font-size: 0.9em;
+}
+
+.badge {
+  display: inline-block;
+  padding: 3px 8px;
+  background: #e0e0e0;
+  border-radius: 3px;
+  font-size: 0.85em;
+  margin-right: 4px;
+}
+
+.badge-success {
+  background: #4caf50;
+  color: white;
+}
+
+.badge-warning {
+  background: #ff9800;
+  color: white;
+}
+
+.actions-col {
+  width: 200px;
+  white-space: nowrap;
+}
+
+.empty-state {
+  text-align: center;
+  padding: 60px 20px;
+  background: #f9f9f9;
+  border-radius: 4px;
+}
+
+.btn {
+  padding: 8px 16px;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 14px;
+  margin-right: 8px;
+}
+
+.btn-primary {
+  background: #2196f3;
+  color: white;
+}
+
+.btn-sm {
+  padding: 4px 10px;
+  font-size: 13px;
+}
+
+.btn-danger {
+  background: #f44336;
+  color: white;
+}
+</style>

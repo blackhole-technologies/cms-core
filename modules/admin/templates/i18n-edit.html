@@ -1,0 +1,256 @@
+<div class="admin-page">
+  <div class="admin-header">
+    <h1>{{pageTitle}}</h1>
+    <p>
+      <a href="/admin/i18n">&larr; Back to Locales</a>
+    </p>
+  </div>
+
+  {{#if hasFlash}}
+  <div class="flash flash-{{flash.type}}">
+    {{flash.message}}
+  </div>
+  {{/if}}
+
+  <!-- Locale Info -->
+  <div class="locale-info">
+    <div class="locale-header">
+      <h2>{{code}} - {{name}}</h2>
+      {{#if isDefault}}<span class="badge badge-primary">Default Locale</span>{{/if}}
+    </div>
+    <div class="locale-stats">
+      <span>{{keyCount}} translations</span>
+      <span class="divider">|</span>
+      <span>{{percentage}}% complete</span>
+      {{#if hasMissing}}<span class="divider">|</span><span class="text-warning">{{missingCount}} missing</span>{{/if}}
+    </div>
+  </div>
+
+  <!-- Search/Filter -->
+  <div class="translation-toolbar">
+    <form method="GET" class="search-form">
+      <input type="text" name="search" value="{{search}}" placeholder="Search keys or values...">
+      <select name="filter">
+        <option value="">All translations</option>
+        <option value="missing" {{#if filterMissing}}selected{{/if}}>Missing only</option>
+        <option value="translated" {{#if filterTranslated}}selected{{/if}}>Translated only</option>
+      </select>
+      <button type="submit" class="btn btn-secondary">Filter</button>
+    </form>
+  </div>
+
+  <!-- Translations Table -->
+  <form method="POST" action="/admin/i18n/{{code}}" class="translations-form">
+    {{csrfField}}
+
+    <table class="admin-table translations-table">
+      <thead>
+        <tr>
+          <th class="col-key">Key</th>
+          <th class="col-default">Default ({{defaultLocale}})</th>
+          <th class="col-translation">Translation ({{code}})</th>
+        </tr>
+      </thead>
+      <tbody>
+        {{#each translations}}
+        <tr class="{{#if isMissing}}row-missing{{/if}}">
+          <td class="col-key">
+            <code>{{key}}</code>
+          </td>
+          <td class="col-default">
+            <span class="default-value">{{defaultValue}}</span>
+          </td>
+          <td class="col-translation">
+            {{#if isLong}}
+            <textarea name="translations[{{key}}]" rows="3">{{value}}</textarea>
+            {{else}}
+            <input type="text" name="translations[{{key}}]" value="{{value}}" placeholder="{{defaultValue}}">
+            {{/if}}
+          </td>
+        </tr>
+        {{/each}}
+      </tbody>
+    </table>
+
+    {{#if hasTranslations}}
+    <div class="form-actions">
+      <button type="submit" class="btn btn-primary">Save Translations</button>
+      <a href="/admin/i18n/{{code}}/export" class="btn btn-secondary">Export JSON</a>
+    </div>
+    {{else}}
+    <div class="empty-state">
+      <p>No translation keys defined.</p>
+      <p>Add keys to the default locale ({{defaultLocale}}) first.</p>
+    </div>
+    {{/if}}
+  </form>
+
+  <!-- Add New Key -->
+  <div class="admin-section">
+    <h2>Add New Key</h2>
+    <form method="POST" action="/admin/i18n/{{code}}/add-key" class="add-key-form">
+      {{csrfField}}
+      <div class="form-row">
+        <div class="form-group">
+          <label for="newKey">Key</label>
+          <input type="text" name="key" id="newKey" placeholder="section.key_name" required>
+        </div>
+        <div class="form-group">
+          <label for="newValue">Value</label>
+          <input type="text" name="value" id="newValue" placeholder="Translation text" required>
+        </div>
+        <div class="form-group form-group-btn">
+          <button type="submit" class="btn btn-primary">Add</button>
+        </div>
+      </div>
+    </form>
+  </div>
+</div>
+
+<style>
+.locale-info {
+  background: #f8f9fa;
+  padding: 1rem;
+  border-radius: 4px;
+  margin-bottom: 1.5rem;
+}
+.locale-header {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+}
+.locale-header h2 {
+  margin: 0;
+}
+.locale-stats {
+  margin-top: 0.5rem;
+  color: #666;
+  font-size: 0.9rem;
+}
+.divider {
+  margin: 0 0.5rem;
+  color: #ccc;
+}
+.text-warning {
+  color: #856404;
+}
+.badge {
+  display: inline-block;
+  padding: 0.2em 0.5em;
+  font-size: 0.75rem;
+  border-radius: 3px;
+}
+.badge-primary {
+  background: #007bff;
+  color: white;
+}
+.translation-toolbar {
+  margin-bottom: 1rem;
+}
+.search-form {
+  display: flex;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+}
+.search-form input[type="text"] {
+  flex: 1;
+  min-width: 200px;
+  padding: 0.5rem;
+  border: 1px solid #ddd;
+  border-radius: 4px;
+}
+.search-form select {
+  padding: 0.5rem;
+  border: 1px solid #ddd;
+  border-radius: 4px;
+}
+.translations-table {
+  margin-bottom: 1rem;
+}
+.translations-table th,
+.translations-table td {
+  vertical-align: top;
+}
+.col-key {
+  width: 25%;
+}
+.col-default {
+  width: 35%;
+}
+.col-translation {
+  width: 40%;
+}
+.col-key code {
+  font-size: 0.85rem;
+  word-break: break-all;
+}
+.default-value {
+  color: #666;
+  font-size: 0.9rem;
+}
+.translations-table input[type="text"],
+.translations-table textarea {
+  width: 100%;
+  padding: 0.5rem;
+  border: 1px solid #ddd;
+  border-radius: 4px;
+  font-family: inherit;
+  font-size: 0.9rem;
+}
+.translations-table textarea {
+  resize: vertical;
+}
+.row-missing {
+  background: #fff3cd;
+}
+.row-missing input,
+.row-missing textarea {
+  border-color: #ffc107;
+}
+.form-actions {
+  display: flex;
+  gap: 1rem;
+  margin-top: 1rem;
+}
+.admin-section {
+  margin-top: 2rem;
+  padding-top: 1rem;
+  border-top: 1px solid #ddd;
+}
+.admin-section h2 {
+  font-size: 1.2rem;
+  margin-bottom: 0.75rem;
+}
+.add-key-form .form-row {
+  display: flex;
+  gap: 1rem;
+  align-items: flex-end;
+  flex-wrap: wrap;
+}
+.add-key-form .form-group {
+  flex: 1;
+  min-width: 150px;
+}
+.add-key-form .form-group-btn {
+  flex: 0;
+  min-width: auto;
+}
+.form-group label {
+  display: block;
+  margin-bottom: 0.5rem;
+  font-weight: bold;
+  font-size: 0.9rem;
+}
+.form-group input {
+  width: 100%;
+  padding: 0.5rem;
+  border: 1px solid #ddd;
+  border-radius: 4px;
+}
+.empty-state {
+  text-align: center;
+  padding: 2rem;
+  background: #f8f9fa;
+  border-radius: 4px;
+}
+</style>

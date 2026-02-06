@@ -1,0 +1,169 @@
+{{> admin-header title=item.name}}
+
+<div class="admin-content">
+  <div class="page-header">
+    <h1>{{item.name}}</h1>
+    <div class="header-actions">
+      <a href="/admin/media/library" class="btn">← Back to Library</a>
+      <a href="/admin/media/library/{{item.id}}/edit" class="btn btn-primary">Edit</a>
+    </div>
+  </div>
+
+  <div class="media-detail">
+    <div class="media-preview-large">
+      {{#if (eq item.mediaType "image")}}
+      <img src="{{url}}" alt="{{item.alt}}" />
+      {{else if (eq item.mediaType "remote_video")}}
+      <div class="video-embed">
+        <iframe src="{{item.metadata.embedUrl}}" frameborder="0" allowfullscreen></iframe>
+      </div>
+      {{else}}
+      <div class="media-placeholder">
+        <span class="media-icon-large">
+          {{#if (eq item.mediaType "video")}}🎬{{/if}}
+          {{#if (eq item.mediaType "audio")}}🎵{{/if}}
+          {{#if (eq item.mediaType "document")}}📄{{/if}}
+        </span>
+        <a href="{{url}}" class="btn" target="_blank">Download File</a>
+      </div>
+      {{/if}}
+    </div>
+
+    <div class="media-metadata">
+      <h2>Details</h2>
+      
+      <dl class="metadata-list">
+        <dt>Type</dt>
+        <dd>{{item.mediaType}}</dd>
+
+        <dt>Filename</dt>
+        <dd>{{item.filename}}</dd>
+
+        <dt>MIME Type</dt>
+        <dd>{{item.mimeType}}</dd>
+
+        {{#if item.size}}
+        <dt>File Size</dt>
+        <dd>{{formatBytes item.size}}</dd>
+        {{/if}}
+
+        {{#if item.alt}}
+        <dt>Alt Text</dt>
+        <dd>{{item.alt}}</dd>
+        {{/if}}
+
+        {{#if item.caption}}
+        <dt>Caption</dt>
+        <dd>{{item.caption}}</dd>
+        {{/if}}
+
+        {{#if item.credit}}
+        <dt>Credit</dt>
+        <dd>{{item.credit}}</dd>
+        {{/if}}
+
+        {{#if item.tags.length}}
+        <dt>Tags</dt>
+        <dd>{{join item.tags ", "}}</dd>
+        {{/if}}
+
+        <dt>Created</dt>
+        <dd>{{formatDate item.created}}</dd>
+
+        <dt>Updated</dt>
+        <dd>{{formatDate item.updated}}</dd>
+      </dl>
+
+      {{#if usage.length}}
+      <h2>Used In</h2>
+      <ul class="usage-list">
+        {{#each usage}}
+        <li>
+          <a href="/admin/content/{{contentType}}/{{contentId}}/edit">
+            {{contentType}}/{{contentId}}
+          </a>
+          <span class="usage-field">(field: {{field}})</span>
+        </li>
+        {{/each}}
+      </ul>
+      {{else}}
+      <p class="muted">Not currently used in any content.</p>
+      {{/if}}
+    </div>
+  </div>
+</div>
+
+<style>
+.media-detail {
+  display: grid;
+  grid-template-columns: 1fr 400px;
+  gap: 2rem;
+}
+.media-preview-large {
+  background: #f5f5f5;
+  border-radius: 8px;
+  overflow: hidden;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 400px;
+}
+.media-preview-large img {
+  max-width: 100%;
+  max-height: 600px;
+  object-fit: contain;
+}
+.video-embed {
+  width: 100%;
+  aspect-ratio: 16/9;
+}
+.video-embed iframe {
+  width: 100%;
+  height: 100%;
+}
+.media-placeholder {
+  text-align: center;
+  padding: 3rem;
+}
+.media-icon-large {
+  font-size: 5rem;
+  display: block;
+  margin-bottom: 1rem;
+}
+.media-metadata {
+  background: white;
+  padding: 1.5rem;
+  border-radius: 8px;
+  border: 1px solid #ddd;
+}
+.metadata-list {
+  display: grid;
+  grid-template-columns: 120px 1fr;
+  gap: 0.5rem 1rem;
+}
+.metadata-list dt {
+  font-weight: 600;
+  color: #666;
+}
+.metadata-list dd {
+  margin: 0;
+}
+.usage-list {
+  list-style: none;
+  padding: 0;
+}
+.usage-list li {
+  padding: 0.5rem 0;
+  border-bottom: 1px solid #eee;
+}
+.usage-field {
+  color: #666;
+  font-size: 0.875rem;
+}
+.muted {
+  color: #999;
+  font-style: italic;
+}
+</style>
+
+{{> admin-footer}}

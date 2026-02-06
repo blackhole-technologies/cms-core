@@ -1,0 +1,465 @@
+<div class="admin-page">
+
+  <div class="admin-header">
+    <h1>Batch Operation</h1>
+    <nav class="admin-nav">
+      <a href="/admin">Dashboard</a>
+      <a href="/admin/content">Content</a>
+    </nav>
+  </div>
+
+  {{#if hasFlash}}
+  <div class="flash flash-{{flash.type}}">
+    {{flash.message}}
+  </div>
+  {{/if}}
+
+  <div class="batch-container">
+    <div class="batch-header">
+      <h2>{{operationTitle}}</h2>
+      {{#if description}}
+      <p class="batch-description">{{description}}</p>
+      {{/if}}
+    </div>
+
+    <div class="batch-progress-section">
+      <div class="progress-bar-container">
+        <div
+          class="progress-bar {{#if isComplete}}complete{{/if}} {{#if hasErrors}}error{{/if}}"
+          style="width: {{progressPercent}}%"
+          role="progressbar"
+          aria-valuenow="{{progressPercent}}"
+          aria-valuemin="0"
+          aria-valuemax="100"
+        >
+          <span class="progress-label">{{progressPercent}}%</span>
+        </div>
+      </div>
+
+      <div class="progress-stats">
+        <div class="stat-item">
+          <span class="stat-label">Processed:</span>
+          <span class="stat-value">{{processedCount}} / {{totalCount}}</span>
+        </div>
+        {{#if isRunning}}
+        <div class="stat-item">
+          <span class="stat-label">Elapsed:</span>
+          <span class="stat-value">{{elapsedTime}}</span>
+        </div>
+        <div class="stat-item">
+          <span class="stat-label">Estimated remaining:</span>
+          <span class="stat-value">{{estimatedRemaining}}</span>
+        </div>
+        {{/if}}
+        {{#if isComplete}}
+        <div class="stat-item">
+          <span class="stat-label">Total time:</span>
+          <span class="stat-value">{{totalTime}}</span>
+        </div>
+        {{/if}}
+      </div>
+
+      {{#if isRunning}}
+      <div class="current-operation">
+        <div class="operation-spinner"></div>
+        <span class="operation-text">{{currentOperation}}</span>
+      </div>
+      {{/if}}
+
+      {{#if isComplete}}
+      <div class="completion-message success">
+        <span class="completion-icon">✓</span>
+        <div class="completion-text">
+          <h3>{{completionTitle}}</h3>
+          <p>{{completionMessage}}</p>
+        </div>
+      </div>
+      {{/if}}
+    </div>
+
+    {{#if hasResults}}
+    <div class="batch-results">
+      <h3>Results</h3>
+      <div class="results-summary">
+        {{#if successCount}}
+        <div class="result-stat success">
+          <span class="result-icon">✓</span>
+          <span class="result-label">Successful:</span>
+          <span class="result-value">{{successCount}}</span>
+        </div>
+        {{/if}}
+        {{#if skippedCount}}
+        <div class="result-stat skipped">
+          <span class="result-icon">○</span>
+          <span class="result-label">Skipped:</span>
+          <span class="result-value">{{skippedCount}}</span>
+        </div>
+        {{/if}}
+        {{#if errorCount}}
+        <div class="result-stat error">
+          <span class="result-icon">✗</span>
+          <span class="result-label">Failed:</span>
+          <span class="result-value">{{errorCount}}</span>
+        </div>
+        {{/if}}
+      </div>
+    </div>
+    {{/if}}
+
+    {{#if hasErrors}}
+    <div class="batch-errors">
+      <div class="errors-header">
+        <h3>Errors ({{errorCount}})</h3>
+        {{#if canRetry}}
+        <button class="btn btn-small btn-secondary" onclick="retryErrors()">Retry Failed Items</button>
+        {{/if}}
+      </div>
+      <div class="errors-list">
+        {{#each errors}}
+        <div class="error-item">
+          <div class="error-header">
+            <span class="error-icon">✗</span>
+            <span class="error-id">{{itemId}}</span>
+            {{#if itemTitle}}
+            <span class="error-title">{{itemTitle}}</span>
+            {{/if}}
+          </div>
+          <div class="error-message">{{message}}</div>
+          {{#if stackTrace}}
+          <details class="error-details">
+            <summary>Stack trace</summary>
+            <pre>{{stackTrace}}</pre>
+          </details>
+          {{/if}}
+        </div>
+        {{/each}}
+      </div>
+    </div>
+    {{/if}}
+
+    <div class="batch-actions">
+      {{#if isRunning}}
+      <button class="btn btn-secondary" onclick="cancelBatch()">Cancel Operation</button>
+      {{/if}}
+      {{#if isComplete}}
+      <a href="{{returnUrl}}" class="btn btn-primary">Done</a>
+      {{#if canDownloadLog}}
+      <a href="/admin/batch/{{batchId}}/log" class="btn btn-secondary">Download Log</a>
+      {{/if}}
+      {{/if}}
+      {{#if isPaused}}
+      <button class="btn btn-primary" onclick="resumeBatch()">Resume</button>
+      <button class="btn btn-secondary" onclick="cancelBatch()">Cancel</button>
+      {{/if}}
+    </div>
+  </div>
+
+  <style>
+    .batch-container {
+      max-width: 900px;
+      margin: 0 auto;
+    }
+    .batch-header {
+      text-align: center;
+      margin-bottom: 2rem;
+    }
+    .batch-header h2 {
+      margin: 0 0 0.5rem 0;
+      color: #212529;
+    }
+    .batch-description {
+      margin: 0;
+      color: #6c757d;
+      font-size: 1.05rem;
+    }
+    .batch-progress-section {
+      background: white;
+      padding: 2rem;
+      border-radius: 8px;
+      border: 1px solid #dee2e6;
+      margin-bottom: 1.5rem;
+    }
+    .progress-bar-container {
+      width: 100%;
+      height: 40px;
+      background: #e9ecef;
+      border-radius: 20px;
+      overflow: hidden;
+      margin-bottom: 1.5rem;
+      position: relative;
+    }
+    .progress-bar {
+      height: 100%;
+      background: linear-gradient(90deg, #0d6efd 0%, #0a58ca 100%);
+      transition: width 0.3s ease;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      position: relative;
+    }
+    .progress-bar.complete {
+      background: linear-gradient(90deg, #28a745 0%, #218838 100%);
+    }
+    .progress-bar.error {
+      background: linear-gradient(90deg, #dc3545 0%, #c82333 100%);
+    }
+    .progress-label {
+      color: white;
+      font-weight: 600;
+      font-size: 0.9rem;
+      text-shadow: 0 1px 2px rgba(0,0,0,0.2);
+    }
+    .progress-stats {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+      gap: 1rem;
+      margin-bottom: 1.5rem;
+    }
+    .stat-item {
+      display: flex;
+      flex-direction: column;
+      gap: 0.25rem;
+    }
+    .stat-label {
+      color: #6c757d;
+      font-size: 0.85rem;
+      font-weight: 500;
+    }
+    .stat-value {
+      color: #212529;
+      font-size: 1.25rem;
+      font-weight: 600;
+    }
+    .current-operation {
+      display: flex;
+      align-items: center;
+      gap: 0.75rem;
+      padding: 1rem;
+      background: #e7f3ff;
+      border-radius: 6px;
+      border: 1px solid #7dd3fc;
+    }
+    .operation-spinner {
+      width: 20px;
+      height: 20px;
+      border: 3px solid #bfdbfe;
+      border-top-color: #0284c7;
+      border-radius: 50%;
+      animation: spin 1s linear infinite;
+    }
+    @keyframes spin {
+      to { transform: rotate(360deg); }
+    }
+    .operation-text {
+      color: #0369a1;
+      font-weight: 500;
+    }
+    .completion-message {
+      display: flex;
+      align-items: center;
+      gap: 1rem;
+      padding: 1.5rem;
+      border-radius: 8px;
+    }
+    .completion-message.success {
+      background: linear-gradient(135deg, #d4edda 0%, #c3e6cb 100%);
+      border: 2px solid #28a745;
+    }
+    .completion-icon {
+      font-size: 3rem;
+      line-height: 1;
+      color: #28a745;
+      font-weight: bold;
+    }
+    .completion-text h3 {
+      margin: 0 0 0.25rem 0;
+      color: #155724;
+      font-size: 1.25rem;
+    }
+    .completion-text p {
+      margin: 0;
+      color: #155724;
+    }
+    .batch-results {
+      background: white;
+      padding: 1.5rem;
+      border-radius: 8px;
+      border: 1px solid #dee2e6;
+      margin-bottom: 1.5rem;
+    }
+    .batch-results h3 {
+      margin: 0 0 1rem 0;
+      color: #495057;
+    }
+    .results-summary {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+      gap: 1rem;
+    }
+    .result-stat {
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+      padding: 0.75rem;
+      border-radius: 6px;
+      font-size: 0.95rem;
+    }
+    .result-stat.success {
+      background: #d4edda;
+      color: #155724;
+    }
+    .result-stat.skipped {
+      background: #fff3cd;
+      color: #856404;
+    }
+    .result-stat.error {
+      background: #f8d7da;
+      color: #721c24;
+    }
+    .result-icon {
+      font-weight: bold;
+      font-size: 1.2rem;
+    }
+    .result-label {
+      font-weight: 500;
+    }
+    .result-value {
+      margin-left: auto;
+      font-weight: 600;
+      font-size: 1.1rem;
+    }
+    .batch-errors {
+      background: white;
+      padding: 1.5rem;
+      border-radius: 8px;
+      border: 1px solid #f8d7da;
+      margin-bottom: 1.5rem;
+    }
+    .errors-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 1rem;
+    }
+    .errors-header h3 {
+      margin: 0;
+      color: #721c24;
+    }
+    .errors-list {
+      display: flex;
+      flex-direction: column;
+      gap: 0.75rem;
+    }
+    .error-item {
+      padding: 1rem;
+      background: #fff5f5;
+      border: 1px solid #f8d7da;
+      border-left: 4px solid #dc3545;
+      border-radius: 6px;
+    }
+    .error-header {
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+      margin-bottom: 0.5rem;
+    }
+    .error-icon {
+      color: #dc3545;
+      font-weight: bold;
+      font-size: 1.1rem;
+    }
+    .error-id {
+      font-family: monospace;
+      font-size: 0.9rem;
+      color: #495057;
+    }
+    .error-title {
+      font-weight: 500;
+      color: #212529;
+    }
+    .error-message {
+      color: #721c24;
+      margin-bottom: 0.5rem;
+    }
+    .error-details {
+      margin-top: 0.5rem;
+    }
+    .error-details summary {
+      cursor: pointer;
+      color: #495057;
+      font-size: 0.9rem;
+      user-select: none;
+    }
+    .error-details summary:hover {
+      color: #212529;
+    }
+    .error-details pre {
+      margin: 0.5rem 0 0 0;
+      padding: 0.75rem;
+      background: white;
+      border: 1px solid #dee2e6;
+      border-radius: 4px;
+      font-size: 0.8rem;
+      overflow-x: auto;
+      white-space: pre-wrap;
+      word-break: break-word;
+    }
+    .batch-actions {
+      display: flex;
+      justify-content: center;
+      gap: 1rem;
+    }
+  </style>
+
+  {{#if isRunning}}
+  <script>
+    let pollInterval;
+
+    function pollProgress() {
+      fetch('/admin/batch/{{batchId}}/status')
+        .then(res => res.json())
+        .then(data => {
+          if (data.isComplete || data.hasErrors) {
+            clearInterval(pollInterval);
+            window.location.reload();
+          }
+          // Update progress without reload if we have live update elements
+        })
+        .catch(err => {
+          console.error('Failed to poll batch status:', err);
+        });
+    }
+
+    function cancelBatch() {
+      if (confirm('Are you sure you want to cancel this operation?')) {
+        fetch('/admin/batch/{{batchId}}/cancel', { method: 'POST' })
+          .then(() => window.location.reload())
+          .catch(err => alert('Failed to cancel: ' + err.message));
+      }
+    }
+
+    // Poll every 2 seconds
+    pollInterval = setInterval(pollProgress, 2000);
+  </script>
+  {{else}}
+  <script>
+    function retryErrors() {
+      if (confirm('Retry all failed items?')) {
+        window.location.href = '/admin/batch/{{batchId}}/retry';
+      }
+    }
+
+    function resumeBatch() {
+      window.location.href = '/admin/batch/{{batchId}}/resume';
+    }
+
+    function cancelBatch() {
+      if (confirm('Are you sure you want to cancel this operation?')) {
+        fetch('/admin/batch/{{batchId}}/cancel', { method: 'POST' })
+          .then(() => window.location.href = '{{returnUrl}}')
+          .catch(err => alert('Failed to cancel: ' + err.message));
+      }
+    }
+  </script>
+  {{/if}}
+</div>

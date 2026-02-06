@@ -1,0 +1,342 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Edit Profile - {{site_name}}</title>
+</head>
+<body>
+    <div class="content">
+        <div class="profile-edit-container">
+            <header class="content-header">
+                <h1>Edit Profile</h1>
+                <a href="/user/{{user.id}}" class="btn btn-secondary">View Profile</a>
+            </header>
+
+            {{#success}}
+            <div class="alert alert-success">{{success}}</div>
+            {{/success}}
+
+            {{#error}}
+            <div class="alert alert-error">{{error}}</div>
+            {{/error}}
+
+            {{#errors}}
+            <div class="alert alert-error">
+                <ul>
+                    {{#errors}}
+                    <li>{{.}}</li>
+                    {{/errors}}
+                </ul>
+            </div>
+            {{/errors}}
+
+            <form action="/user/{{user.id}}/edit" method="POST" enctype="multipart/form-data" class="profile-form">
+
+                <!-- Avatar Section -->
+                <section class="form-section avatar-section">
+                    <h2>Profile Picture</h2>
+
+                    <div class="avatar-upload">
+                        <div class="current-avatar">
+                            {{#user.avatar}}
+                            <img src="{{user.avatar}}" alt="Current avatar" id="avatar-preview">
+                            {{/user.avatar}}
+                            {{^user.avatar}}
+                            <div class="avatar-placeholder" id="avatar-preview">{{user.initials}}</div>
+                            {{/user.avatar}}
+                        </div>
+
+                        <div class="avatar-controls">
+                            <input
+                                type="file"
+                                id="avatar"
+                                name="avatar"
+                                accept="image/jpeg,image/png,image/gif,image/webp"
+                                class="file-input"
+                            >
+                            <label for="avatar" class="btn btn-secondary">Choose Image</label>
+
+                            {{#user.avatar}}
+                            <button type="button" class="btn btn-danger" id="remove-avatar">Remove</button>
+                            <input type="hidden" name="remove_avatar" id="remove-avatar-input" value="0">
+                            {{/user.avatar}}
+
+                            <div class="field-help">
+                                JPG, PNG, GIF, or WebP. Max 2MB. Square images work best.
+                            </div>
+                        </div>
+                    </div>
+                </section>
+
+                <!-- Profile Fields by Category -->
+                {{#categories}}
+                <section class="form-section">
+                    <h2>{{label}}</h2>
+
+                    {{#fields}}
+                    <div class="form-group field-{{type}}" data-field="{{machine_name}}">
+                        <label for="field_{{machine_name}}">
+                            {{label}}
+                            {{#required}}<span class="required">*</span>{{/required}}
+                        </label>
+
+                        {{#description}}
+                        <div class="field-help">{{description}}</div>
+                        {{/description}}
+
+                        <!-- Text Input -->
+                        {{#is_text}}
+                        <input
+                            type="text"
+                            id="field_{{machine_name}}"
+                            name="fields[{{machine_name}}]"
+                            value="{{value}}"
+                            {{#required}}required{{/required}}
+                            {{#settings.max_length}}maxlength="{{settings.max_length}}"{{/settings.max_length}}
+                            {{#settings.placeholder}}placeholder="{{settings.placeholder}}"{{/settings.placeholder}}
+                        >
+                        {{/is_text}}
+
+                        <!-- Textarea -->
+                        {{#is_textarea}}
+                        <textarea
+                            id="field_{{machine_name}}"
+                            name="fields[{{machine_name}}]"
+                            rows="4"
+                            {{#required}}required{{/required}}
+                            {{#settings.max_length}}maxlength="{{settings.max_length}}"{{/settings.max_length}}
+                        >{{value}}</textarea>
+                        {{/is_textarea}}
+
+                        <!-- Email -->
+                        {{#is_email}}
+                        <input
+                            type="email"
+                            id="field_{{machine_name}}"
+                            name="fields[{{machine_name}}]"
+                            value="{{value}}"
+                            {{#required}}required{{/required}}
+                        >
+                        {{/is_email}}
+
+                        <!-- URL -->
+                        {{#is_url}}
+                        <input
+                            type="url"
+                            id="field_{{machine_name}}"
+                            name="fields[{{machine_name}}]"
+                            value="{{value}}"
+                            {{#required}}required{{/required}}
+                            placeholder="https://example.com"
+                        >
+                        {{/is_url}}
+
+                        <!-- Number -->
+                        {{#is_number}}
+                        <input
+                            type="number"
+                            id="field_{{machine_name}}"
+                            name="fields[{{machine_name}}]"
+                            value="{{value}}"
+                            {{#required}}required{{/required}}
+                            {{#settings.min}}min="{{settings.min}}"{{/settings.min}}
+                            {{#settings.max}}max="{{settings.max}}"{{/settings.max}}
+                            {{#settings.step}}step="{{settings.step}}"{{/settings.step}}
+                        >
+                        {{/is_number}}
+
+                        <!-- Date -->
+                        {{#is_date}}
+                        <input
+                            type="date"
+                            id="field_{{machine_name}}"
+                            name="fields[{{machine_name}}]"
+                            value="{{value}}"
+                            {{#required}}required{{/required}}
+                        >
+                        {{/is_date}}
+
+                        <!-- Select -->
+                        {{#is_select}}
+                        <select
+                            id="field_{{machine_name}}"
+                            name="fields[{{machine_name}}]"
+                            {{#required}}required{{/required}}
+                        >
+                            <option value="">Select...</option>
+                            {{#options}}
+                            <option value="{{key}}" {{#selected}}selected{{/selected}}>{{label}}</option>
+                            {{/options}}
+                        </select>
+                        {{/is_select}}
+
+                        <!-- Radio -->
+                        {{#is_radio}}
+                        <div class="radio-group">
+                            {{#options}}
+                            <label class="radio-label">
+                                <input
+                                    type="radio"
+                                    name="fields[{{machine_name}}]"
+                                    value="{{key}}"
+                                    {{#selected}}checked{{/selected}}
+                                    {{#required}}required{{/required}}
+                                >
+                                {{label}}
+                            </label>
+                            {{/options}}
+                        </div>
+                        {{/is_radio}}
+
+                        <!-- Checkboxes -->
+                        {{#is_checkboxes}}
+                        <div class="checkbox-group">
+                            {{#options}}
+                            <label class="checkbox-label">
+                                <input
+                                    type="checkbox"
+                                    name="fields[{{machine_name}}][]"
+                                    value="{{key}}"
+                                    {{#checked}}checked{{/checked}}
+                                >
+                                {{label}}
+                            </label>
+                            {{/options}}
+                        </div>
+                        {{/is_checkboxes}}
+
+                        <!-- Boolean Checkbox -->
+                        {{#is_boolean}}
+                        <label class="checkbox-label">
+                            <input
+                                type="checkbox"
+                                id="field_{{machine_name}}"
+                                name="fields[{{machine_name}}]"
+                                value="1"
+                                {{#value}}checked{{/value}}
+                            >
+                            {{boolean_label}}
+                        </label>
+                        {{/is_boolean}}
+
+                        <!-- File Upload -->
+                        {{#is_file}}
+                        <div class="file-upload">
+                            {{#current_file}}
+                            <div class="current-file">
+                                Current: <a href="{{current_file.url}}" target="_blank">{{current_file.name}}</a>
+                                <button type="button" class="btn btn-sm btn-danger remove-file" data-field="{{machine_name}}">
+                                    Remove
+                                </button>
+                                <input type="hidden" name="remove_file[{{machine_name}}]" value="0" class="remove-file-input">
+                            </div>
+                            {{/current_file}}
+
+                            <input
+                                type="file"
+                                id="field_{{machine_name}}"
+                                name="files[{{machine_name}}]"
+                                {{#settings.allowed_extensions}}accept="{{settings.allowed_extensions}}"{{/settings.allowed_extensions}}
+                                {{^current_file}}{{#required}}required{{/required}}{{/current_file}}
+                            >
+
+                            {{#settings.max_size}}
+                            <div class="field-help">Max file size: {{settings.max_size_formatted}}</div>
+                            {{/settings.max_size}}
+                        </div>
+                        {{/is_file}}
+
+                        <!-- Image Upload -->
+                        {{#is_image}}
+                        <div class="image-upload">
+                            {{#current_image}}
+                            <div class="current-image">
+                                <img src="{{current_image.url}}" alt="Current image" style="max-width: 200px;">
+                                <button type="button" class="btn btn-sm btn-danger remove-image" data-field="{{machine_name}}">
+                                    Remove
+                                </button>
+                                <input type="hidden" name="remove_image[{{machine_name}}]" value="0" class="remove-image-input">
+                            </div>
+                            {{/current_image}}
+
+                            <input
+                                type="file"
+                                id="field_{{machine_name}}"
+                                name="images[{{machine_name}}]"
+                                accept="image/jpeg,image/png,image/gif,image/webp"
+                                {{^current_image}}{{#required}}required{{/required}}{{/current_image}}
+                            >
+
+                            <div class="field-help">JPG, PNG, GIF, or WebP. Max 5MB.</div>
+                        </div>
+                        {{/is_image}}
+                    </div>
+                    {{/fields}}
+                </section>
+                {{/categories}}
+
+                <div class="form-actions">
+                    <button type="submit" class="btn btn-primary">Save Changes</button>
+                    <a href="/user/{{user.id}}" class="btn btn-secondary">Cancel</a>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <script>
+        document.addEventListener('DOMContentLoaded', function() {
+            // Avatar preview
+            const avatarInput = document.getElementById('avatar');
+            const avatarPreview = document.getElementById('avatar-preview');
+
+            if (avatarInput) {
+                avatarInput.addEventListener('change', function() {
+                    const file = this.files[0];
+                    if (file) {
+                        const reader = new FileReader();
+                        reader.onload = function(e) {
+                            if (avatarPreview.tagName === 'IMG') {
+                                avatarPreview.src = e.target.result;
+                            } else {
+                                const img = document.createElement('img');
+                                img.src = e.target.result;
+                                img.alt = 'Avatar preview';
+                                avatarPreview.replaceWith(img);
+                            }
+                        };
+                        reader.readAsDataURL(file);
+                    }
+                });
+            }
+
+            // Remove avatar
+            const removeAvatarBtn = document.getElementById('remove-avatar');
+            if (removeAvatarBtn) {
+                removeAvatarBtn.addEventListener('click', function() {
+                    document.getElementById('remove-avatar-input').value = '1';
+                    this.closest('.avatar-upload').classList.add('avatar-removed');
+                });
+            }
+
+            // Remove file handlers
+            document.querySelectorAll('.remove-file').forEach(btn => {
+                btn.addEventListener('click', function() {
+                    const field = this.dataset.field;
+                    this.closest('.file-upload').querySelector('.remove-file-input').value = '1';
+                    this.closest('.current-file').style.display = 'none';
+                });
+            });
+
+            // Remove image handlers
+            document.querySelectorAll('.remove-image').forEach(btn => {
+                btn.addEventListener('click', function() {
+                    const field = this.dataset.field;
+                    this.closest('.image-upload').querySelector('.remove-image-input').value = '1';
+                    this.closest('.current-image').style.display = 'none';
+                });
+            });
+        });
+    </script>
+</body>
+</html>

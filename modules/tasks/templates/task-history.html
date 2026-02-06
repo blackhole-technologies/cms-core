@@ -1,0 +1,187 @@
+<div class="admin-page">
+  <link rel="stylesheet" href="/public/css/admin.css">
+
+  <div class="admin-header">
+    <h1>{{pageTitle}}</h1>
+    <nav class="admin-nav">
+      <a href="/admin">Dashboard</a>
+      <a href="/admin/content">Content</a>
+      <a href="/admin/media">Media</a>
+      <a href="/admin/tasks" class="active">Tasks</a>
+      <a href="/admin/modules">Modules</a>
+    </nav>
+  </div>
+
+  {{#if hasFlash}}
+  <div class="flash flash-{{flash.type}}">
+    {{flash.message}}
+  </div>
+  {{/if}}
+
+  <div class="breadcrumb">
+    <a href="/admin">Dashboard</a> &rarr;
+    <a href="/admin/tasks">Tasks</a> &rarr;
+    <span>{{taskName}}</span>
+  </div>
+
+  <div class="admin-section">
+    <div class="task-info-card">
+      <h2>{{taskName}}</h2>
+      <div class="task-meta">
+        <div class="meta-item">
+          <span class="label">Schedule:</span>
+          <code>{{task.cronExpr}}</code>
+          <span class="description">({{task.cronDescription}})</span>
+        </div>
+        {{#if task.description}}
+        <div class="meta-item">
+          <span class="label">Description:</span>
+          <span>{{task.description}}</span>
+        </div>
+        {{/if}}
+      </div>
+      <div class="task-actions">
+        <form method="POST" action="/admin/tasks/{{taskName}}/run" class="inline-form">
+          <button type="submit" class="btn btn-small btn-primary">Run Now</button>
+        </form>
+        <a href="/admin/tasks" class="btn btn-small">Back to Tasks</a>
+      </div>
+    </div>
+
+    <h3>Run History ({{totalCount}} records)</h3>
+
+    {{#if hasItems}}
+    <table class="admin-table">
+      <thead>
+        <tr>
+          <th>Started</th>
+          <th>Completed</th>
+          <th>Duration</th>
+          <th>Status</th>
+          <th>Result</th>
+        </tr>
+      </thead>
+      <tbody>
+        {{#each items}}
+        <tr>
+          <td>{{startedAtFormatted}}</td>
+          <td>{{completedAtFormatted}}</td>
+          <td>{{durationFormatted}}</td>
+          <td><span class="status-badge status-{{statusClass}}">{{status}}</span></td>
+          <td class="result-cell">{{result}}</td>
+        </tr>
+        {{/each}}
+      </tbody>
+    </table>
+    {{else}}
+    <p class="empty-message">No run history found for this task.</p>
+    {{/if}}
+  </div>
+
+  <style>
+    .task-info-card {
+      background: white;
+      border-radius: 8px;
+      box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+      padding: 20px;
+      margin-bottom: 20px;
+    }
+
+    .task-info-card h2 {
+      margin: 0 0 15px 0;
+      font-family: monospace;
+    }
+
+    .task-meta {
+      margin-bottom: 15px;
+    }
+
+    .meta-item {
+      margin-bottom: 8px;
+      font-size: 0.9rem;
+    }
+
+    .meta-item .label {
+      color: #666;
+      margin-right: 5px;
+    }
+
+    .meta-item code {
+      background: #e9ecef;
+      padding: 2px 6px;
+      border-radius: 3px;
+      font-size: 0.85rem;
+    }
+
+    .meta-item .description {
+      color: #666;
+      margin-left: 5px;
+    }
+
+    .task-actions {
+      display: flex;
+      gap: 10px;
+      padding-top: 10px;
+      border-top: 1px solid #eee;
+    }
+
+    .admin-table {
+      width: 100%;
+      border-collapse: collapse;
+      background: white;
+      border-radius: 8px;
+      overflow: hidden;
+      box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+    }
+
+    .admin-table th,
+    .admin-table td {
+      padding: 12px 15px;
+      text-align: left;
+      border-bottom: 1px solid #eee;
+    }
+
+    .admin-table th {
+      background: #f8f9fa;
+      font-weight: 600;
+      font-size: 0.85rem;
+      text-transform: uppercase;
+      color: #666;
+    }
+
+    .admin-table tbody tr:hover {
+      background: #f8f9fa;
+    }
+
+    .status-badge {
+      padding: 3px 8px;
+      border-radius: 4px;
+      font-size: 0.75rem;
+      font-weight: 600;
+      text-transform: uppercase;
+    }
+
+    .status-success {
+      background: #d4edda;
+      color: #155724;
+    }
+
+    .status-error {
+      background: #f8d7da;
+      color: #721c24;
+    }
+
+    .result-cell {
+      font-size: 0.85rem;
+      max-width: 300px;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    h3 {
+      margin-top: 30px;
+      margin-bottom: 15px;
+    }
+  </style>
+</div>

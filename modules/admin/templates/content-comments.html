@@ -1,0 +1,209 @@
+<div class="admin-page">
+
+  <div class="admin-header">
+    <h1>{{pageTitle}}</h1>
+    <nav class="admin-nav">
+      <a href="/admin">Dashboard</a>
+      <a href="/admin/content" class="active">Content</a>
+      <a href="/admin/comments">Comments</a>
+    </nav>
+  </div>
+
+  <div class="breadcrumb">
+    <a href="/admin">Dashboard</a> &rarr;
+    <a href="/admin/content">Content</a> &rarr;
+    <a href="/admin/content/{{type}}">{{type}}</a> &rarr;
+    <a href="/admin/content/{{type}}/{{id}}/edit">{{contentTitle}}</a> &rarr;
+    <span>Comments</span>
+  </div>
+
+  {{#if hasFlash}}
+  <div class="flash flash-{{flash.type}}">
+    {{flash.message}}
+  </div>
+  {{/if}}
+
+  <div class="admin-section">
+    <div class="section-header">
+      <h2>Comments on "{{contentTitle}}"</h2>
+      <div class="section-actions">
+        <a href="/admin/content/{{type}}/{{id}}/edit" class="btn btn-small">Back to Edit</a>
+      </div>
+    </div>
+
+    <div class="stats-bar">
+      <span class="stat">Total: {{stats.total}}</span>
+      <span class="stat stat-success">Approved: {{stats.approved}}</span>
+      <span class="stat stat-warning">Pending: {{stats.pending}}</span>
+      <span class="stat stat-danger">Spam: {{stats.spam}}</span>
+    </div>
+
+    <div class="filter-tabs">
+      <a href="/admin/content/{{type}}/{{id}}/comments" class="tab {{#unless statusFilter}}active{{/unless}}">All</a>
+      <a href="/admin/content/{{type}}/{{id}}/comments?status=approved" class="tab {{#if (eq statusFilter 'approved')}}active{{/if}}">Approved</a>
+      <a href="/admin/content/{{type}}/{{id}}/comments?status=pending" class="tab {{#if (eq statusFilter 'pending')}}active{{/if}}">Pending</a>
+      <a href="/admin/content/{{type}}/{{id}}/comments?status=spam" class="tab {{#if (eq statusFilter 'spam')}}active{{/if}}">Spam</a>
+    </div>
+
+    {{#if hasComments}}
+    <div class="comments-list">
+      {{#each comments}}
+      <div class="comment-card status-{{status}}">
+        <div class="comment-header">
+          <strong class="comment-author">{{author}}</strong>
+          {{#if email}}
+          <span class="comment-email">&lt;{{email}}&gt;</span>
+          {{/if}}
+          <span class="comment-date">{{createdFormatted}}</span>
+          <span class="status-badge status-{{status}}">{{status}}</span>
+        </div>
+        {{#if isReply}}
+        <div class="reply-indicator">↳ Reply to another comment</div>
+        {{/if}}
+        <div class="comment-body">
+          {{body}}
+        </div>
+        <div class="comment-actions">
+          {{#unless (eq status 'approved')}}
+          <form method="POST" action="/admin/comments/{{id}}/approve" class="inline-form">
+            <button type="submit" class="btn btn-small btn-success">Approve</button>
+          </form>
+          {{/unless}}
+          {{#unless (eq status 'spam')}}
+          <form method="POST" action="/admin/comments/{{id}}/spam" class="inline-form">
+            <button type="submit" class="btn btn-small btn-warning">Spam</button>
+          </form>
+          {{/unless}}
+          {{#unless (eq status 'trash')}}
+          <form method="POST" action="/admin/comments/{{id}}/trash" class="inline-form">
+            <button type="submit" class="btn btn-small btn-danger">Trash</button>
+          </form>
+          {{/unless}}
+        </div>
+      </div>
+      {{/each}}
+    </div>
+    {{else}}
+    <div class="empty-state">
+      <p>No comments{{#if statusFilter}} with status "{{statusFilter}}"{{/if}}.</p>
+    </div>
+    {{/if}}
+  </div>
+</div>
+
+<style>
+  .section-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 1rem;
+  }
+  .stats-bar {
+    display: flex;
+    gap: 1.5rem;
+    margin-bottom: 1rem;
+    padding: 0.75rem 1rem;
+    background: #f8f9fa;
+    border-radius: 4px;
+  }
+  .stat {
+    font-size: 0.9rem;
+  }
+  .stat-success { color: #28a745; }
+  .stat-warning { color: #ffc107; }
+  .stat-danger { color: #dc3545; }
+  .filter-tabs {
+    display: flex;
+    gap: 0.5rem;
+    margin-bottom: 1rem;
+  }
+  .filter-tabs .tab {
+    padding: 0.5rem 1rem;
+    background: #f8f9fa;
+    border: 1px solid #dee2e6;
+    border-radius: 4px;
+    text-decoration: none;
+    color: #495057;
+  }
+  .filter-tabs .tab:hover {
+    background: #e9ecef;
+  }
+  .filter-tabs .tab.active {
+    background: #0d6efd;
+    color: white;
+    border-color: #0d6efd;
+  }
+  .comments-list {
+    display: flex;
+    flex-direction: column;
+    gap: 1rem;
+  }
+  .comment-card {
+    padding: 1rem;
+    border: 1px solid #dee2e6;
+    border-radius: 8px;
+    background: #fff;
+  }
+  .comment-card.status-pending {
+    border-left: 4px solid #ffc107;
+  }
+  .comment-card.status-spam {
+    border-left: 4px solid #dc3545;
+    opacity: 0.7;
+  }
+  .comment-card.status-approved {
+    border-left: 4px solid #28a745;
+  }
+  .comment-header {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    margin-bottom: 0.5rem;
+  }
+  .comment-author {
+    color: #212529;
+  }
+  .comment-email {
+    color: #6c757d;
+    font-size: 0.85rem;
+  }
+  .comment-date {
+    color: #6c757d;
+    font-size: 0.85rem;
+    margin-left: auto;
+  }
+  .status-badge {
+    padding: 0.25rem 0.5rem;
+    border-radius: 4px;
+    font-size: 0.75rem;
+    font-weight: 500;
+  }
+  .status-approved { background: #d4edda; color: #155724; }
+  .status-pending { background: #fff3cd; color: #856404; }
+  .status-spam { background: #f8d7da; color: #721c24; }
+  .status-trash { background: #e2e3e5; color: #383d41; }
+  .reply-indicator {
+    color: #6c757d;
+    font-size: 0.85rem;
+    margin-bottom: 0.5rem;
+  }
+  .comment-body {
+    color: #495057;
+    line-height: 1.6;
+    margin-bottom: 0.75rem;
+    white-space: pre-wrap;
+  }
+  .comment-actions {
+    display: flex;
+    gap: 0.5rem;
+  }
+  .inline-form {
+    display: inline;
+  }
+  .empty-state {
+    padding: 3rem;
+    text-align: center;
+    background: #f8f9fa;
+    border-radius: 8px;
+  }
+</style>

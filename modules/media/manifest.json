@@ -1,0 +1,7 @@
+{
+  "name": "media",
+  "version": "0.0.1",
+  "description": "Media upload and management system",
+  "dependencies": ["users"],
+  "provides": ["media uploads", "file management"]
+}

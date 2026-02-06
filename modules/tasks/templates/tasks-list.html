@@ -1,0 +1,245 @@
+<div class="admin-page">
+  <link rel="stylesheet" href="/public/css/admin.css">
+
+  <div class="admin-header">
+    <h1>{{pageTitle}}</h1>
+    <nav class="admin-nav">
+      <a href="/admin">Dashboard</a>
+      <a href="/admin/content">Content</a>
+      <a href="/admin/media">Media</a>
+      <a href="/admin/tasks" class="active">Tasks</a>
+      <a href="/admin/modules">Modules</a>
+    </nav>
+  </div>
+
+  {{#if hasFlash}}
+  <div class="flash flash-{{flash.type}}">
+    {{flash.message}}
+  </div>
+  {{/if}}
+
+  <div class="admin-section">
+    <div class="section-header">
+      <h2>Scheduled Tasks ({{totalCount}})</h2>
+      <span class="scheduler-status status-{{#if schedulerRunning}}active{{else}}inactive{{/if}}">
+        Scheduler: {{#if schedulerRunning}}Running{{else}}Stopped{{/if}}
+      </span>
+    </div>
+
+    {{#if hasItems}}
+    <div class="tasks-list">
+      {{#each items}}
+      <div class="task-card">
+        <div class="task-header">
+          <h3 class="task-name">{{name}}</h3>
+          <span class="task-status status-{{statusClass}}">{{lastStatus}}</span>
+        </div>
+
+        <div class="task-details">
+          <div class="task-schedule">
+            <span class="label">Schedule:</span>
+            <code>{{cronExpr}}</code>
+            <span class="description">({{cronDescription}})</span>
+          </div>
+
+          {{#if description}}
+          <div class="task-description">
+            {{description}}
+          </div>
+          {{/if}}
+
+          <div class="task-times">
+            <div class="time-info">
+              <span class="label">Last run:</span>
+              <span class="value">{{lastRunFormatted}}</span>
+            </div>
+            <div class="time-info">
+              <span class="label">Next run:</span>
+              <span class="value">{{nextRunFormatted}}</span>
+            </div>
+            <div class="time-info">
+              <span class="label">Run count:</span>
+              <span class="value">{{runCount}}</span>
+            </div>
+            {{#if lastDuration}}
+            <div class="time-info">
+              <span class="label">Last duration:</span>
+              <span class="value">{{lastDurationFormatted}}</span>
+            </div>
+            {{/if}}
+          </div>
+
+          {{#if lastError}}
+          <div class="task-error">
+            <span class="label">Error:</span>
+            <span class="value">{{lastError}}</span>
+          </div>
+          {{/if}}
+        </div>
+
+        <div class="task-actions">
+          <form method="POST" action="/admin/tasks/{{name}}/run" class="inline-form">
+            <button type="submit" class="btn btn-small btn-primary">Run Now</button>
+          </form>
+          <a href="/admin/tasks/{{name}}/history" class="btn btn-small">History</a>
+        </div>
+      </div>
+      {{/each}}
+    </div>
+    {{else}}
+    <p class="empty-message">No scheduled tasks registered. Modules can register tasks via hook_schedule.</p>
+    {{/if}}
+  </div>
+
+  <style>
+    .scheduler-status {
+      padding: 5px 12px;
+      border-radius: 4px;
+      font-size: 0.85rem;
+      font-weight: 500;
+    }
+
+    .status-active {
+      background: #d4edda;
+      color: #155724;
+    }
+
+    .status-inactive {
+      background: #f8d7da;
+      color: #721c24;
+    }
+
+    .tasks-list {
+      display: flex;
+      flex-direction: column;
+      gap: 15px;
+    }
+
+    .task-card {
+      background: white;
+      border-radius: 8px;
+      box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+      overflow: hidden;
+    }
+
+    .task-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 15px 20px;
+      background: #f8f9fa;
+      border-bottom: 1px solid #eee;
+    }
+
+    .task-name {
+      margin: 0;
+      font-size: 1.1rem;
+      font-family: monospace;
+    }
+
+    .task-status {
+      padding: 3px 10px;
+      border-radius: 4px;
+      font-size: 0.75rem;
+      font-weight: 600;
+      text-transform: uppercase;
+    }
+
+    .status-success {
+      background: #d4edda;
+      color: #155724;
+    }
+
+    .status-error {
+      background: #f8d7da;
+      color: #721c24;
+    }
+
+    .status-pending {
+      background: #fff3cd;
+      color: #856404;
+    }
+
+    .task-details {
+      padding: 15px 20px;
+    }
+
+    .task-schedule {
+      margin-bottom: 10px;
+    }
+
+    .task-schedule code {
+      background: #e9ecef;
+      padding: 2px 6px;
+      border-radius: 3px;
+      font-size: 0.85rem;
+    }
+
+    .task-schedule .description {
+      color: #666;
+      font-size: 0.85rem;
+      margin-left: 5px;
+    }
+
+    .task-description {
+      color: #666;
+      font-size: 0.9rem;
+      margin-bottom: 10px;
+    }
+
+    .task-times {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+      gap: 10px;
+      margin-bottom: 10px;
+    }
+
+    .time-info {
+      font-size: 0.85rem;
+    }
+
+    .time-info .label {
+      color: #666;
+    }
+
+    .time-info .value {
+      font-weight: 500;
+    }
+
+    .task-error {
+      background: #f8d7da;
+      padding: 8px 12px;
+      border-radius: 4px;
+      font-size: 0.85rem;
+      margin-top: 10px;
+    }
+
+    .task-error .label {
+      color: #721c24;
+      font-weight: 600;
+    }
+
+    .task-error .value {
+      color: #721c24;
+    }
+
+    .task-actions {
+      padding: 10px 20px;
+      background: #f8f9fa;
+      border-top: 1px solid #eee;
+      display: flex;
+      gap: 10px;
+    }
+
+    .section-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 20px;
+    }
+
+    .section-header h2 {
+      margin: 0;
+    }
+  </style>
+</div>

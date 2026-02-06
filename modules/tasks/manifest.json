@@ -1,0 +1,7 @@
+{
+  "name": "tasks",
+  "version": "0.0.1",
+  "description": "Scheduled task management with admin UI",
+  "dependencies": ["admin"],
+  "provides": ["task scheduling", "task content type", "example tasks"]
+}

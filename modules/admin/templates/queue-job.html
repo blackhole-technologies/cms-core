@@ -1,0 +1,325 @@
+<div class="admin-page">
+
+  <div class="admin-header">
+    <h1>{{pageTitle}}</h1>
+    <nav class="admin-nav">
+      <a href="/admin">Dashboard</a>
+      <a href="/admin/content">Content</a>
+      <a href="/admin/queue" class="active">Queue</a>
+    </nav>
+  </div>
+
+  <div class="breadcrumb">
+    <a href="/admin">Dashboard</a> &rarr;
+    <a href="/admin/queue">Queue</a> &rarr;
+    <span>{{job.id}}</span>
+  </div>
+
+  {{#if hasFlash}}
+  <div class="flash flash-{{flash.type}}">
+    {{flash.message}}
+  </div>
+  {{/if}}
+
+  <div class="admin-section">
+    <div class="section-header">
+      <h2>Job Details</h2>
+      <div class="section-actions">
+        {{#if (eq job.status 'pending')}}
+        <form method="POST" action="/admin/queue/{{job.id}}/cancel" class="inline-form">
+          {{csrfField}}
+          <button type="submit" class="btn btn-warning">Cancel Job</button>
+        </form>
+        {{/if}}
+        {{#if (eq job.status 'failed')}}
+        <form method="POST" action="/admin/queue/{{job.id}}/retry" class="inline-form">
+          {{csrfField}}
+          <button type="submit" class="btn btn-primary">Retry Job</button>
+        </form>
+        {{/if}}
+        {{#unless (eq job.status 'running')}}
+        <form method="POST" action="/admin/queue/{{job.id}}/delete" class="inline-form" onsubmit="return confirm('Delete this job?')">
+          {{csrfField}}
+          <button type="submit" class="btn btn-danger">Delete Job</button>
+        </form>
+        {{/unless}}
+      </div>
+    </div>
+
+    <div class="detail-grid">
+      <div class="detail-row">
+        <span class="detail-label">Job ID</span>
+        <span class="detail-value"><code>{{job.id}}</code></span>
+      </div>
+      <div class="detail-row">
+        <span class="detail-label">Type</span>
+        <span class="detail-value">{{job.type}}</span>
+      </div>
+      <div class="detail-row">
+        <span class="detail-label">Status</span>
+        <span class="detail-value">
+          <span class="status-badge status-{{job.status}}">{{job.status}}</span>
+        </span>
+      </div>
+      <div class="detail-row">
+        <span class="detail-label">Priority</span>
+        <span class="detail-value">{{job.priority}} (1=highest, 10=lowest)</span>
+      </div>
+      <div class="detail-row">
+        <span class="detail-label">Created By</span>
+        <span class="detail-value">{{job.createdBy}}</span>
+      </div>
+      <div class="detail-row">
+        <span class="detail-label">Created At</span>
+        <span class="detail-value">{{createdFormatted}}</span>
+      </div>
+      {{#if job.startedAt}}
+      <div class="detail-row">
+        <span class="detail-label">Started At</span>
+        <span class="detail-value">{{startedFormatted}}</span>
+      </div>
+      {{/if}}
+      {{#if job.completedAt}}
+      <div class="detail-row">
+        <span class="detail-label">Completed At</span>
+        <span class="detail-value">{{completedFormatted}}</span>
+      </div>
+      <div class="detail-row">
+        <span class="detail-label">Duration</span>
+        <span class="detail-value">{{duration}}</span>
+      </div>
+      {{/if}}
+      <div class="detail-row">
+        <span class="detail-label">Retries</span>
+        <span class="detail-value">{{job.retries}} / {{job.maxRetries}}</span>
+      </div>
+    </div>
+  </div>
+
+  {{#if job.progress.total}}
+  <div class="admin-section">
+    <h3>Progress</h3>
+    <div class="progress-container">
+      <div class="progress-bar large">
+        <div class="progress-fill" style="width: {{progressPercent}}%"></div>
+      </div>
+      <div class="progress-stats">
+        <span>{{job.progress.completed}} / {{job.progress.total}} items</span>
+        <span>{{progressPercent}}%</span>
+      </div>
+      {{#if job.progress.failed}}
+      <div class="progress-failed">
+        <span class="text-error">{{job.progress.failed}} failed</span>
+      </div>
+      {{/if}}
+    </div>
+  </div>
+  {{/if}}
+
+  {{#if job.error}}
+  <div class="admin-section">
+    <h3>Error</h3>
+    <div class="error-box">
+      <code>{{job.error}}</code>
+    </div>
+  </div>
+  {{/if}}
+
+  {{#if hasData}}
+  <div class="admin-section">
+    <h3>Job Data</h3>
+    <pre class="data-box">{{dataFormatted}}</pre>
+  </div>
+  {{/if}}
+
+  {{#if hasResult}}
+  <div class="admin-section">
+    <h3>Result</h3>
+
+    {{#if job.result.success}}
+    <div class="result-summary">
+      <span class="result-success">{{job.result.success}} successful</span>
+      {{#if job.result.failed}}
+      <span class="result-failed">{{job.result.failed}} failed</span>
+      {{/if}}
+    </div>
+    {{/if}}
+
+    {{#if hasErrors}}
+    <h4>Errors ({{errorCount}})</h4>
+    <table class="admin-table">
+      <thead>
+        <tr>
+          <th>Item ID</th>
+          <th>Error</th>
+        </tr>
+      </thead>
+      <tbody>
+        {{#each errors}}
+        <tr>
+          <td><code>{{id}}</code></td>
+          <td>{{error}}</td>
+        </tr>
+        {{/each}}
+      </tbody>
+    </table>
+    {{#if hasMoreErrors}}
+    <p class="text-muted">... and {{moreErrorCount}} more errors</p>
+    {{/if}}
+    {{/if}}
+
+    {{#unless hasErrors}}
+    <pre class="data-box">{{resultFormatted}}</pre>
+    {{/unless}}
+  </div>
+  {{/if}}
+
+  <div class="admin-section">
+    <a href="/admin/queue" class="btn btn-secondary">&larr; Back to Queue</a>
+  </div>
+</div>
+
+<style>
+  .section-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 1rem;
+  }
+  .section-actions {
+    display: flex;
+    gap: 0.5rem;
+  }
+  .inline-form {
+    display: inline;
+  }
+  .detail-grid {
+    background: #f8f9fa;
+    border-radius: 8px;
+    padding: 1rem;
+  }
+  .detail-row {
+    display: grid;
+    grid-template-columns: 150px 1fr;
+    padding: 0.5rem 0;
+    border-bottom: 1px solid #dee2e6;
+  }
+  .detail-row:last-child {
+    border-bottom: none;
+  }
+  .detail-label {
+    font-weight: 500;
+    color: #495057;
+  }
+  .detail-value {
+    color: #212529;
+  }
+  .detail-value code {
+    background: #e9ecef;
+    padding: 0.125rem 0.375rem;
+    border-radius: 3px;
+    font-family: monospace;
+  }
+  .status-badge {
+    display: inline-block;
+    padding: 0.25rem 0.5rem;
+    border-radius: 4px;
+    font-size: 0.875rem;
+    font-weight: 500;
+  }
+  .status-pending {
+    background: #ffc107;
+    color: #212529;
+  }
+  .status-running {
+    background: #0d6efd;
+    color: white;
+  }
+  .status-completed {
+    background: #28a745;
+    color: white;
+  }
+  .status-failed {
+    background: #dc3545;
+    color: white;
+  }
+  .status-cancelled {
+    background: #6c757d;
+    color: white;
+  }
+  .progress-container {
+    background: #f8f9fa;
+    border-radius: 8px;
+    padding: 1rem;
+  }
+  .progress-bar {
+    height: 8px;
+    background: #e9ecef;
+    border-radius: 4px;
+    overflow: hidden;
+  }
+  .progress-bar.large {
+    height: 16px;
+  }
+  .progress-fill {
+    height: 100%;
+    background: #0d6efd;
+    transition: width 0.3s ease;
+  }
+  .progress-stats {
+    display: flex;
+    justify-content: space-between;
+    margin-top: 0.5rem;
+    color: #495057;
+  }
+  .progress-failed {
+    margin-top: 0.25rem;
+  }
+  .text-error {
+    color: #dc3545;
+  }
+  .text-muted {
+    color: #6c757d;
+  }
+  .error-box {
+    background: #f8d7da;
+    border: 1px solid #f5c6cb;
+    border-radius: 4px;
+    padding: 1rem;
+    color: #721c24;
+  }
+  .error-box code {
+    word-break: break-all;
+  }
+  .data-box {
+    background: #f8f9fa;
+    border: 1px solid #dee2e6;
+    border-radius: 4px;
+    padding: 1rem;
+    overflow-x: auto;
+    font-family: monospace;
+    font-size: 0.875rem;
+    white-space: pre-wrap;
+    word-break: break-all;
+  }
+  .result-summary {
+    display: flex;
+    gap: 1rem;
+    padding: 1rem;
+    background: #f8f9fa;
+    border-radius: 8px;
+    margin-bottom: 1rem;
+  }
+  .result-success {
+    color: #28a745;
+    font-weight: 500;
+  }
+  .result-failed {
+    color: #dc3545;
+    font-weight: 500;
+  }
+  h4 {
+    margin: 1rem 0 0.5rem;
+    color: #495057;
+  }
+</style>

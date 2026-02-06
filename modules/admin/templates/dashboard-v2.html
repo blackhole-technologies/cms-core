@@ -1,0 +1,679 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+  <title>Dashboard - {{siteName}}</title>
+
+  <!-- Design System -->
+  <link rel="stylesheet" href="/public/css/tokens.css">
+  <link rel="stylesheet" href="/public/css/components.css">
+
+  <style>
+    /* Dashboard-specific styles */
+    .dashboard {
+      min-height: 100vh;
+      background: var(--surface-page);
+    }
+
+    .dashboard__main {
+      max-width: 1200px;
+      margin: 0 auto;
+      padding: var(--space-xl);
+      padding-bottom: calc(var(--nav-height-mobile) + var(--space-xl));
+    }
+
+    @media (min-width: 768px) {
+      .dashboard__main {
+        padding-bottom: var(--space-xl);
+      }
+    }
+
+    /* Greeting Section */
+    .greeting {
+      margin-bottom: var(--space-2xl);
+    }
+
+    .greeting__time {
+      font-size: var(--font-size-sm);
+      color: var(--text-tertiary);
+      margin-bottom: var(--space-xs);
+    }
+
+    .greeting__message {
+      font-size: var(--font-size-2xl);
+      font-weight: var(--font-bold);
+      color: var(--text-primary);
+      letter-spacing: var(--tracking-tight);
+    }
+
+    /* Stats Grid */
+    .stats-grid {
+      display: grid;
+      grid-template-columns: repeat(2, 1fr);
+      gap: var(--space-md);
+      margin-bottom: var(--space-2xl);
+    }
+
+    @media (min-width: 768px) {
+      .stats-grid {
+        grid-template-columns: repeat(4, 1fr);
+      }
+    }
+
+    .stat-card {
+      background: var(--surface-primary);
+      border: 1px solid var(--border-subtle);
+      border-radius: var(--card-radius);
+      padding: var(--space-lg);
+      text-align: center;
+      transition: transform var(--duration-quick), box-shadow var(--duration-quick);
+    }
+
+    .stat-card:hover {
+      transform: translateY(-2px);
+      box-shadow: var(--shadow-md);
+    }
+
+    .stat-card__value {
+      font-size: var(--font-size-2xl);
+      font-weight: var(--font-bold);
+      color: var(--text-primary);
+      line-height: 1;
+    }
+
+    .stat-card__label {
+      font-size: var(--font-size-xs);
+      color: var(--text-tertiary);
+      margin-top: var(--space-sm);
+      text-transform: uppercase;
+      letter-spacing: var(--tracking-wider);
+    }
+
+    /* Section */
+    .dashboard-section {
+      margin-bottom: var(--space-2xl);
+    }
+
+    .dashboard-section__header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: var(--space-lg);
+    }
+
+    .dashboard-section__title {
+      font-size: var(--font-size-xs);
+      font-weight: var(--font-semibold);
+      color: var(--text-tertiary);
+      text-transform: uppercase;
+      letter-spacing: var(--tracking-wider);
+    }
+
+    /* Quick Actions */
+    .quick-actions {
+      display: grid;
+      grid-template-columns: repeat(2, 1fr);
+      gap: var(--space-md);
+    }
+
+    @media (min-width: 768px) {
+      .quick-actions {
+        grid-template-columns: repeat(4, 1fr);
+      }
+    }
+
+    .quick-action {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: var(--space-sm);
+
+      padding: var(--space-lg);
+
+      background: var(--surface-primary);
+      border: 1px solid var(--border-subtle);
+      border-radius: var(--card-radius);
+
+      text-decoration: none;
+      color: var(--text-primary);
+
+      transition:
+        transform var(--duration-quick),
+        box-shadow var(--duration-quick),
+        border-color var(--duration-quick);
+    }
+
+    .quick-action:hover {
+      transform: translateY(-2px);
+      box-shadow: var(--shadow-md);
+      border-color: var(--accent-primary);
+    }
+
+    .quick-action:active {
+      transform: scale(0.98);
+    }
+
+    .quick-action__icon {
+      width: 32px;
+      height: 32px;
+      color: var(--accent-primary);
+    }
+
+    .quick-action__label {
+      font-size: var(--font-size-sm);
+      font-weight: var(--font-medium);
+    }
+
+    /* Features List (Modules) */
+    .features-list {
+      display: flex;
+      flex-direction: column;
+      gap: var(--space-sm);
+    }
+
+    .feature-item {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: var(--space-md) var(--space-lg);
+
+      background: var(--surface-primary);
+      border: 1px solid var(--border-subtle);
+      border-radius: var(--radius-lg);
+
+      transition:
+        box-shadow var(--duration-quick),
+        border-color var(--duration-quick);
+    }
+
+    .feature-item:hover {
+      box-shadow: var(--shadow-sm);
+      border-color: var(--border-hover);
+    }
+
+    .feature-item__info {
+      display: flex;
+      flex-direction: column;
+      gap: var(--space-xs);
+    }
+
+    .feature-item__name {
+      font-weight: var(--font-medium);
+      color: var(--text-primary);
+    }
+
+    .feature-item__description {
+      font-size: var(--font-size-sm);
+      color: var(--text-secondary);
+    }
+
+    /* Activity Feed */
+    .activity-list {
+      display: flex;
+      flex-direction: column;
+    }
+
+    .activity-item {
+      display: flex;
+      align-items: flex-start;
+      gap: var(--space-md);
+      padding: var(--space-md) 0;
+      border-bottom: 1px solid var(--border-subtle);
+    }
+
+    .activity-item:last-child {
+      border-bottom: none;
+    }
+
+    .activity-item__icon {
+      width: 32px;
+      height: 32px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      background: var(--accent-subtle);
+      border-radius: var(--radius-full);
+      color: var(--accent-primary);
+      flex-shrink: 0;
+    }
+
+    .activity-item__content {
+      flex: 1;
+      min-width: 0;
+    }
+
+    .activity-item__text {
+      font-size: var(--font-size-sm);
+      color: var(--text-primary);
+    }
+
+    .activity-item__time {
+      font-size: var(--font-size-xs);
+      color: var(--text-tertiary);
+      margin-top: var(--space-xs);
+    }
+
+    /* Status Indicator */
+    .status-indicator {
+      display: flex;
+      align-items: center;
+      gap: var(--space-sm);
+      padding: var(--space-md) var(--space-lg);
+
+      background: var(--status-success-subtle);
+      border-radius: var(--radius-lg);
+    }
+
+    .status-indicator__dot {
+      width: 8px;
+      height: 8px;
+      background: var(--status-success);
+      border-radius: var(--radius-full);
+      animation: pulse 2s ease-in-out infinite;
+    }
+
+    @keyframes pulse {
+      0%, 100% { opacity: 1; }
+      50% { opacity: 0.5; }
+    }
+
+    .status-indicator__text {
+      font-size: var(--font-size-sm);
+      font-weight: var(--font-medium);
+      color: var(--status-success-text);
+    }
+
+    /* Desktop Navigation */
+    .desktop-nav {
+      display: none;
+    }
+
+    @media (min-width: 768px) {
+      .desktop-nav {
+        display: flex;
+        position: sticky;
+        top: 0;
+        z-index: 50;
+        background: var(--surface-primary);
+        border-bottom: 1px solid var(--border-subtle);
+      }
+
+      .mobile-nav {
+        display: none;
+      }
+    }
+
+    /* Header */
+    .dashboard-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: var(--space-md) var(--space-lg);
+      background: var(--surface-primary);
+      border-bottom: 1px solid var(--border-subtle);
+    }
+
+    @media (min-width: 768px) {
+      .dashboard-header {
+        max-width: 1200px;
+        margin: 0 auto;
+        padding: var(--space-md) var(--space-xl);
+        background: transparent;
+        border-bottom: none;
+      }
+    }
+
+    .dashboard-header__brand {
+      font-size: var(--font-size-lg);
+      font-weight: var(--font-bold);
+      color: var(--text-primary);
+      text-decoration: none;
+    }
+
+    .dashboard-header__actions {
+      display: flex;
+      align-items: center;
+      gap: var(--space-sm);
+    }
+
+    /* User Menu */
+    .user-menu {
+      display: flex;
+      align-items: center;
+      gap: var(--space-sm);
+      padding: var(--space-sm) var(--space-md);
+      background: var(--surface-secondary);
+      border-radius: var(--radius-full);
+      text-decoration: none;
+      color: var(--text-primary);
+      font-size: var(--font-size-sm);
+      font-weight: var(--font-medium);
+    }
+
+    .user-menu__avatar {
+      width: 24px;
+      height: 24px;
+      background: var(--accent-primary);
+      border-radius: var(--radius-full);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: var(--text-inverse);
+      font-size: var(--font-size-xs);
+    }
+
+    /* SVG Icons */
+    .icon {
+      width: 24px;
+      height: 24px;
+      stroke: currentColor;
+      stroke-width: 2;
+      stroke-linecap: round;
+      stroke-linejoin: round;
+      fill: none;
+    }
+
+    .icon--sm {
+      width: 16px;
+      height: 16px;
+    }
+
+    .icon--lg {
+      width: 32px;
+      height: 32px;
+    }
+  </style>
+</head>
+<body>
+  <div class="dashboard">
+    <!-- Header (Mobile & Desktop) -->
+    <header class="dashboard-header">
+      <a href="/" class="dashboard-header__brand">RSES</a>
+      <div class="dashboard-header__actions">
+        <a href="/admin/users" class="user-menu">
+          <span class="user-menu__avatar">{{userInitial}}</span>
+          <span class="mobile:hidden">{{userName}}</span>
+        </a>
+      </div>
+    </header>
+
+    <!-- Desktop Navigation -->
+    <nav class="desktop-nav">
+      <div class="nav-main" style="max-width: 1200px; margin: 0 auto; width: 100%;">
+        <div class="nav-main__items">
+          <a href="/admin" class="nav-item nav-item--active">
+            <svg class="icon icon--sm"><use href="#icon-home"/></svg>
+            Dashboard
+          </a>
+          <a href="/admin/content" class="nav-item">
+            <svg class="icon icon--sm"><use href="#icon-file"/></svg>
+            Content
+          </a>
+          <a href="/admin/modules" class="nav-item">
+            <svg class="icon icon--sm"><use href="#icon-puzzle"/></svg>
+            Features
+          </a>
+          <a href="/admin/users" class="nav-item">
+            <svg class="icon icon--sm"><use href="#icon-users"/></svg>
+            Users
+          </a>
+        </div>
+      </div>
+    </nav>
+
+    <!-- Main Content -->
+    <main class="dashboard__main">
+      <!-- Greeting -->
+      <section class="greeting">
+        <p class="greeting__time">{{timeOfDay}}</p>
+        <h1 class="greeting__message">Welcome back, {{userName}}</h1>
+      </section>
+
+      <!-- Stats -->
+      <section class="stats-grid">
+        <div class="stat-card">
+          <div class="stat-card__value">{{totalContent}}</div>
+          <div class="stat-card__label">Content Items</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-card__value">{{enabledModules}}</div>
+          <div class="stat-card__label">Active Features</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-card__value">{{totalUsers}}</div>
+          <div class="stat-card__label">Users</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-card__value">{{uptimeFormatted}}</div>
+          <div class="stat-card__label">Uptime</div>
+        </div>
+      </section>
+
+      <!-- System Status -->
+      <section class="dashboard-section">
+        <div class="status-indicator">
+          <span class="status-indicator__dot"></span>
+          <span class="status-indicator__text">All systems operational</span>
+        </div>
+      </section>
+
+      <!-- Quick Actions -->
+      <section class="dashboard-section">
+        <div class="dashboard-section__header">
+          <h2 class="dashboard-section__title">Quick Actions</h2>
+        </div>
+        <div class="quick-actions">
+          <a href="/admin/content/new" class="quick-action">
+            <svg class="quick-action__icon icon icon--lg">
+              <circle cx="12" cy="12" r="10"/>
+              <line x1="12" y1="8" x2="12" y2="16"/>
+              <line x1="8" y1="12" x2="16" y2="12"/>
+            </svg>
+            <span class="quick-action__label">New Content</span>
+          </a>
+          <a href="/admin/modules" class="quick-action">
+            <svg class="quick-action__icon icon icon--lg">
+              <rect x="3" y="3" width="7" height="7" rx="1"/>
+              <rect x="14" y="3" width="7" height="7" rx="1"/>
+              <rect x="14" y="14" width="7" height="7" rx="1"/>
+              <rect x="3" y="14" width="7" height="7" rx="1"/>
+            </svg>
+            <span class="quick-action__label">Manage Features</span>
+          </a>
+          <a href="/" class="quick-action" target="_blank">
+            <svg class="quick-action__icon icon icon--lg">
+              <circle cx="12" cy="12" r="10"/>
+              <line x1="2" y1="12" x2="22" y2="12"/>
+              <path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/>
+            </svg>
+            <span class="quick-action__label">View Site</span>
+          </a>
+          <a href="/admin/users" class="quick-action">
+            <svg class="quick-action__icon icon icon--lg">
+              <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/>
+              <circle cx="9" cy="7" r="4"/>
+              <path d="M23 21v-2a4 4 0 0 0-3-3.87"/>
+              <path d="M16 3.13a4 4 0 0 1 0 7.75"/>
+            </svg>
+            <span class="quick-action__label">Manage Users</span>
+          </a>
+        </div>
+      </section>
+
+      <!-- Features (Modules) -->
+      <section class="dashboard-section">
+        <div class="dashboard-section__header">
+          <h2 class="dashboard-section__title">Features</h2>
+          <a href="/admin/modules" class="btn btn-ghost btn-sm">View All</a>
+        </div>
+        <div class="features-list">
+          {{#each modules}}
+          <div class="feature-item">
+            <div class="feature-item__info">
+              <span class="feature-item__name">{{name}}</span>
+              <span class="feature-item__description">{{description}}</span>
+            </div>
+            <label class="rses-switch">
+              <input
+                type="checkbox"
+                class="rses-switch__input"
+                {{#if enabled}}checked{{/if}}
+                data-module="{{name}}"
+                aria-label="Toggle {{name}}"
+              >
+              <span class="rses-switch__track">
+                <span class="rses-switch__thumb"></span>
+              </span>
+            </label>
+          </div>
+          {{/each}}
+        </div>
+      </section>
+
+      <!-- Recent Activity -->
+      <section class="dashboard-section">
+        <div class="dashboard-section__header">
+          <h2 class="dashboard-section__title">Recent Activity</h2>
+        </div>
+        {{#if hasActivity}}
+        <div class="card">
+          <div class="card__body">
+            <div class="activity-list">
+              {{#each recentActivity}}
+              <div class="activity-item">
+                <div class="activity-item__icon">
+                  <svg class="icon icon--sm">
+                    <circle cx="12" cy="12" r="10"/>
+                  </svg>
+                </div>
+                <div class="activity-item__content">
+                  <p class="activity-item__text">{{description}}</p>
+                  <p class="activity-item__time">{{timeAgo}}</p>
+                </div>
+              </div>
+              {{/each}}
+            </div>
+          </div>
+        </div>
+        {{else}}
+        <div class="empty-state">
+          <svg class="empty-state__icon icon">
+            <circle cx="12" cy="12" r="10"/>
+            <line x1="12" y1="8" x2="12" y2="12"/>
+            <line x1="12" y1="16" x2="12.01" y2="16"/>
+          </svg>
+          <h3 class="empty-state__title">No recent activity</h3>
+          <p class="empty-state__description">Activity will appear here as you make changes to your content and settings.</p>
+        </div>
+        {{/if}}
+      </section>
+    </main>
+
+    <!-- Mobile Navigation -->
+    <nav class="mobile-nav" role="navigation" aria-label="Main navigation">
+      <a href="/admin" class="mobile-nav__item mobile-nav__item--active">
+        <svg class="icon icon--sm">
+          <path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/>
+          <polyline points="9 22 9 12 15 12 15 22"/>
+        </svg>
+        <span>Home</span>
+      </a>
+      <a href="/admin/content" class="mobile-nav__item">
+        <svg class="icon icon--sm">
+          <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
+          <polyline points="14 2 14 8 20 8"/>
+        </svg>
+        <span>Content</span>
+      </a>
+      <button class="mobile-nav__item mobile-nav__item--primary" aria-label="Create new">
+        <svg class="icon">
+          <line x1="12" y1="5" x2="12" y2="19"/>
+          <line x1="5" y1="12" x2="19" y2="12"/>
+        </svg>
+      </button>
+      <a href="/admin/modules" class="mobile-nav__item">
+        <svg class="icon icon--sm">
+          <rect x="3" y="3" width="7" height="7"/>
+          <rect x="14" y="3" width="7" height="7"/>
+          <rect x="14" y="14" width="7" height="7"/>
+          <rect x="3" y="14" width="7" height="7"/>
+        </svg>
+        <span>Features</span>
+      </a>
+      <a href="/admin/users" class="mobile-nav__item">
+        <svg class="icon icon--sm">
+          <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/>
+          <circle cx="12" cy="7" r="4"/>
+        </svg>
+        <span>Account</span>
+      </a>
+    </nav>
+  </div>
+
+  <!-- SVG Icon Definitions -->
+  <svg style="display: none;">
+    <defs>
+      <symbol id="icon-home" viewBox="0 0 24 24">
+        <path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/>
+        <polyline points="9 22 9 12 15 12 15 22"/>
+      </symbol>
+      <symbol id="icon-file" viewBox="0 0 24 24">
+        <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
+        <polyline points="14 2 14 8 20 8"/>
+      </symbol>
+      <symbol id="icon-puzzle" viewBox="0 0 24 24">
+        <rect x="3" y="3" width="7" height="7"/>
+        <rect x="14" y="3" width="7" height="7"/>
+        <rect x="14" y="14" width="7" height="7"/>
+        <rect x="3" y="14" width="7" height="7"/>
+      </symbol>
+      <symbol id="icon-users" viewBox="0 0 24 24">
+        <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/>
+        <circle cx="9" cy="7" r="4"/>
+        <path d="M23 21v-2a4 4 0 0 0-3-3.87"/>
+        <path d="M16 3.13a4 4 0 0 1 0 7.75"/>
+      </symbol>
+    </defs>
+  </svg>
+
+  <script>
+    // Module toggle handler with micro-interaction
+    document.querySelectorAll('.rses-switch__input[data-module]').forEach(toggle => {
+      toggle.addEventListener('change', async function() {
+        const moduleName = this.dataset.module;
+        const enabled = this.checked;
+        const card = this.closest('.feature-item');
+
+        // Add animation class
+        card.classList.add('module-card--just-enabled');
+
+        // Haptic feedback on mobile
+        if ('vibrate' in navigator) {
+          navigator.vibrate(10);
+        }
+
+        // API call would go here
+        console.log(`Module ${moduleName} ${enabled ? 'enabled' : 'disabled'}`);
+
+        // Remove animation class after it completes
+        setTimeout(() => {
+          card.classList.remove('module-card--just-enabled');
+        }, 300);
+      });
+    });
+
+    // Time-based greeting
+    const hour = new Date().getHours();
+    let greeting = 'Good morning';
+    if (hour >= 12 && hour < 17) greeting = 'Good afternoon';
+    else if (hour >= 17) greeting = 'Good evening';
+
+    const timeElement = document.querySelector('.greeting__time');
+    if (timeElement) {
+      timeElement.textContent = greeting;
+    }
+  </script>
+</body>
+</html>

@@ -1,0 +1,124 @@
+<div class="admin-page">
+
+  <div class="admin-header">
+    <h1>{{pageTitle}}</h1>
+    <nav class="admin-nav">
+      <a href="/admin">Dashboard</a>
+      <a href="/admin/content">Content</a>
+      <a href="/admin/modules">Modules</a>
+      <a href="/admin/cache" class="active">Cache</a>
+    </nav>
+  </div>
+
+  {{#if hasFlash}}
+  <div class="flash flash-{{flash.type}}">
+    {{flash.message}}
+  </div>
+  {{/if}}
+
+  <!-- Cache Status -->
+  <div class="admin-section">
+    <div class="section-header">
+      <h2>Cache Status</h2>
+      <form method="POST" action="/admin/cache/clear" class="inline-form" onsubmit="return confirm('Clear all cache entries?')">
+        {{csrfField}}
+        <button type="submit" class="btn btn-danger">Clear All Cache</button>
+      </form>
+    </div>
+
+    <div class="stats-grid">
+      <div class="stat-card">
+        <div class="stat-value">{{#if enabled}}Enabled{{else}}Disabled{{/if}}</div>
+        <div class="stat-label">Status</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-value">{{size}}</div>
+        <div class="stat-label">Entries</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-value">{{hitRate}}%</div>
+        <div class="stat-label">Hit Rate</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-value">{{ttl}}s</div>
+        <div class="stat-label">Content TTL</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-value">{{apiTtl}}s</div>
+        <div class="stat-label">API TTL</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Cache Statistics -->
+  <div class="admin-section">
+    <h2>Statistics</h2>
+    <table class="admin-table">
+      <tbody>
+        <tr>
+          <th>Cache Hits</th>
+          <td>{{hits}}</td>
+        </tr>
+        <tr>
+          <th>Cache Misses</th>
+          <td>{{misses}}</td>
+        </tr>
+        <tr>
+          <th>Cache Sets</th>
+          <td>{{sets}}</td>
+        </tr>
+        <tr>
+          <th>Cache Deletes</th>
+          <td>{{deletes}}</td>
+        </tr>
+        <tr>
+          <th>Cache Clears</th>
+          <td>{{clears}}</td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+
+  <!-- Cached Keys -->
+  <div class="admin-section">
+    <h2>Cached Keys {{#if showingAllKeys}}({{totalKeys}}){{else}}(showing 50 of {{totalKeys}}){{/if}}</h2>
+
+    {{#if hasKeys}}
+    <table class="admin-table">
+      <thead>
+        <tr>
+          <th>Key</th>
+          <th>TTL Remaining</th>
+        </tr>
+      </thead>
+      <tbody>
+        {{#each keys}}
+        <tr>
+          <td><code>{{key}}</code></td>
+          <td>{{ttl}}s</td>
+        </tr>
+        {{/each}}
+      </tbody>
+    </table>
+    {{else}}
+    <p class="empty-message">No cached entries.</p>
+    {{/if}}
+  </div>
+
+  <!-- Help Text -->
+  <div class="help-text">
+    <strong>Cache Configuration</strong>
+    <p>Configure caching in <code>config/site.json</code>:</p>
+    <pre>{
+  "cache": {
+    "enabled": true,
+    "ttl": 300,
+    "apiTtl": 60
+  }
+}</pre>
+    <p>
+      <strong>ttl</strong>: Content cache time-to-live in seconds<br>
+      <strong>apiTtl</strong>: API response cache time-to-live in seconds
+    </p>
+  </div>
+</div>

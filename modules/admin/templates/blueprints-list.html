@@ -1,0 +1,124 @@
+<div class="admin-page">
+
+  <div class="admin-header">
+    <h1>Blueprints</h1>
+    <nav class="admin-nav">
+      <a href="/admin">Dashboard</a>
+      <a href="/admin/content">Content</a>
+      <a href="/admin/blueprints" class="active">Blueprints</a>
+      <a href="/admin/modules">Modules</a>
+    </nav>
+  </div>
+
+  {{#if hasFlash}}
+  <div class="flash flash-{{flash.type}}">
+    {{flash.message}}
+  </div>
+  {{/if}}
+
+  <div class="admin-actions">
+    <a href="/admin/blueprints/new" class="btn btn-primary">Create Blueprint</a>
+    {{#if hasTypes}}
+    <select id="typeFilter" onchange="window.location.href='/admin/blueprints?type='+this.value" class="filter-select">
+      <option value="">All Types</option>
+      {{#each contentTypes}}
+      <option value="{{type}}" {{#if selected}}selected{{/if}}>{{type}}</option>
+      {{/each}}
+    </select>
+    {{/if}}
+  </div>
+
+  <div class="admin-section">
+    {{#if hasBlueprints}}
+    <table class="admin-table">
+      <thead>
+        <tr>
+          <th>Name</th>
+          <th>Type</th>
+          <th>Fields</th>
+          <th>Usage</th>
+          <th>Created</th>
+          <th>Actions</th>
+        </tr>
+      </thead>
+      <tbody>
+        {{#each blueprints}}
+        <tr>
+          <td>
+            <strong>{{name}}</strong>
+            {{#if description}}
+            <br><small class="text-muted">{{description}}</small>
+            {{/if}}
+          </td>
+          <td><code>{{type}}</code></td>
+          <td>
+            <span title="{{fieldsList}}">{{fieldCount}} fields</span>
+            {{#if hasLocked}}
+            <br><small class="text-muted">{{lockedCount}} locked</small>
+            {{/if}}
+          </td>
+          <td>{{usageCount}}</td>
+          <td>{{createdFormatted}}</td>
+          <td class="actions">
+            <a href="/admin/blueprints/{{id}}" class="btn btn-small">Edit</a>
+            <a href="/admin/content/{{type}}/new?blueprint={{id}}" class="btn btn-small btn-primary">Apply</a>
+            <form method="POST" action="/admin/blueprints/{{id}}/delete" style="display:inline" onsubmit="return confirm('Delete this blueprint?')">
+              {{csrfField}}
+              <button type="submit" class="btn btn-small btn-danger">Delete</button>
+            </form>
+          </td>
+        </tr>
+        {{/each}}
+      </tbody>
+    </table>
+    {{else}}
+    <p class="empty-message">
+      No blueprints defined yet.
+      <a href="/admin/blueprints/new">Create your first blueprint</a> to speed up content creation.
+    </p>
+    {{/if}}
+  </div>
+
+  <div class="admin-section">
+    <h2>What are Blueprints?</h2>
+    <p>Blueprints are reusable templates for creating content. They:</p>
+    <ul>
+      <li>Pre-fill forms with default values</li>
+      <li>Ensure consistency across similar content</li>
+      <li>Speed up content creation workflow</li>
+      <li>Support dynamic placeholders like <code>{{curlyOpen}}date{{curlyClose}}</code>, <code>{{curlyOpen}}user{{curlyClose}}</code></li>
+    </ul>
+  </div>
+
+  <style>
+    .admin-actions {
+      display: flex;
+      gap: 1rem;
+      margin-bottom: 1.5rem;
+      align-items: center;
+    }
+    .filter-select {
+      padding: 0.5rem;
+      border: 1px solid #ddd;
+      border-radius: 4px;
+    }
+    .text-muted {
+      color: #666;
+    }
+    .actions {
+      white-space: nowrap;
+    }
+    .btn-danger {
+      background: #dc3545;
+      color: white;
+    }
+    .btn-danger:hover {
+      background: #c82333;
+    }
+    tr.selected {
+      background: #e3f2fd !important;
+    }
+  </style>
+  <script src="/public/js/shortcuts.js"></script>
+  <script>Shortcuts.init({ context: 'blueprints' });</script>
+</div>

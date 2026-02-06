@@ -1,0 +1,70 @@
+{
+  "view_modes": {
+    "full": {
+      "label": "Full content",
+      "description": "Complete content display",
+      "settings": {}
+    },
+    "teaser": {
+      "label": "Teaser",
+      "description": "Brief preview with link to full content",
+      "settings": {}
+    },
+    "search_result": {
+      "label": "Search result",
+      "description": "Compact display for search results",
+      "settings": {}
+    },
+    "rss": {
+      "label": "RSS",
+      "description": "Content formatted for RSS feeds",
+      "settings": {}
+    }
+  },
+  "displays": {
+    "article": {
+      "full": {
+        "fields": {
+          "title": {
+            "weight": 0,
+            "label": "above",
+            "formatter": "text_default",
+            "settings": {}
+          },
+          "body": {
+            "weight": 10,
+            "label": "hidden",
+            "formatter": "text_default",
+            "settings": {}
+          },
+          "created": {
+            "weight": 20,
+            "label": "inline",
+            "formatter": "date",
+            "settings": {
+              "format": "medium"
+            }
+          }
+        }
+      },
+      "teaser": {
+        "fields": {
+          "title": {
+            "weight": 0,
+            "label": "hidden",
+            "formatter": "text_default",
+            "settings": {}
+          },
+          "summary": {
+            "weight": 10,
+            "label": "hidden",
+            "formatter": "text_trimmed",
+            "settings": {
+              "length": 200
+            }
+          }
+        }
+      }
+    }
+  }
+}

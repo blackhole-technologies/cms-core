@@ -1,0 +1,7 @@
+{
+  "id": "dark",
+  "name": "Dark",
+  "description": "Dark mode admin interface",
+  "version": "1.0.0",
+  "variables": "variables.css"
+}

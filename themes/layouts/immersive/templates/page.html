@@ -1,0 +1,23 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>{{title}} | {{site.name}}</title>
+  {{#each skin.cssPaths}}
+  <link rel="stylesheet" href="{{this}}">
+  {{/each}}
+  {{#if extraHead}}{{{extraHead}}}{{/if}}
+</head>
+<body class="layout-immersive">
+  {{> header}}
+  
+  <main class="content-region">
+    {{{content}}}
+  </main>
+  
+  {{> footer}}
+  
+  {{#if extraScripts}}{{{extraScripts}}}{{/if}}
+</body>
+</html>

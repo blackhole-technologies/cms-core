@@ -1,0 +1,15 @@
+{
+  "name": "seo",
+  "version": "1.0.0",
+  "description": "SEO metadata for content",
+  "author": "CMS Core Team",
+  "dependencies": [],
+  "minCoreVersion": "0.0.28",
+  "permissions": ["content.read", "content.update"],
+  "config": {
+    "defaultTitle": "My Site",
+    "defaultDescription": "Welcome to my site",
+    "sitemapEnabled": true,
+    "robotsEnabled": true
+  }
+}
