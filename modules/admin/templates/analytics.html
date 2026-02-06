@@ -1,0 +1,270 @@
+<div class="admin-page">
+
+  <div class="admin-header">
+    <h1>Analytics Dashboard</h1>
+    <nav class="admin-nav">
+      <a href="/admin">Dashboard</a>
+      <a href="/admin/content">Content</a>
+      <a href="/admin/analytics" class="active">Analytics</a>
+      <a href="/admin/modules">Modules</a>
+    </nav>
+  </div>
+
+  {{#if hasFlash}}
+  <div class="flash flash-{{flash.type}}">
+    {{flash.message}}
+  </div>
+  {{/if}}
+
+  <!-- Period Selector -->
+  <div class="analytics-controls">
+    <div class="period-selector">
+      <a href="/admin/analytics?period=day" class="btn btn-small {{#if isDayPeriod}}btn-primary{{/if}}">Today</a>
+      <a href="/admin/analytics?period=week" class="btn btn-small {{#if isWeekPeriod}}btn-primary{{/if}}">Week</a>
+      <a href="/admin/analytics?period=month" class="btn btn-small {{#if isMonthPeriod}}btn-primary{{/if}}">Month</a>
+    </div>
+    <div class="analytics-links">
+      <a href="/admin/analytics/content" class="btn btn-small">Content Details</a>
+      <a href="/admin/analytics/users" class="btn btn-small">User Activity</a>
+    </div>
+  </div>
+
+  <!-- Summary Cards -->
+  <div class="stats-grid stats-grid-4">
+    <div class="stat-card">
+      <div class="stat-value">{{summary.pageViews}}</div>
+      <div class="stat-label">Page Views</div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-value">{{summary.uniqueVisitors}}</div>
+      <div class="stat-label">Unique Visitors</div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-value">{{summary.contentCreated}}</div>
+      <div class="stat-label">Content Created</div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-value">{{summary.logins}}</div>
+      <div class="stat-label">User Logins</div>
+    </div>
+  </div>
+
+  <!-- Views Chart -->
+  <div class="admin-section">
+    <h2>Page Views ({{periodLabel}})</h2>
+    <div class="chart-container">
+      {{#if hasChartData}}
+      <div class="bar-chart">
+        {{#each chartData}}
+        <div class="bar-col" title="{{label}}: {{value}} views">
+          <div class="bar" style="height: {{heightPercent}}%"></div>
+          <div class="bar-label">{{shortLabel}}</div>
+        </div>
+        {{/each}}
+      </div>
+      <div class="chart-summary">
+        Total: {{chartTotal}} views
+      </div>
+      {{else}}
+      <p class="empty-message">No page views recorded in this period.</p>
+      {{/if}}
+    </div>
+  </div>
+
+  <!-- Two-column layout -->
+  <div class="admin-grid-2">
+    <!-- Top Content -->
+    <div class="admin-section">
+      <div class="section-header">
+        <h2>Top Content</h2>
+        <a href="/admin/analytics/content" class="btn btn-small">View All →</a>
+      </div>
+      {{#if hasTopContent}}
+      <table class="admin-table">
+        <thead>
+          <tr>
+            <th>Content</th>
+            <th>Type</th>
+            <th>Views</th>
+          </tr>
+        </thead>
+        <tbody>
+          {{#each topContent}}
+          <tr>
+            <td>
+              <a href="/admin/analytics/content/{{type}}/{{id}}">{{title}}</a>
+            </td>
+            <td><code>{{type}}</code></td>
+            <td>{{views}}</td>
+          </tr>
+          {{/each}}
+        </tbody>
+      </table>
+      {{else}}
+      <p class="empty-message">No content views recorded.</p>
+      {{/if}}
+    </div>
+
+    <!-- Recent Activity -->
+    <div class="admin-section">
+      <div class="section-header">
+        <h2>Recent Activity</h2>
+      </div>
+      {{#if hasRecentActivity}}
+      <ul class="activity-feed">
+        {{#each recentActivity}}
+        <li class="activity-item">
+          <span class="activity-icon">{{icon}}</span>
+          <span class="activity-text">{{description}}</span>
+          <span class="activity-time">{{timeAgo}}</span>
+        </li>
+        {{/each}}
+      </ul>
+      {{else}}
+      <p class="empty-message">No recent activity.</p>
+      {{/if}}
+    </div>
+  </div>
+
+  <!-- Additional Stats Row -->
+  <div class="stats-grid stats-grid-4">
+    <div class="stat-card stat-card-secondary">
+      <div class="stat-value">{{summary.contentViews}}</div>
+      <div class="stat-label">Content Views</div>
+    </div>
+    <div class="stat-card stat-card-secondary">
+      <div class="stat-value">{{summary.contentUpdated}}</div>
+      <div class="stat-label">Content Updated</div>
+    </div>
+    <div class="stat-card stat-card-secondary">
+      <div class="stat-value">{{summary.apiRequests}}</div>
+      <div class="stat-label">API Requests</div>
+    </div>
+    <div class="stat-card stat-card-secondary">
+      <div class="stat-value">{{summary.searches}}</div>
+      <div class="stat-label">Searches</div>
+    </div>
+  </div>
+
+  <style>
+    .analytics-controls {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 1.5rem;
+      flex-wrap: wrap;
+      gap: 1rem;
+    }
+    .period-selector {
+      display: flex;
+      gap: 0.5rem;
+    }
+    .analytics-links {
+      display: flex;
+      gap: 0.5rem;
+    }
+    .stats-grid-4 {
+      grid-template-columns: repeat(4, 1fr);
+    }
+    @media (max-width: 800px) {
+      .stats-grid-4 {
+        grid-template-columns: repeat(2, 1fr);
+      }
+    }
+    .stat-card-secondary {
+      background: #f8f9fa;
+    }
+    .chart-container {
+      background: #fff;
+      border: 1px solid #ddd;
+      border-radius: 4px;
+      padding: 1rem;
+    }
+    .bar-chart {
+      display: flex;
+      align-items: flex-end;
+      height: 150px;
+      gap: 2px;
+      padding: 0 0.5rem;
+    }
+    .bar-col {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      min-width: 20px;
+    }
+    .bar {
+      width: 100%;
+      max-width: 30px;
+      background: #4a90d9;
+      border-radius: 2px 2px 0 0;
+      min-height: 2px;
+      transition: height 0.3s ease;
+    }
+    .bar:hover {
+      background: #357abd;
+    }
+    .bar-label {
+      font-size: 0.7rem;
+      color: #666;
+      margin-top: 4px;
+      white-space: nowrap;
+    }
+    .chart-summary {
+      text-align: center;
+      color: #666;
+      font-size: 0.9rem;
+      margin-top: 0.5rem;
+      padding-top: 0.5rem;
+      border-top: 1px solid #eee;
+    }
+    .admin-grid-2 {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 1.5rem;
+      margin-bottom: 1.5rem;
+    }
+    @media (max-width: 900px) {
+      .admin-grid-2 {
+        grid-template-columns: 1fr;
+      }
+    }
+    .section-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 1rem;
+    }
+    .section-header h2 {
+      margin: 0;
+    }
+    .activity-feed {
+      list-style: none;
+      padding: 0;
+      margin: 0;
+    }
+    .activity-item {
+      display: flex;
+      align-items: center;
+      gap: 0.75rem;
+      padding: 0.75rem 0;
+      border-bottom: 1px solid #eee;
+    }
+    .activity-item:last-child {
+      border-bottom: none;
+    }
+    .activity-icon {
+      font-size: 1.2rem;
+    }
+    .activity-text {
+      flex: 1;
+      font-size: 0.9rem;
+    }
+    .activity-time {
+      font-size: 0.8rem;
+      color: #888;
+      white-space: nowrap;
+    }
+  </style>
+</div>

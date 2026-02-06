@@ -1,0 +1,14 @@
+{
+  "id": "general",
+  "title": "General Inquiry",
+  "recipients": [
+    "admin@example.com"
+  ],
+  "reply": "",
+  "message": "Your message has been sent. Thank you.",
+  "redirect": "",
+  "weight": 0,
+  "enabled": true,
+  "created": "2026-02-04T12:03:21.278Z",
+  "updated": "2026-02-04T12:03:21.278Z"
+}

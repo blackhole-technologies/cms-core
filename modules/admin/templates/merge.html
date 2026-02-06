@@ -1,0 +1,227 @@
+<div class="admin-page">
+
+  <div class="admin-header">
+    <h1>{{pageTitle}}</h1>
+    <nav class="admin-nav">
+      <a href="/admin">Dashboard</a>
+      <a href="/admin/content">Content</a>
+      <a href="/admin/compare">Compare</a>
+    </nav>
+  </div>
+
+  {{#if hasFlash}}
+  <div class="flash flash-{{flash.type}}">
+    {{flash.message}}
+  </div>
+  {{/if}}
+
+  <div class="breadcrumb">
+    <a href="/admin">Dashboard</a> &rarr;
+    <a href="/admin/content">Content</a> &rarr;
+    <a href="/admin/content/{{type}}">{{type}}</a> &rarr;
+    <a href="/admin/content/{{type}}/{{id}}/edit">{{id}}</a> &rarr;
+    <span>Merge</span>
+  </div>
+
+  <div class="admin-section">
+    <div class="merge-header">
+      <p>Merging <strong>{{type}}/{{sourceId}}</strong> into <strong>{{type}}/{{id}}</strong></p>
+    </div>
+
+    <form method="POST" action="/admin/content/{{type}}/{{id}}/merge/resolve">
+      {{../../csrfField}}
+      <input type="hidden" name="sourceId" value="{{sourceId}}">
+
+      {{#if hasAutoMerged}}
+      <div class="merge-section auto-merged">
+        <h3>Auto-Merged Changes</h3>
+        <p class="section-hint">These changes have no conflicts and will be applied automatically.</p>
+        <table class="merge-table">
+          <thead>
+            <tr>
+              <th>Field</th>
+              <th>Source</th>
+              <th>New Value</th>
+            </tr>
+          </thead>
+          <tbody>
+            {{#each autoMerged}}
+            <tr>
+              <td><strong>{{field}}</strong></td>
+              <td><span class="source-badge">{{source}}</span></td>
+              <td class="value-cell"><pre>{{value}}</pre></td>
+            </tr>
+            {{/each}}
+          </tbody>
+        </table>
+      </div>
+      {{/if}}
+
+      {{#if hasConflicts}}
+      <div class="merge-section conflicts">
+        <h3>Conflicts to Resolve</h3>
+        <p class="section-hint">Choose which value to keep for each conflicting field.</p>
+
+        {{#each conflicts}}
+        <div class="conflict-item">
+          <div class="conflict-header">
+            <strong>{{field}}</strong>
+          </div>
+          <div class="conflict-options">
+            <label class="conflict-option">
+              <input type="radio" name="resolve_{{field}}" value="ours" required>
+              <div class="option-content ours">
+                <span class="option-label">Keep Ours (Current)</span>
+                <pre>{{ours}}</pre>
+              </div>
+            </label>
+            <label class="conflict-option">
+              <input type="radio" name="resolve_{{field}}" value="theirs">
+              <div class="option-content theirs">
+                <span class="option-label">Use Theirs (Incoming)</span>
+                <pre>{{theirs}}</pre>
+              </div>
+            </label>
+            {{#if base}}
+            <label class="conflict-option">
+              <input type="radio" name="resolve_{{field}}" value="base">
+              <div class="option-content base">
+                <span class="option-label">Revert to Base</span>
+                <pre>{{base}}</pre>
+              </div>
+            </label>
+            {{/if}}
+          </div>
+        </div>
+        {{/each}}
+      </div>
+      {{else}}
+      <div class="no-conflicts">
+        <p>No conflicts detected. All changes can be merged automatically.</p>
+      </div>
+      {{/if}}
+
+      <div class="merge-actions">
+        <button type="submit" class="btn btn-primary">Apply Merge</button>
+        <a href="/admin/content/{{type}}/{{id}}/compare?with={{sourceId}}" class="btn btn-secondary">Back to Compare</a>
+        <a href="/admin/content/{{type}}/{{id}}/edit" class="btn">Cancel</a>
+      </div>
+    </form>
+  </div>
+
+  <style>
+    .merge-header {
+      padding: 1rem;
+      background: #e7f3ff;
+      border: 1px solid #b6d4fe;
+      border-radius: 4px;
+      margin-bottom: 1.5rem;
+    }
+    .merge-section {
+      margin-bottom: 2rem;
+    }
+    .merge-section h3 {
+      margin-bottom: 0.5rem;
+    }
+    .section-hint {
+      color: #6c757d;
+      font-size: 0.9rem;
+      margin-bottom: 1rem;
+    }
+    .merge-table {
+      width: 100%;
+      border-collapse: collapse;
+    }
+    .merge-table th,
+    .merge-table td {
+      padding: 0.75rem;
+      border: 1px solid #dee2e6;
+      text-align: left;
+      vertical-align: top;
+    }
+    .merge-table th {
+      background: #f8f9fa;
+    }
+    .source-badge {
+      font-size: 0.75rem;
+      padding: 0.125rem 0.5rem;
+      background: #e9ecef;
+      border-radius: 3px;
+    }
+    .value-cell pre {
+      margin: 0;
+      font-size: 0.85rem;
+      white-space: pre-wrap;
+      word-break: break-word;
+    }
+    .conflict-item {
+      border: 1px solid #dee2e6;
+      border-radius: 4px;
+      margin-bottom: 1rem;
+      overflow: hidden;
+    }
+    .conflict-header {
+      padding: 0.75rem 1rem;
+      background: #fff3cd;
+      border-bottom: 1px solid #dee2e6;
+    }
+    .conflict-options {
+      display: flex;
+      flex-direction: column;
+    }
+    .conflict-option {
+      display: flex;
+      align-items: flex-start;
+      padding: 0.75rem 1rem;
+      cursor: pointer;
+      border-bottom: 1px solid #eee;
+    }
+    .conflict-option:last-child {
+      border-bottom: none;
+    }
+    .conflict-option:hover {
+      background: #f8f9fa;
+    }
+    .conflict-option input {
+      margin-right: 1rem;
+      margin-top: 0.25rem;
+    }
+    .option-content {
+      flex: 1;
+    }
+    .option-label {
+      display: block;
+      font-weight: 500;
+      margin-bottom: 0.5rem;
+    }
+    .option-content.ours .option-label { color: #0d6efd; }
+    .option-content.theirs .option-label { color: #198754; }
+    .option-content.base .option-label { color: #6c757d; }
+    .option-content pre {
+      margin: 0;
+      padding: 0.5rem;
+      background: #f6f8fa;
+      border-radius: 4px;
+      font-size: 0.85rem;
+      white-space: pre-wrap;
+      word-break: break-word;
+      max-height: 150px;
+      overflow-y: auto;
+    }
+    .no-conflicts {
+      padding: 2rem;
+      text-align: center;
+      background: #d4edda;
+      border-radius: 4px;
+      color: #155724;
+    }
+    .merge-actions {
+      display: flex;
+      gap: 1rem;
+      padding-top: 1rem;
+      border-top: 1px solid #dee2e6;
+    }
+  </style>
+  <script src="/public/js/shortcuts.js"></script>
+  <script>Shortcuts.init({ context: 'global' });</script>
+</div>

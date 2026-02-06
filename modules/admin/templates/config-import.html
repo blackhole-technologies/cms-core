@@ -1,0 +1,314 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Import Configuration - CMS Admin</title>
+    <style>
+        .container { max-width: 900px; margin: 0 auto; padding: 20px; }
+        .upload-area {
+            border: 2px dashed #3498db;
+            border-radius: 8px;
+            padding: 40px;
+            text-align: center;
+            margin: 20px 0;
+            background-color: #f8f9fa;
+            cursor: pointer;
+            transition: all 0.3s;
+        }
+        .upload-area:hover { background-color: #e9ecef; border-color: #2980b9; }
+        .upload-area.dragover { background-color: #d4e9f7; border-color: #1a5490; }
+        .upload-icon { font-size: 48px; margin-bottom: 16px; }
+        .file-input { display: none; }
+        .diff-preview {
+            margin: 20px 0;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            max-height: 500px;
+            overflow-y: auto;
+            display: none;
+        }
+        .diff-preview.visible { display: block; }
+        .diff-item {
+            padding: 12px;
+            border-bottom: 1px solid #eee;
+            background-color: white;
+        }
+        .diff-item:last-child { border-bottom: none; }
+        .diff-item label { display: flex; align-items: flex-start; cursor: pointer; }
+        .diff-item input[type="checkbox"] {
+            margin-right: 12px;
+            margin-top: 4px;
+            width: 18px;
+            height: 18px;
+        }
+        .diff-header {
+            font-weight: bold;
+            margin-bottom: 8px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        .diff-change-type {
+            padding: 2px 8px;
+            border-radius: 3px;
+            font-size: 12px;
+            font-weight: bold;
+        }
+        .diff-change-type.new { background-color: #d4edda; color: #155724; }
+        .diff-change-type.modified { background-color: #fff3cd; color: #856404; }
+        .diff-change-type.deleted { background-color: #f8d7da; color: #721c24; }
+        .diff-change-type.conflict { background-color: #f5c6cb; color: #721c24; }
+        .diff-content {
+            margin: 8px 0;
+            padding: 12px;
+            background-color: #f8f9fa;
+            border-radius: 4px;
+            font-family: monospace;
+            font-size: 13px;
+            max-height: 200px;
+            overflow-y: auto;
+        }
+        .diff-line { padding: 2px 0; }
+        .diff-line.addition { background-color: #d4edda; }
+        .diff-line.deletion { background-color: #f8d7da; }
+        .btn { padding: 10px 20px; border: none; border-radius: 4px; cursor: pointer; font-size: 16px; margin-right: 8px; }
+        .btn-primary { background-color: #3498db; color: white; }
+        .btn-success { background-color: #27ae60; color: white; }
+        .btn-danger { background-color: #e74c3c; color: white; }
+        .btn-secondary { background-color: #95a5a6; color: white; }
+        .btn:disabled { opacity: 0.5; cursor: not-allowed; }
+        .actions { margin: 20px 0; }
+        .warning {
+            padding: 12px;
+            background-color: #fff3cd;
+            border: 1px solid #ffc107;
+            border-radius: 4px;
+            margin: 20px 0;
+        }
+        .error {
+            padding: 12px;
+            background-color: #f8d7da;
+            border: 1px solid #dc3545;
+            border-radius: 4px;
+            margin: 20px 0;
+        }
+        .select-controls { margin: 12px 0; }
+        .select-controls button { padding: 6px 12px; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>Import Configuration</h1>
+
+        <div class="upload-area" id="uploadArea" onclick="document.getElementById('fileInput').click()">
+            <div class="upload-icon">📁</div>
+            <h3>Click to select file or drag and drop</h3>
+            <p>Supports JSON, YAML, and ZIP formats</p>
+            <input type="file" id="fileInput" class="file-input" accept=".json,.yaml,.yml,.zip" onchange="handleFileSelect(event)">
+        </div>
+
+        <div id="errorContainer"></div>
+
+        <div class="diff-preview" id="diffPreview">
+            <div style="padding: 16px; background-color: #f4f4f4; border-bottom: 2px solid #ddd;">
+                <h2 style="margin: 0;">Changes Preview</h2>
+                <div class="select-controls" style="margin-top: 12px;">
+                    <button class="btn btn-secondary" onclick="selectAllChanges()">Select All</button>
+                    <button class="btn btn-secondary" onclick="selectNone()">Deselect All</button>
+                </div>
+            </div>
+
+            <div id="diffContent"></div>
+        </div>
+
+        <div class="actions" id="importActions" style="display: none;">
+            <button class="btn btn-success" onclick="confirmImport()">Import Selected Changes</button>
+            <button class="btn btn-secondary" onclick="resetForm()">Cancel</button>
+        </div>
+    </div>
+
+    <script>
+        let uploadedData = null;
+
+        const uploadArea = document.getElementById('uploadArea');
+
+        uploadArea.addEventListener('dragover', (e) => {
+            e.preventDefault();
+            uploadArea.classList.add('dragover');
+        });
+
+        uploadArea.addEventListener('dragleave', () => {
+            uploadArea.classList.remove('dragover');
+        });
+
+        uploadArea.addEventListener('drop', (e) => {
+            e.preventDefault();
+            uploadArea.classList.remove('dragover');
+            const files = e.dataTransfer.files;
+            if (files.length > 0) {
+                handleFile(files[0]);
+            }
+        });
+
+        function handleFileSelect(event) {
+            const file = event.target.files[0];
+            if (file) {
+                handleFile(file);
+            }
+        }
+
+        function handleFile(file) {
+            const formData = new FormData();
+            formData.append('file', file);
+
+            fetch('/admin/config/import/preview', {
+                method: 'POST',
+                body: formData
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.error) {
+                    showError(data.error);
+                } else {
+                    uploadedData = data;
+                    displayDiff(data.changes);
+                }
+            })
+            .catch(err => {
+                showError('Failed to process file: ' + err.message);
+            });
+        }
+
+        function displayDiff(changes) {
+            const diffContent = document.getElementById('diffContent');
+            const diffPreview = document.getElementById('diffPreview');
+            const importActions = document.getElementById('importActions');
+
+            if (!changes || changes.length === 0) {
+                showError('No changes detected in the import file.');
+                return;
+            }
+
+            let html = '';
+            changes.forEach((change, index) => {
+                const changeTypeClass = change.type.toLowerCase();
+                const changeTypeLabel = change.type.toUpperCase();
+
+                html += `
+                <div class="diff-item">
+                    <label>
+                        <input type="checkbox" name="change" value="${index}" checked>
+                        <div style="flex: 1;">
+                            <div class="diff-header">
+                                <span>${change.name}</span>
+                                <span class="diff-change-type ${changeTypeClass}">${changeTypeLabel}</span>
+                            </div>
+                            <div style="font-size: 0.9em; color: #7f8c8d; margin-bottom: 8px;">
+                                ${change.file}
+                            </div>
+                            ${change.conflict ? '<div class="warning">⚠️ This change conflicts with existing configuration</div>' : ''}
+                            <div class="diff-content">
+                                ${formatDiffContent(change)}
+                            </div>
+                        </div>
+                    </label>
+                </div>
+                `;
+            });
+
+            diffContent.innerHTML = html;
+            diffPreview.classList.add('visible');
+            importActions.style.display = 'block';
+            document.getElementById('errorContainer').innerHTML = '';
+        }
+
+        function formatDiffContent(change) {
+            if (change.type === 'NEW') {
+                return `<div class="diff-line addition">+ New configuration will be created</div>`;
+            } else if (change.type === 'DELETED') {
+                return `<div class="diff-line deletion">- Configuration will be removed</div>`;
+            } else if (change.diff) {
+                return change.diff.map(line => {
+                    if (line.startsWith('+')) {
+                        return `<div class="diff-line addition">${escapeHtml(line)}</div>`;
+                    } else if (line.startsWith('-')) {
+                        return `<div class="diff-line deletion">${escapeHtml(line)}</div>`;
+                    } else {
+                        return `<div class="diff-line">${escapeHtml(line)}</div>`;
+                    }
+                }).join('');
+            }
+            return '<div>No diff available</div>';
+        }
+
+        function selectAllChanges() {
+            document.querySelectorAll('input[name="change"]').forEach(cb => cb.checked = true);
+        }
+
+        function selectNone() {
+            document.querySelectorAll('input[name="change"]').forEach(cb => cb.checked = false);
+        }
+
+        function confirmImport() {
+            const selectedChanges = Array.from(document.querySelectorAll('input[name="change"]:checked'))
+                .map(cb => parseInt(cb.value));
+
+            if (selectedChanges.length === 0) {
+                alert('Please select at least one change to import.');
+                return;
+            }
+
+            const hasConflicts = uploadedData.changes.some((change, idx) =>
+                selectedChanges.includes(idx) && change.conflict
+            );
+
+            if (hasConflicts) {
+                if (!confirm('Some selected changes have conflicts. Importing will overwrite existing configurations. Continue?')) {
+                    return;
+                }
+            }
+
+            fetch('/admin/config/import/apply', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    changes: selectedChanges,
+                    data: uploadedData
+                })
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    alert(`Successfully imported ${data.imported} configuration(s).`);
+                    window.location.href = '/admin/config/list';
+                } else {
+                    showError(data.error || 'Import failed');
+                }
+            })
+            .catch(err => {
+                showError('Import failed: ' + err.message);
+            });
+        }
+
+        function showError(message) {
+            const errorContainer = document.getElementById('errorContainer');
+            errorContainer.innerHTML = `<div class="error">❌ ${escapeHtml(message)}</div>`;
+        }
+
+        function resetForm() {
+            document.getElementById('fileInput').value = '';
+            document.getElementById('diffPreview').classList.remove('visible');
+            document.getElementById('importActions').style.display = 'none';
+            document.getElementById('errorContainer').innerHTML = '';
+            uploadedData = null;
+        }
+
+        function escapeHtml(text) {
+            const div = document.createElement('div');
+            div.textContent = text;
+            return div.innerHTML;
+        }
+    </script>
+</body>
+</html>

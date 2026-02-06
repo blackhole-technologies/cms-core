@@ -1,0 +1,431 @@
+<form id="filter-settings-form">
+  <!-- Settings vary by filter type -->
+
+  {{#isHtmlFilter}}
+  <div class="filter-settings">
+    <h3>HTML Filter Settings</h3>
+
+    <div class="form-group">
+      <label for="allowed-tags">Allowed HTML Tags</label>
+      <textarea
+        id="allowed-tags"
+        name="allowedTags"
+        rows="4"
+        placeholder="<p> <br> <strong> <em> <a> <ul> <ol> <li>"
+      >{{settings.allowedTags}}</textarea>
+      <div class="help-text">
+        Space-separated list of allowed HTML tags (include angle brackets).
+        All other tags will be stripped.
+      </div>
+    </div>
+
+    <div class="form-group">
+      <label for="allowed-attributes">Allowed Attributes</label>
+      <textarea
+        id="allowed-attributes"
+        name="allowedAttributes"
+        rows="3"
+        placeholder="href class id title"
+      >{{settings.allowedAttributes}}</textarea>
+      <div class="help-text">
+        Space-separated list of allowed HTML attributes.
+        Format: attribute or tag[attribute] (e.g., "href" or "a[href]")
+      </div>
+    </div>
+
+    <div class="form-group">
+      <label>
+        <input
+          type="checkbox"
+          name="stripScripts"
+          {{#settings.stripScripts}}checked{{/settings.stripScripts}}
+        >
+        Strip all script tags and event handlers
+      </label>
+      <div class="help-text">Recommended for security</div>
+    </div>
+
+    <div class="form-group">
+      <label>
+        <input
+          type="checkbox"
+          name="stripStyles"
+          {{#settings.stripStyles}}checked{{/settings.stripStyles}}
+        >
+        Strip inline styles and style tags
+      </label>
+    </div>
+  </div>
+  {{/isHtmlFilter}}
+
+  {{#isUrlFilter}}
+  <div class="filter-settings">
+    <h3>URL Filter Settings</h3>
+
+    <div class="form-group">
+      <label for="max-link-length">Maximum Link Length</label>
+      <input
+        type="number"
+        id="max-link-length"
+        name="maxLinkLength"
+        value="{{settings.maxLinkLength}}"
+        min="0"
+        placeholder="72"
+      >
+      <div class="help-text">
+        Maximum display length for URLs. Longer URLs will be truncated with "...".
+        Set to 0 for no limit.
+      </div>
+    </div>
+
+    <div class="form-group">
+      <label>
+        <input
+          type="checkbox"
+          name="autoLink"
+          {{#settings.autoLink}}checked{{/settings.autoLink}}
+        >
+        Automatically convert URLs to links
+      </label>
+      <div class="help-text">Convert plain text URLs into clickable links</div>
+    </div>
+
+    <div class="form-group">
+      <label>
+        <input
+          type="checkbox"
+          name="nofollow"
+          {{#settings.nofollow}}checked{{/settings.nofollow}}
+        >
+        Add rel="nofollow" to external links
+      </label>
+      <div class="help-text">Recommended for user-generated content</div>
+    </div>
+
+    <div class="form-group">
+      <label>
+        <input
+          type="checkbox"
+          name="openInNewWindow"
+          {{#settings.openInNewWindow}}checked{{/settings.openInNewWindow}}
+        >
+        Open external links in new window
+      </label>
+      <div class="help-text">Add target="_blank" to external links</div>
+    </div>
+
+    <div class="form-group">
+      <label for="allowed-protocols">Allowed URL Protocols</label>
+      <input
+        type="text"
+        id="allowed-protocols"
+        name="allowedProtocols"
+        value="{{settings.allowedProtocols}}"
+        placeholder="http https ftp mailto"
+      >
+      <div class="help-text">
+        Space-separated list of allowed URL protocols. Others will be stripped.
+      </div>
+    </div>
+  </div>
+  {{/isUrlFilter}}
+
+  {{#isAutoParagraphFilter}}
+  <div class="filter-settings">
+    <h3>Auto-Paragraph Filter Settings</h3>
+
+    <div class="form-group">
+      <label>
+        <input
+          type="checkbox"
+          name="convertLineBreaks"
+          {{#settings.convertLineBreaks}}checked{{/settings.convertLineBreaks}}
+        >
+        Convert line breaks to &lt;br&gt; tags
+      </label>
+      <div class="help-text">Single line breaks become &lt;br&gt;, double become &lt;/p&gt;&lt;p&gt;</div>
+    </div>
+
+    <div class="form-group">
+      <label for="preserve-tags">Preserve tags (don't wrap in paragraphs)</label>
+      <input
+        type="text"
+        id="preserve-tags"
+        name="preserveTags"
+        value="{{settings.preserveTags}}"
+        placeholder="pre code blockquote table"
+      >
+      <div class="help-text">
+        Space-separated list of block-level tags to preserve without wrapping
+      </div>
+    </div>
+  </div>
+  {{/isAutoParagraphFilter}}
+
+  {{#isMarkdownFilter}}
+  <div class="filter-settings">
+    <h3>Markdown Filter Settings</h3>
+
+    <div class="form-group">
+      <label>
+        <input
+          type="checkbox"
+          name="enableTables"
+          {{#settings.enableTables}}checked{{/settings.enableTables}}
+        >
+        Enable table syntax
+      </label>
+    </div>
+
+    <div class="form-group">
+      <label>
+        <input
+          type="checkbox"
+          name="enableStrikethrough"
+          {{#settings.enableStrikethrough}}checked{{/settings.enableStrikethrough}}
+        >
+        Enable strikethrough (~~text~~)
+      </label>
+    </div>
+
+    <div class="form-group">
+      <label>
+        <input
+          type="checkbox"
+          name="enableAutolinks"
+          {{#settings.enableAutolinks}}checked{{/settings.enableAutolinks}}
+        >
+        Enable automatic URL linking
+      </label>
+    </div>
+
+    <div class="form-group">
+      <label>
+        <input
+          type="checkbox"
+          name="enableTaskLists"
+          {{#settings.enableTaskLists}}checked{{/settings.enableTaskLists}}
+        >
+        Enable task lists (- [ ] todo)
+      </label>
+    </div>
+
+    <div class="form-group">
+      <label>
+        <input
+          type="checkbox"
+          name="sanitizeHtml"
+          {{#settings.sanitizeHtml}}checked{{/settings.sanitizeHtml}}
+        >
+        Sanitize embedded HTML
+      </label>
+      <div class="help-text">Recommended for security</div>
+    </div>
+  </div>
+  {{/isMarkdownFilter}}
+
+  {{#isCodeHighlightFilter}}
+  <div class="filter-settings">
+    <h3>Code Highlighting Settings</h3>
+
+    <div class="form-group">
+      <label for="theme">Color Theme</label>
+      <select id="theme" name="theme">
+        <option value="default" {{#isSelected.default}}selected{{/isSelected.default}}>Default</option>
+        <option value="monokai" {{#isSelected.monokai}}selected{{/isSelected.monokai}}>Monokai</option>
+        <option value="github" {{#isSelected.github}}selected{{/isSelected.github}}>GitHub</option>
+        <option value="solarized-dark" {{#isSelected.solarizedDark}}selected{{/isSelected.solarizedDark}}>Solarized Dark</option>
+        <option value="solarized-light" {{#isSelected.solarizedLight}}selected{{/isSelected.solarizedLight}}>Solarized Light</option>
+      </select>
+    </div>
+
+    <div class="form-group">
+      <label>
+        <input
+          type="checkbox"
+          name="showLineNumbers"
+          {{#settings.showLineNumbers}}checked{{/settings.showLineNumbers}}
+        >
+        Show line numbers
+      </label>
+    </div>
+
+    <div class="form-group">
+      <label>
+        <input
+          type="checkbox"
+          name="enableCopyButton"
+          {{#settings.enableCopyButton}}checked{{/settings.enableCopyButton}}
+        >
+        Enable "Copy Code" button
+      </label>
+    </div>
+
+    <div class="form-group">
+      <label for="supported-languages">Supported Languages</label>
+      <textarea
+        id="supported-languages"
+        name="supportedLanguages"
+        rows="3"
+        placeholder="javascript python html css"
+      >{{settings.supportedLanguages}}</textarea>
+      <div class="help-text">
+        Space-separated list of language identifiers. Leave empty to support all.
+      </div>
+    </div>
+  </div>
+  {{/isCodeHighlightFilter}}
+
+  {{#isMediaEmbedFilter}}
+  <div class="filter-settings">
+    <h3>Media Embed Settings</h3>
+
+    <div class="form-group">
+      <label>Allowed Providers</label>
+      <div class="checkbox-group">
+        <label>
+          <input type="checkbox" name="providers[]" value="youtube" {{#providers.youtube}}checked{{/providers.youtube}}>
+          YouTube
+        </label>
+        <label>
+          <input type="checkbox" name="providers[]" value="vimeo" {{#providers.vimeo}}checked{{/providers.vimeo}}>
+          Vimeo
+        </label>
+        <label>
+          <input type="checkbox" name="providers[]" value="soundcloud" {{#providers.soundcloud}}checked{{/providers.soundcloud}}>
+          SoundCloud
+        </label>
+        <label>
+          <input type="checkbox" name="providers[]" value="spotify" {{#providers.spotify}}checked{{/providers.spotify}}>
+          Spotify
+        </label>
+      </div>
+    </div>
+
+    <div class="form-group">
+      <label for="max-width">Maximum Embed Width (px)</label>
+      <input
+        type="number"
+        id="max-width"
+        name="maxWidth"
+        value="{{settings.maxWidth}}"
+        min="0"
+        placeholder="640"
+      >
+      <div class="help-text">Set to 0 for responsive (100% width)</div>
+    </div>
+
+    <div class="form-group">
+      <label>
+        <input
+          type="checkbox"
+          name="enablePrivacyMode"
+          {{#settings.enablePrivacyMode}}checked{{/settings.enablePrivacyMode}}
+        >
+        Enable privacy-enhanced mode
+      </label>
+      <div class="help-text">
+        Use privacy-friendly embed URLs (e.g., youtube-nocookie.com)
+      </div>
+    </div>
+  </div>
+  {{/isMediaEmbedFilter}}
+
+  {{#isCustomFilter}}
+  <div class="filter-settings">
+    <h3>{{filterName}} Settings</h3>
+
+    <div class="form-group">
+      <label for="custom-settings">Configuration (JSON)</label>
+      <textarea
+        id="custom-settings"
+        name="customSettings"
+        rows="8"
+        placeholder='{"option": "value"}'
+      >{{settings.customSettings}}</textarea>
+      <div class="help-text">
+        Custom filter settings in JSON format. See filter documentation.
+      </div>
+    </div>
+  </div>
+  {{/isCustomFilter}}
+
+  {{#noSettings}}
+  <div class="filter-settings">
+    <p class="info-message">This filter has no configurable settings.</p>
+  </div>
+  {{/noSettings}}
+</form>
+
+<style>
+.filter-settings {
+  padding: 10px 0;
+}
+
+.filter-settings h3 {
+  margin-top: 0;
+  margin-bottom: 15px;
+  font-size: 1.1em;
+  color: #333;
+}
+
+.form-group {
+  margin-bottom: 20px;
+}
+
+.form-group label {
+  display: block;
+  font-weight: 600;
+  margin-bottom: 5px;
+  color: #333;
+}
+
+.form-group input[type="text"],
+.form-group input[type="number"],
+.form-group textarea,
+.form-group select {
+  width: 100%;
+  padding: 8px;
+  border: 1px solid #ddd;
+  border-radius: 4px;
+  font-family: inherit;
+  font-size: 14px;
+}
+
+.form-group textarea {
+  font-family: 'Monaco', 'Courier New', monospace;
+  resize: vertical;
+}
+
+.form-group input[type="checkbox"] {
+  margin-right: 8px;
+}
+
+.help-text {
+  margin-top: 5px;
+  font-size: 0.9em;
+  color: #666;
+  font-weight: normal;
+}
+
+.checkbox-group {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.checkbox-group label {
+  font-weight: normal;
+  display: flex;
+  align-items: center;
+  cursor: pointer;
+}
+
+.info-message {
+  padding: 15px;
+  background: #f0f8ff;
+  border-left: 4px solid #2196f3;
+  color: #333;
+  margin: 0;
+}
+</style>

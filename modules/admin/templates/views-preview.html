@@ -1,0 +1,372 @@
+<div class="admin-page">
+
+  <div class="admin-header">
+    <h1>{{pageTitle}}</h1>
+    <nav class="admin-nav">
+      <a href="/admin">Dashboard</a>
+      <a href="/admin/content">Content</a>
+      <a href="/admin/structure" class="active">Structure</a>
+      <a href="/admin/views">Views</a>
+    </nav>
+  </div>
+
+  {{#if hasFlash}}
+  <div class="flash flash-{{flash.type}}">
+    {{flash.message}}
+  </div>
+  {{/if}}
+
+  <div class="breadcrumb">
+    <a href="/admin">Dashboard</a> &rarr;
+    <a href="/admin/views">Views</a> &rarr;
+    <a href="/admin/views/{{view.id}}/edit">{{view.name}}</a> &rarr;
+    <span>Preview</span>
+  </div>
+
+  <div class="admin-section">
+    <div class="preview-header">
+      <div>
+        <h2>{{view.name}}</h2>
+        {{#if view.description}}
+        <p class="view-description">{{view.description}}</p>
+        {{/if}}
+      </div>
+      <div class="preview-meta">
+        <div class="meta-item">
+          <span class="meta-label">Content Type:</span>
+          <code>{{view.contentType}}</code>
+        </div>
+        <div class="meta-item">
+          <span class="meta-label">Display Mode:</span>
+          <span class="display-badge display-{{view.displayMode}}">{{view.displayMode}}</span>
+        </div>
+        <div class="meta-item">
+          <span class="meta-label">Results:</span>
+          <span class="count-badge">{{results.length}}</span>
+        </div>
+        {{#if executionTime}}
+        <div class="meta-item">
+          <span class="meta-label">Execution Time:</span>
+          <span class="time-badge">{{executionTime}}ms</span>
+        </div>
+        {{/if}}
+      </div>
+    </div>
+
+    <div class="query-info">
+      <h3>Query Configuration</h3>
+      <div class="query-details">
+        {{#if view.filters.length}}
+        <div class="query-section">
+          <h4>Filters</h4>
+          <ul class="filter-list">
+            {{#each view.filters}}
+            <li><code>{{field}}</code> {{operator}} <strong>{{value}}</strong></li>
+            {{/each}}
+          </ul>
+        </div>
+        {{/if}}
+
+        {{#if view.sort.length}}
+        <div class="query-section">
+          <h4>Sorting</h4>
+          <ul class="sort-list">
+            {{#each view.sort}}
+            <li><code>{{field}}</code> {{direction}}</li>
+            {{/each}}
+          </ul>
+        </div>
+        {{/if}}
+
+        {{#if view.itemsPerPage}}
+        <div class="query-section">
+          <h4>Paging</h4>
+          <p>{{view.itemsPerPage}} items per page {{#if view.usePager}}(with pagination controls){{/if}}</p>
+        </div>
+        {{/if}}
+      </div>
+    </div>
+
+    <div class="preview-results">
+      <h3>Query Results</h3>
+      {{#if results.length}}
+      <table class="results-table">
+        <thead>
+          <tr>
+            {{#if view.fields}}
+            {{#each view.fields}}
+            <th>{{this}}</th>
+            {{/each}}
+            {{else}}
+            <th>ID</th>
+            <th>Title</th>
+            <th>Status</th>
+            <th>Author</th>
+            <th>Created</th>
+            {{/if}}
+          </tr>
+        </thead>
+        <tbody>
+          {{#each results}}
+          <tr>
+            {{#if ../view.fields}}
+            {{#each ../view.fields}}
+            <td>{{lookup .. this}}</td>
+            {{/each}}
+            {{else}}
+            <td>{{id}}</td>
+            <td><strong>{{title}}</strong></td>
+            <td>
+              {{#if published}}
+              <span class="status-badge status-published">Published</span>
+              {{else}}
+              <span class="status-badge status-draft">Draft</span>
+              {{/if}}
+            </td>
+            <td>{{author}}</td>
+            <td>{{created}}</td>
+            {{/if}}
+          </tr>
+          {{/each}}
+        </tbody>
+      </table>
+
+      {{#if view.usePager}}
+      <div class="pager">
+        <button class="btn btn-sm btn-secondary" {{^if hasPrevious}}disabled{{/if}}>Previous</button>
+        <span class="page-info">Page {{currentPage}} of {{totalPages}}</span>
+        <button class="btn btn-sm btn-secondary" {{^if hasNext}}disabled{{/if}}>Next</button>
+      </div>
+      {{/if}}
+
+      {{else}}
+      <p class="empty-message">No results found matching the query criteria.</p>
+      {{/if}}
+    </div>
+
+    <div class="preview-actions">
+      <a href="/admin/views/{{view.id}}/edit" class="btn btn-primary">Edit View</a>
+      {{#if view.path}}
+      <a href="{{view.path}}" class="btn btn-secondary" target="_blank">View on Site</a>
+      {{/if}}
+      <a href="/admin/views" class="btn btn-secondary">Back to Views</a>
+    </div>
+  </div>
+
+  <style>
+    .preview-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-start;
+      margin-bottom: 1.5rem;
+      padding-bottom: 1rem;
+      border-bottom: 1px solid #e5e7eb;
+    }
+    .preview-header h2 {
+      margin: 0 0 0.5rem 0;
+      font-size: 1.5rem;
+      color: #111827;
+    }
+    .view-description {
+      margin: 0;
+      color: #6b7280;
+      font-size: 0.9rem;
+    }
+    .preview-meta {
+      display: flex;
+      flex-direction: column;
+      gap: 0.5rem;
+      align-items: flex-end;
+    }
+    .meta-item {
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+    }
+    .meta-label {
+      font-size: 0.85rem;
+      color: #6b7280;
+    }
+    .count-badge {
+      background: #e0e7ff;
+      color: #3730a3;
+      padding: 0.25rem 0.5rem;
+      border-radius: 9999px;
+      font-size: 0.8rem;
+      font-weight: 500;
+    }
+    .time-badge {
+      background: #fef3c7;
+      color: #92400e;
+      padding: 0.25rem 0.5rem;
+      border-radius: 4px;
+      font-size: 0.8rem;
+      font-weight: 500;
+    }
+    .display-badge {
+      display: inline-block;
+      padding: 0.25rem 0.5rem;
+      border-radius: 4px;
+      font-size: 0.75rem;
+      font-weight: 500;
+      text-transform: capitalize;
+    }
+    .display-table {
+      background: #dbeafe;
+      color: #1e40af;
+    }
+    .display-grid {
+      background: #e0e7ff;
+      color: #3730a3;
+    }
+    .display-list {
+      background: #e9d5ff;
+      color: #6b21a8;
+    }
+    .display-custom {
+      background: #fce7f3;
+      color: #9f1239;
+    }
+    .query-info {
+      background: #f9fafb;
+      border: 1px solid #e5e7eb;
+      border-radius: 8px;
+      padding: 1.5rem;
+      margin-bottom: 1.5rem;
+    }
+    .query-info h3 {
+      margin: 0 0 1rem 0;
+      font-size: 1.1rem;
+      color: #111827;
+    }
+    .query-details {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+      gap: 1.5rem;
+    }
+    .query-section h4 {
+      margin: 0 0 0.5rem 0;
+      font-size: 0.9rem;
+      font-weight: 500;
+      color: #374151;
+    }
+    .query-section p {
+      margin: 0;
+      font-size: 0.85rem;
+      color: #6b7280;
+    }
+    .filter-list,
+    .sort-list {
+      margin: 0;
+      padding: 0;
+      list-style: none;
+    }
+    .filter-list li,
+    .sort-list li {
+      font-size: 0.85rem;
+      color: #374151;
+      margin-bottom: 0.25rem;
+    }
+    .preview-results {
+      margin-bottom: 1.5rem;
+    }
+    .preview-results h3 {
+      margin: 0 0 1rem 0;
+      font-size: 1.1rem;
+      color: #111827;
+    }
+    .results-table {
+      width: 100%;
+      border-collapse: collapse;
+      margin-bottom: 1rem;
+    }
+    .results-table th,
+    .results-table td {
+      padding: 0.75rem;
+      text-align: left;
+      border-bottom: 1px solid #e5e7eb;
+    }
+    .results-table th {
+      background: #f9fafb;
+      font-weight: 500;
+      font-size: 0.85rem;
+      text-transform: capitalize;
+      color: #6b7280;
+    }
+    .results-table td {
+      font-size: 0.9rem;
+    }
+    .status-badge {
+      display: inline-block;
+      padding: 0.25rem 0.5rem;
+      border-radius: 4px;
+      font-size: 0.75rem;
+      font-weight: 500;
+    }
+    .status-published {
+      background: #d1fae5;
+      color: #065f46;
+    }
+    .status-draft {
+      background: #fef3c7;
+      color: #92400e;
+    }
+    .pager {
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      gap: 1rem;
+      padding: 1rem 0;
+      border-top: 1px solid #e5e7eb;
+    }
+    .page-info {
+      font-size: 0.85rem;
+      color: #6b7280;
+    }
+    .preview-actions {
+      display: flex;
+      gap: 0.5rem;
+      padding-top: 1.5rem;
+      border-top: 1px solid #e5e7eb;
+    }
+    .btn {
+      display: inline-block;
+      padding: 0.5rem 1rem;
+      border: none;
+      border-radius: 4px;
+      font-size: 0.9rem;
+      cursor: pointer;
+      text-decoration: none;
+    }
+    .btn-primary {
+      background: #2563eb;
+      color: white;
+    }
+    .btn-primary:hover {
+      background: #1d4ed8;
+    }
+    .btn-secondary {
+      background: #e5e7eb;
+      color: #374151;
+    }
+    .btn-secondary:hover {
+      background: #d1d5db;
+    }
+    .btn-sm {
+      padding: 0.25rem 0.5rem;
+      font-size: 0.8rem;
+    }
+    .btn:disabled {
+      opacity: 0.5;
+      cursor: not-allowed;
+    }
+    .empty-message {
+      text-align: center;
+      padding: 2rem;
+      color: #6b7280;
+      font-style: italic;
+    }
+  </style>
+  <script src="/public/js/shortcuts.js"></script>
+  <script>Shortcuts.init({ context: 'global' });</script>
+</div>

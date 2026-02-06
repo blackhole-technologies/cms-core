@@ -1,0 +1,149 @@
+<div class="admin-page">
+  <link rel="stylesheet" href="/public/css/admin.css">
+
+  <div class="admin-header">
+    <h1>{{pageTitle}}</h1>
+    <nav class="admin-nav">
+      <a href="/admin">Dashboard</a>
+      <a href="/admin/content">Content</a>
+      <a href="/admin/media" class="active">Media</a>
+      <a href="/admin/modules">Modules</a>
+    </nav>
+  </div>
+
+  {{#if hasFlash}}
+  <div class="flash flash-{{flash.type}}">
+    {{flash.message}}
+  </div>
+  {{/if}}
+
+  <div class="breadcrumb">
+    <a href="/admin">Dashboard</a> &rarr;
+    <a href="/admin/media">Media</a> &rarr;
+    <span>Upload</span>
+  </div>
+
+  <div class="admin-section">
+    <div class="form-container">
+      <form method="POST" action="/admin/media/upload" enctype="multipart/form-data" class="admin-form">
+        <h2>Upload File</h2>
+
+        <div class="form-group">
+          <label for="file">File <span class="required">*</span></label>
+          <input type="file" name="file" id="file" class="form-input" required>
+          <span class="field-hint">Allowed types: {{allowedTypes}}</span>
+          <span class="field-hint">Maximum size: {{maxSize}}</span>
+        </div>
+
+        <div class="form-group">
+          <label for="alt">Alt Text (for images)</label>
+          <input type="text" name="alt" id="alt" class="form-input" placeholder="Describe the image for accessibility">
+          <span class="field-hint">Descriptive text for screen readers and SEO</span>
+        </div>
+
+        <div class="upload-preview" id="preview" style="display: none;">
+          <h3>Preview</h3>
+          <div id="preview-content"></div>
+        </div>
+
+        <div class="form-actions">
+          <button type="submit" class="btn btn-primary">Upload File</button>
+          <a href="/admin/media" class="btn">Cancel</a>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <style>
+    .upload-preview {
+      margin-top: 20px;
+      padding: 15px;
+      background: #f8f9fa;
+      border-radius: 8px;
+    }
+
+    .upload-preview h3 {
+      margin: 0 0 10px 0;
+      font-size: 1rem;
+    }
+
+    .upload-preview img {
+      max-width: 100%;
+      max-height: 300px;
+      border-radius: 4px;
+    }
+
+    .video-preview video {
+      max-width: 100%;
+      max-height: 300px;
+      border-radius: 4px;
+      background: #000;
+    }
+
+    .video-preview .file-info {
+      margin-top: 10px;
+    }
+
+    .upload-preview .file-info {
+      font-size: 0.9rem;
+      color: #666;
+    }
+
+    input[type="file"] {
+      padding: 10px;
+      border: 2px dashed #ddd;
+      border-radius: 4px;
+      width: 100%;
+      cursor: pointer;
+    }
+
+    input[type="file"]:hover {
+      border-color: #007bff;
+    }
+  </style>
+
+  <script>
+    document.getElementById('file').addEventListener('change', function(e) {
+      const file = e.target.files[0];
+      const preview = document.getElementById('preview');
+      const previewContent = document.getElementById('preview-content');
+
+      if (!file) {
+        preview.style.display = 'none';
+        return;
+      }
+
+      preview.style.display = 'block';
+
+      // Check if it's an image
+      if (file.type.startsWith('image/')) {
+        const reader = new FileReader();
+        reader.onload = function(e) {
+          previewContent.innerHTML = '<img src="' + e.target.result + '" alt="Preview">';
+        };
+        reader.readAsDataURL(file);
+      } else if (file.type.startsWith('video/')) {
+        // Video preview
+        const url = URL.createObjectURL(file);
+        const sizeKB = (file.size / 1024).toFixed(1);
+        const sizeMB = (file.size / 1024 / 1024).toFixed(1);
+        const sizeStr = file.size > 1024 * 1024 ? sizeMB + ' MB' : sizeKB + ' KB';
+        previewContent.innerHTML = '<div class="video-preview">' +
+          '<video src="' + url + '" controls preload="metadata" muted></video>' +
+          '<div class="file-info">' +
+          '<strong>' + file.name + '</strong><br>' +
+          'Type: ' + file.type + '<br>' +
+          'Size: ' + sizeStr +
+          '</div>' +
+          '</div>';
+      } else {
+        const sizeKB = (file.size / 1024).toFixed(1);
+        previewContent.innerHTML = '<div class="file-info">' +
+          '<strong>' + file.name + '</strong><br>' +
+          'Type: ' + file.type + '<br>' +
+          'Size: ' + sizeKB + ' KB' +
+          '</div>';
+      }
+    });
+  </script>
+</div>

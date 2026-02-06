@@ -1,0 +1,36 @@
+You are picking up an active CMS-Core development session.
+
+WORKSPACE: /Users/Alchemy/Projects/experiments/cms-core
+
+1. FIRST ACTION: Read these files to understand current state
+   - /Users/Alchemy/Projects/experiments/cms-core/HANDOFF.md
+   - /Users/Alchemy/Projects/experiments/cms-core/HANDOFF-SUMMARY.md
+
+2. CURRENT STATE:
+   - Version: 0.0.70 (Phase 3 complete)
+   - Last git commit: v0.0.52 (keyboard shortcuts)
+   - Uncommitted work: v0.0.53-70 (Phases 2, 2.5, 3)
+   - 59 core services, 150+ CLI commands, 30+ admin routes
+
+3. YOUR TASK:
+   - Check git status and verify uncommitted work
+   - Verify the server boots: node index.js
+   - Begin implementing v0.0.71: Menu system
+     - Drupal-inspired menu/navigation management
+     - Menu CRUD, menu links, hierarchy, breadcrumbs
+     - Admin UI at /admin/menus
+     - CLI commands: menu:list, menu:create, menu:link, etc.
+
+4. ARCHITECTURE RULES:
+   - Zero external dependencies (Node.js stdlib only)
+   - ES Modules only (no CommonJS)
+   - Hook-based extensibility
+   - New service goes in core/menus.js
+   - Register in core/boot.js
+   - Add routes + CLI in modules/admin/index.js
+   - Flat-file JSON storage in config/menus.json
+
+5. WORKING DIRECTORY:
+   /Users/Alchemy/Projects/experiments/cms-core/
+
+Start by reading the handoff files, then get to work.

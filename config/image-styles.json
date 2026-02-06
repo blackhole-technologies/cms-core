@@ -1,0 +1,25 @@
+{
+  "styles": {
+    "thumbnail": {
+      "label": "Thumbnail",
+      "effects": [
+        {"type": "scale", "width": 150, "height": 150, "upscale": false},
+        {"type": "crop", "width": 150, "height": 150, "anchor": "center"}
+      ]
+    },
+    "large": {
+      "label": "Large",
+      "effects": [
+        {"type": "scale", "width": 1200, "upscale": false}
+      ]
+    },
+    "responsive": {
+      "label": "Responsive",
+      "breakpoints": {
+        "mobile": {"width": 480},
+        "tablet": {"width": 768},
+        "desktop": {"width": 1200}
+      }
+    }
+  }
+}

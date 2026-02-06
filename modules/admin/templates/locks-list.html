@@ -1,0 +1,193 @@
+<div class="admin-page">
+
+  <div class="admin-header">
+    <h1>{{pageTitle}}</h1>
+    <nav class="admin-nav">
+      <a href="/admin">Dashboard</a>
+      <a href="/admin/content">Content</a>
+      <a href="/admin/locks" class="active">Locks</a>
+      <a href="/admin/trash">Trash</a>
+    </nav>
+  </div>
+
+  <div class="breadcrumb">
+    <a href="/admin">Dashboard</a> &rarr;
+    <span>Active Locks</span>
+  </div>
+
+  {{#if hasFlash}}
+  <div class="flash flash-{{flash.type}}">
+    {{flash.message}}
+  </div>
+  {{/if}}
+
+  <div class="admin-section">
+    <div class="section-header">
+      <h2>Active Locks ({{totalLocks}})</h2>
+      <div class="section-info">
+        <small>Timeout: {{timeout}}s | Grace period: {{gracePeriod}}s</small>
+      </div>
+    </div>
+
+    {{#if typeStats.length}}
+    <div class="filter-tabs">
+      <a href="/admin/locks" class="tab {{#unless typeFilter}}active{{/unless}}">All</a>
+      {{#each typeStats}}
+      <a href="/admin/locks?type={{type}}" class="tab {{#if active}}active{{/if}}">{{type}} ({{count}})</a>
+      {{/each}}
+    </div>
+    {{/if}}
+
+    {{#if hasLocks}}
+    <table class="admin-table">
+      <thead>
+        <tr>
+          <th>Content</th>
+          <th>Locked By</th>
+          <th>Since</th>
+          <th>Expires In</th>
+          <th>Status</th>
+          <th>Actions</th>
+        </tr>
+      </thead>
+      <tbody>
+        {{#each locks}}
+        <tr>
+          <td>
+            <a href="/admin/content/{{type}}/{{id}}/edit">{{type}}/{{id}}</a>
+          </td>
+          <td>
+            <strong>{{username}}</strong>
+            <br><small class="text-muted">{{userId}}</small>
+          </td>
+          <td>{{acquiredFormatted}}</td>
+          <td>
+            {{#if inGracePeriod}}
+            <span class="badge badge-warning">Grace period</span>
+            {{else}}
+            {{expiresInFormatted}}
+            {{/if}}
+          </td>
+          <td>
+            {{#if inGracePeriod}}
+            <span class="status-badge status-warning">Expiring</span>
+            {{else}}
+            <span class="status-badge status-published">Active</span>
+            {{/if}}
+          </td>
+          <td>
+            <form method="POST" action="/admin/locks/{{type}}/{{id}}/release" class="inline-form" onsubmit="return confirm('Force release this lock?')">
+              <button type="submit" class="btn btn-small btn-danger">Force Release</button>
+            </form>
+          </td>
+        </tr>
+        {{/each}}
+      </tbody>
+    </table>
+    {{else}}
+    <div class="empty-state">
+      <p>No active content locks.</p>
+      <p class="text-muted">Locks are created when users edit content to prevent conflicts.</p>
+    </div>
+    {{/if}}
+  </div>
+
+  <div class="admin-section">
+    <h3>About Content Locking</h3>
+    <div class="info-box">
+      <p><strong>How it works:</strong></p>
+      <ul>
+        <li>When a user opens content for editing, a lock is acquired</li>
+        <li>Other users cannot edit the same content while it's locked</li>
+        <li>Locks automatically expire after {{timeout}} seconds of inactivity</li>
+        <li>A {{gracePeriod}}-second grace period allows the original user to reclaim an expired lock</li>
+        <li>Admins can force-release any lock if needed</li>
+      </ul>
+    </div>
+  </div>
+</div>
+
+<style>
+  .section-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 1rem;
+  }
+  .section-info {
+    color: #6c757d;
+  }
+  .filter-tabs {
+    display: flex;
+    gap: 0.5rem;
+    margin-bottom: 1rem;
+    flex-wrap: wrap;
+  }
+  .filter-tabs .tab {
+    padding: 0.5rem 1rem;
+    background: #f8f9fa;
+    border: 1px solid #dee2e6;
+    border-radius: 4px;
+    text-decoration: none;
+    color: #495057;
+  }
+  .filter-tabs .tab:hover {
+    background: #e9ecef;
+  }
+  .filter-tabs .tab.active {
+    background: #0d6efd;
+    color: white;
+    border-color: #0d6efd;
+  }
+  .badge {
+    display: inline-block;
+    padding: 0.25rem 0.5rem;
+    border-radius: 4px;
+    font-size: 0.75rem;
+    font-weight: 500;
+  }
+  .badge-warning {
+    background: #ffc107;
+    color: #212529;
+  }
+  .status-badge {
+    display: inline-block;
+    padding: 0.25rem 0.5rem;
+    border-radius: 4px;
+    font-size: 0.75rem;
+    font-weight: 500;
+  }
+  .status-published {
+    background: #28a745;
+    color: white;
+  }
+  .status-warning {
+    background: #ffc107;
+    color: #212529;
+  }
+  .empty-state {
+    padding: 3rem;
+    text-align: center;
+    background: #f8f9fa;
+    border-radius: 8px;
+  }
+  .text-muted {
+    color: #6c757d;
+  }
+  .inline-form {
+    display: inline;
+  }
+  .info-box {
+    background: #e7f3ff;
+    border: 1px solid #b6d4fe;
+    border-radius: 4px;
+    padding: 1rem;
+  }
+  .info-box ul {
+    margin: 0.5rem 0 0 1.5rem;
+    padding: 0;
+  }
+  .info-box li {
+    margin-bottom: 0.25rem;
+  }
+</style>

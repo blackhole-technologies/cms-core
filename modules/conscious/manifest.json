@@ -1,0 +1,25 @@
+{
+  "name": "conscious",
+  "version": "0.2.0",
+  "description": "Living exploration interface for AM I THAT I AM - knowledge bank, personalities, TITANS memory, MIRAS agents, RESTS linkage",
+  "author": "Ernie (Hydrogen Is)",
+  "dependencies": [],
+  "provides": {
+    "contentTypes": ["exploration", "featured", "conversation", "synthesis"],
+    "routes": ["/explore", "/api/conscious/*", "/admin/conscious/*"],
+    "services": ["conscious", "titans", "miras"],
+    "cli": ["conscious:index", "conscious:import", "conscious:stats", "conscious:personalities", "titans:status", "miras:agents"]
+  },
+  "config": {
+    "personalities": "config/personalities.json",
+    "restsGraph": "content/conscious/rests-graph.json",
+    "titans": {
+      "retentionThreshold": 0.5,
+      "memoryTypes": ["long-term", "episodic", "procedural"]
+    },
+    "miras": {
+      "agents": 6,
+      "vetoThreshold": 0.9
+    }
+  }
+}

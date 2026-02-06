@@ -1,0 +1,585 @@
+<div class="text-format-edit">
+  <div class="page-header">
+    <h1>{{#isNew}}Create{{/isNew}}{{^isNew}}Edit{{/isNew}} Text Format</h1>
+  </div>
+
+  <form id="format-form" method="POST" action="/admin/config/content/text-formats/{{#format}}{{id}}{{/format}}{{^format}}create{{/format}}">
+
+    <!-- Basic Settings -->
+    <section class="form-section">
+      <h2>Basic Settings</h2>
+
+      <div class="form-group">
+        <label for="format-name">Format Name *</label>
+        <input type="text" id="format-name" name="name" value="{{format.name}}" required maxlength="255">
+        <div class="help-text">Human-readable name for this text format</div>
+      </div>
+
+      <div class="form-group">
+        <label for="format-machine-name">Machine Name *</label>
+        <input
+          type="text"
+          id="format-machine-name"
+          name="machineName"
+          value="{{format.machineName}}"
+          pattern="[a-z0-9_]+"
+          {{^isNew}}readonly{{/isNew}}
+          required
+        >
+        <div class="help-text">
+          Lowercase letters, numbers, and underscores only. Cannot be changed after creation.
+        </div>
+      </div>
+
+      <div class="form-group">
+        <label>
+          <input type="checkbox" name="isDefault" {{#format.isDefault}}checked{{/format.isDefault}}>
+          Set as default format
+        </label>
+        <div class="help-text">This format will be selected by default for new content</div>
+      </div>
+    </section>
+
+    <!-- Roles -->
+    <section class="form-section">
+      <h2>Roles</h2>
+      <div class="help-text">Select which roles can use this text format</div>
+
+      <div class="roles-list">
+        {{#availableRoles}}
+        <label class="checkbox-label">
+          <input
+            type="checkbox"
+            name="roles[]"
+            value="{{id}}"
+            {{#checked}}checked{{/checked}}
+          >
+          {{name}}
+          {{#isAdministrator}}<span class="badge">Admin</span>{{/isAdministrator}}
+        </label>
+        {{/availableRoles}}
+      </div>
+    </section>
+
+    <!-- Filters -->
+    <section class="form-section">
+      <h2>Filters</h2>
+      <div class="help-text">Enable and configure filters for this format</div>
+
+      <div class="filters-container">
+        <!-- Available Filters -->
+        <div class="available-filters">
+          <h3>Available Filters</h3>
+          <div id="available-filters-list">
+            {{#availableFilters}}
+            <div class="filter-item" data-filter-id="{{id}}">
+              <label class="filter-toggle">
+                <input
+                  type="checkbox"
+                  name="enabledFilters[]"
+                  value="{{id}}"
+                  {{#enabled}}checked{{/enabled}}
+                  onchange="toggleFilter('{{id}}', this.checked)"
+                >
+                <div class="filter-info">
+                  <strong>{{name}}</strong>
+                  <div class="filter-description">{{description}}</div>
+                </div>
+              </label>
+            </div>
+            {{/availableFilters}}
+          </div>
+        </div>
+
+        <!-- Enabled Filters (with ordering) -->
+        <div class="enabled-filters">
+          <h3>Enabled Filters (Processing Order)</h3>
+          <div class="help-text">Drag to reorder. Filters execute top to bottom.</div>
+
+          <div id="enabled-filters-list">
+            {{#enabledFilters}}
+            <div class="enabled-filter-item" data-filter-id="{{id}}" data-weight="{{weight}}">
+              <span class="drag-handle">⋮⋮</span>
+              <div class="filter-content">
+                <strong>{{name}}</strong>
+                <input type="hidden" name="filterWeights[{{id}}]" value="{{weight}}">
+              </div>
+              <button type="button" class="btn btn-sm" onclick="openFilterSettings('{{id}}')">
+                ⚙ Settings
+              </button>
+            </div>
+            {{/enabledFilters}}
+            {{^enabledFilters}}
+            <div class="empty-state">No filters enabled</div>
+            {{/enabledFilters}}
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Actions -->
+    <div class="form-actions">
+      <button type="submit" class="btn btn-primary">Save Format</button>
+      <a href="/admin/config/content/text-formats" class="btn">Cancel</a>
+    </div>
+  </form>
+</div>
+
+<!-- Filter Settings Modal -->
+<div id="filter-settings-modal" class="modal" style="display: none;">
+  <div class="modal-content">
+    <div class="modal-header">
+      <h2>Filter Settings</h2>
+      <button type="button" class="close" onclick="closeFilterSettings()">&times;</button>
+    </div>
+    <div id="filter-settings-body" class="modal-body">
+      <!-- Loaded dynamically -->
+    </div>
+    <div class="modal-footer">
+      <button type="button" class="btn btn-primary" onclick="saveFilterSettings()">Save</button>
+      <button type="button" class="btn" onclick="closeFilterSettings()">Cancel</button>
+    </div>
+  </div>
+</div>
+
+<script>
+// Auto-generate machine name from name
+document.getElementById('format-name')?.addEventListener('input', (e) => {
+  const machineNameInput = document.getElementById('format-machine-name');
+  if (machineNameInput && !machineNameInput.readOnly) {
+    const machineName = e.target.value
+      .toLowerCase()
+      .replace(/[^a-z0-9]+/g, '_')
+      .replace(/^_+|_+$/g, '');
+    machineNameInput.value = machineName;
+  }
+});
+
+// Toggle filter enabled/disabled
+function toggleFilter(filterId, enabled) {
+  const enabledList = document.getElementById('enabled-filters-list');
+
+  if (enabled) {
+    // Add to enabled list
+    const filterInfo = findFilterInfo(filterId);
+    if (filterInfo) {
+      addEnabledFilter(filterId, filterInfo);
+    }
+  } else {
+    // Remove from enabled list
+    const item = enabledList.querySelector(`[data-filter-id="${filterId}"]`);
+    if (item) item.remove();
+  }
+
+  updateEmptyState();
+}
+
+function findFilterInfo(filterId) {
+  const checkbox = document.querySelector(`input[value="${filterId}"]`);
+  const container = checkbox?.closest('.filter-item');
+  if (!container) return null;
+
+  return {
+    name: container.querySelector('strong').textContent
+  };
+}
+
+function addEnabledFilter(filterId, info) {
+  const list = document.getElementById('enabled-filters-list');
+  const emptyState = list.querySelector('.empty-state');
+  if (emptyState) emptyState.remove();
+
+  const weight = list.children.length;
+  const item = document.createElement('div');
+  item.className = 'enabled-filter-item';
+  item.dataset.filterId = filterId;
+  item.dataset.weight = weight;
+  item.innerHTML = `
+    <span class="drag-handle">⋮⋮</span>
+    <div class="filter-content">
+      <strong>${info.name}</strong>
+      <input type="hidden" name="filterWeights[${filterId}]" value="${weight}">
+    </div>
+    <button type="button" class="btn btn-sm" onclick="openFilterSettings('${filterId}')">
+      ⚙ Settings
+    </button>
+  `;
+
+  list.appendChild(item);
+}
+
+function updateEmptyState() {
+  const list = document.getElementById('enabled-filters-list');
+  if (list.children.length === 0) {
+    list.innerHTML = '<div class="empty-state">No filters enabled</div>';
+  }
+}
+
+// Drag-and-drop for enabled filters
+function initFilterSorting() {
+  const list = document.getElementById('enabled-filters-list');
+  if (!list) return;
+
+  let draggedItem = null;
+
+  list.addEventListener('dragstart', (e) => {
+    if (e.target.closest('.drag-handle')) {
+      draggedItem = e.target.closest('.enabled-filter-item');
+      draggedItem.classList.add('dragging');
+    }
+  });
+
+  list.addEventListener('dragend', () => {
+    if (draggedItem) {
+      draggedItem.classList.remove('dragging');
+      draggedItem = null;
+      updateFilterWeights();
+    }
+  });
+
+  list.addEventListener('dragover', (e) => {
+    e.preventDefault();
+    if (!draggedItem) return;
+
+    const afterElement = getDragAfterElement(list, e.clientY);
+    if (afterElement == null) {
+      list.appendChild(draggedItem);
+    } else {
+      list.insertBefore(draggedItem, afterElement);
+    }
+  });
+}
+
+function getDragAfterElement(container, y) {
+  const draggableElements = [...container.querySelectorAll('.enabled-filter-item:not(.dragging)')];
+  return draggableElements.reduce((closest, child) => {
+    const box = child.getBoundingClientRect();
+    const offset = y - box.top - box.height / 2;
+    if (offset < 0 && offset > closest.offset) {
+      return { offset: offset, element: child };
+    } else {
+      return closest;
+    }
+  }, { offset: Number.NEGATIVE_INFINITY }).element;
+}
+
+function updateFilterWeights() {
+  const items = document.querySelectorAll('.enabled-filter-item');
+  items.forEach((item, index) => {
+    item.dataset.weight = index;
+    const input = item.querySelector('input[name^="filterWeights"]');
+    if (input) input.value = index;
+  });
+}
+
+// Filter settings modal
+let currentFilterId = null;
+
+function openFilterSettings(filterId) {
+  currentFilterId = filterId;
+  const modal = document.getElementById('filter-settings-modal');
+  const body = document.getElementById('filter-settings-body');
+
+  // Load filter settings template
+  fetch(`/admin/config/content/text-formats/filter-settings/${filterId}`)
+    .then(r => r.text())
+    .then(html => {
+      body.innerHTML = html;
+      modal.style.display = 'flex';
+    })
+    .catch(err => {
+      console.error('Failed to load filter settings:', err);
+      alert('Failed to load settings');
+    });
+}
+
+function closeFilterSettings() {
+  document.getElementById('filter-settings-modal').style.display = 'none';
+  currentFilterId = null;
+}
+
+function saveFilterSettings() {
+  const form = document.getElementById('filter-settings-form');
+  if (!form) return;
+
+  const formData = new FormData(form);
+  const settings = Object.fromEntries(formData.entries());
+
+  // Store settings in hidden input
+  let input = document.querySelector(`input[name="filterSettings[${currentFilterId}]"]`);
+  if (!input) {
+    input = document.createElement('input');
+    input.type = 'hidden';
+    input.name = `filterSettings[${currentFilterId}]`;
+    document.getElementById('format-form').appendChild(input);
+  }
+  input.value = JSON.stringify(settings);
+
+  closeFilterSettings();
+}
+
+// Initialize on page load
+document.addEventListener('DOMContentLoaded', () => {
+  initFilterSorting();
+
+  // Make enabled filter items draggable
+  document.querySelectorAll('.enabled-filter-item').forEach(item => {
+    item.draggable = true;
+  });
+});
+
+// Close modal on outside click
+window.onclick = (e) => {
+  const modal = document.getElementById('filter-settings-modal');
+  if (e.target === modal) {
+    closeFilterSettings();
+  }
+};
+</script>
+
+<style>
+.text-format-edit {
+  max-width: 1200px;
+  margin: 0 auto;
+  padding: 20px;
+}
+
+.page-header {
+  margin-bottom: 30px;
+}
+
+.form-section {
+  background: white;
+  padding: 20px;
+  margin-bottom: 20px;
+  border-radius: 4px;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+}
+
+.form-section h2 {
+  margin-top: 0;
+  margin-bottom: 15px;
+  font-size: 1.3em;
+  border-bottom: 2px solid #e0e0e0;
+  padding-bottom: 10px;
+}
+
+.form-group {
+  margin-bottom: 20px;
+}
+
+.form-group label {
+  display: block;
+  font-weight: 600;
+  margin-bottom: 5px;
+}
+
+.form-group input[type="text"] {
+  width: 100%;
+  max-width: 500px;
+  padding: 8px;
+  border: 1px solid #ddd;
+  border-radius: 4px;
+}
+
+.help-text {
+  font-size: 0.9em;
+  color: #666;
+  margin-top: 5px;
+}
+
+.roles-list {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(250px, 1fr));
+  gap: 10px;
+}
+
+.checkbox-label {
+  display: flex;
+  align-items: center;
+  padding: 8px;
+  background: #f5f5f5;
+  border-radius: 4px;
+  cursor: pointer;
+}
+
+.checkbox-label input {
+  margin-right: 8px;
+}
+
+.filters-container {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 20px;
+}
+
+.available-filters,
+.enabled-filters {
+  border: 1px solid #e0e0e0;
+  border-radius: 4px;
+  padding: 15px;
+  background: #fafafa;
+}
+
+.available-filters h3,
+.enabled-filters h3 {
+  margin-top: 0;
+  font-size: 1.1em;
+}
+
+.filter-item {
+  padding: 10px;
+  background: white;
+  margin-bottom: 10px;
+  border-radius: 4px;
+  border: 1px solid #e0e0e0;
+}
+
+.filter-toggle {
+  display: flex;
+  align-items: flex-start;
+  cursor: pointer;
+}
+
+.filter-toggle input {
+  margin-top: 3px;
+  margin-right: 10px;
+}
+
+.filter-info strong {
+  display: block;
+  margin-bottom: 3px;
+}
+
+.filter-description {
+  font-size: 0.85em;
+  color: #666;
+}
+
+.enabled-filter-item {
+  display: flex;
+  align-items: center;
+  padding: 10px;
+  background: white;
+  margin-bottom: 8px;
+  border-radius: 4px;
+  border: 1px solid #e0e0e0;
+}
+
+.enabled-filter-item.dragging {
+  opacity: 0.5;
+}
+
+.drag-handle {
+  cursor: move;
+  margin-right: 10px;
+  color: #999;
+  font-size: 16px;
+}
+
+.filter-content {
+  flex: 1;
+}
+
+.empty-state {
+  text-align: center;
+  padding: 30px;
+  color: #999;
+  font-style: italic;
+}
+
+.form-actions {
+  margin-top: 30px;
+  padding-top: 20px;
+  border-top: 1px solid #e0e0e0;
+}
+
+.badge {
+  display: inline-block;
+  padding: 2px 6px;
+  background: #2196f3;
+  color: white;
+  border-radius: 3px;
+  font-size: 0.75em;
+  margin-left: 5px;
+}
+
+.btn {
+  padding: 10px 20px;
+  border: 1px solid #ddd;
+  border-radius: 4px;
+  background: white;
+  cursor: pointer;
+  font-size: 14px;
+  margin-right: 10px;
+  text-decoration: none;
+  display: inline-block;
+}
+
+.btn-primary {
+  background: #2196f3;
+  color: white;
+  border-color: #2196f3;
+}
+
+.btn-sm {
+  padding: 5px 10px;
+  font-size: 13px;
+}
+
+/* Modal */
+.modal {
+  display: none;
+  position: fixed;
+  z-index: 1000;
+  left: 0;
+  top: 0;
+  width: 100%;
+  height: 100%;
+  background: rgba(0,0,0,0.5);
+  align-items: center;
+  justify-content: center;
+}
+
+.modal-content {
+  background: white;
+  border-radius: 4px;
+  width: 90%;
+  max-width: 600px;
+  max-height: 80vh;
+  display: flex;
+  flex-direction: column;
+}
+
+.modal-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 20px;
+  border-bottom: 1px solid #e0e0e0;
+}
+
+.modal-header h2 {
+  margin: 0;
+}
+
+.close {
+  font-size: 28px;
+  font-weight: bold;
+  color: #999;
+  background: none;
+  border: none;
+  cursor: pointer;
+}
+
+.modal-body {
+  padding: 20px;
+  overflow-y: auto;
+}
+
+.modal-footer {
+  padding: 15px 20px;
+  border-top: 1px solid #e0e0e0;
+  text-align: right;
+}
+</style>

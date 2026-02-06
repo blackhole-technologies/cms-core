@@ -1,0 +1,11 @@
+{
+  "id": "1769868540937-vwwip",
+  "type": "greeting",
+  "created": "2026-01-31T14:09:00.937Z",
+  "updated": "2026-02-02T12:11:28.018Z",
+  "name": "Ernie",
+  "message": "Updated message v2",
+  "status": "published",
+  "publishedAt": "2026-02-01T04:06:01.716Z",
+  "scheduledAt": null
+}

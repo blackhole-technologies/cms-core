@@ -1,0 +1,123 @@
+/**
+ * Admin Theme - Inspired by Drupal Seven
+ */
+
+:root {
+  --color-primary: #0074bd;
+  --color-primary-dark: #005a92;
+  --color-bg-page: #f1f4f9;
+  --color-bg-content: #ffffff;
+  --color-border: #cccccc;
+  --color-border-light: #e4e4e4;
+  --color-text: #333333;
+  --color-text-light: #666666;
+  --color-success: #77b259;
+  --color-warning: #e09600;
+  --color-error: #e62600;
+  --spacing-sm: 0.5rem;
+  --spacing-md: 1rem;
+  --spacing-lg: 1.5rem;
+  --font-family: "Lucida Grande", sans-serif;
+  --border-radius: 4px;
+}
+
+* { box-sizing: border-box; }
+
+body {
+  margin: 0;
+  font-family: var(--font-family);
+  font-size: 0.875rem;
+  line-height: 1.5;
+  color: var(--color-text);
+  background: var(--color-bg-page);
+}
+
+h1, h2, h3 { margin: 0 0 var(--spacing-md); font-weight: 600; }
+h1 { font-size: 1.75rem; }
+h2 { font-size: 1.5rem; }
+
+a { color: var(--color-primary); text-decoration: none; }
+a:hover { text-decoration: underline; }
+
+/* Layout */
+#page { max-width: 1280px; margin: 0 auto; }
+#header { background: var(--color-bg-content); border-bottom: 1px solid var(--color-border); padding: var(--spacing-md) var(--spacing-lg); }
+#breadcrumb { background: var(--color-bg-page); padding: var(--spacing-sm) var(--spacing-lg); border-bottom: 1px solid var(--color-border-light); }
+#main-wrapper { padding: var(--spacing-lg); }
+#content { background: var(--color-bg-content); border: 1px solid var(--color-border-light); border-radius: var(--border-radius); padding: var(--spacing-lg); }
+#footer { text-align: center; padding: var(--spacing-lg); color: var(--color-text-light); font-size: 0.75rem; }
+
+/* Messages */
+.messages { margin: var(--spacing-md) 0; padding: var(--spacing-md); border: 1px solid; border-left-width: 8px; border-radius: var(--border-radius); }
+.messages--status { background: #f3faef; border-color: var(--color-success); }
+.messages--warning { background: #fef5e4; border-color: var(--color-warning); }
+.messages--error { background: #fcf4f2; border-color: var(--color-error); }
+
+/* Forms */
+.form-item { margin-bottom: var(--spacing-md); }
+label { display: block; margin-bottom: var(--spacing-sm); font-weight: 600; }
+.form-required { color: var(--color-error); }
+input[type="text"], input[type="password"], input[type="email"], select, textarea {
+  width: 100%; padding: var(--spacing-sm); border: 1px solid var(--color-border);
+  border-radius: var(--border-radius); font-family: inherit; font-size: inherit;
+}
+input:focus, select:focus, textarea:focus { outline: none; border-color: var(--color-primary); box-shadow: 0 0 0 3px rgba(0,116,189,0.1); }
+
+/* Buttons */
+button, .button, input[type="submit"] {
+  display: inline-block; padding: var(--spacing-sm) var(--spacing-lg);
+  border: 1px solid var(--color-border); border-radius: var(--border-radius);
+  background: linear-gradient(to bottom, #fff 0%, #f5f5f5 100%);
+  font-weight: 600; cursor: pointer;
+}
+button:hover, .button:hover { background: linear-gradient(to bottom, #f9f9f9 0%, #eee 100%); }
+.button--primary { background: linear-gradient(to bottom, #4094d2 0%, var(--color-primary) 100%); border-color: var(--color-primary-dark); color: white; }
+
+/* Tables */
+table { width: 100%; border-collapse: collapse; margin: var(--spacing-md) 0; }
+thead { background: #fafafa; }
+th { padding: var(--spacing-sm); text-align: left; font-weight: 600; border-bottom: 2px solid var(--color-border); }
+td { padding: var(--spacing-sm); border-bottom: 1px solid var(--color-border-light); }
+tbody tr:hover { background: #f9f9f9; }
+
+/* Fieldsets */
+.fieldset { margin-bottom: var(--spacing-md); padding: var(--spacing-md); border: 1px solid var(--color-border-light); border-radius: var(--border-radius); background: #fafafa; }
+.fieldset__legend { font-weight: 600; }
+.fieldset.collapsible .fieldset__legend { cursor: pointer; }
+.fieldset.collapsible .fieldset__legend::before { content: "▼ "; }
+.fieldset.collapsed .fieldset__legend::before { content: "▶ "; }
+.fieldset.collapsed .fieldset__wrapper { display: none; }
+
+/* Vertical Tabs */
+.vertical-tabs { display: grid; grid-template-columns: 200px 1fr; gap: var(--spacing-md); margin: var(--spacing-md) 0; }
+.vertical-tabs__menu { background: white; border: 1px solid var(--color-border-light); border-radius: var(--border-radius); }
+.vertical-tabs__menu-item { border-bottom: 1px solid var(--color-border-light); }
+.vertical-tabs__menu-item-link { display: block; padding: var(--spacing-md); color: var(--color-text); }
+.vertical-tabs__menu-item--active .vertical-tabs__menu-item-link { background: var(--color-primary); color: white; }
+.vertical-tabs__panes { background: white; border: 1px solid var(--color-border-light); border-radius: var(--border-radius); padding: var(--spacing-lg); }
+
+/* Breadcrumb */
+.breadcrumb__list { list-style: none; padding: 0; margin: 0; display: flex; }
+.breadcrumb__item:not(:last-child)::after { content: "›"; margin: 0 var(--spacing-sm); color: var(--color-text-light); }
+
+/* Pagination */
+.pager__items { list-style: none; padding: 0; display: flex; justify-content: center; gap: 4px; }
+.pager__item a { display: block; padding: 4px 8px; border: 1px solid var(--color-border); border-radius: var(--border-radius); }
+.pager__item--active a { background: var(--color-primary); border-color: var(--color-primary); color: white; }
+
+/* Tabs */
+.tabs { list-style: none; padding: 0; margin: 0 0 var(--spacing-md); display: flex; border-bottom: 1px solid var(--color-border); }
+.tabs__tab a { display: block; padding: var(--spacing-sm) var(--spacing-md); border: 1px solid transparent; border-bottom: none; margin-bottom: -1px; }
+.tabs__tab.is-active a { background: white; border-color: var(--color-border); border-radius: var(--border-radius) var(--border-radius) 0 0; }
+
+/* Admin blocks */
+.admin-block { padding: var(--spacing-md); margin-bottom: var(--spacing-md); background: white; border: 1px solid var(--color-border-light); border-radius: var(--border-radius); }
+.admin-block__title { margin-top: 0; color: var(--color-primary); }
+
+/* Utilities */
+.visually-hidden { position: absolute; width: 1px; height: 1px; margin: -1px; overflow: hidden; clip: rect(0,0,0,0); }
+.clearfix::after { content: ""; display: table; clear: both; }
+
+@media (max-width: 768px) {
+  .vertical-tabs { grid-template-columns: 1fr; }
+}

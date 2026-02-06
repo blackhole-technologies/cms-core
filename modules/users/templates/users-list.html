@@ -1,0 +1,147 @@
+<div class="admin-page">
+  <link rel="stylesheet" href="/public/css/admin.css">
+
+  <div class="admin-header">
+    <h1>Users</h1>
+    <nav class="admin-nav">
+      <a href="/admin">Dashboard</a>
+      <a href="/admin/content">Content</a>
+      <a href="/admin/users" class="active">Users</a>
+      <a href="/admin/modules">Modules</a>
+      <a href="/logout" class="nav-logout">Logout</a>
+    </nav>
+  </div>
+
+  {{#if hasFlash}}
+  <div class="flash flash-{{flash.type}}">
+    {{flash.message}}
+  </div>
+  {{/if}}
+
+  <div class="breadcrumb">
+    <a href="/admin">Dashboard</a> &rarr;
+    <span>Users</span>
+  </div>
+
+  <div class="admin-section">
+    <div class="section-header">
+      <h2>Registered Users ({{userCount}})</h2>
+      <a href="/admin/users/new" class="btn btn-primary">Create User</a>
+    </div>
+
+    {{#if hasUsers}}
+    <table class="admin-table">
+      <thead>
+        <tr>
+          <th>Username</th>
+          <th>Role</th>
+          <th>Email</th>
+          <th>Last Login</th>
+          <th>Actions</th>
+        </tr>
+      </thead>
+      <tbody>
+        {{#each users}}
+        <tr>
+          <td>
+            <strong>{{username}}</strong>
+            {{#if isCurrent}}<span class="badge badge-you">You</span>{{/if}}
+            {{#if noRecentLogin}}<span class="badge badge-warning" title="No login in 30+ days">!</span>{{/if}}
+          </td>
+          <td>
+            <span class="role-badge role-{{role}}">{{role}}</span>
+          </td>
+          <td>{{#if email}}{{email}}{{else}}<span class="text-muted">-</span>{{/if}}</td>
+          <td>{{lastLoginFormatted}}</td>
+          <td class="actions-cell">
+            <a href="/admin/users/{{id}}/edit" class="btn btn-small">Edit</a>
+            <a href="/admin/users/{{id}}/password" class="btn btn-small">Password</a>
+            <a href="/admin/users/{{id}}/tokens" class="btn btn-small">Tokens</a>
+            {{#if canDelete}}
+            <form method="POST" action="/admin/users/{{id}}/delete" class="inline-form" onsubmit="return confirm('Delete user {{username}}? This cannot be undone.')">
+              {{csrfField}}
+              <button type="submit" class="btn btn-small btn-danger">Delete</button>
+            </form>
+            {{else}}
+            <button class="btn btn-small btn-disabled" disabled title="{{#if isCurrent}}Cannot delete your own account{{else}}Cannot delete the last admin{{/if}}">Delete</button>
+            {{/if}}
+          </td>
+        </tr>
+        {{/each}}
+      </tbody>
+    </table>
+    {{else}}
+    <p class="empty-message">No users found.</p>
+    {{/if}}
+  </div>
+</div>
+
+<style>
+.nav-logout {
+  color: #dc3545 !important;
+}
+
+.nav-logout:hover {
+  background: #fff5f5 !important;
+}
+
+.badge {
+  display: inline-block;
+  padding: 2px 8px;
+  font-size: 0.75rem;
+  border-radius: 10px;
+  margin-left: 8px;
+}
+
+.badge-you {
+  background: #e7f5ff;
+  color: #007bff;
+}
+
+.badge-warning {
+  background: #fff3cd;
+  color: #856404;
+  font-weight: bold;
+  cursor: help;
+}
+
+.role-badge {
+  display: inline-block;
+  padding: 4px 10px;
+  border-radius: 4px;
+  font-size: 0.8rem;
+  font-weight: 600;
+}
+
+.role-admin {
+  background: #fff3cd;
+  color: #856404;
+}
+
+.role-editor {
+  background: #d4edda;
+  color: #155724;
+}
+
+.role-viewer {
+  background: #e2e3e5;
+  color: #383d41;
+}
+
+.text-muted {
+  color: #6c757d;
+}
+
+.actions-cell {
+  white-space: nowrap;
+}
+
+.inline-form {
+  display: inline;
+}
+
+.btn-disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+</style>

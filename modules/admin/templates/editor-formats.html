@@ -1,0 +1,192 @@
+{{> admin-header title="Editor Formats"}}
+
+<div class="admin-content">
+  <div class="page-header">
+    <h1>Editor Formats</h1>
+    <div class="header-actions">
+      <a href="/admin/editor/new" class="btn btn-primary">Create Format</a>
+    </div>
+  </div>
+
+  <p class="description">
+    Editor formats define the available toolbar buttons and HTML filtering for rich text fields.
+    Use different formats for different content needs.
+  </p>
+
+  <div class="formats-grid">
+    {{#each formats}}
+    <div class="format-card {{#if (eq source "builtin")}}builtin{{/if}}">
+      <div class="format-header">
+        <h3>{{label}}</h3>
+        {{#if (eq source "builtin")}}
+        <span class="badge">Built-in</span>
+        {{/if}}
+      </div>
+      
+      <p class="format-description">{{description}}</p>
+      
+      <div class="format-details">
+        <div class="detail">
+          <span class="detail-label">ID:</span>
+          <code>{{id}}</code>
+        </div>
+        <div class="detail">
+          <span class="detail-label">Toolbar Rows:</span>
+          <span>{{toolbar.length}}</span>
+        </div>
+        <div class="detail">
+          <span class="detail-label">Text Format:</span>
+          <code>{{textFormat}}</code>
+        </div>
+      </div>
+
+      <div class="format-toolbar-preview">
+        <span class="preview-label">Toolbar Preview:</span>
+        <div class="toolbar-icons">
+          {{#each toolbar.[0]}}
+          {{#if (eq this "|")}}
+          <span class="separator">|</span>
+          {{else}}
+          <span class="button-icon" title="{{this}}">{{this}}</span>
+          {{/if}}
+          {{/each}}
+          {{#if (gt toolbar.length 1)}}
+          <span class="more-rows">+{{subtract toolbar.length 1}} rows</span>
+          {{/if}}
+        </div>
+      </div>
+
+      <div class="format-actions">
+        <a href="/admin/editor/config/{{id}}" class="btn btn-sm">View Config</a>
+        {{#unless (eq source "builtin")}}
+        <a href="/admin/editor/{{id}}/edit" class="btn btn-sm">Edit</a>
+        {{/unless}}
+      </div>
+    </div>
+    {{/each}}
+  </div>
+
+  <div class="categories-section">
+    <h2>Button Categories</h2>
+    <div class="category-list">
+      {{#each categories}}
+      <a href="/admin/editor/buttons?category={{this}}" class="category-tag">{{this}}</a>
+      {{/each}}
+    </div>
+  </div>
+</div>
+
+<style>
+.description {
+  color: #666;
+  margin-bottom: 2rem;
+}
+.formats-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(350px, 1fr));
+  gap: 1.5rem;
+  margin-bottom: 3rem;
+}
+.format-card {
+  background: white;
+  border: 1px solid #ddd;
+  border-radius: 8px;
+  padding: 1.5rem;
+}
+.format-card.builtin {
+  border-left: 4px solid #1976d2;
+}
+.format-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 0.5rem;
+}
+.format-header h3 {
+  margin: 0;
+}
+.badge {
+  background: #e3f2fd;
+  color: #1976d2;
+  padding: 0.25rem 0.5rem;
+  border-radius: 4px;
+  font-size: 0.75rem;
+  font-weight: 600;
+}
+.format-description {
+  color: #666;
+  margin-bottom: 1rem;
+}
+.format-details {
+  background: #f5f5f5;
+  padding: 0.75rem;
+  border-radius: 4px;
+  margin-bottom: 1rem;
+}
+.detail {
+  display: flex;
+  gap: 0.5rem;
+  margin-bottom: 0.25rem;
+}
+.detail:last-child {
+  margin-bottom: 0;
+}
+.detail-label {
+  color: #666;
+}
+.format-toolbar-preview {
+  margin-bottom: 1rem;
+}
+.preview-label {
+  font-size: 0.75rem;
+  color: #666;
+  display: block;
+  margin-bottom: 0.5rem;
+}
+.toolbar-icons {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.25rem;
+  align-items: center;
+}
+.button-icon {
+  background: #e0e0e0;
+  padding: 0.25rem 0.5rem;
+  border-radius: 4px;
+  font-size: 0.75rem;
+  font-family: monospace;
+}
+.separator {
+  color: #ccc;
+  margin: 0 0.25rem;
+}
+.more-rows {
+  color: #666;
+  font-size: 0.75rem;
+  margin-left: 0.5rem;
+}
+.format-actions {
+  display: flex;
+  gap: 0.5rem;
+}
+.categories-section h2 {
+  margin-bottom: 1rem;
+}
+.category-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+.category-tag {
+  background: #e0e0e0;
+  padding: 0.5rem 1rem;
+  border-radius: 20px;
+  text-decoration: none;
+  color: #333;
+}
+.category-tag:hover {
+  background: #d0d0d0;
+}
+</style>
+
+{{> admin-footer}}

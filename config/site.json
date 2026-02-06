@@ -1,0 +1,306 @@
+{
+  "name": "My Site",
+  "version": "0.0.80",
+  "port": 3000,
+  "env": "development",
+  "theme": "default",
+  "sessionSecret": "cms-dev-secret-change-in-production",
+  "i18n": {
+    "enabled": true,
+    "defaultLocale": "en",
+    "locales": ["en", "es", "fr"],
+    "fallback": true
+  },
+  "search": {
+    "enabled": true,
+    "minWordLength": 2,
+    "fuzzy": false
+  },
+  "cache": {
+    "enabled": true,
+    "ttl": 300,
+    "apiTtl": 60
+  },
+  "revisions": {
+    "enabled": true,
+    "maxPerItem": 10
+  },
+  "content": {
+    "computedFields": true,
+    "cacheComputed": false,
+    "clonePrefix": "Copy of ",
+    "cloneDeep": false
+  },
+  "slugs": {
+    "enabled": true,
+    "separator": "-",
+    "maxLength": 100,
+    "redirectOld": true,
+    "historyLimit": 10
+  },
+  "trash": {
+    "enabled": true,
+    "retention": 30,
+    "autoPurge": true
+  },
+  "workflow": {
+    "enabled": true,
+    "defaultStatus": "draft",
+    "scheduleCheckInterval": 60
+  },
+  "csrf": {
+    "enabled": true,
+    "tokenExpiry": 3600
+  },
+  "rateLimit": {
+    "enabled": true,
+    "login": {
+      "points": 5,
+      "duration": 60,
+      "blockDuration": 300
+    },
+    "api": {
+      "points": 100,
+      "duration": 60
+    },
+    "admin": {
+      "points": 60,
+      "duration": 60
+    }
+  },
+  "audit": {
+    "enabled": true,
+    "retention": 90,
+    "logLevel": "info",
+    "excludeActions": []
+  },
+  "locks": {
+    "enabled": true,
+    "timeout": 1800,
+    "gracePeriod": 60
+  },
+  "comments": {
+    "enabled": true,
+    "defaultStatus": "pending",
+    "autoApproveUsers": true,
+    "maxDepth": 3,
+    "requireEmail": true
+  },
+  "queue": {
+    "enabled": true,
+    "concurrency": 5,
+    "retryDelay": 60,
+    "maxRetries": 3,
+    "archiveAfter": 7
+  },
+  "oembed": {
+    "enabled": true,
+    "cacheTtl": 604800,
+    "maxWidth": 800,
+    "maxHeight": 600,
+    "timeout": 10000
+  },
+  "fields": {
+    "customTypes": {}
+  },
+  "validation": {
+    "enabled": true,
+    "stopOnFirst": false
+  },
+  "preview": {
+    "enabled": true,
+    "defaultExpiry": 604800,
+    "maxExpiry": 2592000,
+    "requireAuth": false
+  },
+  "email": {
+    "transport": "console",
+    "from": "noreply@example.com",
+    "fromName": "CMS"
+  },
+  "notifications": {
+    "enabled": true,
+    "maxPerUser": 100,
+    "defaultChannels": ["app"]
+  },
+  "backup": {
+    "enabled": true,
+    "path": "./backups",
+    "schedule": "0 2 * * *",
+    "incremental": null,
+    "retention": {
+      "daily": 7,
+      "weekly": 4,
+      "monthly": 3
+    }
+  },
+  "analytics": {
+    "enabled": true,
+    "trackPageViews": true,
+    "trackApi": true,
+    "retention": 90,
+    "aggregateSchedule": "0 * * * *",
+    "googleAnalyticsId": ""
+  },
+  "blueprints": {
+    "enabled": true
+  },
+  "activity": {
+    "enabled": true,
+    "aggregateWindow": 300000,
+    "retention": 90
+  },
+  "archetypes": {
+    "enabled": true,
+    "directory": "./config/archetypes"
+  },
+  "api": {
+    "enabled": true,
+    "defaultVersion": "v1",
+    "trackUsage": true,
+    "versions": {
+      "v1": {
+        "status": "stable",
+        "releasedAt": "2024-01-01",
+        "changes": ["Initial API release", "Basic CRUD operations"]
+      },
+      "v2": {
+        "status": "beta",
+        "releasedAt": "2024-06-01",
+        "changes": ["Added pagination metadata", "Changed error format", "Added filtering support"]
+      }
+    }
+  },
+  "graphql": {
+    "enabled": true,
+    "playground": true,
+    "introspection": true,
+    "maxDepth": 5
+  },
+  "feeds": {
+    "enabled": true,
+    "defaultLimit": 20
+  },
+  "seo": {
+    "enabled": true,
+    "siteUrl": "http://localhost:3000"
+  },
+  "plugins": {
+    "enabled": ["seo"],
+    "directory": "./plugins",
+    "autoReload": true,
+    "watchDebounce": 500
+  },
+  "taxonomy": {
+    "enabled": true
+  },
+  "menu": {
+    "enabled": true,
+    "defaultMenus": ["main", "footer", "admin"]
+  },
+  "blocks": {
+    "enabled": true,
+    "defaultRegions": ["header", "sidebar", "content", "footer"]
+  },
+  "views": {
+    "enabled": true,
+    "cacheDefault": true,
+    "cacheTtl": 300
+  },
+  "regions": {
+    "enabled": true
+  },
+  "layoutBuilder": {
+    "enabled": true,
+    "enableOverrides": true,
+    "cacheTtl": 300,
+    "classPrefix": "layout"
+  },
+  "workflowAdvanced": {
+    "enabled": true,
+    "defaultWorkflow": "simple"
+  },
+  "entityReference": {
+    "enabled": true,
+    "maxDepth": 3
+  },
+  "permissions": {
+    "enabled": true,
+    "cachePermissions": true
+  },
+  "forms": {
+    "enabled": true
+  },
+  "pathAliases": {
+    "enabled": true,
+    "autoGenerate": true
+  },
+  "imageStyles": {
+    "enabled": true,
+    "derivativePath": "./public/styles"
+  },
+  "cron": {
+    "enabled": true,
+    "maxConcurrent": 3
+  },
+  "configManagement": {
+    "enabled": true
+  },
+  "contentTypes": {
+    "enabled": true
+  },
+  "displayModes": {
+    "enabled": true,
+    "defaultMode": "full"
+  },
+  "batch": {
+    "enabled": true,
+    "chunkSize": 50
+  },
+  "status": {
+    "enabled": true
+  },
+  "contextual": {
+    "enabled": true
+  },
+  "help": {
+    "enabled": true
+  },
+  "tokens": {
+    "enabled": true
+  },
+  "textFormats": {
+    "enabled": true,
+    "default": "basic_html"
+  },
+  "entity": {
+    "enabled": true
+  },
+  "actions": {
+    "enabled": true
+  },
+  "userFields": {
+    "enabled": true
+  },
+  "themeSettings": {
+    "enabled": true
+  },
+  "history": {
+    "enabled": true,
+    "maxEntriesPerUser": 1000,
+    "trackAnonymous": false
+  },
+  "ban": {
+    "enabled": true,
+    "message": "Your IP address has been banned.",
+    "statusCode": 403
+  },
+  "contact": {
+    "enabled": true,
+    "defaultForm": "general",
+    "floodLimit": 5,
+    "floodInterval": 3600,
+    "personalEnabled": true,
+    "storeSubmissions": true
+  }
+}

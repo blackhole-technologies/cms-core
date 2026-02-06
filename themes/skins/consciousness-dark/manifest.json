@@ -1,0 +1,16 @@
+{
+  "id": "consciousness-dark",
+  "name": "Consciousness Dark",
+  "description": "Gold and purple on deep black - immersive and contemplative",
+  "version": "1.0.0",
+  "compatibleLayouts": ["immersive", "classic"],
+  "variables": "variables.css",
+  "overrides": "overrides.css",
+  "preview": "preview.png",
+  "colors": {
+    "primary": "#d4a574",
+    "secondary": "#a87fd4",
+    "background": "#0a0a0f",
+    "text": "#e8e8f0"
+  }
+}

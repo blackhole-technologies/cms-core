@@ -1,0 +1,147 @@
+<div class="admin-page">
+
+  <div class="admin-header">
+    <h1>{{pageTitle}}</h1>
+    <nav class="admin-nav">
+      <a href="/admin">Dashboard</a>
+      <a href="/admin/content">Content</a>
+      <a href="/admin/trash" class="active">Trash</a>
+      <a href="/admin/modules">Modules</a>
+    </nav>
+  </div>
+
+  {{#if hasFlash}}
+  <div class="flash flash-{{flash.type}}">
+    {{flash.message}}
+  </div>
+  {{/if}}
+
+  {{#if error}}
+  <div class="flash flash-error">
+    {{error}}
+  </div>
+  {{/if}}
+
+  <div class="admin-section">
+    <div class="section-header">
+      <h2>Trash</h2>
+      {{#if hasItems}}
+      <div class="section-actions">
+        <form method="POST" action="/admin/trash/empty" class="inline-form" onsubmit="return confirm('Permanently delete ALL {{totalItems}} items? This cannot be undone.')">
+          {{csrfField}}
+          <button type="submit" class="btn btn-danger">Empty All Trash</button>
+        </form>
+      </div>
+      {{/if}}
+    </div>
+
+    {{#if autoPurgeWarning}}
+    <div class="flash flash-warning">
+      <strong>Auto-purge notice:</strong> {{autoPurgeWarning}}
+    </div>
+    {{/if}}
+
+    <!-- Stats Summary -->
+    <div class="trash-stats">
+      <span class="stat">
+        <strong>{{totalItems}}</strong> item(s) in trash
+      </span>
+      {{#if hasItems}}
+      <span class="stat">
+        Oldest: <strong>{{oldestDays}}</strong> days ago
+      </span>
+      {{#if autoPurgeEnabled}}
+      <span class="stat">
+        Retention: <strong>{{retention}}</strong> days
+      </span>
+      {{/if}}
+      {{/if}}
+    </div>
+
+    <!-- Type Filter Tabs -->
+    {{#if hasItems}}
+    <div class="status-tabs">
+      <a href="/admin/trash" class="status-tab {{#unless typeFilter}}active{{/unless}}">
+        All <span class="tab-count">({{totalItems}})</span>
+      </a>
+      {{#each typeStats}}
+      <a href="/admin/trash?type={{type}}" class="status-tab {{#if active}}active{{/if}}">
+        {{type}} <span class="tab-count">({{count}})</span>
+      </a>
+      {{/each}}
+    </div>
+    {{/if}}
+
+    {{#if hasItems}}
+    <table class="admin-table">
+      <thead>
+        <tr>
+          <th>Type</th>
+          <th>Item</th>
+          <th>Trashed</th>
+          <th>By</th>
+          <th>Days Remaining</th>
+          <th>Actions</th>
+        </tr>
+      </thead>
+      <tbody>
+        {{#each items}}
+        <tr class="{{#if willPurgeSoon}}trash-warning{{/if}}">
+          <td><code>{{type}}</code></td>
+          <td>
+            <strong>{{displayTitle}}</strong>
+            <br><small class="text-muted">{{id}}</small>
+          </td>
+          <td>
+            {{trashedFormatted}}
+            <br><small class="text-muted">{{daysAgo}} days ago</small>
+          </td>
+          <td>{{trashedBy}}</td>
+          <td>
+            {{#if willPurgeSoon}}
+            <span class="badge badge-danger">{{daysRemaining}} days</span>
+            {{else}}
+            <span class="badge badge-secondary">{{daysRemaining}} days</span>
+            {{/if}}
+          </td>
+          <td>
+            <form method="POST" action="/admin/trash/{{type}}/{{id}}/restore" class="inline-form">
+              {{../../csrfField}}
+              <button type="submit" class="btn btn-small btn-success">Restore</button>
+            </form>
+            <form method="POST" action="/admin/trash/{{type}}/{{id}}/purge" class="inline-form" onsubmit="return confirm('Permanently delete this item? This cannot be undone.')">
+              {{../../csrfField}}
+              <button type="submit" class="btn btn-small btn-danger">Purge</button>
+            </form>
+          </td>
+        </tr>
+        {{/each}}
+      </tbody>
+    </table>
+
+    {{#if typeFilter}}
+    <div class="type-actions">
+      <form method="POST" action="/admin/trash/{{typeFilter}}/empty" class="inline-form" onsubmit="return confirm('Permanently delete all {{typeFilter}} items from trash?')">
+        {{csrfField}}
+        <button type="submit" class="btn btn-danger">Empty {{typeFilter}} Trash</button>
+      </form>
+    </div>
+    {{/if}}
+
+    {{else}}
+    <p class="empty-message">Trash is empty.</p>
+    {{/if}}
+  </div>
+
+  <style>
+    .trash-stats { margin-bottom: 1rem; padding: 0.75rem; background: #f8f9fa; border-radius: 4px; }
+    .trash-stats .stat { margin-right: 2rem; color: #495057; }
+    .trash-warning { background: #fff3cd; }
+    .type-actions { margin-top: 1rem; padding-top: 1rem; border-top: 1px solid #dee2e6; }
+    .badge { padding: 2px 6px; border-radius: 3px; font-size: 0.8rem; }
+    .badge-danger { background: #dc3545; color: white; }
+    .badge-secondary { background: #6c757d; color: white; }
+    .text-muted { color: #6c757d; }
+    .inline-form { display: inline-block; margin-right: 0.25rem; }
+  </style>
+</div>

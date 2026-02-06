@@ -1,0 +1,176 @@
+<div class="admin-page">
+
+  <div class="admin-header">
+    <h1>{{pageTitle}}</h1>
+    <nav class="admin-nav">
+      <a href="/admin">Dashboard</a>
+      <a href="/admin/content">Content</a>
+      <a href="/admin/activity">Activity</a>
+    </nav>
+  </div>
+
+  {{#if hasFlash}}
+  <div class="flash flash-{{flash.type}}">
+    {{flash.message}}
+  </div>
+  {{/if}}
+
+  <div class="breadcrumb">
+    <a href="/admin">Dashboard</a> &rarr;
+    <a href="/admin/content">Content</a> &rarr;
+    <a href="/admin/content/{{type}}">{{type}}</a> &rarr;
+    <a href="/admin/content/{{type}}/{{id}}/edit">{{title}}</a> &rarr;
+    <span>Timeline</span>
+  </div>
+
+  <div class="admin-section">
+    <div class="timeline-header">
+      <h2>Activity Timeline</h2>
+      <p>{{total}} activities recorded for this content</p>
+    </div>
+
+    {{#if hasActivities}}
+    <div class="timeline">
+      {{#each activities}}
+      <div class="timeline-entry">
+        <div class="timeline-marker">
+          <span class="timeline-dot {{iconClass}}"></span>
+          <span class="timeline-line"></span>
+        </div>
+        <div class="timeline-content">
+          <div class="timeline-date">{{dateFormatted}}</div>
+          <div class="timeline-action">
+            <span class="timeline-label">{{label}}</span>
+            by
+            <a href="/admin/activity/user/{{actor.id}}" class="timeline-actor">{{actor.username}}</a>
+            {{#if fieldsDisplay}}
+            <span class="timeline-fields">{{fieldsDisplay}}</span>
+            {{/if}}
+          </div>
+        </div>
+      </div>
+      {{/each}}
+    </div>
+    {{else}}
+    <div class="empty-state">
+      <p>No activity recorded for this content yet.</p>
+    </div>
+    {{/if}}
+
+    <div class="timeline-actions">
+      <a href="/admin/content/{{type}}/{{id}}/edit" class="btn btn-primary">Back to Edit</a>
+      <a href="/admin/content/{{type}}/{{id}}/compare" class="btn">Compare Versions</a>
+    </div>
+  </div>
+
+  <style>
+    .timeline-header {
+      margin-bottom: 1.5rem;
+    }
+    .timeline-header h2 {
+      margin: 0 0 0.25rem 0;
+    }
+    .timeline-header p {
+      margin: 0;
+      color: #64748b;
+      font-size: 0.9rem;
+    }
+
+    .timeline {
+      position: relative;
+      padding-left: 2rem;
+    }
+    .timeline-entry {
+      position: relative;
+      display: flex;
+      padding-bottom: 1.5rem;
+    }
+    .timeline-entry:last-child {
+      padding-bottom: 0;
+    }
+    .timeline-entry:last-child .timeline-line {
+      display: none;
+    }
+
+    .timeline-marker {
+      position: absolute;
+      left: -2rem;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+    }
+    .timeline-dot {
+      width: 12px;
+      height: 12px;
+      border-radius: 50%;
+      background: #94a3b8;
+      border: 2px solid white;
+      box-shadow: 0 0 0 2px #e2e8f0;
+      z-index: 1;
+    }
+    .timeline-dot.icon-plus { background: #22c55e; box-shadow: 0 0 0 2px #bbf7d0; }
+    .timeline-dot.icon-edit { background: #f59e0b; box-shadow: 0 0 0 2px #fef3c7; }
+    .timeline-dot.icon-trash { background: #ef4444; box-shadow: 0 0 0 2px #fecaca; }
+    .timeline-dot.icon-check { background: #3b82f6; box-shadow: 0 0 0 2px #bfdbfe; }
+    .timeline-dot.icon-x { background: #6b7280; box-shadow: 0 0 0 2px #e5e7eb; }
+    .timeline-dot.icon-copy { background: #8b5cf6; box-shadow: 0 0 0 2px #ddd6fe; }
+
+    .timeline-line {
+      width: 2px;
+      flex: 1;
+      background: #e2e8f0;
+      min-height: 2rem;
+    }
+
+    .timeline-content {
+      padding: 0.5rem 1rem;
+      background: #f8fafc;
+      border-radius: 6px;
+      border: 1px solid #e2e8f0;
+      flex: 1;
+    }
+    .timeline-date {
+      font-size: 0.8rem;
+      color: #64748b;
+      font-family: monospace;
+      margin-bottom: 0.25rem;
+    }
+    .timeline-action {
+      font-size: 0.9rem;
+    }
+    .timeline-label {
+      font-weight: 500;
+      color: #0f172a;
+    }
+    .timeline-actor {
+      color: #0284c7;
+      text-decoration: none;
+      font-weight: 500;
+    }
+    .timeline-actor:hover {
+      text-decoration: underline;
+    }
+    .timeline-fields {
+      color: #64748b;
+      font-size: 0.85rem;
+    }
+
+    .timeline-actions {
+      margin-top: 2rem;
+      padding-top: 1rem;
+      border-top: 1px solid #e2e8f0;
+      display: flex;
+      gap: 1rem;
+    }
+
+    .empty-state {
+      text-align: center;
+      padding: 3rem;
+      color: #64748b;
+      background: #f8fafc;
+      border-radius: 8px;
+    }
+  </style>
+  <script src="/public/js/shortcuts.js"></script>
+  <script>Shortcuts.init({ context: 'global' });</script>
+</div>

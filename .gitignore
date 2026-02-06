@@ -1,0 +1,15 @@
+node_modules/
+.DS_Store
+*.log
+logs/
+backups/
+content/.search/
+content/taskrun/
+content/history/
+content/ban/
+content/apitoken/
+.env
+.env.*
+*.tmp
+*.bak
+.claude/

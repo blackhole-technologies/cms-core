@@ -1,0 +1,39 @@
+{
+  "rules": {
+    "example_publish_article": {
+      "label": "Auto-publish approved articles",
+      "event": "content:update",
+      "conditions": [
+        {
+          "plugin": "content_type",
+          "settings": {
+            "types": ["article"]
+          }
+        },
+        {
+          "plugin": "field_value",
+          "settings": {
+            "field": "approved",
+            "value": true
+          }
+        }
+      ],
+      "actions": [
+        {
+          "plugin": "content:publish",
+          "settings": {}
+        },
+        {
+          "plugin": "system:log",
+          "settings": {
+            "message": "Article [content:title] was auto-published",
+            "level": "info"
+          }
+        }
+      ],
+      "enabled": false
+    }
+  },
+  "scheduled": [],
+  "actions": {}
+}

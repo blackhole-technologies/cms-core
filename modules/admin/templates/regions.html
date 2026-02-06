@@ -1,0 +1,397 @@
+<div class="admin-page">
+
+  <div class="admin-header">
+    <h1>{{pageTitle}}</h1>
+    <nav class="admin-nav">
+      <a href="/admin">Dashboard</a>
+      <a href="/admin/content">Content</a>
+      <a href="/admin/structure" class="active">Structure</a>
+      <a href="/admin/blocks">Blocks</a>
+    </nav>
+  </div>
+
+  {{#if hasFlash}}
+  <div class="flash flash-{{flash.type}}">
+    {{flash.message}}
+  </div>
+  {{/if}}
+
+  <div class="breadcrumb">
+    <a href="/admin">Dashboard</a> &rarr;
+    <a href="/admin/blocks">Blocks</a> &rarr;
+    <span>Regions</span>
+  </div>
+
+  <div class="admin-section">
+    <div class="section-header-row">
+      <div>
+        <h2>Theme Regions</h2>
+        <p class="section-description">Manage block placement in theme regions. Drag blocks to reorder within each region.</p>
+      </div>
+      <div class="section-actions">
+        <a href="/admin/blocks" class="btn btn-secondary">Back to Blocks</a>
+        <a href="/admin/blocks/new" class="btn btn-primary">Create Block</a>
+      </div>
+    </div>
+
+    <div class="theme-info">
+      <strong>Active Theme:</strong> {{theme.name}}
+      <span class="theme-badge">v{{theme.version}}</span>
+    </div>
+
+    {{#if regions.length}}
+    <div class="regions-layout">
+      {{#each regions}}
+      <div class="region-container" data-region="{{name}}">
+        <div class="region-header">
+          <h3>{{label}}</h3>
+          <div class="region-meta">
+            <span class="block-count-badge">{{blocks.length}} blocks</span>
+            <code class="region-name">{{name}}</code>
+          </div>
+        </div>
+
+        {{#if description}}
+        <p class="region-description">{{description}}</p>
+        {{/if}}
+
+        <div class="blocks-in-region" data-region="{{name}}">
+          {{#if blocks.length}}
+          {{#each blocks}}
+          <div class="block-item" data-block-id="{{id}}" data-weight="{{weight}}">
+            <div class="block-handle">⋮⋮</div>
+            <div class="block-info">
+              <strong class="block-title">{{title}}</strong>
+              <div class="block-details">
+                <span class="block-type">{{type}}</span>
+                <span class="block-weight">Weight: {{weight}}</span>
+                {{#unless enabled}}
+                <span class="block-status-disabled">Disabled</span>
+                {{/unless}}
+              </div>
+            </div>
+            <div class="block-quick-actions">
+              <a href="/admin/blocks/{{id}}/edit" class="btn btn-sm">Edit</a>
+              <button class="btn btn-sm btn-secondary" onclick="removeFromRegion('{{id}}')">Remove</button>
+            </div>
+          </div>
+          {{/each}}
+          {{else}}
+          <div class="empty-region">
+            <p>No blocks in this region</p>
+            <a href="/admin/blocks?region=unassigned" class="btn btn-sm">Assign Blocks</a>
+          </div>
+          {{/if}}
+        </div>
+      </div>
+      {{/each}}
+
+      {{#if unassignedBlocks.length}}
+      <div class="region-container unassigned-container">
+        <div class="region-header">
+          <h3>Unassigned Blocks</h3>
+          <span class="block-count-badge">{{unassignedBlocks.length}} blocks</span>
+        </div>
+        <p class="region-description">Drag these blocks to regions to display them on your site.</p>
+
+        <div class="blocks-in-region" data-region="unassigned">
+          {{#each unassignedBlocks}}
+          <div class="block-item" data-block-id="{{id}}">
+            <div class="block-handle">⋮⋮</div>
+            <div class="block-info">
+              <strong class="block-title">{{title}}</strong>
+              <div class="block-details">
+                <span class="block-type">{{type}}</span>
+                {{#unless enabled}}
+                <span class="block-status-disabled">Disabled</span>
+                {{/unless}}
+              </div>
+            </div>
+            <div class="block-quick-actions">
+              <a href="/admin/blocks/{{id}}/edit" class="btn btn-sm">Edit</a>
+            </div>
+          </div>
+          {{/each}}
+        </div>
+      </div>
+      {{/if}}
+    </div>
+    {{else}}
+    <p class="empty-message">No regions defined in current theme. Check your theme configuration.</p>
+    {{/if}}
+  </div>
+
+  <div class="admin-section">
+    <h2>Region Tips</h2>
+    <div class="info-grid">
+      <div class="info-card">
+        <h3>Drag to Reorder</h3>
+        <p>Grab the handle (⋮⋮) to drag blocks within a region or move them between regions.</p>
+      </div>
+      <div class="info-card">
+        <h3>Weight Values</h3>
+        <p>Lower weights appear first. Blocks are automatically reweighted when you drag them.</p>
+      </div>
+      <div class="info-card">
+        <h3>Disabled Blocks</h3>
+        <p>Disabled blocks remain in their region but won't display on the frontend until enabled.</p>
+      </div>
+      <div class="info-card">
+        <h3>Theme Regions</h3>
+        <p>Regions are defined by your active theme. Different themes may have different regions available.</p>
+      </div>
+    </div>
+  </div>
+
+  <style>
+    .section-header-row {
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-start;
+      margin-bottom: 1rem;
+    }
+    .section-header-row h2 {
+      margin: 0 0 0.25rem 0;
+    }
+    .section-description {
+      color: #6b7280;
+      font-size: 0.9rem;
+      margin: 0;
+    }
+    .section-actions {
+      display: flex;
+      gap: 0.5rem;
+    }
+    .theme-info {
+      background: #f0f9ff;
+      border: 1px solid #bae6fd;
+      border-radius: 6px;
+      padding: 0.75rem 1rem;
+      margin-bottom: 1.5rem;
+      font-size: 0.9rem;
+    }
+    .theme-badge {
+      background: #0284c7;
+      color: white;
+      padding: 0.125rem 0.5rem;
+      border-radius: 4px;
+      font-size: 0.75rem;
+      margin-left: 0.5rem;
+      font-weight: 500;
+    }
+    .regions-layout {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(350px, 1fr));
+      gap: 1.5rem;
+    }
+    .region-container {
+      background: #f9fafb;
+      border: 2px solid #e5e7eb;
+      border-radius: 8px;
+      padding: 1.25rem;
+    }
+    .unassigned-container {
+      border-color: #fbbf24;
+      background: #fffbeb;
+    }
+    .region-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 0.75rem;
+      gap: 0.75rem;
+    }
+    .region-header h3 {
+      margin: 0;
+      font-size: 1.1rem;
+      color: #111827;
+      flex: 1;
+    }
+    .region-meta {
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+    }
+    .block-count-badge {
+      background: #e0e7ff;
+      color: #3730a3;
+      padding: 0.25rem 0.5rem;
+      border-radius: 9999px;
+      font-size: 0.75rem;
+      font-weight: 500;
+    }
+    .region-name {
+      background: #e5e7eb;
+      color: #4b5563;
+      padding: 0.25rem 0.5rem;
+      border-radius: 4px;
+      font-size: 0.75rem;
+    }
+    .region-description {
+      color: #6b7280;
+      font-size: 0.85rem;
+      margin: 0 0 1rem 0;
+    }
+    .blocks-in-region {
+      min-height: 100px;
+      border: 2px dashed #d1d5db;
+      border-radius: 6px;
+      padding: 0.5rem;
+    }
+    .blocks-in-region:empty::after {
+      content: "Drop blocks here";
+      display: block;
+      text-align: center;
+      padding: 2rem;
+      color: #9ca3af;
+      font-size: 0.85rem;
+      font-style: italic;
+    }
+    .block-item {
+      background: white;
+      border: 1px solid #e5e7eb;
+      border-radius: 6px;
+      padding: 0.75rem;
+      margin-bottom: 0.5rem;
+      display: flex;
+      align-items: center;
+      gap: 0.75rem;
+    }
+    .block-item:last-child {
+      margin-bottom: 0;
+    }
+    .block-handle {
+      cursor: grab;
+      color: #9ca3af;
+      font-size: 1rem;
+      user-select: none;
+    }
+    .block-handle:active {
+      cursor: grabbing;
+    }
+    .block-info {
+      flex: 1;
+      min-width: 0;
+    }
+    .block-title {
+      display: block;
+      color: #111827;
+      font-size: 0.9rem;
+      margin-bottom: 0.25rem;
+    }
+    .block-details {
+      display: flex;
+      gap: 0.5rem;
+      flex-wrap: wrap;
+      font-size: 0.75rem;
+    }
+    .block-type {
+      background: #f3f4f6;
+      color: #6b7280;
+      padding: 0.125rem 0.375rem;
+      border-radius: 3px;
+      text-transform: uppercase;
+      font-weight: 500;
+    }
+    .block-weight {
+      color: #6b7280;
+    }
+    .block-status-disabled {
+      background: #fef3c7;
+      color: #92400e;
+      padding: 0.125rem 0.375rem;
+      border-radius: 3px;
+      font-weight: 500;
+    }
+    .block-quick-actions {
+      display: flex;
+      gap: 0.5rem;
+    }
+    .empty-region {
+      text-align: center;
+      padding: 1.5rem;
+    }
+    .empty-region p {
+      color: #6b7280;
+      font-size: 0.85rem;
+      margin: 0 0 0.75rem 0;
+    }
+    .btn {
+      display: inline-block;
+      padding: 0.5rem 1rem;
+      border: none;
+      border-radius: 4px;
+      font-size: 0.9rem;
+      cursor: pointer;
+      text-decoration: none;
+    }
+    .btn-primary {
+      background: #2563eb;
+      color: white;
+    }
+    .btn-primary:hover {
+      background: #1d4ed8;
+    }
+    .btn-secondary {
+      background: #e5e7eb;
+      color: #374151;
+    }
+    .btn-secondary:hover {
+      background: #d1d5db;
+    }
+    .btn-sm {
+      padding: 0.25rem 0.5rem;
+      font-size: 0.8rem;
+    }
+    .info-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+      gap: 1rem;
+    }
+    .info-card {
+      background: #f9fafb;
+      border: 1px solid #e5e7eb;
+      border-radius: 8px;
+      padding: 1rem;
+    }
+    .info-card h3 {
+      margin: 0 0 0.5rem 0;
+      font-size: 1rem;
+      color: #111827;
+    }
+    .info-card p {
+      margin: 0;
+      font-size: 0.85rem;
+      color: #6b7280;
+    }
+  </style>
+  <script>
+    function removeFromRegion(blockId) {
+      if (!confirm('Remove this block from its region? You can reassign it later.')) return;
+
+      // Submit form to update block region to null
+      const form = document.createElement('form');
+      form.method = 'POST';
+      form.action = `/admin/blocks/${blockId}/region`;
+
+      const csrfInput = document.querySelector('input[name="_csrf"]');
+      if (csrfInput) {
+        form.appendChild(csrfInput.cloneNode());
+      }
+
+      const regionInput = document.createElement('input');
+      regionInput.type = 'hidden';
+      regionInput.name = 'region';
+      regionInput.value = '';
+      form.appendChild(regionInput);
+
+      document.body.appendChild(form);
+      form.submit();
+    }
+
+    // Drag-and-drop placeholder (would need full implementation with library like Sortable.js)
+    console.log('Drag-and-drop functionality requires Sortable.js or similar library');
+  </script>
+  <script src="/public/js/shortcuts.js"></script>
+  <script>Shortcuts.init({ context: 'global' });</script>
+</div>

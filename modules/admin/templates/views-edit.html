@@ -1,0 +1,417 @@
+<div class="admin-page">
+
+  <div class="admin-header">
+    <h1>{{pageTitle}}</h1>
+    <nav class="admin-nav">
+      <a href="/admin">Dashboard</a>
+      <a href="/admin/content">Content</a>
+      <a href="/admin/structure" class="active">Structure</a>
+      <a href="/admin/views">Views</a>
+    </nav>
+  </div>
+
+  {{#if hasFlash}}
+  <div class="flash flash-{{flash.type}}">
+    {{flash.message}}
+  </div>
+  {{/if}}
+
+  <div class="breadcrumb">
+    <a href="/admin">Dashboard</a> &rarr;
+    <a href="/admin/views">Views</a> &rarr;
+    <span>{{#if view}}Edit{{else}}Create{{/if}} View</span>
+  </div>
+
+  <div class="admin-section">
+    <form method="POST" action="{{#if view}}/admin/views/{{view.id}}{{else}}/admin/views{{/if}}" class="view-form">
+      {{csrfField}}
+      {{#if view}}
+      <input type="hidden" name="_method" value="PUT">
+      {{/if}}
+
+      <!-- Basic Info Section -->
+      <div class="form-section">
+        <h2>Basic Information</h2>
+        <div class="form-group">
+          <label for="name">View Name</label>
+          <input type="text" id="name" name="name" value="{{view.name}}" required placeholder="e.g., Recent Articles">
+        </div>
+        <div class="form-group">
+          <label for="machine_name">Machine Name</label>
+          <input type="text" id="machine_name" name="machine_name" value="{{view.machine_name}}" {{#if view}}readonly{{/if}} required placeholder="e.g., recent_articles" pattern="[a-z_]+">
+          <small>Lowercase letters and underscores only. Cannot be changed after creation.</small>
+        </div>
+        <div class="form-group">
+          <label for="description">Description</label>
+          <textarea id="description" name="description" rows="2" placeholder="Optional description">{{view.description}}</textarea>
+        </div>
+        <div class="form-group">
+          <label class="checkbox-label">
+            <input type="checkbox" name="enabled" value="true" {{#if view.enabled}}checked{{/if}}>
+            Enable this view
+          </label>
+        </div>
+      </div>
+
+      <!-- Content Type Section -->
+      <div class="form-section">
+        <h2>Content Type</h2>
+        <div class="form-group">
+          <label for="content_type">Content Type</label>
+          <select id="content_type" name="content_type" required>
+            <option value="">-- Select Content Type --</option>
+            {{#each contentTypes}}
+            <option value="{{machine_name}}" {{#if ../view}}{{#ifEquals ../view.contentType machine_name}}selected{{/ifEquals}}{{/if}}>{{name}}</option>
+            {{/each}}
+          </select>
+        </div>
+      </div>
+
+      <!-- Filters Section -->
+      <div class="form-section">
+        <div class="section-header-row">
+          <h2>Filters</h2>
+          <button type="button" class="btn btn-sm btn-secondary" onclick="addFilter()">Add Filter</button>
+        </div>
+        <div id="filters-container">
+          {{#if view.filters}}
+          {{#each view.filters}}
+          <div class="filter-row">
+            <select name="filters[{{@index}}][field]" class="filter-field" required>
+              <option value="">-- Select Field --</option>
+              <option value="title" {{#ifEquals field "title"}}selected{{/ifEquals}}>Title</option>
+              <option value="status" {{#ifEquals field "status"}}selected{{/ifEquals}}>Status</option>
+              <option value="author" {{#ifEquals field "author"}}selected{{/ifEquals}}>Author</option>
+              <option value="created" {{#ifEquals field "created"}}selected{{/ifEquals}}>Created Date</option>
+              <option value="updated" {{#ifEquals field "updated"}}selected{{/ifEquals}}>Updated Date</option>
+            </select>
+            <select name="filters[{{@index}}][operator]" class="filter-operator" required>
+              <option value="=" {{#ifEquals operator "="}}selected{{/ifEquals}}>Equals</option>
+              <option value="!=" {{#ifEquals operator "!="}}selected{{/ifEquals}}>Not Equals</option>
+              <option value="contains" {{#ifEquals operator "contains"}}selected{{/ifEquals}}>Contains</option>
+              <option value=">" {{#ifEquals operator ">"}}selected{{/ifEquals}}>Greater Than</option>
+              <option value="<" {{#ifEquals operator "<"}}selected{{/ifEquals}}>Less Than</option>
+              <option value=">=" {{#ifEquals operator ">="}}selected{{/ifEquals}}>Greater or Equal</option>
+              <option value="<=" {{#ifEquals operator "<="}}selected{{/ifEquals}}>Less or Equal</option>
+            </select>
+            <input type="text" name="filters[{{@index}}][value]" value="{{value}}" placeholder="Value" required>
+            <button type="button" class="btn btn-sm btn-danger" onclick="removeFilter(this)">Remove</button>
+          </div>
+          {{/each}}
+          {{else}}
+          <p class="empty-message">No filters defined. Add filters to restrict which content is displayed.</p>
+          {{/if}}
+        </div>
+      </div>
+
+      <!-- Sorting Section -->
+      <div class="form-section">
+        <div class="section-header-row">
+          <h2>Sorting</h2>
+          <button type="button" class="btn btn-sm btn-secondary" onclick="addSort()">Add Sort Field</button>
+        </div>
+        <div id="sort-container">
+          {{#if view.sort}}
+          {{#each view.sort}}
+          <div class="sort-row">
+            <select name="sort[{{@index}}][field]" class="sort-field" required>
+              <option value="">-- Select Field --</option>
+              <option value="title" {{#ifEquals field "title"}}selected{{/ifEquals}}>Title</option>
+              <option value="created" {{#ifEquals field "created"}}selected{{/ifEquals}}>Created Date</option>
+              <option value="updated" {{#ifEquals field "updated"}}selected{{/ifEquals}}>Updated Date</option>
+              <option value="author" {{#ifEquals field "author"}}selected{{/ifEquals}}>Author</option>
+            </select>
+            <select name="sort[{{@index}}][direction]" class="sort-direction" required>
+              <option value="ASC" {{#ifEquals direction "ASC"}}selected{{/ifEquals}}>Ascending</option>
+              <option value="DESC" {{#ifEquals direction "DESC"}}selected{{/ifEquals}}>Descending</option>
+            </select>
+            <button type="button" class="btn btn-sm btn-danger" onclick="removeSort(this)">Remove</button>
+          </div>
+          {{/each}}
+          {{else}}
+          <p class="empty-message">No sorting defined. Add sort fields to control result order.</p>
+          {{/if}}
+        </div>
+      </div>
+
+      <!-- Paging Section -->
+      <div class="form-section">
+        <h2>Paging</h2>
+        <div class="form-row">
+          <div class="form-group">
+            <label for="items_per_page">Items Per Page</label>
+            <input type="number" id="items_per_page" name="items_per_page" value="{{view.itemsPerPage}}" min="1" max="100" placeholder="10">
+            <small>Leave empty for no limit</small>
+          </div>
+          <div class="form-group">
+            <label class="checkbox-label">
+              <input type="checkbox" name="use_pager" value="true" {{#if view.usePager}}checked{{/if}}>
+              Show pagination controls
+            </label>
+          </div>
+        </div>
+      </div>
+
+      <!-- Fields Section -->
+      <div class="form-section">
+        <h2>Display Fields</h2>
+        <div class="field-checkboxes">
+          {{#if availableFields}}
+          {{#each availableFields}}
+          <label class="checkbox-label">
+            <input type="checkbox" name="fields[]" value="{{machine_name}}" {{#if ../view.fields}}{{#inArray ../view.fields machine_name}}checked{{/inArray}}{{/if}}>
+            {{label}}
+          </label>
+          {{/each}}
+          {{else}}
+          <p class="empty-message">Select a content type to see available fields.</p>
+          {{/if}}
+        </div>
+      </div>
+
+      <!-- Display Settings Section -->
+      <div class="form-section">
+        <h2>Display Settings</h2>
+        <div class="form-group">
+          <label for="display_mode">Display Mode</label>
+          <select id="display_mode" name="display_mode" required>
+            <option value="table" {{#ifEquals view.displayMode "table"}}selected{{/ifEquals}}>Table</option>
+            <option value="grid" {{#ifEquals view.displayMode "grid"}}selected{{/ifEquals}}>Grid</option>
+            <option value="list" {{#ifEquals view.displayMode "list"}}selected{{/ifEquals}}>List</option>
+            <option value="custom" {{#ifEquals view.displayMode "custom"}}selected{{/ifEquals}}>Custom Template</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label for="template">Custom Template (optional)</label>
+          <input type="text" id="template" name="template" value="{{view.template}}" placeholder="e.g., views/custom-article-list">
+          <small>Template file path relative to theme directory</small>
+        </div>
+        <div class="form-group">
+          <label for="path">URL Path (optional)</label>
+          <input type="text" id="path" name="path" value="{{view.path}}" placeholder="e.g., /blog/recent">
+          <small>Make this view accessible at a specific URL</small>
+        </div>
+      </div>
+
+      <!-- Form Actions -->
+      <div class="form-actions">
+        <button type="submit" class="btn btn-primary">Save View</button>
+        <a href="/admin/views/{{view.id}}/preview" class="btn btn-secondary" target="_blank">Preview Query</a>
+        <a href="/admin/views" class="btn btn-secondary">Cancel</a>
+      </div>
+    </form>
+  </div>
+
+  <style>
+    .view-form {
+      max-width: 900px;
+    }
+    .form-section {
+      background: #f9fafb;
+      border: 1px solid #e5e7eb;
+      border-radius: 8px;
+      padding: 1.5rem;
+      margin-bottom: 1.5rem;
+    }
+    .form-section h2 {
+      margin: 0 0 1rem 0;
+      font-size: 1.1rem;
+      color: #111827;
+    }
+    .section-header-row {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 1rem;
+    }
+    .section-header-row h2 {
+      margin: 0;
+    }
+    .form-group {
+      margin-bottom: 1rem;
+    }
+    .form-group label {
+      display: block;
+      margin-bottom: 0.25rem;
+      font-size: 0.9rem;
+      font-weight: 500;
+      color: #374151;
+    }
+    .form-group input[type="text"],
+    .form-group input[type="number"],
+    .form-group textarea,
+    .form-group select {
+      width: 100%;
+      padding: 0.5rem;
+      border: 1px solid #d1d5db;
+      border-radius: 4px;
+      font-size: 0.9rem;
+    }
+    .form-group small {
+      display: block;
+      margin-top: 0.25rem;
+      font-size: 0.8rem;
+      color: #6b7280;
+    }
+    .form-row {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+      gap: 1rem;
+    }
+    .checkbox-label {
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+      font-weight: normal;
+      cursor: pointer;
+    }
+    .field-checkboxes {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+      gap: 0.75rem;
+    }
+    .filter-row,
+    .sort-row {
+      display: grid;
+      grid-template-columns: 2fr 1.5fr 2fr auto;
+      gap: 0.5rem;
+      margin-bottom: 0.5rem;
+      align-items: center;
+    }
+    .filter-row select,
+    .filter-row input,
+    .sort-row select {
+      padding: 0.5rem;
+      border: 1px solid #d1d5db;
+      border-radius: 4px;
+      font-size: 0.85rem;
+    }
+    .form-actions {
+      display: flex;
+      gap: 0.5rem;
+      margin-top: 1.5rem;
+      padding-top: 1.5rem;
+      border-top: 1px solid #e5e7eb;
+    }
+    .btn {
+      display: inline-block;
+      padding: 0.5rem 1rem;
+      border: none;
+      border-radius: 4px;
+      font-size: 0.9rem;
+      cursor: pointer;
+      text-decoration: none;
+    }
+    .btn-primary {
+      background: #2563eb;
+      color: white;
+    }
+    .btn-primary:hover {
+      background: #1d4ed8;
+    }
+    .btn-secondary {
+      background: #e5e7eb;
+      color: #374151;
+    }
+    .btn-secondary:hover {
+      background: #d1d5db;
+    }
+    .btn-danger {
+      background: #dc2626;
+      color: white;
+    }
+    .btn-danger:hover {
+      background: #b91c1c;
+    }
+    .btn-sm {
+      padding: 0.25rem 0.5rem;
+      font-size: 0.8rem;
+    }
+    .empty-message {
+      color: #6b7280;
+      font-size: 0.85rem;
+      font-style: italic;
+      margin: 0.5rem 0;
+    }
+  </style>
+
+  <script>
+    let filterIndex = {{#if view.filters}}{{view.filters.length}}{{else}}0{{/if}};
+    let sortIndex = {{#if view.sort}}{{view.sort.length}}{{else}}0{{/if}};
+
+    function addFilter() {
+      const container = document.getElementById('filters-container');
+      const empty = container.querySelector('.empty-message');
+      if (empty) empty.remove();
+
+      const row = document.createElement('div');
+      row.className = 'filter-row';
+      row.innerHTML = `
+        <select name="filters[${filterIndex}][field]" class="filter-field" required>
+          <option value="">-- Select Field --</option>
+          <option value="title">Title</option>
+          <option value="status">Status</option>
+          <option value="author">Author</option>
+          <option value="created">Created Date</option>
+          <option value="updated">Updated Date</option>
+        </select>
+        <select name="filters[${filterIndex}][operator]" class="filter-operator" required>
+          <option value="=">Equals</option>
+          <option value="!=">Not Equals</option>
+          <option value="contains">Contains</option>
+          <option value=">">Greater Than</option>
+          <option value="<">Less Than</option>
+          <option value=">=">Greater or Equal</option>
+          <option value="<=">Less or Equal</option>
+        </select>
+        <input type="text" name="filters[${filterIndex}][value]" placeholder="Value" required>
+        <button type="button" class="btn btn-sm btn-danger" onclick="removeFilter(this)">Remove</button>
+      `;
+      container.appendChild(row);
+      filterIndex++;
+    }
+
+    function removeFilter(btn) {
+      const container = document.getElementById('filters-container');
+      btn.closest('.filter-row').remove();
+      if (!container.querySelector('.filter-row')) {
+        container.innerHTML = '<p class="empty-message">No filters defined. Add filters to restrict which content is displayed.</p>';
+      }
+    }
+
+    function addSort() {
+      const container = document.getElementById('sort-container');
+      const empty = container.querySelector('.empty-message');
+      if (empty) empty.remove();
+
+      const row = document.createElement('div');
+      row.className = 'sort-row';
+      row.innerHTML = `
+        <select name="sort[${sortIndex}][field]" class="sort-field" required>
+          <option value="">-- Select Field --</option>
+          <option value="title">Title</option>
+          <option value="created">Created Date</option>
+          <option value="updated">Updated Date</option>
+          <option value="author">Author</option>
+        </select>
+        <select name="sort[${sortIndex}][direction]" class="sort-direction" required>
+          <option value="ASC">Ascending</option>
+          <option value="DESC">Descending</option>
+        </select>
+        <button type="button" class="btn btn-sm btn-danger" onclick="removeSort(this)">Remove</button>
+      `;
+      container.appendChild(row);
+      sortIndex++;
+    }
+
+    function removeSort(btn) {
+      const container = document.getElementById('sort-container');
+      btn.closest('.sort-row').remove();
+      if (!container.querySelector('.sort-row')) {
+        container.innerHTML = '<p class="empty-message">No sorting defined. Add sort fields to control result order.</p>';
+      }
+    }
+  </script>
+  <script src="/public/js/shortcuts.js"></script>
+  <script>Shortcuts.init({ context: 'global' });</script>
+</div>

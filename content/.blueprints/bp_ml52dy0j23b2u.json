@@ -1,0 +1,15 @@
+{
+  "id": "bp_ml52dy0j23b2u",
+  "name": "Hello Template",
+  "description": "",
+  "type": "greeting",
+  "template": {
+    "name": "Hello {{user}}",
+    "message": "Created on {{date}}"
+  },
+  "locked": [],
+  "createdAt": "2026-02-02T11:06:19.891Z",
+  "updatedAt": "2026-02-02T11:07:34.609Z",
+  "createdBy": "system",
+  "usageCount": 3
+}

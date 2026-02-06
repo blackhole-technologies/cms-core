@@ -1,0 +1,281 @@
+<div class="admin-page">
+  <div class="admin-header">
+    <h1>{{pageTitle}}</h1>
+    <p>Full-text search across all indexed content</p>
+  </div>
+
+  {{#if hasFlash}}
+  <div class="flash flash-{{flash.type}}">
+    {{flash.message}}
+  </div>
+  {{/if}}
+
+  <!-- Search Form -->
+  <div class="search-form-container">
+    <form method="GET" action="/admin/search" class="search-form">
+      <div class="search-input-group">
+        <input type="text" name="q" value="{{query}}" placeholder="Search content..." class="search-input" autofocus>
+        <select name="type" class="search-type-select">
+          <option value="">All types</option>
+          {{#each types}}
+          <option value="{{type}}" {{#if selected}}selected{{/if}}>{{type}}</option>
+          {{/each}}
+        </select>
+        <button type="submit" class="btn btn-primary">Search</button>
+      </div>
+      <div class="search-help">
+        <small>
+          Tips: Use quotes for phrases <code>"hello world"</code>,
+          field search <code>title:welcome</code>,
+          exclude <code>-draft</code>
+        </small>
+      </div>
+    </form>
+  </div>
+
+  {{#if hasQuery}}
+  <!-- Results -->
+  <div class="search-results">
+    <div class="results-header">
+      <h2>Results for "{{query}}"</h2>
+      <span class="results-meta">{{total}} found in {{took}}ms</span>
+    </div>
+
+    {{#if hasResults}}
+    <ul class="results-list">
+      {{#each results}}
+      <li class="result-item">
+        <div class="result-header">
+          <span class="result-score" title="Relevance score">[{{score}}]</span>
+          <a href="/admin/content/{{type}}/{{id}}/edit" class="result-title">
+            {{#if item.title}}{{item.title}}{{else}}{{#if item.name}}{{item.name}}{{else}}{{id}}{{/if}}{{/if}}
+          </a>
+          <span class="result-type">{{type}}</span>
+        </div>
+        {{#if highlights}}
+        <div class="result-highlights">
+          {{#each highlights}}
+          <p class="highlight-snippet">{{value}}</p>
+          {{/each}}
+        </div>
+        {{/if}}
+        <div class="result-meta">
+          <small>ID: {{id}} | Created: {{item.created}}</small>
+        </div>
+      </li>
+      {{/each}}
+    </ul>
+    {{else}}
+    <div class="no-results">
+      <p>No results found for "{{query}}"</p>
+      <p><small>Try different search terms or check the spelling</small></p>
+    </div>
+    {{/if}}
+  </div>
+  {{/if}}
+
+  <!-- Index Statistics -->
+  <div class="admin-section">
+    <h2>Index Statistics</h2>
+    <div class="stats-grid">
+      <div class="stat-card">
+        <span class="stat-value">{{stats.totalDocs}}</span>
+        <span class="stat-label">Documents</span>
+      </div>
+      <div class="stat-card">
+        <span class="stat-value">{{stats.totalTerms}}</span>
+        <span class="stat-label">Terms</span>
+      </div>
+      <div class="stat-card">
+        <span class="stat-value">{{typeCount}}</span>
+        <span class="stat-label">Types</span>
+      </div>
+    </div>
+
+    {{#if hasTypeStats}}
+    <table class="admin-table" style="margin-top: 1rem;">
+      <thead>
+        <tr>
+          <th>Type</th>
+          <th>Documents</th>
+          <th>Terms</th>
+        </tr>
+      </thead>
+      <tbody>
+        {{#each typeStats}}
+        <tr>
+          <td><a href="/admin/content/{{type}}">{{type}}</a></td>
+          <td>{{docs}}</td>
+          <td>{{terms}}</td>
+        </tr>
+        {{/each}}
+      </tbody>
+    </table>
+    {{/if}}
+
+    <div class="index-actions" style="margin-top: 1rem;">
+      <form method="POST" action="/admin/search/rebuild" style="display: inline;">
+        {{csrfField}}
+        <button type="submit" class="btn btn-secondary" onclick="return confirm('Rebuild entire search index?')">
+          Rebuild Index
+        </button>
+      </form>
+      <small style="margin-left: 1rem;">
+        Last rebuild: {{#if stats.lastRebuild}}{{stats.lastRebuild}}{{else}}never{{/if}}
+      </small>
+    </div>
+  </div>
+
+  <!-- Configuration -->
+  <div class="admin-section">
+    <h2>Configuration</h2>
+    <ul>
+      <li><strong>Enabled:</strong> {{#if stats.enabled}}Yes{{else}}No{{/if}}</li>
+      <li><strong>Fuzzy Matching:</strong> {{#if stats.config.fuzzy}}Yes (distance: {{stats.config.fuzzyDistance}}){{else}}No{{/if}}</li>
+      <li><strong>Min Word Length:</strong> {{stats.config.minWordLength}}</li>
+      <li><strong>Stop Words:</strong> {{stats.config.stopWordsCount}}</li>
+    </ul>
+  </div>
+</div>
+
+<style>
+.search-form-container {
+  background: #f8f9fa;
+  padding: 1.5rem;
+  border-radius: 4px;
+  margin-bottom: 2rem;
+}
+.search-form .search-input-group {
+  display: flex;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+}
+.search-input {
+  flex: 1;
+  min-width: 200px;
+  padding: 0.75rem;
+  font-size: 1.1rem;
+  border: 1px solid #ddd;
+  border-radius: 4px;
+}
+.search-type-select {
+  padding: 0.75rem;
+  border: 1px solid #ddd;
+  border-radius: 4px;
+}
+.search-help {
+  margin-top: 0.5rem;
+  color: #666;
+}
+.search-help code {
+  background: #e9ecef;
+  padding: 0.2em 0.4em;
+  border-radius: 3px;
+}
+.search-results {
+  margin-bottom: 2rem;
+}
+.results-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  border-bottom: 1px solid #ddd;
+  padding-bottom: 0.5rem;
+  margin-bottom: 1rem;
+}
+.results-header h2 {
+  margin: 0;
+}
+.results-meta {
+  color: #666;
+  font-size: 0.9rem;
+}
+.results-list {
+  list-style: none;
+  padding: 0;
+}
+.result-item {
+  padding: 1rem;
+  border: 1px solid #eee;
+  border-radius: 4px;
+  margin-bottom: 0.75rem;
+}
+.result-item:hover {
+  border-color: #ddd;
+  background: #fafafa;
+}
+.result-header {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+.result-score {
+  font-family: monospace;
+  color: #666;
+  font-size: 0.85rem;
+}
+.result-title {
+  font-weight: bold;
+  font-size: 1.1rem;
+  color: #007bff;
+  text-decoration: none;
+}
+.result-title:hover {
+  text-decoration: underline;
+}
+.result-type {
+  background: #e9ecef;
+  padding: 0.2em 0.5em;
+  border-radius: 3px;
+  font-size: 0.8rem;
+  color: #666;
+}
+.result-highlights {
+  margin-top: 0.5rem;
+}
+.highlight-snippet {
+  color: #555;
+  margin: 0.25rem 0;
+  font-size: 0.95rem;
+}
+.result-meta {
+  margin-top: 0.5rem;
+  color: #999;
+}
+.no-results {
+  text-align: center;
+  padding: 2rem;
+  background: #f8f9fa;
+  border-radius: 4px;
+}
+.stats-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+  gap: 1rem;
+}
+.stat-card {
+  background: #f8f9fa;
+  padding: 1rem;
+  border-radius: 4px;
+  text-align: center;
+}
+.stat-value {
+  display: block;
+  font-size: 2rem;
+  font-weight: bold;
+  color: #333;
+}
+.stat-label {
+  color: #666;
+  font-size: 0.9rem;
+}
+.admin-section {
+  margin-top: 2rem;
+  padding-top: 1rem;
+  border-top: 1px solid #ddd;
+}
+.admin-section h2 {
+  font-size: 1.2rem;
+  margin-bottom: 0.75rem;
+}
+</style>

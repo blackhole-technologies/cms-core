@@ -1,0 +1,23 @@
+{
+  "id": "1770205420571-bc80t",
+  "type": "menu-item",
+  "created": "2026-02-04T11:43:40.571Z",
+  "updated": "2026-02-04T11:43:40.571Z",
+  "menuId": "test-menu",
+  "title": "Test Link",
+  "itemType": "internal",
+  "link": "/test",
+  "parentId": null,
+  "weight": 0,
+  "depth": 0,
+  "classes": [],
+  "attributes": {},
+  "enabled": true,
+  "expanded": false,
+  "roles": [],
+  "permissions": [],
+  "status": "draft",
+  "_trashedAt": "2026-02-04T11:43:49.597Z",
+  "_trashedBy": null,
+  "_originalPath": "/Users/Alchemy/Projects/experiments/cms-core/content/menu-item/1770205420571-bc80t.json"
+}

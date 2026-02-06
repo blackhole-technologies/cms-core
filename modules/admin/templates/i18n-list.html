@@ -1,0 +1,205 @@
+<div class="admin-page">
+  <div class="admin-header">
+    <h1>{{pageTitle}}</h1>
+    <p>Manage locales and translations</p>
+  </div>
+
+  {{#if hasFlash}}
+  <div class="flash flash-{{flash.type}}">
+    {{flash.message}}
+  </div>
+  {{/if}}
+
+  <!-- Locale Stats -->
+  <div class="stats-grid">
+    <div class="stat-card">
+      <span class="stat-value">{{localeCount}}</span>
+      <span class="stat-label">Locales</span>
+    </div>
+    <div class="stat-card">
+      <span class="stat-value">{{totalKeys}}</span>
+      <span class="stat-label">Translation Keys</span>
+    </div>
+    <div class="stat-card">
+      <span class="stat-value">{{defaultLocale}}</span>
+      <span class="stat-label">Default Locale</span>
+    </div>
+  </div>
+
+  <!-- Locales List -->
+  <div class="admin-section">
+    <div class="section-header">
+      <h2>Locales</h2>
+      <a href="/admin/i18n/new" class="btn btn-primary">Add Locale</a>
+    </div>
+
+    {{#if hasLocales}}
+    <table class="admin-table">
+      <thead>
+        <tr>
+          <th>Code</th>
+          <th>Name</th>
+          <th>Translations</th>
+          <th>Completion</th>
+          <th>Actions</th>
+        </tr>
+      </thead>
+      <tbody>
+        {{#each locales}}
+        <tr>
+          <td>
+            <strong>{{code}}</strong>
+            {{#if isDefault}}<span class="badge badge-primary">default</span>{{/if}}
+          </td>
+          <td>{{name}}</td>
+          <td>{{keyCount}} keys</td>
+          <td>
+            <div class="progress-bar">
+              <div class="progress-fill" style="width: {{percentage}}%"></div>
+            </div>
+            <small>{{percentage}}%</small>
+          </td>
+          <td>
+            <a href="/admin/i18n/{{code}}" class="btn btn-sm">Edit</a>
+            <a href="/admin/i18n/{{code}}/export" class="btn btn-sm btn-secondary">Export</a>
+          </td>
+        </tr>
+        {{/each}}
+      </tbody>
+    </table>
+    {{else}}
+    <div class="empty-state">
+      <p>No locales configured.</p>
+      <p><a href="/admin/i18n/new" class="btn btn-primary">Add First Locale</a></p>
+    </div>
+    {{/if}}
+  </div>
+
+  <!-- Import Section -->
+  <div class="admin-section">
+    <h2>Import Translations</h2>
+    <form method="POST" action="/admin/i18n/import" enctype="multipart/form-data">
+      {{csrfField}}
+      <div class="form-group">
+        <label for="locale">Target Locale</label>
+        <select name="locale" id="locale" required>
+          {{#each locales}}
+          <option value="{{code}}">{{code}} - {{name}}</option>
+          {{/each}}
+        </select>
+      </div>
+      <div class="form-group">
+        <label for="file">JSON File</label>
+        <input type="file" name="file" id="file" accept=".json" required>
+      </div>
+      <div class="form-group">
+        <label>
+          <input type="checkbox" name="merge" value="1" checked>
+          Merge with existing (uncheck to replace all)
+        </label>
+      </div>
+      <button type="submit" class="btn btn-primary">Import</button>
+    </form>
+  </div>
+
+  <!-- Configuration -->
+  <div class="admin-section">
+    <h2>Configuration</h2>
+    <ul>
+      <li><strong>Enabled:</strong> {{#if enabled}}Yes{{else}}No{{/if}}</li>
+      <li><strong>Default Locale:</strong> {{defaultLocale}}</li>
+      <li><strong>Fallback:</strong> {{#if fallback}}Yes (use default if translation missing){{else}}No{{/if}}</li>
+    </ul>
+  </div>
+</div>
+
+<style>
+.section-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 1rem;
+}
+.section-header h2 {
+  margin: 0;
+}
+.progress-bar {
+  width: 100px;
+  height: 8px;
+  background: #e9ecef;
+  border-radius: 4px;
+  overflow: hidden;
+  display: inline-block;
+  vertical-align: middle;
+  margin-right: 0.5rem;
+}
+.progress-fill {
+  height: 100%;
+  background: #28a745;
+  transition: width 0.3s ease;
+}
+.badge {
+  display: inline-block;
+  padding: 0.2em 0.5em;
+  font-size: 0.75rem;
+  border-radius: 3px;
+  margin-left: 0.5rem;
+}
+.badge-primary {
+  background: #007bff;
+  color: white;
+}
+.stats-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+  gap: 1rem;
+  margin-bottom: 2rem;
+}
+.stat-card {
+  background: #f8f9fa;
+  padding: 1rem;
+  border-radius: 4px;
+  text-align: center;
+}
+.stat-value {
+  display: block;
+  font-size: 2rem;
+  font-weight: bold;
+  color: #333;
+}
+.stat-label {
+  color: #666;
+  font-size: 0.9rem;
+}
+.admin-section {
+  margin-top: 2rem;
+  padding-top: 1rem;
+  border-top: 1px solid #ddd;
+}
+.admin-section h2 {
+  font-size: 1.2rem;
+  margin-bottom: 0.75rem;
+}
+.empty-state {
+  text-align: center;
+  padding: 2rem;
+  background: #f8f9fa;
+  border-radius: 4px;
+}
+.form-group {
+  margin-bottom: 1rem;
+}
+.form-group label {
+  display: block;
+  margin-bottom: 0.5rem;
+  font-weight: bold;
+}
+.form-group input[type="file"],
+.form-group select {
+  padding: 0.5rem;
+  border: 1px solid #ddd;
+  border-radius: 4px;
+  width: 100%;
+  max-width: 400px;
+}
+</style>

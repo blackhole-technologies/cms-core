@@ -1,0 +1,99 @@
+<!DOCTYPE html>
+<html lang="{{language}}">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{{title}} | Admin</title>
+  <link rel="stylesheet" href="/themes/admin/css/style.css">
+</head>
+<body class="admin-page">
+  <a href="#main-content" class="visually-hidden skip-link">Skip to main content</a>
+
+  <div id="page-wrapper">
+    <header id="header" role="banner">
+      <div class="header-inner">
+        <a href="/admin" class="site-logo">{{site_name}}</a>
+        <nav class="main-nav" role="navigation">
+          {{#each menu}}
+          <a href="{{url}}">{{title}}</a>
+          {{/each}}
+        </nav>
+        {{#if user}}
+        <div class="user-menu">
+          <span>{{user.username}}</span>
+          <a href="/logout">Log out</a>
+        </div>
+        {{/if}}
+      </div>
+    </header>
+
+    {{#if breadcrumb}}
+    <nav id="breadcrumb" aria-label="Breadcrumb">
+      <ol class="breadcrumb__list">
+        {{#each breadcrumb}}
+        <li class="breadcrumb__item">
+          {{#if url}}<a href="{{url}}">{{title}}</a>{{else}}{{title}}{{/if}}
+        </li>
+        {{/each}}
+      </ol>
+    </nav>
+    {{/if}}
+
+    <div id="main-wrapper">
+      {{#if messages}}
+      <div class="messages-region">
+        {{#each messages}}
+        <div class="messages messages--{{type}}" role="alert">
+          {{text}}
+        </div>
+        {{/each}}
+      </div>
+      {{/if}}
+
+      {{#if tabs}}
+      <nav id="tabs">
+        <ul class="tabs">
+          {{#each tabs}}
+          <li class="tabs__tab {{#if active}}is-active{{/if}}">
+            <a href="{{url}}">{{title}}</a>
+          </li>
+          {{/each}}
+        </ul>
+      </nav>
+      {{/if}}
+
+      <main id="main-content" role="main">
+        <div id="content-wrapper" class="{{#if sidebar}}has-sidebar{{/if}}">
+          {{#if sidebar}}
+          <aside id="sidebar-first" role="complementary">
+            {{{sidebar}}}
+          </aside>
+          {{/if}}
+
+          <div id="content">
+            {{#if title}}
+            <h1 class="page-title">{{title}}</h1>
+            {{/if}}
+
+            {{#if action_links}}
+            <ul class="action-links">
+              {{#each action_links}}
+              <li><a href="{{url}}" class="button">{{title}}</a></li>
+              {{/each}}
+            </ul>
+            {{/if}}
+
+            {{{content}}}
+          </div>
+        </div>
+      </main>
+    </div>
+
+    <footer id="footer" role="contentinfo">
+      <p>{{site_name}} &copy; {{year}} | Powered by CMS Core</p>
+    </footer>
+  </div>
+
+  <script src="/themes/admin/js/admin.js"></script>
+</body>
+</html>

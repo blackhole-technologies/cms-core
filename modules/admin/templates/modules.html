@@ -1,0 +1,69 @@
+<div class="admin-page">
+
+  <div class="admin-header">
+    <h1>Modules</h1>
+    <nav class="admin-nav">
+      <a href="/admin">Dashboard</a>
+      <a href="/admin/content">Content</a>
+      <a href="/admin/modules" class="active">Modules</a>
+    </nav>
+  </div>
+
+  {{#if hasFlash}}
+  <div class="flash flash-{{flash.type}}">
+    {{flash.message}}
+  </div>
+  {{/if}}
+
+  <div class="stats-grid">
+    <div class="stat-card">
+      <div class="stat-value">{{enabledCount}}</div>
+      <div class="stat-label">Enabled</div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-value">{{totalCount}}</div>
+      <div class="stat-label">Discovered</div>
+    </div>
+  </div>
+
+  <div class="admin-section">
+    <h2>Discovered Modules</h2>
+
+    {{#if hasModules}}
+    <table class="admin-table">
+      <thead>
+        <tr>
+          <th>Status</th>
+          <th>Name</th>
+          <th>Version</th>
+          <th>Description</th>
+        </tr>
+      </thead>
+      <tbody>
+        {{#each modules}}
+        <tr class="{{#if enabled}}enabled{{else}}disabled{{/if}}">
+          <td>
+            {{#if enabled}}
+            <span class="status-badge status-enabled">Enabled</span>
+            {{else}}
+            <span class="status-badge status-disabled">Disabled</span>
+            {{/if}}
+          </td>
+          <td><strong>{{name}}</strong></td>
+          <td>{{version}}</td>
+          <td>{{description}}</td>
+        </tr>
+        {{/each}}
+      </tbody>
+    </table>
+
+    <div class="help-text">
+      <p><strong>Note:</strong> To enable or disable modules, edit <code>config/modules.json</code> or use the CLI:</p>
+      <pre>node index.js modules:enable &lt;name&gt;
+node index.js modules:disable &lt;name&gt;</pre>
+    </div>
+    {{else}}
+    <p class="empty-message">No modules discovered. Create modules in the /modules directory.</p>
+    {{/if}}
+  </div>
+</div>

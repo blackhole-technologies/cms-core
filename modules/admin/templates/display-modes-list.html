@@ -1,0 +1,133 @@
+<div class="admin-page">
+
+  <div class="admin-header">
+    <h1>Display Modes</h1>
+    <nav class="admin-nav">
+      <a href="/admin">Dashboard</a>
+      <a href="/admin/structure" class="active">Structure</a>
+      <a href="/admin/content">Content</a>
+    </nav>
+  </div>
+
+  <div class="breadcrumb">
+    <a href="/admin">Dashboard</a> &rarr;
+    <a href="/admin/structure">Structure</a> &rarr;
+    <span>Display Modes</span>
+  </div>
+
+  {{#if hasFlash}}
+  <div class="flash flash-{{flash.type}}">
+    {{flash.message}}
+  </div>
+  {{/if}}
+
+  <div class="admin-content">
+    <div class="page-actions">
+      <a href="/admin/display-modes/create" class="btn btn-primary">Create View Mode</a>
+    </div>
+
+    <div class="data-table-wrapper">
+      <table class="data-table">
+        <thead>
+          <tr>
+            <th>View Mode</th>
+            <th>Machine Name</th>
+            <th>Label</th>
+            <th>Content Types Using</th>
+            <th>Actions</th>
+          </tr>
+        </thead>
+        <tbody>
+          {{#if viewModes.length}}
+          {{#each viewModes}}
+          <tr>
+            <td>
+              <strong>{{this.label}}</strong>
+              {{#if this.isDefault}}
+              <span class="badge badge-info">Default</span>
+              {{/if}}
+            </td>
+            <td><code>{{this.name}}</code></td>
+            <td>{{this.description}}</td>
+            <td>
+              {{#if this.contentTypes.length}}
+              <div class="tag-list">
+                {{#each this.contentTypes}}
+                <span class="tag">{{this}}</span>
+                {{/each}}
+              </div>
+              {{else}}
+              <span class="text-muted">None</span>
+              {{/if}}
+            </td>
+            <td class="actions">
+              {{#unless this.isDefault}}
+              <a href="/admin/display-modes/{{this.name}}/edit" class="btn btn-small">Edit</a>
+              <form method="POST" action="/admin/display-modes/{{this.name}}/delete" class="inline-form" onsubmit="return confirm('Delete view mode &quot;{{this.label}}&quot;?')">
+                <button type="submit" class="btn btn-small btn-danger">Delete</button>
+              </form>
+              {{else}}
+              <span class="text-muted">System</span>
+              {{/unless}}
+            </td>
+          </tr>
+          {{/each}}
+          {{else}}
+          <tr>
+            <td colspan="5" class="no-data">No custom view modes defined. Default modes (Full, Teaser) are always available.</td>
+          </tr>
+          {{/if}}
+        </tbody>
+      </table>
+    </div>
+  </div>
+</div>
+
+<style>
+.tag-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+
+.tag {
+  display: inline-block;
+  padding: 2px 8px;
+  background: #e9ecef;
+  border-radius: 3px;
+  font-size: 12px;
+  color: #495057;
+}
+
+.badge {
+  display: inline-block;
+  padding: 2px 6px;
+  font-size: 11px;
+  font-weight: 600;
+  border-radius: 3px;
+  margin-left: 8px;
+}
+
+.badge-info {
+  background: #d1ecf1;
+  color: #0c5460;
+}
+
+.text-muted {
+  color: #6c757d;
+  font-style: italic;
+}
+
+.page-actions {
+  margin-bottom: 20px;
+}
+
+.inline-form {
+  display: inline-block;
+  margin-left: 4px;
+}
+
+.actions {
+  white-space: nowrap;
+}
+</style>

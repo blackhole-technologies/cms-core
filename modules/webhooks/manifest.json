@@ -1,0 +1,6 @@
+{
+  "name": "webhooks",
+  "version": "0.0.1",
+  "description": "Webhook dispatch system for content lifecycle events",
+  "provides": ["webhook dispatch"]
+}

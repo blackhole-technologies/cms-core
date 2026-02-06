@@ -1,0 +1,275 @@
+<div class="admin-page">
+  <div class="admin-header">
+    <h1>{{pageTitle}}</h1>
+    <p>
+      <a href="/admin/content/{{type}}/{{id}}/edit">&larr; Back to Edit</a>
+    </p>
+  </div>
+
+  {{#if hasFlash}}
+  <div class="flash flash-{{flash.type}}">
+    {{flash.message}}
+  </div>
+  {{/if}}
+
+  <!-- Content Info -->
+  <div class="content-info">
+    <h2>{{itemTitle}}</h2>
+    <div class="content-meta">
+      <span>Type: {{type}}</span>
+      <span class="divider">|</span>
+      <span>ID: {{id}}</span>
+      <span class="divider">|</span>
+      <span>Default Locale: {{defaultLocale}}</span>
+    </div>
+  </div>
+
+  <!-- Translation Status -->
+  <div class="translation-status">
+    <h3>Translation Status</h3>
+    <div class="status-grid">
+      {{#each statusList}}
+      <div class="status-card {{#if isDefault}}status-default{{/if}} {{#if isComplete}}status-complete{{/if}}">
+        <div class="status-locale">{{code}}</div>
+        <div class="status-progress">
+          <div class="progress-bar">
+            <div class="progress-fill" style="width: {{percentage}}%"></div>
+          </div>
+          <span>{{translated}}/{{total}}</span>
+        </div>
+        {{#if isDefault}}
+        <span class="status-label">Default</span>
+        {{else}}
+        <a href="/admin/content/{{type}}/{{id}}/translate/{{code}}" class="btn btn-sm">
+          {{#if isComplete}}Edit{{else}}Translate{{/if}}
+        </a>
+        {{/if}}
+      </div>
+      {{/each}}
+    </div>
+  </div>
+
+  {{#if isEditing}}
+  <!-- Translation Form -->
+  <div class="translation-form-container">
+    <h3>Translate to {{targetLocale}} ({{targetLocaleName}})</h3>
+
+    <form method="POST" action="/admin/content/{{type}}/{{id}}/translate/{{targetLocale}}">
+      {{csrfField}}
+
+      <table class="admin-table translation-table">
+        <thead>
+          <tr>
+            <th class="col-field">Field</th>
+            <th class="col-original">Original ({{defaultLocale}})</th>
+            <th class="col-translation">Translation ({{targetLocale}})</th>
+          </tr>
+        </thead>
+        <tbody>
+          {{#each translatableFields}}
+          <tr>
+            <td class="col-field">
+              <strong>{{field}}</strong>
+              {{#if isRequired}}<span class="required">*</span>{{/if}}
+            </td>
+            <td class="col-original">
+              {{#if isLong}}
+              <div class="original-text">{{originalValue}}</div>
+              {{else}}
+              <span class="original-value">{{originalValue}}</span>
+              {{/if}}
+            </td>
+            <td class="col-translation">
+              {{#if isLong}}
+              <textarea name="{{field}}" rows="4">{{translatedValue}}</textarea>
+              {{else}}
+              <input type="text" name="{{field}}" value="{{translatedValue}}" placeholder="{{originalValue}}">
+              {{/if}}
+            </td>
+          </tr>
+          {{/each}}
+        </tbody>
+      </table>
+
+      <div class="form-actions">
+        <button type="submit" class="btn btn-primary">Save Translation</button>
+        <a href="/admin/content/{{type}}/{{id}}/translate" class="btn btn-secondary">Cancel</a>
+        {{#if hasExistingTranslation}}
+        <button type="button" class="btn btn-danger" onclick="if(confirm('Delete this translation?')) { document.getElementById('delete-form').submit(); }">
+          Delete Translation
+        </button>
+        {{/if}}
+      </div>
+    </form>
+
+    {{#if hasExistingTranslation}}
+    <form id="delete-form" method="POST" action="/admin/content/{{type}}/{{id}}/translate/{{targetLocale}}/delete" style="display: none;">
+      {{csrfField}}
+    </form>
+    {{/if}}
+  </div>
+  {{/if}}
+
+  <!-- Translatable Fields Info -->
+  <div class="admin-section">
+    <h3>Translatable Fields</h3>
+    <p>The following fields are available for translation:</p>
+    <ul>
+      {{#each translatableFieldsList}}
+      <li><code>{{this}}</code></li>
+      {{/each}}
+    </ul>
+    <small>Fields marked as <code>translatable: true</code> in the schema, or common text fields (title, name, description, body, content, summary, excerpt).</small>
+  </div>
+</div>
+
+<style>
+.content-info {
+  background: #f8f9fa;
+  padding: 1rem;
+  border-radius: 4px;
+  margin-bottom: 1.5rem;
+}
+.content-info h2 {
+  margin: 0 0 0.5rem 0;
+}
+.content-meta {
+  color: #666;
+  font-size: 0.9rem;
+}
+.divider {
+  margin: 0 0.5rem;
+  color: #ccc;
+}
+.translation-status {
+  margin-bottom: 2rem;
+}
+.translation-status h3 {
+  margin-bottom: 1rem;
+}
+.status-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+  gap: 1rem;
+}
+.status-card {
+  border: 1px solid #ddd;
+  border-radius: 4px;
+  padding: 1rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+.status-card.status-default {
+  background: #e7f5ff;
+  border-color: #339af0;
+}
+.status-card.status-complete {
+  background: #d3f9d8;
+  border-color: #40c057;
+}
+.status-locale {
+  font-weight: bold;
+  font-size: 1.2rem;
+}
+.status-progress {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+.progress-bar {
+  flex: 1;
+  height: 8px;
+  background: #e9ecef;
+  border-radius: 4px;
+  overflow: hidden;
+}
+.progress-fill {
+  height: 100%;
+  background: #28a745;
+  transition: width 0.3s ease;
+}
+.status-label {
+  font-size: 0.8rem;
+  color: #666;
+}
+.translation-form-container {
+  margin-bottom: 2rem;
+}
+.translation-form-container h3 {
+  margin-bottom: 1rem;
+}
+.translation-table th,
+.translation-table td {
+  vertical-align: top;
+}
+.col-field {
+  width: 15%;
+}
+.col-original {
+  width: 40%;
+}
+.col-translation {
+  width: 45%;
+}
+.original-value {
+  color: #666;
+}
+.original-text {
+  color: #666;
+  font-size: 0.9rem;
+  white-space: pre-wrap;
+  max-height: 150px;
+  overflow-y: auto;
+}
+.translation-table input[type="text"],
+.translation-table textarea {
+  width: 100%;
+  padding: 0.5rem;
+  border: 1px solid #ddd;
+  border-radius: 4px;
+  font-family: inherit;
+  font-size: 0.9rem;
+}
+.translation-table textarea {
+  resize: vertical;
+}
+.required {
+  color: #dc3545;
+}
+.form-actions {
+  display: flex;
+  gap: 1rem;
+  margin-top: 1rem;
+}
+.btn-danger {
+  background: #dc3545;
+  color: white;
+  margin-left: auto;
+}
+.btn-danger:hover {
+  background: #c82333;
+}
+.admin-section {
+  margin-top: 2rem;
+  padding-top: 1rem;
+  border-top: 1px solid #ddd;
+}
+.admin-section h3 {
+  font-size: 1.1rem;
+  margin-bottom: 0.75rem;
+}
+.admin-section ul {
+  margin: 0.5rem 0;
+  padding-left: 1.5rem;
+}
+.admin-section code {
+  background: #f1f3f4;
+  padding: 0.1em 0.3em;
+  border-radius: 3px;
+  font-size: 0.9rem;
+}
+.admin-section small {
+  color: #666;
+}
+</style>

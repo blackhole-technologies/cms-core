@@ -1,0 +1,945 @@
+/**
+ * media-library.js - Reusable Media Entity Management
+ *
+ * WHY THIS EXISTS:
+ * =================
+ * Media Library provides a centralized repository for all media assets,
+ * enabling reuse across content. Inspired by Drupal's Media module:
+ *
+ * - Media as entities (not just files) with metadata
+ * - Multiple media types (image, video, audio, document, remote_video)
+ * - Thumbnail generation and image style integration
+ * - Media browser widget for content editing
+ * - Usage tracking (where is each media used)
+ *
+ * KEY DIFFERENCES FROM media.js:
+ * ==============================
+ * media.js = File storage and upload handling (low-level)
+ * media-library.js = Media entity management (high-level)
+ *
+ * A "media entity" wraps a file with:
+ * - Name and alt text
+ * - MIME type and dimensions
+ * - Thumbnail
+ * - Usage references
+ * - Metadata (author, license, tags)
+ *
+ * STORAGE STRATEGY:
+ * =================
+ * /content
+ *   /media-entity
+ *     /<id>.json          <- Media entity data
+ * /media
+ *   /<year>/<month>       <- Actual files (via media.js)
+ *
+ * WHY SEPARATE ENTITY STORAGE:
+ * - Media entities are content, not just files
+ * - Can have revisions, workflow status, etc.
+ * - Enables media-specific querying and filtering
+ * - Keeps file storage simple (media.js)
+ *
+ * DESIGN DECISIONS:
+ * =================
+ * - Uses content service for entity storage (consistency)
+ * - Uses media service for file handling
+ * - Thumbnail generation via image-styles
+ * - Hooks for extensibility
+ * - Lazy usage tracking (computed on demand)
+ */
+
+import { join } from 'node:path';
+import { existsSync, readFileSync, readdirSync, statSync } from 'node:fs';
+import { randomBytes } from 'node:crypto';
+
+// ============================================
+// MODULE STATE
+// ============================================
+
+let baseDir = null;
+let mediaService = null;
+let contentService = null;
+let imageStylesService = null;
+let hooksService = null;
+
+/**
+ * Media type definitions
+ * Structure: { typeId: MediaTypeDefinition, ... }
+ */
+const mediaTypes = {};
+
+/**
+ * Configuration
+ */
+let config = {
+  enabled: true,
+  contentType: 'media-entity',
+  thumbnailStyle: 'thumbnail',
+  allowedTypes: ['image', 'video', 'audio', 'document', 'remote_video'],
+  maxFileSize: 50 * 1024 * 1024, // 50MB
+  imageExtensions: ['jpg', 'jpeg', 'png', 'gif', 'webp', 'svg'],
+  videoExtensions: ['mp4', 'webm', 'ogg', 'mov', 'avi'],
+  audioExtensions: ['mp3', 'wav', 'ogg', 'aac', 'm4a'],
+  documentExtensions: ['pdf', 'doc', 'docx', 'xls', 'xlsx', 'ppt', 'pptx', 'txt', 'csv'],
+};
+
+// ============================================
+// TYPE DEFINITIONS (JSDoc)
+// ============================================
+
+/**
+ * @typedef {Object} MediaTypeDefinition
+ * @property {string} id - Type identifier (image, video, etc.)
+ * @property {string} label - Human-readable name
+ * @property {string} description - Type description
+ * @property {string[]} extensions - Allowed file extensions
+ * @property {string[]} mimeTypes - Allowed MIME types
+ * @property {Object} schema - Additional fields for this type
+ * @property {Function} validate - Custom validation function
+ */
+
+/**
+ * @typedef {Object} MediaEntity
+ * @property {string} id - Entity ID
+ * @property {string} type - Entity type (always "media-entity")
+ * @property {string} mediaType - Media type (image, video, etc.)
+ * @property {string} name - Display name
+ * @property {string} filename - Original filename
+ * @property {string} path - File path (relative to media directory)
+ * @property {string} mimeType - MIME type
+ * @property {number} size - File size in bytes
+ * @property {Object} metadata - Type-specific metadata
+ * @property {string} thumbnail - Thumbnail path (for images/videos)
+ * @property {string[]} tags - Categorization tags
+ * @property {string} alt - Alt text (for images)
+ * @property {string} caption - Caption/description
+ * @property {string} credit - Credit/attribution
+ * @property {string} status - published/draft
+ * @property {string} created - ISO timestamp
+ * @property {string} updated - ISO timestamp
+ */
+
+// ============================================
+// INITIALIZATION
+// ============================================
+
+/**
+ * Initialize the media library system
+ *
+ * @param {Object} options - Initialization options
+ * @param {string} options.baseDir - Base directory
+ * @param {Object} options.media - Media service reference
+ * @param {Object} options.content - Content service reference
+ * @param {Object} options.imageStyles - Image styles service reference
+ * @param {Object} options.hooks - Hooks service reference
+ * @param {Object} options.config - Configuration overrides
+ */
+export function init(options = {}) {
+  baseDir = options.baseDir;
+  mediaService = options.media;
+  contentService = options.content;
+  imageStylesService = options.imageStyles;
+  hooksService = options.hooks;
+
+  if (options.config) {
+    config = { ...config, ...options.config };
+  }
+
+  // Register media entity content type
+  if (contentService) {
+    registerMediaContentType();
+  }
+
+  // Register built-in media types
+  registerBuiltinMediaTypes();
+
+  console.log(`[media-library] Initialized (${Object.keys(mediaTypes).length} media types)`);
+}
+
+/**
+ * Register the media-entity content type
+ */
+function registerMediaContentType() {
+  // Check if already registered
+  if (contentService.hasType && contentService.hasType(config.contentType)) {
+    return;
+  }
+
+  // Register via content service
+  if (contentService.registerType) {
+    contentService.registerType(config.contentType, {
+      name: { type: 'string', required: true },
+      mediaType: { type: 'string', required: true },
+      filename: { type: 'string', required: true },
+      path: { type: 'string', required: true },
+      mimeType: { type: 'string' },
+      size: { type: 'number' },
+      metadata: { type: 'object' },
+      thumbnail: { type: 'string' },
+      tags: { type: 'array' },
+      alt: { type: 'string' },
+      caption: { type: 'string' },
+      credit: { type: 'string' },
+    }, 'core:media-library');
+  }
+}
+
+// ============================================
+// BUILT-IN MEDIA TYPES
+// ============================================
+
+/**
+ * Register built-in media type definitions
+ */
+function registerBuiltinMediaTypes() {
+  // Image
+  mediaTypes.image = {
+    id: 'image',
+    label: 'Image',
+    description: 'Photographs, illustrations, and graphics',
+    extensions: config.imageExtensions,
+    mimeTypes: ['image/jpeg', 'image/png', 'image/gif', 'image/webp', 'image/svg+xml'],
+    schema: {
+      width: { type: 'number' },
+      height: { type: 'number' },
+      alt: { type: 'string', required: true },
+    },
+    icon: 'image',
+  };
+
+  // Video
+  mediaTypes.video = {
+    id: 'video',
+    label: 'Video',
+    description: 'Video files',
+    extensions: config.videoExtensions,
+    mimeTypes: ['video/mp4', 'video/webm', 'video/ogg', 'video/quicktime', 'video/x-msvideo'],
+    schema: {
+      width: { type: 'number' },
+      height: { type: 'number' },
+      duration: { type: 'number' },
+    },
+    icon: 'video',
+  };
+
+  // Audio
+  mediaTypes.audio = {
+    id: 'audio',
+    label: 'Audio',
+    description: 'Audio files and podcasts',
+    extensions: config.audioExtensions,
+    mimeTypes: ['audio/mpeg', 'audio/wav', 'audio/ogg', 'audio/aac', 'audio/mp4'],
+    schema: {
+      duration: { type: 'number' },
+      bitrate: { type: 'number' },
+    },
+    icon: 'audio',
+  };
+
+  // Document
+  mediaTypes.document = {
+    id: 'document',
+    label: 'Document',
+    description: 'PDFs, office documents, and text files',
+    extensions: config.documentExtensions,
+    mimeTypes: [
+      'application/pdf',
+      'application/msword',
+      'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+      'application/vnd.ms-excel',
+      'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+      'application/vnd.ms-powerpoint',
+      'application/vnd.openxmlformats-officedocument.presentationml.presentation',
+      'text/plain',
+      'text/csv',
+    ],
+    schema: {
+      pageCount: { type: 'number' },
+    },
+    icon: 'document',
+  };
+
+  // Remote Video (YouTube, Vimeo, etc.)
+  mediaTypes.remote_video = {
+    id: 'remote_video',
+    label: 'Remote Video',
+    description: 'YouTube, Vimeo, and other embedded videos',
+    extensions: [],
+    mimeTypes: [],
+    schema: {
+      url: { type: 'string', required: true },
+      provider: { type: 'string' },
+      videoId: { type: 'string' },
+      embedUrl: { type: 'string' },
+    },
+    icon: 'video-remote',
+    isRemote: true,
+  };
+}
+
+// ============================================
+// MEDIA TYPE MANAGEMENT
+// ============================================
+
+/**
+ * Register a custom media type
+ *
+ * @param {MediaTypeDefinition} typeDefinition - Type definition
+ * @returns {MediaTypeDefinition}
+ */
+export function registerMediaType(typeDefinition) {
+  if (!typeDefinition.id) {
+    throw new Error('Media type ID is required');
+  }
+
+  if (mediaTypes[typeDefinition.id]) {
+    throw new Error(`Media type "${typeDefinition.id}" already exists`);
+  }
+
+  mediaTypes[typeDefinition.id] = {
+    id: typeDefinition.id,
+    label: typeDefinition.label || typeDefinition.id,
+    description: typeDefinition.description || '',
+    extensions: typeDefinition.extensions || [],
+    mimeTypes: typeDefinition.mimeTypes || [],
+    schema: typeDefinition.schema || {},
+    icon: typeDefinition.icon || 'file',
+    isRemote: typeDefinition.isRemote || false,
+    validate: typeDefinition.validate || null,
+  };
+
+  return mediaTypes[typeDefinition.id];
+}
+
+/**
+ * Get a media type definition
+ *
+ * @param {string} id - Type ID
+ * @returns {MediaTypeDefinition|null}
+ */
+export function getMediaType(id) {
+  return mediaTypes[id] || null;
+}
+
+/**
+ * List all media types
+ *
+ * @returns {MediaTypeDefinition[]}
+ */
+export function listMediaTypes() {
+  return Object.values(mediaTypes);
+}
+
+/**
+ * Detect media type from file extension or MIME type
+ *
+ * @param {string} filename - File name or path
+ * @param {string} mimeType - MIME type (optional)
+ * @returns {string|null} - Media type ID or null
+ */
+export function detectMediaType(filename, mimeType = null) {
+  const ext = filename.split('.').pop().toLowerCase();
+
+  for (const [typeId, typeDef] of Object.entries(mediaTypes)) {
+    if (typeDef.isRemote) continue;
+
+    if (typeDef.extensions.includes(ext)) {
+      return typeId;
+    }
+
+    if (mimeType && typeDef.mimeTypes.includes(mimeType)) {
+      return typeId;
+    }
+  }
+
+  return null;
+}
+
+// ============================================
+// MEDIA ENTITY MANAGEMENT
+// ============================================
+
+/**
+ * Create a new media entity from an uploaded file
+ *
+ * @param {Object} file - Uploaded file data
+ * @param {Buffer|string} file.data - File data or path
+ * @param {string} file.filename - Original filename
+ * @param {string} file.mimeType - MIME type
+ * @param {number} file.size - File size
+ * @param {Object} options - Additional options
+ * @returns {Promise<MediaEntity>}
+ */
+export async function createFromUpload(file, options = {}) {
+  // Detect media type
+  const mediaType = options.mediaType || detectMediaType(file.filename, file.mimeType);
+  if (!mediaType) {
+    throw new Error(`Unsupported file type: ${file.filename}`);
+  }
+
+  const typeDef = getMediaType(mediaType);
+  if (!typeDef) {
+    throw new Error(`Unknown media type: ${mediaType}`);
+  }
+
+  // Validate file size
+  if (file.size > config.maxFileSize) {
+    throw new Error(`File too large: ${file.size} bytes (max: ${config.maxFileSize})`);
+  }
+
+  // Fire before hook
+  if (hooksService) {
+    await hooksService.trigger('media-library:beforeCreate', { file, options, mediaType });
+  }
+
+  // Upload file via media service
+  let uploadResult;
+  if (mediaService && mediaService.upload) {
+    uploadResult = await mediaService.upload(file.data, file.filename, {
+      mimeType: file.mimeType,
+    });
+  } else {
+    throw new Error('Media service not available');
+  }
+
+  // Extract metadata for images
+  let metadata = options.metadata || {};
+  if (mediaType === 'image') {
+    // Could integrate with image-size or sharp for dimensions
+    metadata = {
+      ...metadata,
+      width: options.width || null,
+      height: options.height || null,
+    };
+  }
+
+  // Generate thumbnail for images
+  let thumbnail = null;
+  if (mediaType === 'image' && imageStylesService) {
+    try {
+      thumbnail = await imageStylesService.generate(
+        uploadResult.path,
+        config.thumbnailStyle
+      );
+    } catch (e) {
+      console.warn('[media-library] Thumbnail generation failed:', e.message);
+    }
+  }
+
+  // Create media entity
+  const entity = {
+    name: options.name || file.filename.replace(/\.[^.]+$/, ''),
+    mediaType,
+    filename: file.filename,
+    path: uploadResult.path,
+    mimeType: file.mimeType,
+    size: file.size,
+    metadata,
+    thumbnail,
+    tags: options.tags || [],
+    alt: options.alt || '',
+    caption: options.caption || '',
+    credit: options.credit || '',
+    status: options.status || 'published',
+  };
+
+  // Save via content service
+  const created = await contentService.create(config.contentType, entity);
+
+  // Fire after hook
+  if (hooksService) {
+    await hooksService.trigger('media-library:afterCreate', { entity: created, file });
+  }
+
+  return created;
+}
+
+/**
+ * Create a media entity for a remote video
+ *
+ * @param {string} url - Video URL (YouTube, Vimeo, etc.)
+ * @param {Object} options - Additional options
+ * @returns {Promise<MediaEntity>}
+ */
+export async function createFromUrl(url, options = {}) {
+  // Parse video URL
+  const videoInfo = parseVideoUrl(url);
+  if (!videoInfo) {
+    throw new Error('Unsupported video URL');
+  }
+
+  // Fire before hook
+  if (hooksService) {
+    await hooksService.trigger('media-library:beforeCreate', { url, options, mediaType: 'remote_video' });
+  }
+
+  // Create media entity
+  const entity = {
+    name: options.name || `${videoInfo.provider} video`,
+    mediaType: 'remote_video',
+    filename: url,
+    path: url,
+    mimeType: 'video/embed',
+    size: 0,
+    metadata: {
+      url,
+      provider: videoInfo.provider,
+      videoId: videoInfo.videoId,
+      embedUrl: videoInfo.embedUrl,
+    },
+    thumbnail: videoInfo.thumbnailUrl || null,
+    tags: options.tags || [],
+    alt: options.alt || '',
+    caption: options.caption || '',
+    credit: options.credit || videoInfo.provider,
+    status: options.status || 'published',
+  };
+
+  // Save via content service
+  const created = await contentService.create(config.contentType, entity);
+
+  // Fire after hook
+  if (hooksService) {
+    await hooksService.trigger('media-library:afterCreate', { entity: created, url });
+  }
+
+  return created;
+}
+
+/**
+ * Parse a video URL to extract provider and ID
+ *
+ * @param {string} url - Video URL
+ * @returns {Object|null}
+ */
+function parseVideoUrl(url) {
+  // YouTube
+  const youtubeMatch = url.match(
+    /(?:youtube\.com\/(?:[^\/]+\/.+\/|(?:v|e(?:mbed)?)\/|.*[?&]v=)|youtu\.be\/)([^"&?\/\s]{11})/
+  );
+  if (youtubeMatch) {
+    return {
+      provider: 'youtube',
+      videoId: youtubeMatch[1],
+      embedUrl: `https://www.youtube.com/embed/${youtubeMatch[1]}`,
+      thumbnailUrl: `https://img.youtube.com/vi/${youtubeMatch[1]}/hqdefault.jpg`,
+    };
+  }
+
+  // Vimeo
+  const vimeoMatch = url.match(/vimeo\.com\/(\d+)/);
+  if (vimeoMatch) {
+    return {
+      provider: 'vimeo',
+      videoId: vimeoMatch[1],
+      embedUrl: `https://player.vimeo.com/video/${vimeoMatch[1]}`,
+      thumbnailUrl: null, // Vimeo requires API call for thumbnail
+    };
+  }
+
+  return null;
+}
+
+/**
+ * Get a media entity by ID
+ *
+ * @param {string} id - Entity ID
+ * @returns {MediaEntity|null}
+ */
+export function get(id) {
+  if (!contentService) return null;
+  return contentService.read(config.contentType, id);
+}
+
+/**
+ * Update a media entity
+ *
+ * @param {string} id - Entity ID
+ * @param {Object} updates - Fields to update
+ * @returns {Promise<MediaEntity>}
+ */
+export async function update(id, updates) {
+  // Fire before hook
+  if (hooksService) {
+    await hooksService.trigger('media-library:beforeUpdate', { id, updates });
+  }
+
+  const updated = await contentService.update(config.contentType, id, updates);
+
+  // Fire after hook
+  if (hooksService) {
+    await hooksService.trigger('media-library:afterUpdate', { entity: updated });
+  }
+
+  return updated;
+}
+
+/**
+ * Delete a media entity
+ *
+ * @param {string} id - Entity ID
+ * @param {Object} options - Delete options
+ * @param {boolean} options.deleteFile - Also delete the file (default: true)
+ * @returns {Promise<boolean>}
+ */
+export async function remove(id, options = {}) {
+  const entity = get(id);
+  if (!entity) {
+    throw new Error(`Media entity "${id}" not found`);
+  }
+
+  const deleteFile = options.deleteFile !== false;
+
+  // Fire before hook
+  if (hooksService) {
+    await hooksService.trigger('media-library:beforeDelete', { entity, deleteFile });
+  }
+
+  // Delete file if requested and not remote
+  if (deleteFile && mediaService && !entity.metadata?.url) {
+    try {
+      await mediaService.delete(entity.path);
+    } catch (e) {
+      console.warn('[media-library] Failed to delete file:', e.message);
+    }
+  }
+
+  // Delete entity
+  await contentService.remove(config.contentType, id);
+
+  // Fire after hook
+  if (hooksService) {
+    await hooksService.trigger('media-library:afterDelete', { id, entity });
+  }
+
+  return true;
+}
+
+/**
+ * List media entities with filtering
+ *
+ * @param {Object} options - Query options
+ * @param {string} options.mediaType - Filter by media type
+ * @param {string} options.search - Search in name
+ * @param {string[]} options.tags - Filter by tags
+ * @param {number} options.page - Page number
+ * @param {number} options.limit - Items per page
+ * @param {string} options.sort - Sort field
+ * @param {string} options.order - Sort order (asc/desc)
+ * @returns {Object}
+ */
+export function list(options = {}) {
+  const queryOptions = {
+    page: options.page || 1,
+    limit: options.limit || 20,
+    sort: options.sort || 'created',
+    order: options.order || 'desc',
+    filters: [],
+  };
+
+  if (options.mediaType) {
+    queryOptions.filters.push({
+      field: 'mediaType',
+      op: 'eq',
+      value: options.mediaType,
+    });
+  }
+
+  if (options.search) {
+    queryOptions.search = options.search;
+  }
+
+  // Note: Tag filtering would need content service enhancement
+  // or post-query filtering
+
+  return contentService.list(config.contentType, queryOptions);
+}
+
+// ============================================
+// USAGE TRACKING
+// ============================================
+
+/**
+ * Track where a media entity is used
+ *
+ * @param {string} mediaId - Media entity ID
+ * @param {string} contentType - Referencing content type
+ * @param {string} contentId - Referencing content ID
+ * @param {string} field - Field name that references the media
+ */
+export async function trackUsage(mediaId, contentType, contentId, field) {
+  const entity = get(mediaId);
+  if (!entity) return;
+
+  // Get or initialize usage array
+  const usage = entity._usage || [];
+
+  // Add reference if not already tracked
+  const existing = usage.find(
+    u => u.contentType === contentType && u.contentId === contentId && u.field === field
+  );
+
+  if (!existing) {
+    usage.push({
+      contentType,
+      contentId,
+      field,
+      added: new Date().toISOString(),
+    });
+
+    await update(mediaId, { _usage: usage });
+  }
+}
+
+/**
+ * Remove usage tracking
+ *
+ * @param {string} mediaId - Media entity ID
+ * @param {string} contentType - Referencing content type
+ * @param {string} contentId - Referencing content ID
+ */
+export async function removeUsage(mediaId, contentType, contentId) {
+  const entity = get(mediaId);
+  if (!entity || !entity._usage) return;
+
+  const usage = entity._usage.filter(
+    u => !(u.contentType === contentType && u.contentId === contentId)
+  );
+
+  await update(mediaId, { _usage: usage });
+}
+
+/**
+ * Get usage information for a media entity
+ *
+ * @param {string} mediaId - Media entity ID
+ * @returns {Object[]}
+ */
+export function getUsage(mediaId) {
+  const entity = get(mediaId);
+  if (!entity) return [];
+  return entity._usage || [];
+}
+
+/**
+ * Check if a media entity is in use
+ *
+ * @param {string} mediaId - Media entity ID
+ * @returns {boolean}
+ */
+export function isInUse(mediaId) {
+  const usage = getUsage(mediaId);
+  return usage.length > 0;
+}
+
+// ============================================
+// URL AND PATH HELPERS
+// ============================================
+
+/**
+ * Get the public URL for a media entity
+ *
+ * @param {string|MediaEntity} mediaOrId - Media entity or ID
+ * @param {string} style - Image style (for images)
+ * @returns {string|null}
+ */
+export function getUrl(mediaOrId, style = null) {
+  const entity = typeof mediaOrId === 'string' ? get(mediaOrId) : mediaOrId;
+  if (!entity) return null;
+
+  // Remote video
+  if (entity.mediaType === 'remote_video') {
+    return entity.metadata?.url || null;
+  }
+
+  // Image with style
+  if (style && entity.mediaType === 'image' && imageStylesService) {
+    return imageStylesService.getUrl(entity.path, style);
+  }
+
+  // Default path
+  return `/media/${entity.path}`;
+}
+
+/**
+ * Get thumbnail URL for a media entity
+ *
+ * @param {string|MediaEntity} mediaOrId - Media entity or ID
+ * @returns {string|null}
+ */
+export function getThumbnailUrl(mediaOrId) {
+  const entity = typeof mediaOrId === 'string' ? get(mediaOrId) : mediaOrId;
+  if (!entity) return null;
+
+  // Use stored thumbnail
+  if (entity.thumbnail) {
+    return entity.thumbnail;
+  }
+
+  // For remote videos, use the thumbnail URL from metadata
+  if (entity.mediaType === 'remote_video' && entity.metadata?.thumbnailUrl) {
+    return entity.metadata.thumbnailUrl;
+  }
+
+  // For images, generate thumbnail on-the-fly
+  if (entity.mediaType === 'image') {
+    return getUrl(entity, config.thumbnailStyle);
+  }
+
+  // Type-specific placeholder
+  return `/admin/assets/icons/media-${entity.mediaType}.svg`;
+}
+
+/**
+ * Get embed code for remote videos
+ *
+ * @param {string|MediaEntity} mediaOrId - Media entity or ID
+ * @param {Object} options - Embed options
+ * @returns {string|null}
+ */
+export function getEmbed(mediaOrId, options = {}) {
+  const entity = typeof mediaOrId === 'string' ? get(mediaOrId) : mediaOrId;
+  if (!entity || entity.mediaType !== 'remote_video') return null;
+
+  const width = options.width || 560;
+  const height = options.height || 315;
+  const embedUrl = entity.metadata?.embedUrl;
+
+  if (!embedUrl) return null;
+
+  return `<iframe width="${width}" height="${height}" src="${embedUrl}" frameborder="0" allowfullscreen></iframe>`;
+}
+
+// ============================================
+// BROWSER WIDGET DATA
+// ============================================
+
+/**
+ * Get data for the media browser widget
+ *
+ * @param {Object} options - Browser options
+ * @param {string[]} options.allowedTypes - Allowed media types
+ * @param {boolean} options.multiple - Allow multiple selection
+ * @returns {Object}
+ */
+export function getBrowserData(options = {}) {
+  const allowedTypes = options.allowedTypes || config.allowedTypes;
+
+  return {
+    types: listMediaTypes().filter(t => allowedTypes.includes(t.id)),
+    items: list({ limit: 50, mediaType: options.initialType }),
+    config: {
+      allowedTypes,
+      multiple: options.multiple || false,
+      uploadEnabled: true,
+      maxFileSize: config.maxFileSize,
+    },
+  };
+}
+
+// ============================================
+// BULK OPERATIONS
+// ============================================
+
+/**
+ * Bulk update media entities
+ *
+ * @param {string[]} ids - Entity IDs
+ * @param {Object} updates - Updates to apply
+ * @returns {Promise<number>} - Number of updated entities
+ */
+export async function bulkUpdate(ids, updates) {
+  let count = 0;
+
+  for (const id of ids) {
+    try {
+      await update(id, updates);
+      count++;
+    } catch (e) {
+      console.warn(`[media-library] Failed to update ${id}:`, e.message);
+    }
+  }
+
+  return count;
+}
+
+/**
+ * Bulk delete media entities
+ *
+ * @param {string[]} ids - Entity IDs
+ * @param {Object} options - Delete options
+ * @returns {Promise<number>} - Number of deleted entities
+ */
+export async function bulkDelete(ids, options = {}) {
+  let count = 0;
+
+  for (const id of ids) {
+    try {
+      await remove(id, options);
+      count++;
+    } catch (e) {
+      console.warn(`[media-library] Failed to delete ${id}:`, e.message);
+    }
+  }
+
+  return count;
+}
+
+// ============================================
+// STATISTICS
+// ============================================
+
+/**
+ * Get media library statistics
+ *
+ * @returns {Object}
+ */
+export function getStats() {
+  const allMedia = list({ limit: 10000 });
+  const items = allMedia.items || [];
+
+  const stats = {
+    total: items.length,
+    byType: {},
+    totalSize: 0,
+    recentlyAdded: 0,
+  };
+
+  const oneWeekAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
+
+  for (const item of items) {
+    // Count by type
+    stats.byType[item.mediaType] = (stats.byType[item.mediaType] || 0) + 1;
+
+    // Total size
+    stats.totalSize += item.size || 0;
+
+    // Recently added
+    if (new Date(item.created) > oneWeekAgo) {
+      stats.recentlyAdded++;
+    }
+  }
+
+  return stats;
+}
+
+// ============================================
+// CONFIGURATION
+// ============================================
+
+/**
+ * Get configuration
+ *
+ * @returns {Object}
+ */
+export function getConfig() {
+  return { ...config };
+}
+
+/**
+ * Check if media library is enabled
+ *
+ * @returns {boolean}
+ */
+export function isEnabled() {
+  return config.enabled;
+}

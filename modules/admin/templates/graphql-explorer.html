@@ -1,0 +1,374 @@
+<div class="admin-page">
+
+  <div class="admin-header">
+    <h1>{{pageTitle}}</h1>
+    <nav class="admin-nav">
+      <a href="/admin">Dashboard</a>
+      <a href="/admin/content">Content</a>
+      <a href="/admin/api">API</a>
+      <a href="/admin/graphql" class="active">GraphQL</a>
+    </nav>
+  </div>
+
+  {{#if hasFlash}}
+  <div class="flash flash-{{flash.type}}">
+    {{flash.message}}
+  </div>
+  {{/if}}
+
+  <div class="breadcrumb">
+    <a href="/admin">Dashboard</a> &rarr;
+    <span>GraphQL Explorer</span>
+  </div>
+
+  <div class="graphql-page">
+    <div class="graphql-sidebar">
+      <div class="sidebar-section">
+        <h3>Quick Links</h3>
+        {{#if playgroundEnabled}}
+        <a href="/graphql" target="_blank" class="btn btn-primary btn-block">Open Playground</a>
+        {{/if}}
+      </div>
+
+      <div class="sidebar-section">
+        <h3>Types ({{types.length}})</h3>
+        <ul class="type-list">
+          {{#each types}}
+          <li>
+            <strong>{{name}}</strong>
+            <span class="type-source">{{contentType}}</span>
+          </li>
+          {{/each}}
+        </ul>
+      </div>
+
+      <div class="sidebar-section">
+        <h3>Configuration</h3>
+        <ul class="config-list">
+          <li>
+            <span class="config-key">Playground:</span>
+            <span class="config-value">{{#if config.playground}}enabled{{else}}disabled{{/if}}</span>
+          </li>
+          <li>
+            <span class="config-key">Introspection:</span>
+            <span class="config-value">{{#if config.introspection}}enabled{{else}}disabled{{/if}}</span>
+          </li>
+          <li>
+            <span class="config-key">Max Depth:</span>
+            <span class="config-value">{{config.maxDepth}}</span>
+          </li>
+        </ul>
+      </div>
+    </div>
+
+    <div class="graphql-content">
+      <div class="admin-section">
+        <h2>GraphQL Endpoint</h2>
+        <p>Send GraphQL queries to the following endpoint:</p>
+        <div class="endpoint-display">
+          <code>POST /graphql</code>
+        </div>
+
+        <h3>Example Request</h3>
+        <pre class="code-block"><code>curl -X POST "http://localhost:3000/graphql" \
+  -H "Content-Type: application/json" \
+  -d '{"query": "{ greetings(limit: 5) { id name message } }"}'</code></pre>
+
+        <h3>Example Response</h3>
+        <pre class="code-block"><code>{
+  "data": {
+    "greetings": [
+      { "id": "abc123", "name": "Hello", "message": "Welcome!" }
+    ]
+  }
+}</code></pre>
+      </div>
+
+      <div class="admin-section">
+        <h2>Try a Query</h2>
+        <div class="query-tester">
+          <div class="query-input">
+            <label for="queryInput">Query</label>
+            <textarea id="queryInput" rows="8" placeholder="{
+  greetings(limit: 5) {
+    id
+    name
+    message
+  }
+}"></textarea>
+          </div>
+          <div class="query-variables">
+            <label for="variablesInput">Variables (JSON)</label>
+            <textarea id="variablesInput" rows="4" placeholder="{}"></textarea>
+          </div>
+          <button class="btn btn-primary" onclick="executeQuery()">Execute Query</button>
+          <div class="query-result">
+            <label>Result</label>
+            <pre id="queryResult"></pre>
+          </div>
+        </div>
+      </div>
+
+      <div class="admin-section">
+        <h2>Generated Schema</h2>
+        <details>
+          <summary>View Full Schema ({{types.length}} types)</summary>
+          <pre class="schema-display"><code>{{schema}}</code></pre>
+        </details>
+      </div>
+
+      <div class="admin-section">
+        <h2>Type Details</h2>
+        {{#each types}}
+        <div class="type-card">
+          <div class="type-header">
+            <span class="type-name">{{name}}</span>
+            <span class="type-badge">{{contentType}}</span>
+          </div>
+          <table class="fields-table">
+            <thead>
+              <tr>
+                <th>Field</th>
+                <th>Type</th>
+                <th>Required</th>
+              </tr>
+            </thead>
+            <tbody>
+              {{#each fields}}
+              <tr>
+                <td><code>{{name}}</code></td>
+                <td><code>{{type}}</code></td>
+                <td>{{#if required}}Yes{{else}}No{{/if}}</td>
+              </tr>
+              {{/each}}
+            </tbody>
+          </table>
+        </div>
+        {{/each}}
+      </div>
+    </div>
+  </div>
+
+  <style>
+    .graphql-page {
+      display: flex;
+      gap: 2rem;
+    }
+    .graphql-sidebar {
+      width: 250px;
+      flex-shrink: 0;
+    }
+    .graphql-content {
+      flex: 1;
+      min-width: 0;
+    }
+    .sidebar-section {
+      background: #f9fafb;
+      border: 1px solid #e5e7eb;
+      border-radius: 8px;
+      padding: 1rem;
+      margin-bottom: 1rem;
+    }
+    .sidebar-section h3 {
+      margin: 0 0 0.75rem 0;
+      font-size: 0.9rem;
+      color: #374151;
+    }
+    .btn-block {
+      display: block;
+      width: 100%;
+      text-align: center;
+    }
+    .type-list {
+      list-style: none;
+      padding: 0;
+      margin: 0;
+    }
+    .type-list li {
+      padding: 0.375rem 0;
+      border-bottom: 1px solid #e5e7eb;
+    }
+    .type-list li:last-child {
+      border-bottom: none;
+    }
+    .type-list strong {
+      display: block;
+      font-size: 0.9rem;
+    }
+    .type-source {
+      font-size: 0.75rem;
+      color: #6b7280;
+    }
+    .config-list {
+      list-style: none;
+      padding: 0;
+      margin: 0;
+    }
+    .config-list li {
+      display: flex;
+      justify-content: space-between;
+      padding: 0.25rem 0;
+      font-size: 0.85rem;
+    }
+    .config-key {
+      color: #6b7280;
+    }
+    .config-value {
+      font-weight: 500;
+    }
+    .endpoint-display {
+      background: #1f2937;
+      color: #f9fafb;
+      padding: 1rem;
+      border-radius: 6px;
+      margin: 1rem 0;
+    }
+    .endpoint-display code {
+      font-size: 1rem;
+    }
+    .code-block {
+      background: #1f2937;
+      color: #f9fafb;
+      padding: 1rem;
+      border-radius: 6px;
+      overflow-x: auto;
+      font-size: 0.85rem;
+      margin: 0.5rem 0 1rem 0;
+    }
+    .query-tester {
+      background: #f9fafb;
+      border: 1px solid #e5e7eb;
+      border-radius: 8px;
+      padding: 1rem;
+    }
+    .query-input,
+    .query-variables,
+    .query-result {
+      margin-bottom: 1rem;
+    }
+    .query-tester label {
+      display: block;
+      font-weight: 500;
+      margin-bottom: 0.5rem;
+      font-size: 0.9rem;
+    }
+    .query-tester textarea {
+      width: 100%;
+      font-family: 'Monaco', 'Menlo', monospace;
+      font-size: 0.85rem;
+      padding: 0.75rem;
+      border: 1px solid #d1d5db;
+      border-radius: 4px;
+      resize: vertical;
+    }
+    .query-result pre {
+      background: #1f2937;
+      color: #f9fafb;
+      padding: 1rem;
+      border-radius: 6px;
+      font-size: 0.85rem;
+      max-height: 300px;
+      overflow: auto;
+      margin: 0;
+    }
+    .schema-display {
+      background: #1f2937;
+      color: #f9fafb;
+      padding: 1rem;
+      border-radius: 6px;
+      font-size: 0.8rem;
+      max-height: 500px;
+      overflow: auto;
+      margin-top: 1rem;
+    }
+    details summary {
+      cursor: pointer;
+      padding: 0.5rem;
+      background: #f3f4f6;
+      border-radius: 4px;
+    }
+    .type-card {
+      background: #f9fafb;
+      border: 1px solid #e5e7eb;
+      border-radius: 8px;
+      padding: 1rem;
+      margin-bottom: 1rem;
+    }
+    .type-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 0.75rem;
+    }
+    .type-name {
+      font-size: 1.1rem;
+      font-weight: 600;
+      color: #e535ab;
+    }
+    .type-badge {
+      background: #e5e7eb;
+      padding: 0.125rem 0.5rem;
+      border-radius: 4px;
+      font-size: 0.75rem;
+      color: #6b7280;
+    }
+    .fields-table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 0.85rem;
+    }
+    .fields-table th,
+    .fields-table td {
+      padding: 0.5rem;
+      text-align: left;
+      border-bottom: 1px solid #e5e7eb;
+    }
+    .fields-table th {
+      background: #f3f4f6;
+      font-weight: 500;
+    }
+    .fields-table code {
+      background: #e5e7eb;
+      padding: 0.125rem 0.375rem;
+      border-radius: 3px;
+      font-size: 0.8rem;
+    }
+  </style>
+  <script>
+    async function executeQuery() {
+      const query = document.getElementById('queryInput').value;
+      const variablesStr = document.getElementById('variablesInput').value;
+      const resultEl = document.getElementById('queryResult');
+
+      if (!query.trim()) {
+        resultEl.textContent = 'Please enter a query';
+        return;
+      }
+
+      let variables = {};
+      try {
+        if (variablesStr.trim()) {
+          variables = JSON.parse(variablesStr);
+        }
+      } catch (e) {
+        resultEl.textContent = 'Error: Invalid JSON in variables';
+        return;
+      }
+
+      try {
+        const response = await fetch('/graphql', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ query, variables }),
+        });
+
+        const result = await response.json();
+        resultEl.textContent = JSON.stringify(result, null, 2);
+      } catch (e) {
+        resultEl.textContent = 'Error: ' + e.message;
+      }
+    }
+  </script>
+  <script src="/public/js/shortcuts.js"></script>
+  <script>Shortcuts.init({ context: 'global' });</script>
+</div>

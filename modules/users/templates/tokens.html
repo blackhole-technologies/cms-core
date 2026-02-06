@@ -1,0 +1,179 @@
+<div class="admin-page">
+  <link rel="stylesheet" href="/public/css/admin.css">
+
+  <div class="admin-header">
+    <h1>API Tokens</h1>
+    <nav class="admin-nav">
+      <a href="/admin">Dashboard</a>
+      <a href="/admin/content">Content</a>
+      <a href="/admin/users" class="active">Users</a>
+      <a href="/admin/modules">Modules</a>
+      <a href="/logout" class="nav-logout">Logout</a>
+    </nav>
+  </div>
+
+  <div class="breadcrumb">
+    <a href="/admin">Dashboard</a> &rarr;
+    <a href="/admin/users">Users</a> &rarr;
+    <span>{{user.username}}</span> &rarr;
+    <span>Tokens</span>
+  </div>
+
+  {{#if hasFlash}}
+  <div class="flash flash-{{flash.type}}">
+    {{flash.message}}
+  </div>
+  {{/if}}
+
+  {{#if hasNewToken}}
+  <div class="token-display">
+    <h3>New Token Created</h3>
+    <p class="token-warning">Copy this token now. You won't be able to see it again!</p>
+    <div class="token-value">
+      <code>{{newToken}}</code>
+    </div>
+    <p class="token-hint">
+      Use this token in the Authorization header:<br>
+      <code>Authorization: Bearer {{newToken}}</code>
+    </p>
+  </div>
+  {{/if}}
+
+  <div class="admin-section">
+    <div class="section-header">
+      <h2>Tokens for {{user.username}} ({{tokenCount}})</h2>
+    </div>
+
+    <div class="form-container" style="margin-bottom: 30px;">
+      <form method="POST" action="/admin/users/{{user.id}}/tokens" class="inline-form token-form">
+        <div class="token-create-row">
+          <input type="text" name="name" class="form-input" placeholder="Token name (e.g., CLI access)" required>
+          <button type="submit" class="btn btn-primary">Create Token</button>
+        </div>
+      </form>
+    </div>
+
+    {{#if hasTokens}}
+    <table class="admin-table">
+      <thead>
+        <tr>
+          <th>Name</th>
+          <th>Token</th>
+          <th>Created</th>
+          <th>Actions</th>
+        </tr>
+      </thead>
+      <tbody>
+        {{#each tokens}}
+        <tr>
+          <td><strong>{{name}}</strong></td>
+          <td><code class="token-preview">{{tokenPreview}}</code></td>
+          <td>{{createdFormatted}}</td>
+          <td>
+            <form method="POST" action="/admin/users/{{user.id}}/tokens/{{id}}/delete" class="inline-form" onsubmit="return confirm('Revoke this token? Any scripts using it will stop working.')">
+              <button type="submit" class="btn btn-small btn-danger">Revoke</button>
+            </form>
+          </td>
+        </tr>
+        {{/each}}
+      </tbody>
+    </table>
+    {{else}}
+    <p class="empty-message">No API tokens yet. Create one above to enable programmatic access.</p>
+    {{/if}}
+  </div>
+
+  <div class="help-text">
+    <p><strong>API Usage:</strong></p>
+    <pre>
+# List content
+curl -H "Authorization: Bearer YOUR_TOKEN" \
+  http://localhost:3000/api/content/greeting
+
+# Create content
+curl -X POST -H "Authorization: Bearer YOUR_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{"name":"Test","message":"Hello"}' \
+  http://localhost:3000/api/content/greeting
+    </pre>
+  </div>
+</div>
+
+<style>
+.nav-logout {
+  color: #dc3545 !important;
+}
+
+.nav-logout:hover {
+  background: #fff5f5 !important;
+}
+
+.token-display {
+  background: #d4edda;
+  border: 1px solid #c3e6cb;
+  border-radius: 8px;
+  padding: 20px;
+  margin-bottom: 30px;
+}
+
+.token-display h3 {
+  margin: 0 0 10px 0;
+  color: #155724;
+}
+
+.token-warning {
+  color: #856404;
+  background: #fff3cd;
+  padding: 10px;
+  border-radius: 4px;
+  margin-bottom: 15px;
+}
+
+.token-value {
+  background: #f8f9fa;
+  padding: 15px;
+  border-radius: 4px;
+  overflow-x: auto;
+  margin-bottom: 15px;
+}
+
+.token-value code {
+  font-size: 0.9rem;
+  word-break: break-all;
+}
+
+.token-hint {
+  font-size: 0.9rem;
+  color: #666;
+  margin: 0;
+}
+
+.token-hint code {
+  background: #e9ecef;
+  padding: 2px 6px;
+  border-radius: 3px;
+  display: inline-block;
+  margin-top: 5px;
+}
+
+.token-form {
+  background: white;
+  padding: 20px;
+  border-radius: 8px;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+}
+
+.token-create-row {
+  display: flex;
+  gap: 10px;
+}
+
+.token-create-row .form-input {
+  flex: 1;
+}
+
+.token-preview {
+  font-size: 0.85rem;
+  color: #666;
+}
+</style>

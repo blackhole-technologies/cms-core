@@ -1,0 +1,132 @@
+<div class="admin-page">
+
+  <div class="admin-header">
+    <h1>Content Analytics</h1>
+    <nav class="admin-nav">
+      <a href="/admin">Dashboard</a>
+      <a href="/admin/content">Content</a>
+      <a href="/admin/analytics" class="active">Analytics</a>
+      <a href="/admin/modules">Modules</a>
+    </nav>
+  </div>
+
+  {{#if hasFlash}}
+  <div class="flash flash-{{flash.type}}">
+    {{flash.message}}
+  </div>
+  {{/if}}
+
+  <!-- Breadcrumb & Controls -->
+  <div class="analytics-controls">
+    <div class="breadcrumb">
+      <a href="/admin/analytics">← Back to Dashboard</a>
+    </div>
+    <div class="filter-controls">
+      <select id="typeFilter" onchange="window.location.href='/admin/analytics/content?type='+this.value+'&days={{days}}'">
+        <option value="">All Types</option>
+        {{#each contentTypes}}
+        <option value="{{type}}" {{#if selected}}selected{{/if}}>{{type}}</option>
+        {{/each}}
+      </select>
+      <select id="daysFilter" onchange="window.location.href='/admin/analytics/content?type={{selectedType}}&days='+this.value">
+        <option value="7" {{#if is7Days}}selected{{/if}}>Last 7 days</option>
+        <option value="30" {{#if is30Days}}selected{{/if}}>Last 30 days</option>
+        <option value="90" {{#if is90Days}}selected{{/if}}>Last 90 days</option>
+      </select>
+    </div>
+  </div>
+
+  <!-- Summary Stats -->
+  <div class="stats-grid">
+    <div class="stat-card">
+      <div class="stat-value">{{totalViews}}</div>
+      <div class="stat-label">Total Views</div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-value">{{totalContent}}</div>
+      <div class="stat-label">Content Items</div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-value">{{avgViews}}</div>
+      <div class="stat-label">Avg Views/Item</div>
+    </div>
+  </div>
+
+  <!-- Content Table -->
+  <div class="admin-section">
+    <h2>Content Performance</h2>
+    {{#if hasContent}}
+    <table class="admin-table sortable-table">
+      <thead>
+        <tr>
+          <th class="sortable" data-sort="title">Title</th>
+          <th class="sortable" data-sort="type">Type</th>
+          <th class="sortable" data-sort="views">Views</th>
+          <th class="sortable" data-sort="unique">Unique</th>
+          <th class="sortable" data-sort="lastViewed">Last Viewed</th>
+          <th>Actions</th>
+        </tr>
+      </thead>
+      <tbody>
+        {{#each contentList}}
+        <tr>
+          <td>
+            <strong>{{title}}</strong>
+            <br><small><code>{{id}}</code></small>
+          </td>
+          <td><code>{{type}}</code></td>
+          <td>{{views}}</td>
+          <td>{{uniqueViews}}</td>
+          <td>{{lastViewedFormatted}}</td>
+          <td>
+            <a href="/admin/analytics/content/{{type}}/{{id}}" class="btn btn-small">Details</a>
+            <a href="/admin/content/{{type}}/{{id}}/edit" class="btn btn-small">Edit</a>
+          </td>
+        </tr>
+        {{/each}}
+      </tbody>
+    </table>
+    {{else}}
+    <p class="empty-message">No content views recorded for this period.</p>
+    {{/if}}
+  </div>
+
+  <style>
+    .analytics-controls {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 1.5rem;
+      flex-wrap: wrap;
+      gap: 1rem;
+    }
+    .breadcrumb a {
+      color: #666;
+      text-decoration: none;
+    }
+    .breadcrumb a:hover {
+      color: #333;
+    }
+    .filter-controls {
+      display: flex;
+      gap: 0.5rem;
+    }
+    .filter-controls select {
+      padding: 0.5rem;
+      border: 1px solid #ddd;
+      border-radius: 4px;
+      background: #fff;
+    }
+    .sortable-table th.sortable {
+      cursor: pointer;
+      user-select: none;
+    }
+    .sortable-table th.sortable:hover {
+      background: #f0f0f0;
+    }
+    .sortable-table th.sortable::after {
+      content: ' ↕';
+      opacity: 0.3;
+    }
+  </style>
+</div>

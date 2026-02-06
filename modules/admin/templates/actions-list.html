@@ -1,0 +1,69 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Actions - CMS Admin</title>
+</head>
+<body>
+    <div class="admin-content">
+        <header class="page-header">
+            <h1>Actions</h1>
+            <button class="btn btn-primary" data-action="create-custom">Create Custom Action</button>
+        </header>
+
+        <div class="actions-table-container">
+            <table class="data-table">
+                <thead>
+                    <tr>
+                        <th><input type="checkbox" id="select-all"></th>
+                        <th>Action Name</th>
+                        <th>Plugin Type</th>
+                        <th>Usage Count</th>
+                        <th>Actions</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {{#actions}}
+                    <tr data-action-id="{{id}}">
+                        <td><input type="checkbox" class="action-select" value="{{id}}"></td>
+                        <td>{{name}}</td>
+                        <td><span class="badge badge-{{pluginType}}">{{pluginType}}</span></td>
+                        <td>{{usageCount}}</td>
+                        <td class="actions-cell">
+                            <button class="btn btn-sm btn-icon" data-action="edit" data-id="{{id}}" title="Edit">
+                                <span class="icon-edit"></span>
+                            </button>
+                            <button class="btn btn-sm btn-icon" data-action="duplicate" data-id="{{id}}" title="Duplicate">
+                                <span class="icon-copy"></span>
+                            </button>
+                            <button class="btn btn-sm btn-icon btn-danger" data-action="delete" data-id="{{id}}" title="Delete">
+                                <span class="icon-delete"></span>
+                            </button>
+                        </td>
+                    </tr>
+                    {{/actions}}
+                    {{^actions}}
+                    <tr>
+                        <td colspan="5" class="no-data">No actions found. Create a custom action to get started.</td>
+                    </tr>
+                    {{/actions}}
+                </tbody>
+            </table>
+        </div>
+
+        <div class="bulk-actions-section">
+            <div class="bulk-actions-bar" style="display: none;">
+                <span class="selected-count">0 items selected</span>
+                <select class="bulk-action-select">
+                    <option value="">Bulk Actions...</option>
+                    <option value="delete">Delete</option>
+                    <option value="export">Export</option>
+                </select>
+                <button class="btn btn-secondary" data-action="apply-bulk">Apply</button>
+                <button class="btn btn-text" data-action="clear-selection">Clear Selection</button>
+            </div>
+        </div>
+    </div>
+</body>
+</html>

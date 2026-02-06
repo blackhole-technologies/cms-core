@@ -1,0 +1,241 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Image Derivatives - {{media.filename}} - {{siteName}}</title>
+    <style>
+        .original-info {
+            background: #f9f9f9;
+            padding: 1.5rem;
+            border-radius: 4px;
+            margin-bottom: 2rem;
+        }
+        .original-preview {
+            max-width: 400px;
+            max-height: 400px;
+            border: 1px solid #ddd;
+        }
+        .derivative-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+            gap: 1.5rem;
+            margin-top: 2rem;
+        }
+        .derivative-card {
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            padding: 1rem;
+            background: white;
+        }
+        .derivative-preview {
+            max-width: 100%;
+            height: auto;
+            border: 1px solid #eee;
+            margin-bottom: 0.5rem;
+        }
+        .derivative-info {
+            font-size: 0.9rem;
+            color: #666;
+        }
+        .info-row {
+            display: flex;
+            justify-content: space-between;
+            margin-bottom: 0.5rem;
+        }
+        .status-badge {
+            display: inline-block;
+            padding: 0.25rem 0.5rem;
+            border-radius: 3px;
+            font-size: 0.85rem;
+            font-weight: 500;
+        }
+        .status-exists {
+            background: #d4edda;
+            color: #155724;
+        }
+        .status-missing {
+            background: #f8d7da;
+            color: #721c24;
+        }
+    </style>
+</head>
+<body>
+    <div class="admin-container">
+        <header class="admin-header">
+            <h1>Image Derivatives</h1>
+            <div class="header-actions">
+                <button class="btn btn-secondary" onclick="regenerateAll()">
+                    Regenerate All
+                </button>
+                <button class="btn btn-secondary" onclick="location.href='/admin/content/media'">
+                    Back to Media
+                </button>
+            </div>
+        </header>
+
+        <main class="admin-main">
+            <div class="original-info">
+                <h2>Original Image</h2>
+                <div class="info-row">
+                    <strong>Filename:</strong>
+                    <span>{{media.filename}}</span>
+                </div>
+                <div class="info-row">
+                    <strong>Dimensions:</strong>
+                    <span>{{media.width}} × {{media.height}} px</span>
+                </div>
+                <div class="info-row">
+                    <strong>File Size:</strong>
+                    <span>{{media.filesize}}</span>
+                </div>
+                <div class="info-row">
+                    <strong>MIME Type:</strong>
+                    <span>{{media.mimetype}}</span>
+                </div>
+                <div class="info-row">
+                    <strong>Path:</strong>
+                    <code>{{media.path}}</code>
+                </div>
+                <div style="margin-top: 1rem;">
+                    <img src="{{media.url}}" alt="{{media.filename}}" class="original-preview">
+                </div>
+            </div>
+
+            <h2>Generated Derivatives</h2>
+
+            {{#derivatives.length}}
+            <div class="derivative-grid">
+                {{#derivatives}}
+                <div class="derivative-card">
+                    <h3>{{styleName}}</h3>
+
+                    {{#exists}}
+                    <span class="status-badge status-exists">Generated</span>
+                    <div style="margin-top: 0.5rem;">
+                        <img src="{{url}}" alt="{{styleName}} derivative" class="derivative-preview">
+                    </div>
+                    <div class="derivative-info">
+                        <div class="info-row">
+                            <span>Dimensions:</span>
+                            <span>{{width}} × {{height}} px</span>
+                        </div>
+                        <div class="info-row">
+                            <span>File Size:</span>
+                            <span>{{filesize}}</span>
+                        </div>
+                        <div class="info-row">
+                            <span>Generated:</span>
+                            <span>{{createdAt}}</span>
+                        </div>
+                    </div>
+                    <div style="margin-top: 1rem;">
+                        <button class="btn btn-sm btn-secondary" onclick="regenerateDerivative('{{styleName}}')">
+                            Regenerate
+                        </button>
+                        <button class="btn btn-sm btn-danger" onclick="deleteDerivative('{{styleName}}')">
+                            Delete
+                        </button>
+                    </div>
+                    {{/exists}}
+
+                    {{^exists}}
+                    <span class="status-badge status-missing">Not Generated</span>
+                    <p style="margin-top: 0.5rem; color: #666;">
+                        <em>Derivative will be generated on first use</em>
+                    </p>
+                    <div style="margin-top: 1rem;">
+                        <button class="btn btn-sm btn-primary" onclick="generateDerivative('{{styleName}}')">
+                            Generate Now
+                        </button>
+                    </div>
+                    {{/exists}}
+                </div>
+                {{/derivatives}}
+            </div>
+            {{/derivatives.length}}
+
+            {{^derivatives.length}}
+            <div class="empty-state">
+                <p>No image styles configured. Create image styles to generate derivatives.</p>
+                <button class="btn btn-primary" onclick="location.href='/admin/config/media/image-styles'">
+                    Configure Image Styles
+                </button>
+            </div>
+            {{/derivatives.length}}
+        </main>
+    </div>
+
+    <script>
+        const mediaId = '{{media.id}}';
+
+        function regenerateAll() {
+            if (!confirm('Regenerate all derivatives for this image?')) {
+                return;
+            }
+
+            fetch(`/admin/api/media/${mediaId}/derivatives/regenerate-all`, { method: 'POST' })
+                .then(response => response.json())
+                .then(data => {
+                    if (data.success) {
+                        alert(`Successfully regenerated ${data.count} derivative(s)`);
+                        location.reload();
+                    } else {
+                        alert('Error: ' + (data.error || 'Unknown error'));
+                    }
+                })
+                .catch(err => alert('Request failed: ' + err.message));
+        }
+
+        function regenerateDerivative(styleName) {
+            if (!confirm(`Regenerate ${styleName} derivative?`)) {
+                return;
+            }
+
+            fetch(`/admin/api/media/${mediaId}/derivatives/${styleName}/regenerate`, { method: 'POST' })
+                .then(response => response.json())
+                .then(data => {
+                    if (data.success) {
+                        alert('Derivative regenerated successfully');
+                        location.reload();
+                    } else {
+                        alert('Error: ' + (data.error || 'Unknown error'));
+                    }
+                })
+                .catch(err => alert('Request failed: ' + err.message));
+        }
+
+        function generateDerivative(styleName) {
+            fetch(`/admin/api/media/${mediaId}/derivatives/${styleName}/generate`, { method: 'POST' })
+                .then(response => response.json())
+                .then(data => {
+                    if (data.success) {
+                        alert('Derivative generated successfully');
+                        location.reload();
+                    } else {
+                        alert('Error: ' + (data.error || 'Unknown error'));
+                    }
+                })
+                .catch(err => alert('Request failed: ' + err.message));
+        }
+
+        function deleteDerivative(styleName) {
+            if (!confirm(`Delete ${styleName} derivative? It will be regenerated on next use.`)) {
+                return;
+            }
+
+            fetch(`/admin/api/media/${mediaId}/derivatives/${styleName}`, { method: 'DELETE' })
+                .then(response => response.json())
+                .then(data => {
+                    if (data.success) {
+                        alert('Derivative deleted successfully');
+                        location.reload();
+                    } else {
+                        alert('Error: ' + (data.error || 'Unknown error'));
+                    }
+                })
+                .catch(err => alert('Request failed: ' + err.message));
+        }
+    </script>
+</body>
+</html>

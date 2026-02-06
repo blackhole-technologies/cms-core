@@ -1,0 +1,387 @@
+<div class="admin-page">
+
+  <div class="admin-header">
+    <h1>{{pageTitle}}</h1>
+    <nav class="admin-nav">
+      <a href="/admin">Dashboard</a>
+      <a href="/admin/content">Content</a>
+      <a href="/admin/api" class="active">API</a>
+    </nav>
+  </div>
+
+  {{#if hasFlash}}
+  <div class="flash flash-{{flash.type}}">
+    {{flash.message}}
+  </div>
+  {{/if}}
+
+  <div class="breadcrumb">
+    <a href="/admin">Dashboard</a> &rarr;
+    <span>API Documentation</span>
+  </div>
+
+  <div class="api-docs">
+    <div class="api-sidebar">
+      <div class="sidebar-section">
+        <h3>API Versions</h3>
+        <ul class="version-list">
+          {{#each versions}}
+          <li class="version-item {{status}}">
+            <span class="version-badge">{{version}}</span>
+            <span class="version-status">{{status}}</span>
+          </li>
+          {{/each}}
+        </ul>
+        <a href="/admin/api/versions" class="btn btn-small">Version Details</a>
+      </div>
+
+      <div class="sidebar-section">
+        <h3>Quick Stats</h3>
+        <div class="stat-item">
+          <span class="stat-value">{{totalRequests}}</span>
+          <span class="stat-label">requests (7 days)</span>
+        </div>
+        <div class="stat-item">
+          <span class="stat-value">{{currentVersion}}</span>
+          <span class="stat-label">current version</span>
+        </div>
+      </div>
+    </div>
+
+    <div class="api-content">
+      <div class="admin-section">
+        <h2>Getting Started</h2>
+        <p>The CMS API supports multiple versions for backwards compatibility. You can specify the API version in several ways:</p>
+
+        <div class="code-example">
+          <h4>URL Prefix (Recommended)</h4>
+          <pre><code>GET /api/v2/content/article</code></pre>
+        </div>
+
+        <div class="code-example">
+          <h4>Request Header</h4>
+          <pre><code>GET /api/content/article
+X-API-Version: 2</code></pre>
+        </div>
+
+        <div class="code-example">
+          <h4>Accept Header</h4>
+          <pre><code>GET /api/content/article
+Accept: application/vnd.cms.v2+json</code></pre>
+        </div>
+
+        <div class="code-example">
+          <h4>Query Parameter</h4>
+          <pre><code>GET /api/content/article?api_version=2</code></pre>
+        </div>
+      </div>
+
+      <div class="admin-section">
+        <h2>Endpoints</h2>
+
+        {{#each endpoints}}
+        <div class="endpoint-card">
+          <div class="endpoint-header">
+            <span class="method method-{{method}}">{{method}}</span>
+            <code class="endpoint-path">{{path}}</code>
+          </div>
+          <p class="endpoint-description">{{description}}</p>
+
+          {{#if parameters.length}}
+          <div class="endpoint-params">
+            <h4>Parameters</h4>
+            <table class="params-table">
+              <thead>
+                <tr>
+                  <th>Name</th>
+                  <th>Location</th>
+                  <th>Required</th>
+                  <th>Description</th>
+                </tr>
+              </thead>
+              <tbody>
+                {{#each parameters}}
+                <tr>
+                  <td><code>{{name}}</code></td>
+                  <td>{{in}}</td>
+                  <td>{{#if required}}Yes{{else}}No{{/if}}</td>
+                  <td>{{description}}</td>
+                </tr>
+                {{/each}}
+              </tbody>
+            </table>
+          </div>
+          {{/if}}
+        </div>
+        {{/each}}
+      </div>
+
+      <div class="admin-section">
+        <h2>Response Formats</h2>
+
+        <div class="response-comparison">
+          <div class="response-version">
+            <h4>v1 Response (Legacy)</h4>
+            <pre><code>{
+  "items": [...],
+  "total": 25
+}</code></pre>
+          </div>
+
+          <div class="response-version">
+            <h4>v2 Response (Current)</h4>
+            <pre><code>{
+  "data": [...],
+  "meta": {
+    "total": 25,
+    "page": 1,
+    "limit": 20,
+    "pages": 2
+  }
+}</code></pre>
+          </div>
+
+          <div class="response-version">
+            <h4>v3 Response (Beta)</h4>
+            <pre><code>{
+  "data": [...],
+  "meta": {
+    "pagination": {
+      "total": 25,
+      "page": 1,
+      "limit": 20,
+      "hasMore": true
+    }
+  },
+  "links": {
+    "self": "/api/v3/content/article?page=1",
+    "next": "/api/v3/content/article?page=2"
+  }
+}</code></pre>
+          </div>
+        </div>
+      </div>
+
+      <div class="admin-section">
+        <h2>Deprecation Notices</h2>
+
+        {{#if hasDeprecations}}
+        <div class="deprecation-list">
+          {{#each deprecations}}
+          <div class="deprecation-item">
+            <span class="deprecation-icon">&#x26A0;</span>
+            <div class="deprecation-content">
+              <strong>{{#if (eq type 'version')}}{{version}} (entire version){{else}}{{version}} {{endpoint}}{{/if}}</strong>
+              <p>{{message}}</p>
+              {{#if sunsetAt}}<p class="sunset-date">Sunset date: {{sunsetAt}}</p>{{/if}}
+              {{#if alternative}}<p class="alternative">Use instead: <code>{{alternative}}</code></p>{{/if}}
+            </div>
+          </div>
+          {{/each}}
+        </div>
+        {{else}}
+        <p class="no-deprecations">No deprecated features at this time.</p>
+        {{/if}}
+      </div>
+    </div>
+  </div>
+
+  <style>
+    .api-docs {
+      display: flex;
+      gap: 2rem;
+    }
+    .api-sidebar {
+      width: 250px;
+      flex-shrink: 0;
+    }
+    .api-content {
+      flex: 1;
+      min-width: 0;
+    }
+    .sidebar-section {
+      background: #f9fafb;
+      border: 1px solid #e5e7eb;
+      border-radius: 8px;
+      padding: 1rem;
+      margin-bottom: 1rem;
+    }
+    .sidebar-section h3 {
+      margin: 0 0 0.75rem 0;
+      font-size: 0.9rem;
+      color: #374151;
+    }
+    .version-list {
+      list-style: none;
+      padding: 0;
+      margin: 0 0 1rem 0;
+    }
+    .version-item {
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+      padding: 0.375rem 0;
+    }
+    .version-badge {
+      background: #e5e7eb;
+      padding: 0.125rem 0.5rem;
+      border-radius: 4px;
+      font-family: monospace;
+      font-size: 0.85rem;
+    }
+    .version-item.stable .version-badge {
+      background: #d1fae5;
+      color: #065f46;
+    }
+    .version-item.deprecated .version-badge {
+      background: #fef3c7;
+      color: #92400e;
+    }
+    .version-item.beta .version-badge {
+      background: #dbeafe;
+      color: #1e40af;
+    }
+    .version-status {
+      font-size: 0.75rem;
+      color: #6b7280;
+    }
+    .stat-item {
+      padding: 0.5rem 0;
+      border-bottom: 1px solid #e5e7eb;
+    }
+    .stat-item:last-child {
+      border-bottom: none;
+    }
+    .stat-value {
+      display: block;
+      font-size: 1.25rem;
+      font-weight: 600;
+      color: #111827;
+    }
+    .stat-label {
+      font-size: 0.75rem;
+      color: #6b7280;
+    }
+    .code-example {
+      margin-bottom: 1.5rem;
+    }
+    .code-example h4 {
+      margin: 0 0 0.5rem 0;
+      font-size: 0.9rem;
+      color: #374151;
+    }
+    .code-example pre {
+      background: #1f2937;
+      color: #f9fafb;
+      padding: 1rem;
+      border-radius: 6px;
+      overflow-x: auto;
+      margin: 0;
+    }
+    .code-example code {
+      font-family: 'Monaco', 'Menlo', monospace;
+      font-size: 0.85rem;
+    }
+    .endpoint-card {
+      background: #f9fafb;
+      border: 1px solid #e5e7eb;
+      border-radius: 8px;
+      padding: 1rem;
+      margin-bottom: 1rem;
+    }
+    .endpoint-header {
+      display: flex;
+      align-items: center;
+      gap: 0.75rem;
+      margin-bottom: 0.5rem;
+    }
+    .method {
+      padding: 0.25rem 0.5rem;
+      border-radius: 4px;
+      font-size: 0.75rem;
+      font-weight: 600;
+      text-transform: uppercase;
+    }
+    .method-GET { background: #d1fae5; color: #065f46; }
+    .method-POST { background: #dbeafe; color: #1e40af; }
+    .method-PUT { background: #fef3c7; color: #92400e; }
+    .method-DELETE { background: #fee2e2; color: #991b1b; }
+    .endpoint-path {
+      font-family: monospace;
+      font-size: 0.9rem;
+      color: #111827;
+    }
+    .endpoint-description {
+      margin: 0 0 1rem 0;
+      color: #4b5563;
+    }
+    .params-table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 0.85rem;
+    }
+    .params-table th,
+    .params-table td {
+      padding: 0.5rem;
+      text-align: left;
+      border-bottom: 1px solid #e5e7eb;
+    }
+    .params-table th {
+      background: #f3f4f6;
+      font-weight: 500;
+    }
+    .response-comparison {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+      gap: 1rem;
+    }
+    .response-version h4 {
+      margin: 0 0 0.5rem 0;
+      font-size: 0.9rem;
+    }
+    .response-version pre {
+      background: #1f2937;
+      color: #f9fafb;
+      padding: 1rem;
+      border-radius: 6px;
+      font-size: 0.8rem;
+      overflow-x: auto;
+      margin: 0;
+    }
+    .deprecation-list {
+      display: flex;
+      flex-direction: column;
+      gap: 1rem;
+    }
+    .deprecation-item {
+      display: flex;
+      gap: 0.75rem;
+      background: #fef3c7;
+      border: 1px solid #fcd34d;
+      border-radius: 6px;
+      padding: 1rem;
+    }
+    .deprecation-icon {
+      font-size: 1.25rem;
+    }
+    .deprecation-content p {
+      margin: 0.25rem 0 0 0;
+      font-size: 0.9rem;
+    }
+    .sunset-date {
+      color: #92400e;
+      font-weight: 500;
+    }
+    .alternative code {
+      background: #fef3c7;
+      padding: 0.125rem 0.375rem;
+      border-radius: 3px;
+    }
+    .no-deprecations {
+      color: #6b7280;
+      font-style: italic;
+    }
+  </style>
+  <script src="/public/js/shortcuts.js"></script>
+  <script>Shortcuts.init({ context: 'global' });</script>
+</div>

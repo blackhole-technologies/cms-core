@@ -1,0 +1,170 @@
+<div class="admin-page">
+
+  <div class="admin-header">
+    <h1>Workflows</h1>
+    <nav class="admin-nav">
+      <a href="/admin">Dashboard</a>
+      <a href="/admin/content">Content</a>
+      <a href="/admin/workflows" class="active">Workflows</a>
+      <a href="/admin/modules">Modules</a>
+    </nav>
+  </div>
+
+  {{#if hasFlash}}
+  <div class="flash flash-{{flash.type}}">
+    {{flash.message}}
+  </div>
+  {{/if}}
+
+  {{#if error}}
+  <div class="flash flash-error">
+    {{error}}
+  </div>
+  {{/if}}
+
+  <div class="admin-section">
+    <div class="section-header">
+      <h2>Workflow Definitions</h2>
+      <a href="/admin/workflows/new" class="btn btn-primary">Create Workflow</a>
+    </div>
+
+    {{#if hasWorkflows}}
+    <table class="admin-table">
+      <thead>
+        <tr>
+          <th>Name</th>
+          <th>Description</th>
+          <th>States</th>
+          <th>Transitions</th>
+          <th>Assigned Content Types</th>
+          <th>Actions</th>
+        </tr>
+      </thead>
+      <tbody>
+        {{#each workflows}}
+        <tr>
+          <td><strong>{{name}}</strong></td>
+          <td>{{description}}</td>
+          <td>
+            <span class="count-badge">{{stateCount}}</span>
+            {{#if hasInitial}}
+            <span class="state-badge state-initial" title="Initial state: {{initialState}}">{{initialState}}</span>
+            {{/if}}
+            {{#if hasPublished}}
+            <span class="state-badge state-published" title="Published state: {{publishedState}}">{{publishedState}}</span>
+            {{/if}}
+          </td>
+          <td><span class="count-badge">{{transitionCount}}</span></td>
+          <td>
+            {{#if hasContentTypes}}
+            <div class="content-types-list">
+              {{#each contentTypes}}
+              <code class="content-type-tag">{{this}}</code>
+              {{/each}}
+            </div>
+            {{else}}
+            <span class="text-muted">None</span>
+            {{/if}}
+          </td>
+          <td>
+            <a href="/admin/workflows/{{id}}/edit" class="btn btn-small">Edit</a>
+            <a href="/admin/workflows/{{id}}/diagram" class="btn btn-small btn-secondary">View Diagram</a>
+            {{#unless isDefault}}
+            <form method="POST" action="/admin/workflows/{{id}}/delete" class="inline-form" onsubmit="return confirm('Delete this workflow? This will affect {{contentTypeCount}} content type(s).')">
+              {{../csrfField}}
+              <button type="submit" class="btn btn-small btn-danger">Delete</button>
+            </form>
+            {{/unless}}
+          </td>
+        </tr>
+        {{/each}}
+      </tbody>
+    </table>
+
+    <style>
+      .count-badge {
+        display: inline-block;
+        padding: 2px 8px;
+        background: #e9ecef;
+        color: #495057;
+        border-radius: 12px;
+        font-size: 0.75rem;
+        font-weight: 600;
+      }
+      .state-badge {
+        display: inline-block;
+        padding: 2px 8px;
+        border-radius: 3px;
+        font-size: 0.75rem;
+        font-weight: 500;
+        margin-left: 0.25rem;
+      }
+      .state-initial {
+        background: #d1ecf1;
+        color: #0c5460;
+      }
+      .state-published {
+        background: #d4edda;
+        color: #155724;
+      }
+      .content-types-list {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 0.25rem;
+      }
+      .content-type-tag {
+        display: inline-block;
+        padding: 2px 6px;
+        background: #f8f9fa;
+        border: 1px solid #dee2e6;
+        border-radius: 3px;
+        font-size: 0.75rem;
+      }
+      .text-muted {
+        color: #6c757d;
+        font-style: italic;
+      }
+    </style>
+    {{else}}
+    <p class="empty-message">No workflows defined yet. <a href="/admin/workflows/new">Create your first workflow</a>.</p>
+    {{/if}}
+  </div>
+
+  <!-- Default Workflow Info -->
+  <div class="admin-section">
+    <div class="section-header">
+      <h3>About Workflows</h3>
+    </div>
+    <div class="info-box">
+      <p>Workflows define the lifecycle states and allowed transitions for content items.</p>
+      <ul>
+        <li><strong>States:</strong> Represent content status (draft, review, published, etc.)</li>
+        <li><strong>Transitions:</strong> Define allowed state changes and who can perform them</li>
+        <li><strong>Initial State:</strong> Where new content starts</li>
+        <li><strong>Published State:</strong> Content is publicly visible in this state</li>
+      </ul>
+    </div>
+  </div>
+
+  <style>
+    .info-box {
+      background: #f8f9fa;
+      border: 1px solid #dee2e6;
+      border-radius: 6px;
+      padding: 1.5rem;
+    }
+    .info-box p {
+      margin-bottom: 0.75rem;
+    }
+    .info-box ul {
+      margin: 0;
+      padding-left: 1.5rem;
+    }
+    .info-box li {
+      margin-bottom: 0.5rem;
+    }
+  </style>
+
+  <script src="/public/js/shortcuts.js"></script>
+  <script>Shortcuts.init({ context: 'workflows' });</script>
+</div>

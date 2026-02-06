@@ -1,0 +1,34 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>{{title}} | CMS Core Admin</title>
+  <link rel="stylesheet" href="/public/css/admin.css">
+</head>
+<body class="admin-page">
+  <div class="admin-toolbar">
+    <a href="/admin" class="toolbar-logo">CMS Core</a>
+    <nav>
+      <a href="/admin" {{#if navDashboard}}class="active"{{/if}}>Dashboard</a>
+      <a href="/admin/content" {{#if navContent}}class="active"{{/if}}>Content</a>
+      <a href="/admin/structure/types" {{#if navStructure}}class="active"{{/if}}>Structure</a>
+      <a href="/admin/appearance" {{#if navAppearance}}class="active"{{/if}}>Appearance</a>
+      <a href="/admin/modules" {{#if navModules}}class="active"{{/if}}>Modules</a>
+      <a href="/admin/config" {{#if navConfig}}class="active"{{/if}}>Configuration</a>
+      <a href="/admin/users" {{#if navPeople}}class="active"{{/if}}>People</a>
+      <a href="/admin/reports/status" {{#if navReports}}class="active"{{/if}}>Reports</a>
+    </nav>
+    <div class="toolbar-user">
+      <span>{{username}}</span>
+      <a href="/">View site</a>
+      <a href="/logout">Log out</a>
+    </div>
+  </div>
+  <div class="admin-wrapper">
+    {{content}}
+  </div>
+  <script src="/public/js/shortcuts.js"></script>
+  <script>if(typeof Shortcuts!=='undefined')Shortcuts.init({context:'global'});</script>
+</body>
+</html>

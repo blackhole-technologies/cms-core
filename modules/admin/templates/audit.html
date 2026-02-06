@@ -1,0 +1,174 @@
+<div class="admin-header">
+  <h1>Audit Logs</h1>
+  <p>Track user actions and system events</p>
+</div>
+
+{{#if hasFlash}}
+<div class="flash flash-{{flash.type}}">
+  {{flash.message}}
+</div>
+{{/if}}
+
+<!-- Statistics Summary -->
+<div class="stats-grid" style="display: grid; grid-template-columns: repeat(4, 1fr); gap: 1rem; margin-bottom: 2rem;">
+  <div class="stat-card" style="background: #f8f9fa; padding: 1rem; border-radius: 4px;">
+    <div style="font-size: 2rem; font-weight: bold;">{{stats.total}}</div>
+    <div style="color: #666;">Total Events</div>
+  </div>
+  <div class="stat-card" style="background: #f8f9fa; padding: 1rem; border-radius: 4px;">
+    <div style="font-size: 2rem; font-weight: bold;">{{successCount}}</div>
+    <div style="color: #666;">Successful</div>
+  </div>
+  <div class="stat-card" style="background: #f8f9fa; padding: 1rem; border-radius: 4px;">
+    <div style="font-size: 2rem; font-weight: bold;">{{failureCount}}</div>
+    <div style="color: #666;">Failed</div>
+  </div>
+  <div class="stat-card" style="background: #f8f9fa; padding: 1rem; border-radius: 4px;">
+    <div style="font-size: 2rem; font-weight: bold;">{{uniqueUsers}}</div>
+    <div style="color: #666;">Active Users</div>
+  </div>
+</div>
+
+<!-- Filters -->
+<form method="GET" action="/admin/audit" class="filter-form" style="background: #f8f9fa; padding: 1rem; border-radius: 4px; margin-bottom: 2rem;">
+  <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 1rem; align-items: end;">
+    <div>
+      <label for="search">Search</label>
+      <input type="text" id="search" name="search" value="{{search}}" placeholder="Search logs..." style="width: 100%; padding: 0.5rem;">
+    </div>
+    <div>
+      <label for="action">Action</label>
+      <select id="action" name="action" style="width: 100%; padding: 0.5rem;">
+        <option value="">All actions</option>
+        {{#each uniqueActions}}
+        <option value="{{this}}" {{#if (eq this ../selectedAction)}}selected{{/if}}>{{this}}</option>
+        {{/each}}
+      </select>
+    </div>
+    <div>
+      <label for="user">User</label>
+      <input type="text" id="user" name="user" value="{{selectedUser}}" placeholder="Username..." style="width: 100%; padding: 0.5rem;">
+    </div>
+    <div>
+      <label for="result">Result</label>
+      <select id="result" name="result" style="width: 100%; padding: 0.5rem;">
+        <option value="">All results</option>
+        <option value="success" {{#if (eq selectedResult "success")}}selected{{/if}}>Success</option>
+        <option value="failure" {{#if (eq selectedResult "failure")}}selected{{/if}}>Failure</option>
+      </select>
+    </div>
+    <div>
+      <label for="days">Time Range</label>
+      <select id="days" name="days" style="width: 100%; padding: 0.5rem;">
+        <option value="1" {{#if (eq selectedDays 1)}}selected{{/if}}>Last 24 hours</option>
+        <option value="7" {{#if (eq selectedDays 7)}}selected{{/if}}>Last 7 days</option>
+        <option value="30" {{#if (eq selectedDays 30)}}selected{{/if}}>Last 30 days</option>
+        <option value="90" {{#if (eq selectedDays 90)}}selected{{/if}}>Last 90 days</option>
+      </select>
+    </div>
+    <div>
+      <button type="submit" style="padding: 0.5rem 1rem; background: #007bff; color: white; border: none; border-radius: 4px; cursor: pointer;">Filter</button>
+      <a href="/admin/audit" style="margin-left: 0.5rem; color: #666;">Reset</a>
+    </div>
+  </div>
+</form>
+
+<!-- Export Options -->
+<div style="margin-bottom: 1rem; display: flex; gap: 1rem;">
+  <a href="/admin/audit/export?format=json&days={{selectedDays}}{{#if selectedAction}}&action={{selectedAction}}{{/if}}{{#if selectedUser}}&user={{selectedUser}}{{/if}}{{#if selectedResult}}&result={{selectedResult}}{{/if}}"
+     style="padding: 0.5rem 1rem; background: #6c757d; color: white; text-decoration: none; border-radius: 4px;">
+    Export JSON
+  </a>
+  <a href="/admin/audit/export?format=csv&days={{selectedDays}}{{#if selectedAction}}&action={{selectedAction}}{{/if}}{{#if selectedUser}}&user={{selectedUser}}{{/if}}{{#if selectedResult}}&result={{selectedResult}}{{/if}}"
+     style="padding: 0.5rem 1rem; background: #6c757d; color: white; text-decoration: none; border-radius: 4px;">
+    Export CSV
+  </a>
+</div>
+
+<!-- Audit Log Table -->
+{{#if hasEntries}}
+<table class="admin-table" style="width: 100%; border-collapse: collapse;">
+  <thead>
+    <tr style="background: #f1f1f1;">
+      <th style="padding: 0.75rem; text-align: left; border-bottom: 2px solid #ddd;">Timestamp</th>
+      <th style="padding: 0.75rem; text-align: left; border-bottom: 2px solid #ddd;">Action</th>
+      <th style="padding: 0.75rem; text-align: left; border-bottom: 2px solid #ddd;">User</th>
+      <th style="padding: 0.75rem; text-align: left; border-bottom: 2px solid #ddd;">Details</th>
+      <th style="padding: 0.75rem; text-align: left; border-bottom: 2px solid #ddd;">IP</th>
+      <th style="padding: 0.75rem; text-align: left; border-bottom: 2px solid #ddd;">Result</th>
+    </tr>
+  </thead>
+  <tbody>
+    {{#each entries}}
+    <tr style="border-bottom: 1px solid #eee;">
+      <td style="padding: 0.75rem; font-family: monospace; font-size: 0.85rem;">
+        {{timestampFormatted}}
+      </td>
+      <td style="padding: 0.75rem;">
+        <span style="background: {{actionColor}}; color: white; padding: 0.2rem 0.5rem; border-radius: 3px; font-size: 0.85rem;">
+          {{action}}
+        </span>
+      </td>
+      <td style="padding: 0.75rem;">
+        {{#if username}}
+        <a href="/admin/audit/user/{{userId}}">{{username}}</a>
+        {{else}}
+        <span style="color: #999;">anonymous</span>
+        {{/if}}
+      </td>
+      <td style="padding: 0.75rem; max-width: 300px; overflow: hidden; text-overflow: ellipsis;">
+        {{#if detailsSummary}}
+        <span title="{{detailsJson}}">{{detailsSummary}}</span>
+        {{else}}
+        <span style="color: #999;">-</span>
+        {{/if}}
+      </td>
+      <td style="padding: 0.75rem; font-family: monospace; font-size: 0.85rem;">
+        {{#if ip}}
+        {{ip}}
+        {{else}}
+        <span style="color: #999;">-</span>
+        {{/if}}
+      </td>
+      <td style="padding: 0.75rem;">
+        {{#if isSuccess}}
+        <span style="color: #28a745;">&#10003; success</span>
+        {{else}}
+        <span style="color: #dc3545;">&#10007; {{result}}</span>
+        {{#if error}}
+        <br><small style="color: #dc3545;">{{error}}</small>
+        {{/if}}
+        {{/if}}
+      </td>
+    </tr>
+    {{/each}}
+  </tbody>
+</table>
+
+<!-- Pagination -->
+{{#if hasPagination}}
+<div class="pagination" style="margin-top: 1rem; display: flex; justify-content: center; gap: 0.5rem;">
+  {{#if pagination.hasPrev}}
+  <a href="/admin/audit?page={{pagination.prevPage}}&days={{selectedDays}}{{#if selectedAction}}&action={{selectedAction}}{{/if}}{{#if selectedUser}}&user={{selectedUser}}{{/if}}{{#if selectedResult}}&result={{selectedResult}}{{/if}}{{#if search}}&search={{search}}{{/if}}"
+     style="padding: 0.5rem 1rem; border: 1px solid #ddd; border-radius: 4px; text-decoration: none;">&laquo; Previous</a>
+  {{/if}}
+
+  <span style="padding: 0.5rem 1rem;">Page {{pagination.page}} of {{pagination.pages}}</span>
+
+  {{#if pagination.hasNext}}
+  <a href="/admin/audit?page={{pagination.nextPage}}&days={{selectedDays}}{{#if selectedAction}}&action={{selectedAction}}{{/if}}{{#if selectedUser}}&user={{selectedUser}}{{/if}}{{#if selectedResult}}&result={{selectedResult}}{{/if}}{{#if search}}&search={{search}}{{/if}}"
+     style="padding: 0.5rem 1rem; border: 1px solid #ddd; border-radius: 4px; text-decoration: none;">Next &raquo;</a>
+  {{/if}}
+</div>
+{{/if}}
+
+<p style="margin-top: 1rem; color: #666;">
+  Showing {{entries.length}} of {{total}} events
+</p>
+
+{{else}}
+<div class="empty-state" style="text-align: center; padding: 3rem; background: #f8f9fa; border-radius: 4px;">
+  <p style="font-size: 1.2rem; color: #666;">No audit events found</p>
+  <p style="color: #999;">Try adjusting your filters or time range</p>
+</div>
+{{/if}}

@@ -1,0 +1,209 @@
+<div class="admin-page">
+
+  <div class="admin-header">
+    <h1>{{pageTitle}}</h1>
+    <nav class="admin-nav">
+      <a href="/admin">Dashboard</a>
+      <a href="/admin/content">Content</a>
+      <a href="/admin/structure" class="active">Structure</a>
+    </nav>
+  </div>
+
+  {{#if hasFlash}}
+  <div class="flash flash-{{flash.type}}">
+    {{flash.message}}
+  </div>
+  {{/if}}
+
+  <div class="breadcrumb">
+    <a href="/admin">Dashboard</a> &rarr;
+    <a href="/admin/structure">Structure</a> &rarr;
+    <a href="/admin/contact-forms">Contact Forms</a> &rarr;
+    <span>{{#if isNew}}Create Form{{else}}Edit: {{form.title}}{{/if}}</span>
+  </div>
+
+  <div class="admin-section">
+    <form method="POST" action="/admin/contact-forms/{{form.id}}">
+      {{csrfField}}
+
+      <div class="form-group">
+        <label for="title">Title</label>
+        <input type="text" id="title" name="title" value="{{form.title}}" required>
+      </div>
+
+      {{#if isNew}}
+      <div class="form-group">
+        <label for="id">Machine Name</label>
+        <input type="text" id="id" name="id" value="{{form.id}}" required pattern="[a-z0-9-]+">
+        <small>Lowercase letters, numbers, and hyphens only</small>
+      </div>
+      {{else}}
+      <div class="form-group">
+        <label>Machine Name</label>
+        <input type="text" value="{{form.id}}" readonly>
+        <small>Cannot be changed after creation</small>
+      </div>
+      {{/if}}
+
+      <div class="form-group">
+        <label for="recipients">Recipients</label>
+        <textarea id="recipients" name="recipients" rows="4" required>{{form.recipients}}</textarea>
+        <small>One email address per line</small>
+      </div>
+
+      <div class="form-group">
+        <label for="reply">Auto-reply Message</label>
+        <textarea id="reply" name="reply" rows="5">{{form.reply}}</textarea>
+        <small>Optional message sent to the user after submission</small>
+      </div>
+
+      <div class="form-group">
+        <label for="message">Success Confirmation Message</label>
+        <input type="text" id="message" name="message" value="{{form.message}}">
+        <small>Message displayed to user after successful submission</small>
+      </div>
+
+      <div class="form-group">
+        <label for="redirect">Redirect Path</label>
+        <input type="text" id="redirect" name="redirect" value="{{form.redirect}}" placeholder="/thank-you">
+        <small>Optional path to redirect after submission (leave blank to show confirmation on same page)</small>
+      </div>
+
+      <div class="form-group">
+        <label for="weight">Weight</label>
+        <input type="number" id="weight" name="weight" value="{{form.weight}}" step="1">
+        <small>Lower weights appear first in form listings</small>
+      </div>
+
+      <div class="form-group">
+        <label class="checkbox-label">
+          <input type="checkbox" name="enabled" value="on" {{#if form.enabled}}checked{{/if}}>
+          Enabled
+        </label>
+        <small>Disabled forms will not accept submissions</small>
+      </div>
+
+      <div class="form-actions">
+        <button type="submit" class="btn btn-primary">{{#if isNew}}Create Form{{else}}Save Changes{{/if}}</button>
+        <a href="/admin/contact-forms" class="btn btn-secondary">Cancel</a>
+        {{#unless isNew}}
+        <form method="POST" action="/admin/contact-forms/{{form.id}}/delete" style="display: inline; margin-left: auto;">
+          {{csrfField}}
+          <button type="submit" class="btn btn-danger" onclick="return confirm('Delete this form and all submissions?')">Delete Form</button>
+        </form>
+        {{/unless}}
+      </div>
+    </form>
+  </div>
+
+  {{#unless isNew}}
+  <div class="admin-section">
+    <h3>Form Details</h3>
+    <table class="details-table">
+      <tr><td>ID</td><td><code>{{form.id}}</code></td></tr>
+      <tr><td>Status</td><td>{{#if form.enabled}}Enabled{{else}}Disabled{{/if}}</td></tr>
+      <tr><td>Created</td><td>{{form.created}}</td></tr>
+      <tr><td>Updated</td><td>{{form.updated}}</td></tr>
+    </table>
+  </div>
+  {{/unless}}
+
+  <style>
+    .form-group {
+      margin-bottom: 1.25rem;
+    }
+    .form-group label {
+      display: block;
+      margin-bottom: 0.25rem;
+      font-size: 0.9rem;
+      font-weight: 500;
+      color: #374151;
+    }
+    .form-group input[type="text"],
+    .form-group input[type="number"],
+    .form-group textarea {
+      width: 100%;
+      padding: 0.5rem;
+      border: 1px solid #d1d5db;
+      border-radius: 4px;
+      font-size: 0.9rem;
+    }
+    .form-group input[readonly] {
+      background: #f3f4f6;
+      color: #6b7280;
+    }
+    .form-group small {
+      display: block;
+      margin-top: 0.25rem;
+      font-size: 0.8rem;
+      color: #6b7280;
+    }
+    .checkbox-label {
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+      font-weight: normal;
+      cursor: pointer;
+    }
+    .form-actions {
+      display: flex;
+      gap: 0.5rem;
+      align-items: center;
+      margin-top: 1.5rem;
+      padding-top: 1rem;
+      border-top: 1px solid #e5e7eb;
+    }
+    .btn {
+      display: inline-block;
+      padding: 0.5rem 1rem;
+      border: none;
+      border-radius: 4px;
+      font-size: 0.9rem;
+      cursor: pointer;
+      text-decoration: none;
+    }
+    .btn-primary {
+      background: #2563eb;
+      color: white;
+    }
+    .btn-primary:hover {
+      background: #1d4ed8;
+    }
+    .btn-secondary {
+      background: #e5e7eb;
+      color: #374151;
+    }
+    .btn-secondary:hover {
+      background: #d1d5db;
+    }
+    .btn-danger {
+      background: #dc2626;
+      color: white;
+    }
+    .btn-danger:hover {
+      background: #b91c1c;
+    }
+    .details-table {
+      width: 100%;
+      border-collapse: collapse;
+    }
+    .details-table td {
+      padding: 0.5rem;
+      border-bottom: 1px solid #e5e7eb;
+      font-size: 0.9rem;
+    }
+    .details-table td:first-child {
+      font-weight: 500;
+      color: #374151;
+      width: 120px;
+    }
+    .details-table code {
+      background: #f3f4f6;
+      padding: 0.125rem 0.375rem;
+      border-radius: 4px;
+      font-size: 0.85rem;
+    }
+  </style>
+  <script src="/public/js/shortcuts.js"></script>
+  <script>Shortcuts.init({ context: 'global' });</script>
+</div>

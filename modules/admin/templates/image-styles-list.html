@@ -1,0 +1,134 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Image Styles - {{siteName}}</title>
+</head>
+<body>
+    <div class="admin-container">
+        <header class="admin-header">
+            <h1>Image Styles</h1>
+            <div class="header-actions">
+                <button class="btn btn-primary" onclick="location.href='/admin/config/media/image-styles/add'">
+                    Create Style
+                </button>
+                <button class="btn btn-secondary" onclick="flushAllDerivatives()">
+                    Flush All Derivatives
+                </button>
+            </div>
+        </header>
+
+        <main class="admin-main">
+            {{#styles.length}}
+            <table class="data-table">
+                <thead>
+                    <tr>
+                        <th>Style Name</th>
+                        <th>Label</th>
+                        <th>Effects</th>
+                        <th>Usage Count</th>
+                        <th>Actions</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {{#styles}}
+                    <tr>
+                        <td><code>{{name}}</code></td>
+                        <td>{{label}}</td>
+                        <td>
+                            <div class="effects-summary">
+                                {{#effects.length}}
+                                    {{#effects}}
+                                    <span class="effect-badge">{{type}}</span>
+                                    {{/effects}}
+                                {{/effects.length}}
+                                {{^effects.length}}
+                                    <em>No effects</em>
+                                {{/effects.length}}
+                            </div>
+                        </td>
+                        <td>
+                            <span class="usage-count">{{usageCount}}</span>
+                        </td>
+                        <td class="actions">
+                            <a href="/admin/config/media/image-styles/{{name}}/edit" class="btn btn-sm">Edit</a>
+                            <button class="btn btn-sm btn-secondary" onclick="flushStyle('{{name}}')">Flush</button>
+                            {{^isProtected}}
+                            <button class="btn btn-sm btn-danger" onclick="deleteStyle('{{name}}')">Delete</button>
+                            {{/isProtected}}
+                        </td>
+                    </tr>
+                    {{/styles}}
+                </tbody>
+            </table>
+            {{/styles.length}}
+
+            {{^styles.length}}
+            <div class="empty-state">
+                <p>No image styles defined.</p>
+                <button class="btn btn-primary" onclick="location.href='/admin/config/media/image-styles/add'">
+                    Create First Style
+                </button>
+            </div>
+            {{/styles.length}}
+        </main>
+    </div>
+
+    <script>
+        function flushAllDerivatives() {
+            if (!confirm('Flush all image derivatives? This will delete all generated images and they will be regenerated on demand.')) {
+                return;
+            }
+
+            fetch('/admin/api/image-styles/flush-all', { method: 'POST' })
+                .then(response => response.json())
+                .then(data => {
+                    if (data.success) {
+                        alert('All derivatives flushed successfully');
+                        location.reload();
+                    } else {
+                        alert('Error: ' + (data.error || 'Unknown error'));
+                    }
+                })
+                .catch(err => alert('Request failed: ' + err.message));
+        }
+
+        function flushStyle(styleName) {
+            if (!confirm(`Flush all derivatives for style "${styleName}"?`)) {
+                return;
+            }
+
+            fetch(`/admin/api/image-styles/${styleName}/flush`, { method: 'POST' })
+                .then(response => response.json())
+                .then(data => {
+                    if (data.success) {
+                        alert('Style derivatives flushed successfully');
+                        location.reload();
+                    } else {
+                        alert('Error: ' + (data.error || 'Unknown error'));
+                    }
+                })
+                .catch(err => alert('Request failed: ' + err.message));
+        }
+
+        function deleteStyle(styleName) {
+            if (!confirm(`Delete image style "${styleName}"? This cannot be undone.`)) {
+                return;
+            }
+
+            fetch(`/admin/api/image-styles/${styleName}`, { method: 'DELETE' })
+                .then(response => response.json())
+                .then(data => {
+                    if (data.success) {
+                        alert('Style deleted successfully');
+                        location.reload();
+                    } else {
+                        alert('Error: ' + (data.error || 'Unknown error'));
+                    }
+                })
+                .catch(err => alert('Request failed: ' + err.message));
+        }
+    </script>
+</body>
+</html>

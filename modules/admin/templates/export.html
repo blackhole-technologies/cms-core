@@ -1,0 +1,155 @@
+<!-- Export page template -->
+<div class="admin-page">
+  <h1>Export</h1>
+
+  {{#if hasFlash}}
+  <div class="flash flash-{{flash.type}}">
+    {{flash.message}}
+  </div>
+  {{/if}}
+
+  <div class="admin-section">
+    <h2>Export Content</h2>
+    <p>Download content as a JSON file. Select specific content types or export all.</p>
+
+    <form method="POST" action="/admin/export/content" class="export-form">
+      {{csrfField}}
+      <div class="form-group">
+        <label>Content Types</label>
+        {{#if hasTypes}}
+        <div class="checkbox-list">
+          {{#each types}}
+          <label class="checkbox-item">
+            <input type="checkbox" name="types" value="{{type}}" checked>
+            <span>{{type}}</span>
+            <span class="badge">{{count}}</span>
+          </label>
+          {{/each}}
+        </div>
+        {{else}}
+        <p class="text-muted">No content types registered.</p>
+        {{/if}}
+      </div>
+
+      <div class="form-group">
+        <label class="checkbox-item">
+          <input type="checkbox" name="includeMedia" value="on">
+          <span>Include media manifest</span>
+        </label>
+        <p class="help-text">Lists media files referenced in content (files must be transferred separately)</p>
+      </div>
+
+      <div class="form-actions">
+        <button type="submit" class="btn btn-primary">Download Content Export</button>
+      </div>
+
+      <p class="help-text">Total items: {{totalItems}}</p>
+    </form>
+  </div>
+
+  <div class="admin-section">
+    <h2>Full Site Export</h2>
+    <p>Download complete site backup including content, configuration, and media manifest.</p>
+
+    <form method="POST" action="/admin/export/site" class="export-form">
+      {{csrfField}}
+      <div class="form-group">
+        <p>This export includes:</p>
+        <ul>
+          <li>All content ({{totalItems}} items)</li>
+          <li>Site configuration (site.json)</li>
+          <li>Module configuration (modules.json)</li>
+          <li>Media file manifest</li>
+        </ul>
+      </div>
+
+      <div class="form-actions">
+        <button type="submit" class="btn btn-primary">Download Full Site Backup</button>
+      </div>
+    </form>
+  </div>
+
+  <div class="admin-section">
+    <h2>CLI Export</h2>
+    <p>Export can also be done via command line:</p>
+    <pre><code># Export all content
+node index.js export:content > backup.json
+
+# Export specific types
+node index.js export:content greeting user > users-and-greetings.json
+
+# Export to file directly
+node index.js export:content --output=backup.json
+
+# Full site export
+node index.js export:site --output=site-backup.json</code></pre>
+  </div>
+</div>
+
+<style>
+.export-form {
+  max-width: 600px;
+}
+
+.checkbox-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  margin-top: 0.5rem;
+}
+
+.checkbox-item {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  cursor: pointer;
+}
+
+.checkbox-item input[type="checkbox"] {
+  width: 18px;
+  height: 18px;
+}
+
+.badge {
+  background: #e0e0e0;
+  padding: 0.2rem 0.5rem;
+  border-radius: 4px;
+  font-size: 0.85rem;
+  color: #666;
+}
+
+.help-text {
+  font-size: 0.9rem;
+  color: #666;
+  margin-top: 0.25rem;
+}
+
+.admin-section {
+  margin-bottom: 2rem;
+  padding: 1.5rem;
+  background: #f8f9fa;
+  border-radius: 8px;
+}
+
+.admin-section h2 {
+  margin-top: 0;
+}
+
+.admin-section ul {
+  margin: 0.5rem 0;
+  padding-left: 1.5rem;
+}
+
+pre {
+  background: #2d3748;
+  color: #e2e8f0;
+  padding: 1rem;
+  border-radius: 4px;
+  overflow-x: auto;
+}
+
+code {
+  font-family: 'Monaco', 'Menlo', monospace;
+  font-size: 0.9rem;
+}
+</style>

@@ -1,0 +1,176 @@
+<div class="admin-page">
+
+  <div class="admin-header">
+    <h1>User Activity</h1>
+    <nav class="admin-nav">
+      <a href="/admin">Dashboard</a>
+      <a href="/admin/content">Content</a>
+      <a href="/admin/analytics" class="active">Analytics</a>
+      <a href="/admin/modules">Modules</a>
+    </nav>
+  </div>
+
+  {{#if hasFlash}}
+  <div class="flash flash-{{flash.type}}">
+    {{flash.message}}
+  </div>
+  {{/if}}
+
+  <!-- Breadcrumb & Controls -->
+  <div class="analytics-controls">
+    <div class="breadcrumb">
+      <a href="/admin/analytics">← Back to Dashboard</a>
+    </div>
+    <div class="filter-controls">
+      <select id="daysFilter" onchange="window.location.href='/admin/analytics/users?days='+this.value">
+        <option value="7" {{#if is7Days}}selected{{/if}}>Last 7 days</option>
+        <option value="30" {{#if is30Days}}selected{{/if}}>Last 30 days</option>
+        <option value="90" {{#if is90Days}}selected{{/if}}>Last 90 days</option>
+      </select>
+    </div>
+  </div>
+
+  <!-- Summary Stats -->
+  <div class="stats-grid">
+    <div class="stat-card">
+      <div class="stat-value">{{totalLogins}}</div>
+      <div class="stat-label">Total Logins</div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-value">{{totalCreates}}</div>
+      <div class="stat-label">Content Created</div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-value">{{totalUpdates}}</div>
+      <div class="stat-label">Content Updated</div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-value">{{activeUsers}}</div>
+      <div class="stat-label">Active Users</div>
+    </div>
+  </div>
+
+  <!-- Users Table -->
+  <div class="admin-section">
+    <h2>Most Active Users</h2>
+    {{#if hasUsers}}
+    <table class="admin-table">
+      <thead>
+        <tr>
+          <th>User</th>
+          <th>Role</th>
+          <th>Logins</th>
+          <th>Created</th>
+          <th>Updated</th>
+          <th>Total Actions</th>
+          <th>Last Active</th>
+        </tr>
+      </thead>
+      <tbody>
+        {{#each users}}
+        <tr>
+          <td>
+            <strong>{{username}}</strong>
+            {{#if isAnonymous}}<span class="badge badge-muted">anonymous</span>{{/if}}
+          </td>
+          <td>{{role}}</td>
+          <td>{{logins}}</td>
+          <td>{{creates}}</td>
+          <td>{{updates}}</td>
+          <td><strong>{{total}}</strong></td>
+          <td>{{lastActiveFormatted}}</td>
+        </tr>
+        {{/each}}
+      </tbody>
+    </table>
+    {{else}}
+    <p class="empty-message">No user activity recorded for this period.</p>
+    {{/if}}
+  </div>
+
+  <!-- Activity Breakdown -->
+  <div class="admin-section">
+    <h2>Activity Breakdown</h2>
+    <div class="activity-chart">
+      <div class="activity-bar">
+        <div class="activity-bar-fill activity-logins" style="width: {{loginPercent}}%"></div>
+        <span class="activity-bar-label">Logins ({{totalLogins}})</span>
+      </div>
+      <div class="activity-bar">
+        <div class="activity-bar-fill activity-creates" style="width: {{createPercent}}%"></div>
+        <span class="activity-bar-label">Creates ({{totalCreates}})</span>
+      </div>
+      <div class="activity-bar">
+        <div class="activity-bar-fill activity-updates" style="width: {{updatePercent}}%"></div>
+        <span class="activity-bar-label">Updates ({{totalUpdates}})</span>
+      </div>
+    </div>
+  </div>
+
+  <style>
+    .analytics-controls {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 1.5rem;
+      flex-wrap: wrap;
+      gap: 1rem;
+    }
+    .breadcrumb a {
+      color: #666;
+      text-decoration: none;
+    }
+    .breadcrumb a:hover {
+      color: #333;
+    }
+    .filter-controls select {
+      padding: 0.5rem;
+      border: 1px solid #ddd;
+      border-radius: 4px;
+      background: #fff;
+    }
+    .badge {
+      display: inline-block;
+      padding: 0.2rem 0.5rem;
+      font-size: 0.75rem;
+      border-radius: 3px;
+      margin-left: 0.5rem;
+    }
+    .badge-muted {
+      background: #eee;
+      color: #666;
+    }
+    .activity-chart {
+      max-width: 600px;
+    }
+    .activity-bar {
+      margin-bottom: 1rem;
+      position: relative;
+      background: #f0f0f0;
+      border-radius: 4px;
+      height: 30px;
+    }
+    .activity-bar-fill {
+      height: 100%;
+      border-radius: 4px;
+      min-width: 2px;
+    }
+    .activity-bar-label {
+      position: absolute;
+      left: 10px;
+      top: 50%;
+      transform: translateY(-50%);
+      font-size: 0.85rem;
+      color: #333;
+    }
+    .activity-logins {
+      background: #4a90d9;
+    }
+    .activity-creates {
+      background: #5cb85c;
+    }
+    .activity-updates {
+      background: #f0ad4e;
+    }
+  </style>
+</div>

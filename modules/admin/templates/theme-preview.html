@@ -1,0 +1,403 @@
+<div class="admin-page theme-preview-page">
+
+  <div class="admin-header">
+    <h1>{{pageTitle}}</h1>
+    <nav class="admin-nav">
+      <a href="/admin">Dashboard</a>
+      <a href="/admin/themes">Themes</a>
+      <a href="/admin/themes/preview/{{themeSlug}}" class="active">Preview</a>
+    </nav>
+  </div>
+
+  <div class="preview-container">
+    <div class="preview-sidebar">
+      <div class="sidebar-header">
+        <h3>{{themeName}}</h3>
+        <button class="btn btn-sm btn-secondary" onclick="closePreview()">
+          <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor">
+            <path d="M4.646 4.646a.5.5 0 0 1 .708 0L8 7.293l2.646-2.647a.5.5 0 0 1 .708.708L8.707 8l2.647 2.646a.5.5 0 0 1-.708.708L8 8.707l-2.646 2.647a.5.5 0 0 1-.708-.708L7.293 8 4.646 5.354a.5.5 0 0 1 0-.708z"/>
+          </svg>
+        </button>
+      </div>
+
+      <div class="sidebar-content">
+        {{#if hasColorSchemes}}
+        <div class="preview-section">
+          <h4>Color Scheme</h4>
+          <select id="color_scheme" class="form-control" onchange="updatePreview()">
+            {{#each colorSchemes}}
+            <option value="{{this}}" {{#if isSelected}}selected{{/if}}>{{this}}</option>
+            {{/each}}
+          </select>
+        </div>
+        {{/if}}
+
+        {{#if hasQuickSettings}}
+        <div class="preview-section">
+          <h4>Quick Settings</h4>
+          {{#each quickSettings}}
+          <div class="setting-item">
+            <label for="preview_{{key}}">{{label}}</label>
+
+            {{#if isColor}}
+            <input
+              type="color"
+              id="preview_{{key}}"
+              value="{{value}}"
+              class="form-control"
+              onchange="updatePreview()"
+            >
+            {{/if}}
+
+            {{#if isToggle}}
+            <label class="toggle-switch">
+              <input
+                type="checkbox"
+                id="preview_{{key}}"
+                {{#if value}}checked{{/if}}
+                onchange="updatePreview()"
+              >
+              <span class="toggle-slider"></span>
+            </label>
+            {{/if}}
+
+            {{#if isSelect}}
+            <select
+              id="preview_{{key}}"
+              class="form-control"
+              onchange="updatePreview()"
+            >
+              {{#each options}}
+              <option value="{{value}}" {{#if isSelected}}selected{{/if}}>{{label}}</option>
+              {{/each}}
+            </select>
+            {{/if}}
+          </div>
+          {{/each}}
+        </div>
+        {{/if}}
+
+        <div class="preview-section">
+          <h4>Preview Mode</h4>
+          <div class="preview-modes">
+            <button class="mode-btn active" data-mode="desktop" onclick="setPreviewMode('desktop')">
+              <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor">
+                <path d="M0 2a2 2 0 0 1 2-2h12a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H2a2 2 0 0 1-2-2V2zm2-1a1 1 0 0 0-1 1v8a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1V2a1 1 0 0 0-1-1H2z"/>
+                <path d="M5.5 13a.5.5 0 0 1 .5-.5h4a.5.5 0 0 1 0 1h-4a.5.5 0 0 1-.5-.5zm-2 2a.5.5 0 0 1 .5-.5h9a.5.5 0 0 1 0 1h-9a.5.5 0 0 1-.5-.5z"/>
+              </svg>
+              Desktop
+            </button>
+            <button class="mode-btn" data-mode="tablet" onclick="setPreviewMode('tablet')">
+              <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor">
+                <path d="M12 1a1 1 0 0 1 1 1v12a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V2a1 1 0 0 1 1-1h8zM4 0a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h8a2 2 0 0 0 2-2V2a2 2 0 0 0-2-2H4z"/>
+                <path d="M8 14a1 1 0 1 0 0-2 1 1 0 0 0 0 2z"/>
+              </svg>
+              Tablet
+            </button>
+            <button class="mode-btn" data-mode="mobile" onclick="setPreviewMode('mobile')">
+              <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor">
+                <path d="M11 1a1 1 0 0 1 1 1v12a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V2a1 1 0 0 1 1-1h6zM5 0a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h6a2 2 0 0 0 2-2V2a2 2 0 0 0-2-2H5z"/>
+                <path d="M8 14a1 1 0 1 0 0-2 1 1 0 0 0 0 2z"/>
+              </svg>
+              Mobile
+            </button>
+          </div>
+        </div>
+
+        <div class="preview-actions">
+          <a href="/admin/themes/settings/{{themeSlug}}" class="btn btn-primary btn-block">
+            <svg class="icon" width="16" height="16" viewBox="0 0 16 16" fill="currentColor">
+              <path d="M8 4.754a3.246 3.246 0 1 0 0 6.492 3.246 3.246 0 0 0 0-6.492zM5.754 8a2.246 2.246 0 1 1 4.492 0 2.246 2.246 0 0 1-4.492 0z"/>
+              <path d="M9.796 1.343c-.527-1.79-3.065-1.79-3.592 0l-.094.319a.873.873 0 0 1-1.255.52l-.292-.16c-1.64-.892-3.433.902-2.54 2.541l.159.292a.873.873 0 0 1-.52 1.255l-.319.094c-1.79.527-1.79 3.065 0 3.592l.319.094a.873.873 0 0 1 .52 1.255l-.16.292c-.892 1.64.901 3.434 2.541 2.54l.292-.159a.873.873 0 0 1 1.255.52l.094.319c.527 1.79 3.065 1.79 3.592 0l.094-.319a.873.873 0 0 1 1.255-.52l.292.16c1.64.893 3.434-.902 2.54-2.541l-.159-.292a.873.873 0 0 1 .52-1.255l.319-.094c1.79-.527 1.79-3.065 0-3.592l-.319-.094a.873.873 0 0 1-.52-1.255l.16-.292c.893-1.64-.902-3.433-2.541-2.54l-.292.159a.873.873 0 0 1-1.255-.52l-.094-.319z"/>
+            </svg>
+            Edit Settings
+          </a>
+          {{#unless isActive}}
+          <button class="btn btn-success btn-block" onclick="enableTheme()">
+            <svg class="icon" width="16" height="16" viewBox="0 0 16 16" fill="currentColor">
+              <path d="M10.97 4.97a.75.75 0 0 1 1.07 1.05l-3.99 4.99a.75.75 0 0 1-1.08.02L4.324 8.384a.75.75 0 1 1 1.06-1.06l2.094 2.093 3.473-4.425a.267.267 0 0 1 .02-.022z"/>
+            </svg>
+            Enable Theme
+          </button>
+          {{/unless}}
+        </div>
+      </div>
+    </div>
+
+    <div class="preview-main">
+      <div class="preview-frame-wrapper" data-mode="desktop">
+        <iframe
+          id="preview-frame"
+          src="/preview/{{themeSlug}}{{#if previewParams}}?{{previewParams}}{{/if}}"
+          title="Theme Preview"
+        ></iframe>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+let previewTimeout;
+
+function updatePreview() {
+  clearTimeout(previewTimeout);
+
+  previewTimeout = setTimeout(() => {
+    const iframe = document.getElementById('preview-frame');
+    const params = new URLSearchParams();
+
+    // Collect all preview settings
+    const colorScheme = document.getElementById('color_scheme');
+    if (colorScheme) {
+      params.set('color_scheme', colorScheme.value);
+    }
+
+    // Collect quick settings
+    document.querySelectorAll('[id^="preview_"]').forEach(input => {
+      const key = input.id.replace('preview_', '');
+      if (input.type === 'checkbox') {
+        params.set(key, input.checked ? '1' : '0');
+      } else {
+        params.set(key, input.value);
+      }
+    });
+
+    // Update iframe src
+    iframe.src = `/preview/{{themeSlug}}?${params.toString()}`;
+  }, 500);
+}
+
+function setPreviewMode(mode) {
+  const wrapper = document.querySelector('.preview-frame-wrapper');
+  const buttons = document.querySelectorAll('.mode-btn');
+
+  buttons.forEach(btn => {
+    btn.classList.toggle('active', btn.dataset.mode === mode);
+  });
+
+  wrapper.setAttribute('data-mode', mode);
+}
+
+function enableTheme() {
+  if (confirm('Enable this theme? It will become the active theme for your site.')) {
+    fetch(`/admin/themes/enable/{{themeSlug}}`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      }
+    })
+    .then(response => response.json())
+    .then(data => {
+      if (data.success) {
+        window.location.href = '/admin/themes';
+      } else {
+        alert(data.error || 'Failed to enable theme');
+      }
+    })
+    .catch(error => {
+      alert('Error enabling theme: ' + error.message);
+    });
+  }
+}
+
+function closePreview() {
+  window.location.href = '/admin/themes';
+}
+</script>
+
+<style>
+.theme-preview-page {
+  height: 100vh;
+  display: flex;
+  flex-direction: column;
+}
+
+.preview-container {
+  display: flex;
+  flex: 1;
+  overflow: hidden;
+}
+
+.preview-sidebar {
+  width: 320px;
+  background: white;
+  border-right: 1px solid #ddd;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.sidebar-header {
+  padding: 1rem;
+  border-bottom: 1px solid #ddd;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.sidebar-header h3 {
+  margin: 0;
+  font-size: 1.1rem;
+}
+
+.sidebar-content {
+  flex: 1;
+  overflow-y: auto;
+  padding: 1rem;
+}
+
+.preview-section {
+  margin-bottom: 1.5rem;
+}
+
+.preview-section h4 {
+  margin: 0 0 0.75rem 0;
+  font-size: 0.9rem;
+  text-transform: uppercase;
+  color: #666;
+  font-weight: 600;
+}
+
+.setting-item {
+  margin-bottom: 1rem;
+}
+
+.setting-item label {
+  display: block;
+  font-size: 0.9rem;
+  margin-bottom: 0.25rem;
+  font-weight: 500;
+}
+
+.preview-modes {
+  display: flex;
+  gap: 0.5rem;
+}
+
+.mode-btn {
+  flex: 1;
+  padding: 0.5rem;
+  border: 1px solid #ddd;
+  background: white;
+  border-radius: 4px;
+  cursor: pointer;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.25rem;
+  font-size: 0.75rem;
+  transition: all 0.2s;
+}
+
+.mode-btn:hover {
+  background: #f8f9fa;
+}
+
+.mode-btn.active {
+  background: #007bff;
+  color: white;
+  border-color: #007bff;
+}
+
+.preview-actions {
+  margin-top: 1.5rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.btn-block {
+  width: 100%;
+  justify-content: center;
+}
+
+.preview-main {
+  flex: 1;
+  background: #f0f0f0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+}
+
+.preview-frame-wrapper {
+  background: white;
+  box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+  transition: all 0.3s;
+}
+
+.preview-frame-wrapper[data-mode="desktop"] {
+  width: 100%;
+  height: 100%;
+}
+
+.preview-frame-wrapper[data-mode="tablet"] {
+  width: 768px;
+  height: 1024px;
+  max-width: 90%;
+  max-height: 90%;
+}
+
+.preview-frame-wrapper[data-mode="mobile"] {
+  width: 375px;
+  height: 667px;
+  max-width: 90%;
+  max-height: 90%;
+}
+
+#preview-frame {
+  width: 100%;
+  height: 100%;
+  border: none;
+}
+
+.toggle-switch {
+  position: relative;
+  display: inline-block;
+  width: 50px;
+  height: 28px;
+}
+
+.toggle-switch input {
+  opacity: 0;
+  width: 0;
+  height: 0;
+}
+
+.toggle-slider {
+  position: absolute;
+  cursor: pointer;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background-color: #ccc;
+  transition: 0.3s;
+  border-radius: 28px;
+}
+
+.toggle-slider:before {
+  position: absolute;
+  content: "";
+  height: 20px;
+  width: 20px;
+  left: 4px;
+  bottom: 4px;
+  background-color: white;
+  transition: 0.3s;
+  border-radius: 50%;
+}
+
+.toggle-switch input:checked + .toggle-slider {
+  background-color: #28a745;
+}
+
+.toggle-switch input:checked + .toggle-slider:before {
+  transform: translateX(22px);
+}
+
+.icon {
+  vertical-align: middle;
+  margin-right: 0.25rem;
+}
+</style>

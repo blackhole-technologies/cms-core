@@ -1,0 +1,373 @@
+/**
+ * RSES Theme - Main Stylesheet
+ *
+ * This file imports the design system and adds theme-specific overrides.
+ * For the admin interface, use tokens.css + components.css directly.
+ *
+ * Design System Architecture:
+ * - tokens.css:     Design tokens (colors, spacing, typography)
+ * - components.css: Reusable UI components
+ * - theme.css:      Public-facing site theme (this file)
+ * - admin.css:      Admin-specific styles (legacy, being migrated)
+ */
+
+/* ========================================
+   IMPORT DESIGN SYSTEM
+   Note: In production, consider bundling these
+   ======================================== */
+
+/* Design tokens are defined here for the public theme */
+/* For a full import, link tokens.css and components.css separately */
+
+:root {
+  /* ========================================
+     PRIMITIVE TOKENS
+     ======================================== */
+
+  /* Gray Scale */
+  --gray-50:  #fafafa;
+  --gray-100: #f5f5f5;
+  --gray-200: #e5e5e5;
+  --gray-300: #d4d4d4;
+  --gray-400: #a3a3a3;
+  --gray-500: #737373;
+  --gray-600: #525252;
+  --gray-700: #404040;
+  --gray-800: #262626;
+  --gray-900: #171717;
+  --gray-950: #0a0a0a;
+
+  /* Brand Colors - RSES Blue */
+  --rses-500: #0ea5e9;
+  --rses-600: #0284c7;
+  --rses-700: #0369a1;
+
+  /* ========================================
+     SEMANTIC TOKENS
+     ======================================== */
+
+  /* Surfaces */
+  --surface-page: var(--gray-50);
+  --surface-primary: white;
+  --surface-secondary: var(--gray-100);
+
+  /* Text */
+  --text-primary: var(--gray-900);
+  --text-secondary: var(--gray-600);
+  --text-tertiary: var(--gray-400);
+  --text-link: var(--rses-600);
+  --text-link-hover: var(--rses-700);
+
+  /* Borders */
+  --border-subtle: var(--gray-200);
+  --border-default: var(--gray-300);
+
+  /* Spacing */
+  --space-xs:  5px;
+  --space-sm:  8px;
+  --space-md:  13px;
+  --space-lg:  21px;
+  --space-xl:  34px;
+  --space-2xl: 55px;
+
+  /* Typography */
+  --font-sans: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  --font-size-sm: 0.875rem;
+  --font-size-base: 1rem;
+  --font-size-lg: 1.25rem;
+  --font-size-xl: 1.5rem;
+  --font-size-2xl: 2rem;
+
+  /* Border Radius */
+  --radius-sm: 4px;
+  --radius-md: 8px;
+  --radius-lg: 12px;
+
+  /* Motion */
+  --duration-quick: 200ms;
+  --easing-default: cubic-bezier(0.4, 0.0, 0.2, 1);
+}
+
+/* Dark mode support */
+@media (prefers-color-scheme: dark) {
+  :root {
+    --surface-page: var(--gray-950);
+    --surface-primary: var(--gray-900);
+    --surface-secondary: var(--gray-800);
+
+    --text-primary: var(--gray-50);
+    --text-secondary: var(--gray-400);
+    --text-tertiary: var(--gray-500);
+
+    --border-subtle: var(--gray-800);
+    --border-default: var(--gray-700);
+  }
+}
+
+/* ========================================
+   BASE STYLES
+   ======================================== */
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+html {
+  font-size: 16px;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+body {
+  font-family: var(--font-sans);
+  font-size: var(--font-size-base);
+  line-height: 1.6;
+  color: var(--text-primary);
+  background-color: var(--surface-page);
+}
+
+/* ========================================
+   LAYOUT
+   ======================================== */
+
+.page-wrapper {
+  max-width: 800px;
+  margin: 0 auto;
+  padding: var(--space-lg);
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+}
+
+@media (min-width: 768px) {
+  .page-wrapper {
+    padding: var(--space-xl);
+  }
+}
+
+/* ========================================
+   HEADER
+   ======================================== */
+
+header {
+  padding-bottom: var(--space-lg);
+  margin-bottom: var(--space-xl);
+  border-bottom: 1px solid var(--border-subtle);
+}
+
+header nav {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.site-title {
+  font-size: var(--font-size-lg);
+  font-weight: 700;
+  color: var(--text-primary);
+  text-decoration: none;
+  letter-spacing: -0.02em;
+  transition: color var(--duration-quick) var(--easing-default);
+}
+
+.site-title:hover {
+  color: var(--text-link);
+}
+
+/* ========================================
+   MAIN CONTENT
+   ======================================== */
+
+main {
+  flex: 1;
+}
+
+article {
+  max-width: 100%;
+}
+
+article h1 {
+  font-size: var(--font-size-2xl);
+  font-weight: 700;
+  color: var(--text-primary);
+  margin-bottom: var(--space-lg);
+  letter-spacing: -0.02em;
+  line-height: 1.2;
+}
+
+article h2 {
+  font-size: var(--font-size-xl);
+  font-weight: 600;
+  color: var(--text-primary);
+  margin-top: var(--space-xl);
+  margin-bottom: var(--space-md);
+  letter-spacing: -0.01em;
+}
+
+article h3 {
+  font-size: var(--font-size-lg);
+  font-weight: 600;
+  color: var(--text-primary);
+  margin-top: var(--space-lg);
+  margin-bottom: var(--space-sm);
+}
+
+.page-content {
+  font-size: var(--font-size-base);
+  color: var(--text-primary);
+  line-height: 1.7;
+}
+
+.page-content p {
+  margin-bottom: 1.25em;
+}
+
+.page-content a {
+  color: var(--text-link);
+  text-decoration: none;
+  transition: color var(--duration-quick) var(--easing-default);
+}
+
+.page-content a:hover {
+  color: var(--text-link-hover);
+  text-decoration: underline;
+}
+
+.page-content ul,
+.page-content ol {
+  margin-bottom: 1.25em;
+  padding-left: 1.5em;
+}
+
+.page-content li {
+  margin-bottom: 0.5em;
+}
+
+.page-content blockquote {
+  margin: var(--space-lg) 0;
+  padding: var(--space-md) var(--space-lg);
+  border-left: 3px solid var(--border-default);
+  background: var(--surface-secondary);
+  border-radius: 0 var(--radius-sm) var(--radius-sm) 0;
+  font-style: italic;
+  color: var(--text-secondary);
+}
+
+.page-content code {
+  font-family: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Monaco, Consolas, monospace;
+  font-size: 0.875em;
+  background: var(--surface-secondary);
+  padding: 0.125em 0.375em;
+  border-radius: var(--radius-sm);
+}
+
+.page-content pre {
+  margin: var(--space-lg) 0;
+  padding: var(--space-lg);
+  background: var(--gray-900);
+  border-radius: var(--radius-md);
+  overflow-x: auto;
+}
+
+.page-content pre code {
+  background: none;
+  padding: 0;
+  color: var(--gray-100);
+}
+
+.page-content img {
+  max-width: 100%;
+  height: auto;
+  border-radius: var(--radius-md);
+  margin: var(--space-lg) 0;
+}
+
+/* ========================================
+   ERROR PAGE
+   ======================================== */
+
+.error-page {
+  text-align: center;
+  padding: var(--space-2xl) var(--space-lg);
+}
+
+.error-page h1 {
+  font-size: 6rem;
+  font-weight: 700;
+  color: var(--text-tertiary);
+  line-height: 1;
+  margin-bottom: var(--space-md);
+}
+
+.error-message {
+  font-size: var(--font-size-lg);
+  color: var(--text-secondary);
+  margin-bottom: var(--space-lg);
+}
+
+.error-page a {
+  display: inline-block;
+  padding: var(--space-sm) var(--space-lg);
+  background: var(--text-primary);
+  color: var(--surface-primary);
+  text-decoration: none;
+  border-radius: var(--radius-md);
+  font-weight: 500;
+  transition:
+    transform var(--duration-quick) var(--easing-default),
+    opacity var(--duration-quick) var(--easing-default);
+}
+
+.error-page a:hover {
+  transform: translateY(-2px);
+  opacity: 0.9;
+}
+
+/* ========================================
+   FOOTER
+   ======================================== */
+
+footer {
+  padding-top: var(--space-lg);
+  margin-top: var(--space-xl);
+  border-top: 1px solid var(--border-subtle);
+}
+
+footer p {
+  color: var(--text-tertiary);
+  font-size: var(--font-size-sm);
+}
+
+/* ========================================
+   UTILITY CLASSES
+   ======================================== */
+
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+/* ========================================
+   REDUCED MOTION
+   ======================================== */
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}

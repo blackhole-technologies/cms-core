@@ -1,0 +1,193 @@
+<div class="admin-page">
+
+  <div class="admin-header">
+    <h1>Content Stats: {{content.title}}</h1>
+    <nav class="admin-nav">
+      <a href="/admin">Dashboard</a>
+      <a href="/admin/content">Content</a>
+      <a href="/admin/analytics" class="active">Analytics</a>
+      <a href="/admin/modules">Modules</a>
+    </nav>
+  </div>
+
+  {{#if hasFlash}}
+  <div class="flash flash-{{flash.type}}">
+    {{flash.message}}
+  </div>
+  {{/if}}
+
+  <!-- Breadcrumb -->
+  <div class="analytics-controls">
+    <div class="breadcrumb">
+      <a href="/admin/analytics">Analytics</a> /
+      <a href="/admin/analytics/content">Content</a> /
+      <span>{{content.title}}</span>
+    </div>
+    <div class="content-actions">
+      <a href="/admin/content/{{contentType}}/{{contentId}}/edit" class="btn btn-small btn-primary">Edit Content</a>
+      <a href="/{{contentType}}/{{contentId}}" class="btn btn-small" target="_blank">View Live</a>
+    </div>
+  </div>
+
+  <!-- Content Info -->
+  <div class="content-info-card">
+    <div class="content-meta">
+      <span class="content-type"><code>{{contentType}}</code></span>
+      <span class="content-id">ID: <code>{{contentId}}</code></span>
+      {{#if content.created}}
+      <span class="content-created">Created: {{content.createdFormatted}}</span>
+      {{/if}}
+    </div>
+  </div>
+
+  <!-- Stats Cards -->
+  <div class="stats-grid stats-grid-4">
+    <div class="stat-card">
+      <div class="stat-value">{{stats.totalViews}}</div>
+      <div class="stat-label">Total Views</div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-value">{{stats.uniqueViews}}</div>
+      <div class="stat-label">Unique Visitors</div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-value">{{stats.viewsThisWeek}}</div>
+      <div class="stat-label">Views This Week</div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-value">{{stats.viewsToday}}</div>
+      <div class="stat-label">Views Today</div>
+    </div>
+  </div>
+
+  <!-- Views Chart -->
+  <div class="admin-section">
+    <h2>Views Over Time (Last 30 Days)</h2>
+    <div class="chart-container">
+      {{#if hasChartData}}
+      <div class="bar-chart">
+        {{#each chartData}}
+        <div class="bar-col" title="{{label}}: {{value}} views">
+          <div class="bar" style="height: {{heightPercent}}%"></div>
+          <div class="bar-label">{{shortLabel}}</div>
+        </div>
+        {{/each}}
+      </div>
+      {{else}}
+      <p class="empty-message">No view data available.</p>
+      {{/if}}
+    </div>
+  </div>
+
+  <!-- Recent Views -->
+  <div class="admin-section">
+    <h2>Recent Views</h2>
+    {{#if hasRecentViews}}
+    <table class="admin-table">
+      <thead>
+        <tr>
+          <th>Time</th>
+          <th>Visitor</th>
+          <th>Source</th>
+        </tr>
+      </thead>
+      <tbody>
+        {{#each recentViews}}
+        <tr>
+          <td>{{timeFormatted}}</td>
+          <td>
+            {{#if userId}}
+            <strong>{{userId}}</strong>
+            {{else}}
+            <span class="text-muted">{{ipMasked}}</span>
+            {{/if}}
+          </td>
+          <td>{{userAgent}}</td>
+        </tr>
+        {{/each}}
+      </tbody>
+    </table>
+    {{else}}
+    <p class="empty-message">No recent views recorded.</p>
+    {{/if}}
+  </div>
+
+  <style>
+    .analytics-controls {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 1.5rem;
+      flex-wrap: wrap;
+      gap: 1rem;
+    }
+    .breadcrumb a {
+      color: #666;
+      text-decoration: none;
+    }
+    .breadcrumb a:hover {
+      color: #333;
+    }
+    .content-info-card {
+      background: #f8f9fa;
+      padding: 1rem;
+      border-radius: 4px;
+      margin-bottom: 1.5rem;
+    }
+    .content-meta {
+      display: flex;
+      gap: 1.5rem;
+      flex-wrap: wrap;
+    }
+    .content-meta span {
+      font-size: 0.9rem;
+    }
+    .stats-grid-4 {
+      grid-template-columns: repeat(4, 1fr);
+    }
+    @media (max-width: 800px) {
+      .stats-grid-4 {
+        grid-template-columns: repeat(2, 1fr);
+      }
+    }
+    .chart-container {
+      background: #fff;
+      border: 1px solid #ddd;
+      border-radius: 4px;
+      padding: 1rem;
+    }
+    .bar-chart {
+      display: flex;
+      align-items: flex-end;
+      height: 150px;
+      gap: 2px;
+      padding: 0 0.5rem;
+    }
+    .bar-col {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      min-width: 8px;
+    }
+    .bar {
+      width: 100%;
+      max-width: 20px;
+      background: #4a90d9;
+      border-radius: 2px 2px 0 0;
+      min-height: 2px;
+    }
+    .bar-label {
+      font-size: 0.6rem;
+      color: #666;
+      margin-top: 4px;
+      display: none;
+    }
+    .bar-col:nth-child(7n) .bar-label {
+      display: block;
+    }
+    .text-muted {
+      color: #888;
+    }
+  </style>
+</div>

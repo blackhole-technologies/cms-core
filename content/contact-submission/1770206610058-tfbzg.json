@@ -1,0 +1,16 @@
+{
+  "id": "1770206610058-tfbzg",
+  "type": "contact-submission",
+  "created": "2026-02-04T12:03:30.058Z",
+  "updated": "2026-02-04T12:03:30.058Z",
+  "formId": "general",
+  "name": "CLI Test User",
+  "email": "test@example.com",
+  "subject": "Test submission from CLI",
+  "message": "This is a test submission created via the contact:submit CLI command.",
+  "copySent": false,
+  "ip": "127.0.0.1",
+  "userAgent": "CLI",
+  "userId": null,
+  "status": "draft"
+}

@@ -1,0 +1,57 @@
+{
+  "fields": {
+    "bio": {
+      "label": "Biography",
+      "type": "textarea",
+      "category": "about",
+      "weight": 0,
+      "visibility": "public",
+      "registration": false,
+      "user_editable": true,
+      "settings": {
+        "rows": 5,
+        "maxlength": 500
+      }
+    },
+    "location": {
+      "label": "Location",
+      "type": "text",
+      "category": "contact",
+      "weight": 10,
+      "visibility": "authenticated",
+      "registration": false,
+      "user_editable": true
+    },
+    "avatar": {
+      "label": "Profile Picture",
+      "type": "image",
+      "category": "about",
+      "weight": -10,
+      "visibility": "public",
+      "registration": true,
+      "user_editable": true,
+      "settings": {
+        "max_size": "2MB",
+        "dimensions": "200x200"
+      }
+    }
+  },
+  "categories": {
+    "about": {
+      "label": "About",
+      "weight": 0
+    },
+    "contact": {
+      "label": "Contact Info",
+      "weight": 10
+    },
+    "social": {
+      "label": "Social Links",
+      "weight": 20
+    },
+    "preferences": {
+      "label": "Preferences",
+      "weight": 30
+    }
+  }
+}

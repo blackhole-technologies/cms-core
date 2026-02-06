@@ -1,0 +1,107 @@
+{
+  "permissions": {
+    "content.*.view": {
+      "label": "View all content types",
+      "module": "content"
+    },
+    "content.*.create": {
+      "label": "Create all content types",
+      "module": "content"
+    },
+    "content.*.edit.own": {
+      "label": "Edit own content",
+      "module": "content"
+    },
+    "content.*.edit.any": {
+      "label": "Edit any content",
+      "module": "content"
+    },
+    "content.*.delete.own": {
+      "label": "Delete own content",
+      "module": "content"
+    },
+    "content.*.delete.any": {
+      "label": "Delete any content",
+      "module": "content"
+    },
+    "content.*.publish": {
+      "label": "Publish content",
+      "module": "content"
+    },
+    "admin.access": {
+      "label": "Access admin area",
+      "module": "admin"
+    },
+    "admin.config": {
+      "label": "Manage configuration",
+      "module": "admin"
+    },
+    "admin.users": {
+      "label": "Manage users",
+      "module": "admin"
+    },
+    "admin.permissions": {
+      "label": "Manage permissions",
+      "module": "admin"
+    },
+    "media.upload": {
+      "label": "Upload media",
+      "module": "media"
+    },
+    "media.delete.own": {
+      "label": "Delete own media",
+      "module": "media"
+    },
+    "media.delete.any": {
+      "label": "Delete any media",
+      "module": "media"
+    }
+  },
+  "roles": {
+    "anonymous": {
+      "label": "Anonymous User",
+      "permissions": [
+        "content.*.view"
+      ]
+    },
+    "authenticated": {
+      "label": "Authenticated User",
+      "inherits": [
+        "anonymous"
+      ],
+      "permissions": []
+    },
+    "author": {
+      "label": "Author",
+      "inherits": [
+        "authenticated"
+      ],
+      "permissions": [
+        "admin.access",
+        "content.*.create",
+        "content.*.edit.own",
+        "content.*.delete.own",
+        "media.upload",
+        "media.delete.own"
+      ]
+    },
+    "editor": {
+      "label": "Editor",
+      "inherits": [
+        "author"
+      ],
+      "permissions": [
+        "content.*.edit.any",
+        "content.*.delete.any",
+        "content.*.publish",
+        "media.delete.any"
+      ]
+    },
+    "admin": {
+      "label": "Administrator",
+      "permissions": [
+        "*"
+      ]
+    }
+  }
+}

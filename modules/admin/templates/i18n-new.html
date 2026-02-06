@@ -1,0 +1,108 @@
+<div class="admin-page">
+  <div class="admin-header">
+    <h1>{{pageTitle}}</h1>
+    <p>
+      <a href="/admin/i18n">&larr; Back to Locales</a>
+    </p>
+  </div>
+
+  {{#if hasFlash}}
+  <div class="flash flash-{{flash.type}}">
+    {{flash.message}}
+  </div>
+  {{/if}}
+
+  <div class="form-container">
+    <form method="POST" action="/admin/i18n/new">
+      {{csrfField}}
+
+      <div class="form-group">
+        <label for="code">Locale Code</label>
+        <input type="text" name="code" id="code" placeholder="e.g., de, es, fr, zh" required pattern="[a-z]{2}(-[A-Z]{2})?" title="Use format: xx or xx-XX (e.g., en, en-US, de, fr)">
+        <small>Use ISO 639-1 codes (e.g., en, es, fr, de, zh, ja)</small>
+      </div>
+
+      <div class="common-codes">
+        <h3>Common Locale Codes</h3>
+        <div class="code-grid">
+          <button type="button" class="code-btn" onclick="document.getElementById('code').value='es'">es - Spanish</button>
+          <button type="button" class="code-btn" onclick="document.getElementById('code').value='fr'">fr - French</button>
+          <button type="button" class="code-btn" onclick="document.getElementById('code').value='de'">de - German</button>
+          <button type="button" class="code-btn" onclick="document.getElementById('code').value='it'">it - Italian</button>
+          <button type="button" class="code-btn" onclick="document.getElementById('code').value='pt'">pt - Portuguese</button>
+          <button type="button" class="code-btn" onclick="document.getElementById('code').value='nl'">nl - Dutch</button>
+          <button type="button" class="code-btn" onclick="document.getElementById('code').value='ru'">ru - Russian</button>
+          <button type="button" class="code-btn" onclick="document.getElementById('code').value='zh'">zh - Chinese</button>
+          <button type="button" class="code-btn" onclick="document.getElementById('code').value='ja'">ja - Japanese</button>
+          <button type="button" class="code-btn" onclick="document.getElementById('code').value='ko'">ko - Korean</button>
+          <button type="button" class="code-btn" onclick="document.getElementById('code').value='ar'">ar - Arabic</button>
+          <button type="button" class="code-btn" onclick="document.getElementById('code').value='hi'">hi - Hindi</button>
+        </div>
+      </div>
+
+      <div class="form-actions">
+        <button type="submit" class="btn btn-primary">Create Locale</button>
+        <a href="/admin/i18n" class="btn btn-secondary">Cancel</a>
+      </div>
+    </form>
+  </div>
+</div>
+
+<style>
+.form-container {
+  max-width: 600px;
+}
+.form-group {
+  margin-bottom: 1.5rem;
+}
+.form-group label {
+  display: block;
+  margin-bottom: 0.5rem;
+  font-weight: bold;
+}
+.form-group input[type="text"] {
+  width: 100%;
+  padding: 0.75rem;
+  border: 1px solid #ddd;
+  border-radius: 4px;
+  font-size: 1rem;
+}
+.form-group small {
+  display: block;
+  margin-top: 0.5rem;
+  color: #666;
+}
+.common-codes {
+  margin: 2rem 0;
+  padding: 1rem;
+  background: #f8f9fa;
+  border-radius: 4px;
+}
+.common-codes h3 {
+  margin: 0 0 1rem 0;
+  font-size: 1rem;
+}
+.code-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+  gap: 0.5rem;
+}
+.code-btn {
+  padding: 0.5rem;
+  background: white;
+  border: 1px solid #ddd;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 0.85rem;
+  text-align: left;
+}
+.code-btn:hover {
+  background: #e9ecef;
+  border-color: #adb5bd;
+}
+.form-actions {
+  display: flex;
+  gap: 1rem;
+  margin-top: 2rem;
+}
+</style>

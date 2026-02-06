@@ -1,0 +1,238 @@
+<div class="admin-page">
+
+  <div class="admin-header">
+    <h1>{{pageTitle}}</h1>
+    <nav class="admin-nav">
+      <a href="/admin">Dashboard</a>
+      <a href="/admin/content">Content</a>
+      <a href="/admin/favorites" class="active">Favorites</a>
+      <a href="/admin/modules">Modules</a>
+    </nav>
+  </div>
+
+  {{#if hasFlash}}
+  <div class="flash flash-{{flash.type}}">
+    {{flash.message}}
+  </div>
+  {{/if}}
+
+  <div class="admin-section">
+    <div class="section-header">
+      <h2>Your Favorites <span class="count">({{itemCount}})</span></h2>
+    </div>
+
+    <!-- Filter and Sort Controls -->
+    <div class="favorites-controls">
+      <form method="GET" action="/admin/favorites" class="filter-form">
+        <label>
+          Type:
+          <select name="type" onchange="this.form.submit()">
+            <option value="">All types</option>
+            {{#each types}}
+            <option value="{{this}}" {{#if (eq this ../filterType)}}selected{{/if}}>{{this}}</option>
+            {{/each}}
+          </select>
+        </label>
+        <label>
+          Sort:
+          <select name="sort" onchange="this.form.submit()">
+            <option value="addedAt" {{#if (eq sortBy 'addedAt')}}selected{{/if}}>Date added</option>
+            <option value="label" {{#if (eq sortBy 'label')}}selected{{/if}}>Label</option>
+            <option value="contentType" {{#if (eq sortBy 'contentType')}}selected{{/if}}>Type</option>
+          </select>
+        </label>
+        <label>
+          <select name="order" onchange="this.form.submit()">
+            <option value="desc" {{#if (eq sortOrder 'desc')}}selected{{/if}}>Newest first</option>
+            <option value="asc" {{#if (eq sortOrder 'asc')}}selected{{/if}}>Oldest first</option>
+          </select>
+        </label>
+      </form>
+    </div>
+
+    {{#if hasItems}}
+    <div class="favorites-list">
+      {{#each items}}
+      <div class="favorite-card">
+        <div class="favorite-star">★</div>
+        <div class="favorite-content">
+          <div class="favorite-title">
+            <a href="/admin/content/{{contentType}}/{{contentId}}/edit">{{title}}</a>
+            <span class="favorite-type">{{contentType}}</span>
+          </div>
+          {{#if label}}
+          <div class="favorite-label">"{{label}}"</div>
+          {{/if}}
+          <div class="favorite-meta">
+            Added {{addedAtRelative}}
+          </div>
+        </div>
+        <div class="favorite-actions">
+          <!-- Edit Label -->
+          <details class="edit-label-dropdown">
+            <summary class="btn btn-small">Edit Label</summary>
+            <form method="POST" action="/admin/favorites/{{contentType}}/{{contentId}}/label" class="edit-label-form">
+              {{../../csrfField}}
+              <input type="text" name="label" value="{{label}}" placeholder="Add a note..." maxlength="200">
+              <button type="submit" class="btn btn-small btn-primary">Save</button>
+            </form>
+          </details>
+          <!-- View -->
+          <a href="/admin/content/{{contentType}}/{{contentId}}/edit" class="btn btn-small">View</a>
+          <!-- Remove -->
+          <form method="POST" action="/admin/favorites/{{contentType}}/{{contentId}}/delete" class="inline-form">
+            {{../../csrfField}}
+            <button type="submit" class="btn btn-small btn-danger" title="Remove from favorites">Remove</button>
+          </form>
+        </div>
+      </div>
+      {{/each}}
+    </div>
+    {{else}}
+    <div class="empty-state">
+      <div class="empty-icon">☆</div>
+      <p>No favorites yet.</p>
+      <p>Click the star icon on any content to add it to your favorites.</p>
+      <a href="/admin/content" class="btn btn-primary">Browse Content</a>
+    </div>
+    {{/if}}
+  </div>
+
+  <style>
+    .favorites-controls {
+      margin-bottom: 1.5rem;
+      padding: 1rem;
+      background: #f8f9fa;
+      border-radius: 4px;
+    }
+    .favorites-controls .filter-form {
+      display: flex;
+      gap: 1rem;
+      flex-wrap: wrap;
+      align-items: center;
+    }
+    .favorites-controls label {
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+      font-size: 0.9rem;
+    }
+    .favorites-controls select {
+      padding: 0.375rem 0.75rem;
+      border: 1px solid #ced4da;
+      border-radius: 4px;
+      background: white;
+    }
+    .favorites-list {
+      display: flex;
+      flex-direction: column;
+      gap: 0.75rem;
+    }
+    .favorite-card {
+      display: flex;
+      align-items: flex-start;
+      gap: 1rem;
+      padding: 1rem;
+      background: white;
+      border: 1px solid #dee2e6;
+      border-radius: 4px;
+    }
+    .favorite-card:hover {
+      border-color: #adb5bd;
+    }
+    .favorite-star {
+      font-size: 1.5rem;
+      color: #ffc107;
+      flex-shrink: 0;
+    }
+    .favorite-content {
+      flex: 1;
+      min-width: 0;
+    }
+    .favorite-title {
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+      margin-bottom: 0.25rem;
+    }
+    .favorite-title a {
+      font-weight: 500;
+      color: #212529;
+      text-decoration: none;
+    }
+    .favorite-title a:hover {
+      color: #0d6efd;
+    }
+    .favorite-type {
+      font-size: 0.75rem;
+      padding: 0.125rem 0.5rem;
+      background: #e9ecef;
+      color: #6c757d;
+      border-radius: 3px;
+    }
+    .favorite-label {
+      font-style: italic;
+      color: #6c757d;
+      font-size: 0.9rem;
+      margin-bottom: 0.25rem;
+    }
+    .favorite-meta {
+      font-size: 0.8rem;
+      color: #adb5bd;
+    }
+    .favorite-actions {
+      display: flex;
+      gap: 0.5rem;
+      align-items: center;
+      flex-shrink: 0;
+    }
+    .edit-label-dropdown {
+      position: relative;
+    }
+    .edit-label-dropdown summary {
+      cursor: pointer;
+      list-style: none;
+    }
+    .edit-label-dropdown summary::-webkit-details-marker {
+      display: none;
+    }
+    .edit-label-form {
+      position: absolute;
+      right: 0;
+      top: 100%;
+      margin-top: 0.25rem;
+      padding: 0.5rem;
+      background: white;
+      border: 1px solid #dee2e6;
+      border-radius: 4px;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+      display: flex;
+      gap: 0.5rem;
+      z-index: 10;
+    }
+    .edit-label-form input {
+      padding: 0.25rem 0.5rem;
+      border: 1px solid #ced4da;
+      border-radius: 3px;
+      width: 200px;
+    }
+    .empty-state {
+      text-align: center;
+      padding: 3rem;
+      color: #6c757d;
+    }
+    .empty-icon {
+      font-size: 3rem;
+      margin-bottom: 1rem;
+    }
+    .count {
+      font-weight: normal;
+      color: #6c757d;
+    }
+    .inline-form {
+      display: inline;
+    }
+  </style>
+  <script src="/public/js/shortcuts.js"></script>
+  <script>Shortcuts.init({ context: 'global' });</script>
+</div>

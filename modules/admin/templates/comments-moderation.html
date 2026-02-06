@@ -1,0 +1,234 @@
+<div class="admin-page">
+
+  <div class="admin-header">
+    <h1>{{pageTitle}}</h1>
+    <nav class="admin-nav">
+      <a href="/admin">Dashboard</a>
+      <a href="/admin/content">Content</a>
+      <a href="/admin/comments" class="active">Comments</a>
+      <a href="/admin/trash">Trash</a>
+    </nav>
+  </div>
+
+  <div class="breadcrumb">
+    <a href="/admin">Dashboard</a> &rarr;
+    <span>Comments</span>
+  </div>
+
+  {{#if hasFlash}}
+  <div class="flash flash-{{flash.type}}">
+    {{flash.message}}
+  </div>
+  {{/if}}
+
+  <div class="admin-section">
+    <div class="section-header">
+      <h2>Comment Moderation</h2>
+    </div>
+
+    <div class="filter-tabs">
+      <a href="/admin/comments?status=pending" class="tab {{#if (eq statusFilter 'pending')}}active{{/if}}">
+        Pending ({{pendingCount}})
+      </a>
+      <a href="/admin/comments?status=approved" class="tab {{#if (eq statusFilter 'approved')}}active{{/if}}">
+        Approved ({{approvedCount}})
+      </a>
+      <a href="/admin/comments?status=spam" class="tab {{#if (eq statusFilter 'spam')}}active{{/if}}">
+        Spam ({{spamCount}})
+      </a>
+      <a href="/admin/comments?status=trash" class="tab {{#if (eq statusFilter 'trash')}}active{{/if}}">
+        Trash ({{trashCount}})
+      </a>
+    </div>
+
+    {{#if hasComments}}
+    <form method="POST" action="/admin/comments/bulk" id="bulkForm">
+      <div class="bulk-actions">
+        <label class="select-all">
+          <input type="checkbox" id="selectAll" onchange="toggleAll(this)">
+          Select All
+        </label>
+        <select name="action" class="bulk-select">
+          <option value="">Bulk Actions</option>
+          <option value="approve">Approve</option>
+          <option value="spam">Mark as Spam</option>
+          <option value="trash">Move to Trash</option>
+          {{#if (eq statusFilter 'trash')}}
+          <option value="delete">Delete Permanently</option>
+          {{/if}}
+        </select>
+        <button type="submit" class="btn btn-small" onclick="return confirmBulk()">Apply</button>
+      </div>
+
+      <table class="admin-table">
+        <thead>
+          <tr>
+            <th width="30"></th>
+            <th>Author</th>
+            <th>Comment</th>
+            <th>In Response To</th>
+            <th>Date</th>
+            <th>Actions</th>
+          </tr>
+        </thead>
+        <tbody>
+          {{#each comments}}
+          <tr class="{{#if isReply}}reply-row{{/if}}">
+            <td>
+              <input type="checkbox" name="ids" value="{{id}}" class="comment-checkbox">
+            </td>
+            <td>
+              <strong>{{author}}</strong>
+              {{#if email}}
+              <br><small class="text-muted">{{email}}</small>
+              {{/if}}
+            </td>
+            <td>
+              {{#if isReply}}<span class="reply-indicator">↳ Reply</span>{{/if}}
+              <p class="comment-excerpt">{{excerpt}}</p>
+            </td>
+            <td>
+              <a href="/admin/content/{{contentType}}/{{contentId}}/edit">{{contentTitle}}</a>
+              <br><small class="text-muted">{{contentType}}</small>
+            </td>
+            <td>{{createdFormatted}}</td>
+            <td class="actions">
+              {{#unless (eq status 'approved')}}
+              <form method="POST" action="/admin/comments/{{id}}/approve" class="inline-form">
+                <button type="submit" class="btn btn-small btn-success">Approve</button>
+              </form>
+              {{/unless}}
+              {{#unless (eq status 'spam')}}
+              <form method="POST" action="/admin/comments/{{id}}/spam" class="inline-form">
+                <button type="submit" class="btn btn-small btn-warning">Spam</button>
+              </form>
+              {{/unless}}
+              {{#unless (eq status 'trash')}}
+              <form method="POST" action="/admin/comments/{{id}}/trash" class="inline-form">
+                <button type="submit" class="btn btn-small btn-danger">Trash</button>
+              </form>
+              {{/unless}}
+              {{#if (eq status 'trash')}}
+              <form method="POST" action="/admin/comments/{{id}}/delete" class="inline-form" onsubmit="return confirm('Permanently delete this comment?')">
+                <button type="submit" class="btn btn-small btn-danger">Delete</button>
+              </form>
+              {{/if}}
+            </td>
+          </tr>
+          {{/each}}
+        </tbody>
+      </table>
+    </form>
+    {{else}}
+    <div class="empty-state">
+      <p>No {{statusFilter}} comments.</p>
+    </div>
+    {{/if}}
+  </div>
+</div>
+
+<style>
+  .filter-tabs {
+    display: flex;
+    gap: 0.5rem;
+    margin-bottom: 1rem;
+    flex-wrap: wrap;
+  }
+  .filter-tabs .tab {
+    padding: 0.5rem 1rem;
+    background: #f8f9fa;
+    border: 1px solid #dee2e6;
+    border-radius: 4px;
+    text-decoration: none;
+    color: #495057;
+  }
+  .filter-tabs .tab:hover {
+    background: #e9ecef;
+  }
+  .filter-tabs .tab.active {
+    background: #0d6efd;
+    color: white;
+    border-color: #0d6efd;
+  }
+  .bulk-actions {
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+    margin-bottom: 1rem;
+    padding: 0.75rem;
+    background: #f8f9fa;
+    border-radius: 4px;
+  }
+  .select-all {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    cursor: pointer;
+  }
+  .bulk-select {
+    padding: 0.375rem 0.75rem;
+    border: 1px solid #ced4da;
+    border-radius: 4px;
+  }
+  .comment-excerpt {
+    margin: 0;
+    color: #495057;
+    font-size: 0.9rem;
+    line-height: 1.4;
+  }
+  .reply-indicator {
+    display: inline-block;
+    padding: 0.125rem 0.375rem;
+    background: #e9ecef;
+    border-radius: 3px;
+    font-size: 0.75rem;
+    color: #6c757d;
+    margin-bottom: 0.25rem;
+  }
+  .reply-row {
+    background: #fafafa;
+  }
+  .actions {
+    white-space: nowrap;
+  }
+  .actions form {
+    display: inline-block;
+    margin-right: 0.25rem;
+  }
+  .inline-form {
+    display: inline;
+  }
+  .text-muted {
+    color: #6c757d;
+  }
+  .empty-state {
+    padding: 3rem;
+    text-align: center;
+    background: #f8f9fa;
+    border-radius: 8px;
+  }
+</style>
+
+<script>
+  function toggleAll(checkbox) {
+    const checkboxes = document.querySelectorAll('.comment-checkbox');
+    checkboxes.forEach(cb => cb.checked = checkbox.checked);
+  }
+
+  function confirmBulk() {
+    const action = document.querySelector('.bulk-select').value;
+    const checked = document.querySelectorAll('.comment-checkbox:checked');
+    if (!action) {
+      alert('Please select an action');
+      return false;
+    }
+    if (checked.length === 0) {
+      alert('Please select at least one comment');
+      return false;
+    }
+    if (action === 'delete') {
+      return confirm(`Permanently delete ${checked.length} comment(s)?`);
+    }
+    return true;
+  }
+</script>

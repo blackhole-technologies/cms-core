@@ -1,0 +1,135 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Export Configuration - CMS Admin</title>
+    <style>
+        .container { max-width: 800px; margin: 0 auto; padding: 20px; }
+        .config-selector { margin: 20px 0; }
+        .config-item { padding: 12px; border: 1px solid #ddd; margin: 8px 0; border-radius: 4px; }
+        .config-item:hover { background-color: #f9f9f9; }
+        .config-item label { display: flex; align-items: center; cursor: pointer; }
+        .config-item input[type="checkbox"] { margin-right: 12px; width: 18px; height: 18px; }
+        .export-options { margin: 20px 0; padding: 20px; background-color: #f4f4f4; border-radius: 4px; }
+        .export-options label { display: block; margin: 12px 0; }
+        .export-options input[type="radio"] { margin-right: 8px; }
+        .btn { padding: 10px 20px; border: none; border-radius: 4px; cursor: pointer; font-size: 16px; margin-right: 8px; }
+        .btn-primary { background-color: #3498db; color: white; }
+        .btn-secondary { background-color: #95a5a6; color: white; }
+        .btn-success { background-color: #27ae60; color: white; }
+        .actions { margin: 20px 0; }
+        .select-controls { margin: 12px 0; }
+        .select-controls button { padding: 6px 12px; margin-right: 8px; }
+        h2 { margin-top: 30px; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>Export Configuration</h1>
+
+        <div class="select-controls">
+            <button class="btn btn-secondary" onclick="selectAll()">Select All</button>
+            <button class="btn btn-secondary" onclick="selectNone()">Deselect All</button>
+        </div>
+
+        <div class="config-selector">
+            <h2>Select Configurations to Export</h2>
+            {{#configs}}
+            <div class="config-item">
+                <label>
+                    <input type="checkbox" name="config" value="{{id}}" {{#selected}}checked{{/selected}}>
+                    <div>
+                        <strong>{{name}}</strong>
+                        <div style="font-size: 0.9em; color: #7f8c8d;">
+                            {{file}}
+                            {{#locked}}
+                            <span style="color: #e74c3c;">🔒 Locked</span>
+                            {{/locked}}
+                        </div>
+                    </div>
+                </label>
+            </div>
+            {{/configs}}
+
+            {{^configs}}
+            <p style="color: #7f8c8d; text-align: center; padding: 20px;">No configurations available to export.</p>
+            {{/configs}}
+        </div>
+
+        <div class="export-options">
+            <h2>Export Format</h2>
+            <label>
+                <input type="radio" name="format" value="json" checked>
+                JSON - Human-readable, standard format
+            </label>
+            <label>
+                <input type="radio" name="format" value="yaml">
+                YAML - Compact, configuration-friendly format
+            </label>
+            <label>
+                <input type="radio" name="format" value="zip">
+                ZIP Archive - Original file structure preserved
+            </label>
+
+            <h2 style="margin-top: 20px;">Export Options</h2>
+            <label>
+                <input type="checkbox" name="include-metadata" checked>
+                Include metadata (timestamps, version info)
+            </label>
+            <label>
+                <input type="checkbox" name="include-comments">
+                Include comments and documentation
+            </label>
+            <label>
+                <input type="checkbox" name="minify">
+                Minify output (reduce file size)
+            </label>
+        </div>
+
+        <div class="actions">
+            <button class="btn btn-success" onclick="exportConfigs()">Download Export</button>
+            <button class="btn btn-secondary" onclick="goBack()">Cancel</button>
+        </div>
+    </div>
+
+    <script>
+        function selectAll() {
+            document.querySelectorAll('input[name="config"]').forEach(cb => cb.checked = true);
+        }
+
+        function selectNone() {
+            document.querySelectorAll('input[name="config"]').forEach(cb => cb.checked = false);
+        }
+
+        function exportConfigs() {
+            const selectedConfigs = Array.from(document.querySelectorAll('input[name="config"]:checked'))
+                .map(cb => cb.value);
+
+            if (selectedConfigs.length === 0) {
+                alert('Please select at least one configuration to export.');
+                return;
+            }
+
+            const format = document.querySelector('input[name="format"]:checked').value;
+            const includeMetadata = document.querySelector('input[name="include-metadata"]').checked;
+            const includeComments = document.querySelector('input[name="include-comments"]').checked;
+            const minify = document.querySelector('input[name="minify"]').checked;
+
+            const params = new URLSearchParams({
+                configs: selectedConfigs.join(','),
+                format: format,
+                metadata: includeMetadata,
+                comments: includeComments,
+                minify: minify
+            });
+
+            window.location.href = `/admin/config/export/download?${params.toString()}`;
+        }
+
+        function goBack() {
+            window.history.back();
+        }
+    </script>
+</body>
+</html>

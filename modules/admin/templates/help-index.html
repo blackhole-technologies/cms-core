@@ -1,0 +1,262 @@
+<div class="admin-page">
+
+  <div class="admin-header">
+    <h1>Help</h1>
+    <nav class="admin-nav">
+      <a href="/admin">Dashboard</a>
+      <a href="/admin/content">Content</a>
+      <a href="/admin/status">Status</a>
+      <a href="/admin/help" class="active">Help</a>
+    </nav>
+  </div>
+
+  {{#if hasFlash}}
+  <div class="flash flash-{{flash.type}}">
+    {{flash.message}}
+  </div>
+  {{/if}}
+
+  <div class="help-search">
+    <input
+      type="search"
+      id="helpSearch"
+      placeholder="Search help topics..."
+      class="help-search-input"
+      onkeyup="filterTopics(this.value)"
+    >
+  </div>
+
+  {{#if hasGettingStarted}}
+  <div class="admin-section getting-started-section">
+    <div class="section-header">
+      <h2>🚀 Getting Started</h2>
+    </div>
+    <div class="getting-started-grid">
+      {{#each gettingStarted}}
+      <a href="/admin/help/{{module}}/{{slug}}" class="getting-started-card">
+        <div class="card-icon">{{icon}}</div>
+        <h3>{{title}}</h3>
+        <p>{{description}}</p>
+      </a>
+      {{/each}}
+    </div>
+  </div>
+  {{/if}}
+
+  {{#each modules}}
+  <div class="admin-section help-module" data-module="{{name}}">
+    <div class="section-header">
+      <h2>{{label}}</h2>
+      <span class="topic-count">{{topicCount}} topics</span>
+    </div>
+
+    {{#if hasTopics}}
+    <div class="topics-list">
+      {{#each topics}}
+      <a
+        href="/admin/help/{{../name}}/{{slug}}"
+        class="topic-item"
+        data-title="{{title}}"
+        data-description="{{description}}"
+      >
+        <div class="topic-header">
+          <h3>{{title}}</h3>
+          {{#if isNew}}
+          <span class="badge badge-new">New</span>
+          {{/if}}
+          {{#if isPopular}}
+          <span class="badge badge-popular">Popular</span>
+          {{/if}}
+        </div>
+        <p>{{description}}</p>
+      </a>
+      {{/each}}
+    </div>
+    {{else}}
+    <p class="empty-message">No help topics available for this module.</p>
+    {{/if}}
+  </div>
+  {{/each}}
+
+  {{#unless hasModules}}
+  <div class="admin-section">
+    <p class="empty-message">No help topics available. Modules can provide help via hook_help.</p>
+  </div>
+  {{/unless}}
+
+  <style>
+    .help-search {
+      margin-bottom: 2rem;
+    }
+    .help-search-input {
+      width: 100%;
+      padding: 0.75rem 1rem;
+      font-size: 1rem;
+      border: 2px solid #dee2e6;
+      border-radius: 8px;
+      outline: none;
+      transition: border-color 0.2s;
+    }
+    .help-search-input:focus {
+      border-color: #0d6efd;
+    }
+    .getting-started-section {
+      background: linear-gradient(135deg, #e8f5e9 0%, #c8e6c9 100%);
+      border: 2px solid #4caf50;
+      border-radius: 8px;
+      padding: 1.5rem;
+      margin-bottom: 2rem;
+    }
+    .getting-started-section h2 {
+      color: #2e7d32;
+      margin: 0 0 1rem 0;
+    }
+    .getting-started-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(250px, 1fr));
+      gap: 1rem;
+    }
+    .getting-started-card {
+      background: white;
+      padding: 1.5rem;
+      border-radius: 6px;
+      border: 1px solid #a5d6a7;
+      text-decoration: none;
+      color: inherit;
+      transition: all 0.2s;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      text-align: center;
+    }
+    .getting-started-card:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 4px 12px rgba(76, 175, 80, 0.2);
+      border-color: #4caf50;
+    }
+    .card-icon {
+      font-size: 2.5rem;
+      margin-bottom: 0.75rem;
+    }
+    .getting-started-card h3 {
+      margin: 0 0 0.5rem 0;
+      font-size: 1.1rem;
+      color: #2e7d32;
+    }
+    .getting-started-card p {
+      margin: 0;
+      font-size: 0.9rem;
+      color: #495057;
+    }
+    .help-module {
+      margin-bottom: 1.5rem;
+    }
+    .topic-count {
+      color: #6c757d;
+      font-size: 0.9rem;
+    }
+    .topics-list {
+      display: flex;
+      flex-direction: column;
+      gap: 0.5rem;
+    }
+    .topic-item {
+      display: block;
+      padding: 1rem;
+      background: white;
+      border: 1px solid #dee2e6;
+      border-radius: 6px;
+      text-decoration: none;
+      color: inherit;
+      transition: all 0.2s;
+    }
+    .topic-item:hover {
+      border-color: #0d6efd;
+      background: #f8f9fa;
+      transform: translateX(4px);
+    }
+    .topic-header {
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+      margin-bottom: 0.25rem;
+    }
+    .topic-item h3 {
+      margin: 0;
+      font-size: 1rem;
+      color: #0d6efd;
+    }
+    .topic-item:hover h3 {
+      text-decoration: underline;
+    }
+    .topic-item p {
+      margin: 0;
+      font-size: 0.9rem;
+      color: #6c757d;
+    }
+    .badge {
+      padding: 0.2rem 0.5rem;
+      border-radius: 4px;
+      font-size: 0.7rem;
+      font-weight: 600;
+      text-transform: uppercase;
+    }
+    .badge-new {
+      background: #d1ecf1;
+      color: #0c5460;
+    }
+    .badge-popular {
+      background: #fff3cd;
+      color: #856404;
+    }
+    .help-module.hidden {
+      display: none;
+    }
+    .topic-item.hidden {
+      display: none;
+    }
+  </style>
+
+  <script>
+    function filterTopics(query) {
+      const normalizedQuery = query.toLowerCase().trim();
+
+      if (!normalizedQuery) {
+        // Show all modules and topics
+        document.querySelectorAll('.help-module').forEach(el => {
+          el.classList.remove('hidden');
+        });
+        document.querySelectorAll('.topic-item').forEach(el => {
+          el.classList.remove('hidden');
+        });
+        return;
+      }
+
+      // Filter topics
+      document.querySelectorAll('.help-module').forEach(moduleEl => {
+        const topics = moduleEl.querySelectorAll('.topic-item');
+        let hasVisibleTopics = false;
+
+        topics.forEach(topicEl => {
+          const title = topicEl.getAttribute('data-title').toLowerCase();
+          const description = topicEl.getAttribute('data-description').toLowerCase();
+          const matches = title.includes(normalizedQuery) || description.includes(normalizedQuery);
+
+          if (matches) {
+            topicEl.classList.remove('hidden');
+            hasVisibleTopics = true;
+          } else {
+            topicEl.classList.add('hidden');
+          }
+        });
+
+        // Hide module if no visible topics
+        if (hasVisibleTopics) {
+          moduleEl.classList.remove('hidden');
+        } else {
+          moduleEl.classList.add('hidden');
+        }
+      });
+    }
+  </script>
+</div>

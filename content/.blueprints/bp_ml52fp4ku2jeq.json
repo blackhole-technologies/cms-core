@@ -1,0 +1,16 @@
+{
+  "id": "bp_ml52fp4ku2jeq",
+  "name": "Custom Template",
+  "description": "Created from greeting/1770030454581-zhxnh",
+  "type": "greeting",
+  "template": {
+    "name": "Custom Name",
+    "message": "Created on 2026-02-02",
+    "status": "draft"
+  },
+  "locked": [],
+  "createdAt": "2026-02-02T11:07:41.684Z",
+  "updatedAt": "2026-02-02T11:07:41.684Z",
+  "createdBy": "system",
+  "usageCount": 0
+}

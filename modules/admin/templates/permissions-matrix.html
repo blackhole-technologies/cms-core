@@ -1,0 +1,235 @@
+<div class="admin-page">
+
+  <div class="admin-header">
+    <h1>Permissions Matrix</h1>
+    <nav class="admin-nav">
+      <a href="/admin">Dashboard</a>
+      <a href="/admin/permissions" class="active">Permissions</a>
+      <a href="/admin/roles">Roles</a>
+    </nav>
+  </div>
+
+  {{#if hasFlash}}
+  <div class="flash flash-{{flash.type}}">
+    {{flash.message}}
+  </div>
+  {{/if}}
+
+  <form method="POST" action="/admin/permissions/matrix">
+    <input type="hidden" name="csrf_token" value="{{csrf_token}}">
+
+    <div class="matrix-controls">
+      <button type="submit" class="btn btn-primary">Save All Changes</button>
+      <button type="button" class="btn btn-secondary" onclick="expandAll()">Expand All</button>
+      <button type="button" class="btn btn-secondary" onclick="collapseAll()">Collapse All</button>
+    </div>
+
+    <div class="permissions-matrix">
+      <div class="matrix-header">
+        <div class="matrix-cell permission-label">Permission</div>
+        {{#each roles}}
+        <div class="matrix-cell role-header" title="{{this.description}}">
+          {{this.name}}
+          <small>({{this.userCount}} users)</small>
+        </div>
+        {{/each}}
+      </div>
+
+      {{#each modules}}
+      <div class="module-section" data-module="{{this.name}}">
+        <div class="module-header" onclick="toggleModule('{{this.name}}')">
+          <span class="collapse-icon">▼</span>
+          <h3>{{this.label}}</h3>
+          <small>({{this.permissionCount}} permissions)</small>
+        </div>
+
+        <div class="module-permissions" id="module-{{this.name}}">
+          {{#each this.permissions}}
+          <div class="matrix-row">
+            <div class="matrix-cell permission-label" title="{{this.description}}">
+              <strong>{{this.name}}</strong>
+              <small>{{this.description}}</small>
+            </div>
+            {{#each ../roles}}
+            <div class="matrix-cell permission-checkbox">
+              <input
+                type="checkbox"
+                name="permissions[{{this.id}}][{{../id}}]"
+                id="perm_{{this.id}}_{{../id}}"
+                {{#if this.hasPermission}}checked{{/if}}
+                {{#if this.inherited}}disabled title="Inherited from {{this.inheritedFrom}}"{{/if}}
+              >
+              <label for="perm_{{this.id}}_{{../id}}"></label>
+              {{#if this.inherited}}
+              <span class="inherited-badge" title="Inherited from {{this.inheritedFrom}}">i</span>
+              {{/if}}
+            </div>
+            {{/each}}
+          </div>
+          {{/each}}
+        </div>
+      </div>
+      {{/each}}
+    </div>
+
+    <div class="matrix-footer">
+      <button type="submit" class="btn btn-primary">Save All Changes</button>
+      <a href="/admin/permissions" class="btn btn-secondary">Cancel</a>
+    </div>
+  </form>
+</div>
+
+<script>
+function toggleModule(moduleName) {
+  const moduleEl = document.getElementById('module-' + moduleName);
+  const section = document.querySelector('[data-module="' + moduleName + '"]');
+  const icon = section.querySelector('.collapse-icon');
+
+  if (moduleEl.style.display === 'none') {
+    moduleEl.style.display = 'block';
+    icon.textContent = '▼';
+  } else {
+    moduleEl.style.display = 'none';
+    icon.textContent = '▶';
+  }
+}
+
+function expandAll() {
+  document.querySelectorAll('.module-permissions').forEach(el => {
+    el.style.display = 'block';
+  });
+  document.querySelectorAll('.collapse-icon').forEach(icon => {
+    icon.textContent = '▼';
+  });
+}
+
+function collapseAll() {
+  document.querySelectorAll('.module-permissions').forEach(el => {
+    el.style.display = 'none';
+  });
+  document.querySelectorAll('.collapse-icon').forEach(icon => {
+    icon.textContent = '▶';
+  });
+}
+</script>
+
+<style>
+.permissions-matrix {
+  margin: 2rem 0;
+  border: 1px solid #ddd;
+  border-radius: 4px;
+  overflow: hidden;
+}
+
+.matrix-header {
+  display: grid;
+  grid-template-columns: 300px repeat(auto-fit, minmax(120px, 1fr));
+  background: #f5f5f5;
+  border-bottom: 2px solid #ddd;
+  position: sticky;
+  top: 0;
+  z-index: 10;
+}
+
+.matrix-cell {
+  padding: 0.75rem;
+  border-right: 1px solid #ddd;
+}
+
+.matrix-cell:last-child {
+  border-right: none;
+}
+
+.role-header {
+  text-align: center;
+  font-weight: bold;
+}
+
+.module-section {
+  border-bottom: 1px solid #eee;
+}
+
+.module-header {
+  background: #fafafa;
+  padding: 1rem;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.module-header:hover {
+  background: #f0f0f0;
+}
+
+.collapse-icon {
+  font-size: 0.875rem;
+  transition: transform 0.2s;
+}
+
+.module-permissions {
+  display: block;
+}
+
+.matrix-row {
+  display: grid;
+  grid-template-columns: 300px repeat(auto-fit, minmax(120px, 1fr));
+  border-bottom: 1px solid #eee;
+}
+
+.matrix-row:hover {
+  background: #f9f9f9;
+}
+
+.permission-label {
+  display: flex;
+  flex-direction: column;
+}
+
+.permission-label small {
+  color: #666;
+  font-size: 0.875rem;
+  margin-top: 0.25rem;
+}
+
+.permission-checkbox {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  position: relative;
+}
+
+.permission-checkbox input[type="checkbox"] {
+  width: 20px;
+  height: 20px;
+  cursor: pointer;
+}
+
+.permission-checkbox input[type="checkbox"]:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.inherited-badge {
+  position: absolute;
+  top: 0.5rem;
+  right: 0.5rem;
+  background: #007bff;
+  color: white;
+  border-radius: 50%;
+  width: 16px;
+  height: 16px;
+  font-size: 10px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: help;
+}
+
+.matrix-controls,
+.matrix-footer {
+  display: flex;
+  gap: 1rem;
+  margin: 1rem 0;
+}
+</style>

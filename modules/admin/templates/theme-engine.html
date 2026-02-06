@@ -1,0 +1,362 @@
+<div class="admin-page">
+
+  <div class="admin-header">
+    <h1>{{pageTitle}}</h1>
+    <nav class="admin-nav">
+      <a href="/admin">Dashboard</a>
+      <a href="/admin/appearance">Themes</a>
+      <a href="/admin/appearance/layouts" class="active">Layouts &amp; Skins</a>
+    </nav>
+  </div>
+
+  {{#if hasFlash}}
+  <div class="flash flash-{{flash.type}}">
+    {{flash.message}}
+  </div>
+  {{/if}}
+
+  <form method="POST" action="/admin/appearance/layouts" class="theme-engine-form">
+    
+    <!-- Layouts Section -->
+    <div class="admin-section">
+      <div class="section-header">
+        <h2>Layouts</h2>
+        <p class="section-desc">Layouts define the structural template (regions, HTML skeleton)</p>
+      </div>
+
+      {{#if hasLayouts}}
+      <div class="layout-grid">
+        {{#each layouts}}
+        <label class="layout-card {{#if (eq id ../activeLayout)}}layout-active{{/if}}">
+          <input type="radio" name="layout" value="{{id}}" 
+                 {{#if (eq id ../activeLayout)}}checked{{/if}}>
+          <div class="layout-content">
+            <h3>{{name}}</h3>
+            {{#if description}}
+            <p class="layout-description">{{description}}</p>
+            {{/if}}
+            <div class="layout-meta">
+              <span class="layout-regions">
+                <strong>Regions:</strong> {{#each regions}}{{this}}{{#unless @last}}, {{/unless}}{{/each}}
+              </span>
+            </div>
+            {{#if (eq id ../activeLayout)}}
+            <span class="badge badge-success">Active</span>
+            {{/if}}
+          </div>
+        </label>
+        {{/each}}
+      </div>
+      {{else}}
+      <div class="empty-state">
+        <p>No layouts found. Add layouts to <code>themes/layouts/</code></p>
+      </div>
+      {{/if}}
+    </div>
+
+    <!-- Skins Section -->
+    <div class="admin-section">
+      <div class="section-header">
+        <h2>Skins</h2>
+        <p class="section-desc">Skins define the visual styling (CSS variables, colors, typography)</p>
+      </div>
+
+      {{#if hasSkins}}
+      <div class="skin-grid">
+        {{#each skins}}
+        <label class="skin-card {{#if (eq id ../activeSkin)}}skin-active{{/if}}">
+          <input type="radio" name="skin" value="{{id}}" 
+                 {{#if (eq id ../activeSkin)}}checked{{/if}}>
+          <div class="skin-content">
+            {{#if preview}}
+            <div class="skin-preview">
+              <img src="{{preview}}" alt="{{name}} preview">
+            </div>
+            {{else}}
+            <div class="skin-preview skin-preview-placeholder">
+              <div class="color-swatch" style="background: {{#if colors.primary}}{{colors.primary}}{{else}}#666{{/if}}"></div>
+            </div>
+            {{/if}}
+            <h3>{{name}}</h3>
+            {{#if description}}
+            <p class="skin-description">{{description}}</p>
+            {{/if}}
+            {{#if (eq id ../activeSkin)}}
+            <span class="badge badge-success">Active</span>
+            {{/if}}
+          </div>
+        </label>
+        {{/each}}
+      </div>
+      {{else}}
+      <div class="empty-state">
+        <p>No skins found. Add skins to <code>themes/skins/</code></p>
+      </div>
+      {{/if}}
+    </div>
+
+    <!-- Admin Skins Section -->
+    <div class="admin-section">
+      <div class="section-header">
+        <h2>Admin Skin</h2>
+        <p class="section-desc">Visual theme for the admin interface (3 options)</p>
+      </div>
+
+      {{#if hasAdminSkins}}
+      <div class="admin-skin-grid">
+        {{#each adminSkins}}
+        <label class="admin-skin-card {{#if (eq id ../activeAdminSkin)}}admin-skin-active{{/if}}">
+          <input type="radio" name="adminSkin" value="{{id}}" 
+                 {{#if (eq id ../activeAdminSkin)}}checked{{/if}}>
+          <div class="admin-skin-content">
+            <h4>{{name}}</h4>
+            {{#if description}}
+            <p>{{description}}</p>
+            {{/if}}
+            {{#if (eq id ../activeAdminSkin)}}
+            <span class="badge badge-info">Current</span>
+            {{/if}}
+          </div>
+        </label>
+        {{/each}}
+      </div>
+      {{else}}
+      <div class="empty-state">
+        <p>No admin skins found.</p>
+      </div>
+      {{/if}}
+    </div>
+
+    <!-- Submit -->
+    <div class="form-actions">
+      <button type="submit" class="btn btn-primary btn-lg">
+        Save Theme Configuration
+      </button>
+      <a href="/admin" class="btn btn-secondary">Cancel</a>
+    </div>
+
+  </form>
+</div>
+
+<style>
+.theme-engine-form {
+  max-width: 1200px;
+}
+
+.section-desc {
+  color: #666;
+  margin: 0.25rem 0 1rem;
+  font-size: 0.9rem;
+}
+
+/* Layout Grid */
+.layout-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+  gap: 1rem;
+}
+
+.layout-card {
+  display: block;
+  border: 2px solid #ddd;
+  border-radius: 8px;
+  padding: 1rem;
+  cursor: pointer;
+  transition: all 0.2s;
+  background: white;
+}
+
+.layout-card:hover {
+  border-color: #999;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+}
+
+.layout-card input[type="radio"] {
+  display: none;
+}
+
+.layout-active {
+  border-color: #28a745;
+  background: #f0fff4;
+}
+
+.layout-content h3 {
+  margin: 0 0 0.5rem;
+  font-size: 1.1rem;
+}
+
+.layout-description {
+  color: #666;
+  font-size: 0.85rem;
+  margin: 0.5rem 0;
+}
+
+.layout-meta {
+  font-size: 0.8rem;
+  color: #888;
+  margin-top: 0.5rem;
+}
+
+.layout-regions {
+  display: block;
+}
+
+/* Skin Grid */
+.skin-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+  gap: 1rem;
+}
+
+.skin-card {
+  display: block;
+  border: 2px solid #ddd;
+  border-radius: 8px;
+  overflow: hidden;
+  cursor: pointer;
+  transition: all 0.2s;
+  background: white;
+}
+
+.skin-card:hover {
+  border-color: #999;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+}
+
+.skin-card input[type="radio"] {
+  display: none;
+}
+
+.skin-active {
+  border-color: #28a745;
+}
+
+.skin-preview {
+  height: 80px;
+  background: #f5f5f5;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.skin-preview img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.skin-preview-placeholder .color-swatch {
+  width: 60px;
+  height: 60px;
+  border-radius: 50%;
+  border: 3px solid rgba(255,255,255,0.5);
+  box-shadow: 0 2px 8px rgba(0,0,0,0.2);
+}
+
+.skin-content {
+  padding: 0.75rem;
+}
+
+.skin-content h3 {
+  margin: 0 0 0.25rem;
+  font-size: 1rem;
+}
+
+.skin-description {
+  color: #666;
+  font-size: 0.8rem;
+  margin: 0;
+}
+
+/* Admin Skin Grid */
+.admin-skin-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+  gap: 1rem;
+}
+
+.admin-skin-card {
+  display: block;
+  border: 2px solid #ddd;
+  border-radius: 8px;
+  padding: 1rem;
+  cursor: pointer;
+  transition: all 0.2s;
+  background: white;
+  text-align: center;
+}
+
+.admin-skin-card:hover {
+  border-color: #999;
+}
+
+.admin-skin-card input[type="radio"] {
+  display: none;
+}
+
+.admin-skin-active {
+  border-color: #17a2b8;
+  background: #e8f4f8;
+}
+
+.admin-skin-content h4 {
+  margin: 0 0 0.25rem;
+  font-size: 1rem;
+}
+
+.admin-skin-content p {
+  color: #666;
+  font-size: 0.8rem;
+  margin: 0;
+}
+
+/* Form Actions */
+.form-actions {
+  margin-top: 2rem;
+  padding-top: 1.5rem;
+  border-top: 1px solid #eee;
+  display: flex;
+  gap: 1rem;
+}
+
+.btn-lg {
+  padding: 0.75rem 2rem;
+  font-size: 1rem;
+}
+
+/* Badges */
+.badge {
+  display: inline-block;
+  padding: 0.2rem 0.5rem;
+  border-radius: 4px;
+  font-size: 0.7rem;
+  font-weight: 600;
+  margin-top: 0.5rem;
+}
+
+.badge-success {
+  background: #28a745;
+  color: white;
+}
+
+.badge-info {
+  background: #17a2b8;
+  color: white;
+}
+
+/* Empty State */
+.empty-state {
+  text-align: center;
+  padding: 2rem;
+  color: #666;
+  background: #f9f9f9;
+  border-radius: 8px;
+}
+
+.empty-state code {
+  background: #e9ecef;
+  padding: 0.2rem 0.4rem;
+  border-radius: 3px;
+  font-size: 0.85rem;
+}
+</style>

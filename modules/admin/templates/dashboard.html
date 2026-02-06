@@ -1,0 +1,189 @@
+<div class="admin-breadcrumb">
+  <a href="/admin">Home</a> <span>&rsaquo;</span> Administration
+</div>
+
+<h1 class="admin-page-title">Dashboard</h1>
+<p class="admin-page-description">Site overview and administration tools.</p>
+
+{{#if hasFlash}}
+<div class="flash flash-{{flash.type}}">{{flash.message}}</div>
+{{/if}}
+
+<div class="admin-stats">
+  <div class="admin-stat-card">
+    <div class="admin-stat-value">{{userContentTypeCount}}</div>
+    <div class="admin-stat-label">Content Types</div>
+  </div>
+  <div class="admin-stat-card">
+    <div class="admin-stat-value">{{totalContentItems}}</div>
+    <div class="admin-stat-label">Content Items</div>
+  </div>
+  <div class="admin-stat-card">
+    <div class="admin-stat-value">{{userCount}}</div>
+    <div class="admin-stat-label">Users</div>
+  </div>
+  <div class="admin-stat-card">
+    <div class="admin-stat-value">{{coreServiceCount}}</div>
+    <div class="admin-stat-label">Core Services</div>
+  </div>
+</div>
+
+<div class="admin-dashboard-grid">
+  <div>
+    {{#if hasUserContentStats}}
+    <div class="admin-panel">
+      <div class="admin-panel-header">
+        <h2>Content Types</h2>
+      </div>
+      <div class="admin-panel-body">
+        <table class="admin-table">
+          <thead><tr><th>Type</th><th>Items</th><th>Operations</th></tr></thead>
+          <tbody>
+            {{#each userContentStats}}
+            <tr>
+              <td><strong>{{type}}</strong></td>
+              <td>{{count}}</td>
+              <td>
+                <a href="/admin/content/{{type}}" class="btn btn-small">List</a>
+                <a href="/admin/content/{{type}}/new" class="btn btn-small btn-primary">Add new</a>
+              </td>
+            </tr>
+            {{/each}}
+          </tbody>
+        </table>
+      </div>
+    </div>
+    {{/if}}
+
+    {{#if hasSystemContentStats}}
+    <div class="admin-panel">
+      <div class="admin-panel-header">
+        <h2>System Data</h2>
+        <p>Internal content types managed by core modules</p>
+      </div>
+      <div class="admin-panel-body">
+        <table class="admin-table">
+          <thead><tr><th>Type</th><th>Items</th><th>Source</th></tr></thead>
+          <tbody>
+            {{#each systemContentStats}}
+            <tr>
+              <td>{{type}}</td>
+              <td>{{count}}</td>
+              <td><span class="status-badge status-badge--archived">{{source}}</span></td>
+            </tr>
+            {{/each}}
+          </tbody>
+        </table>
+      </div>
+    </div>
+    {{/if}}
+
+    <div class="admin-panel">
+      <div class="admin-panel-header"><h2>Recent Content</h2></div>
+      <div class="admin-panel-body">
+        {{#if hasRecentContent}}
+        <table class="admin-table">
+          <thead><tr><th>Type</th><th>ID</th><th>Created</th><th>Operations</th></tr></thead>
+          <tbody>
+            {{#each recentContent}}
+            <tr>
+              <td><span class="status-badge status-badge--draft">{{_type}}</span></td>
+              <td><code>{{id}}</code></td>
+              <td>{{createdFormatted}}</td>
+              <td><a href="/admin/content/{{_type}}/{{id}}/edit" class="btn btn-small">Edit</a></td>
+            </tr>
+            {{/each}}
+          </tbody>
+        </table>
+        {{else}}
+        <p class="empty-message">No content yet.</p>
+        {{/if}}
+      </div>
+    </div>
+  </div>
+
+  <div>
+    {{#if hasActivity}}
+    <div class="admin-panel">
+      <div class="admin-panel-header"><h2>Recent Activity</h2></div>
+      <div class="admin-panel-body">
+        <table class="admin-table">
+          <tbody>
+            {{#each recentActivity}}
+            <tr>
+              <td><strong>{{actor.username}}</strong> {{label}} {{#if target}}<a href="/admin/content/{{target.type}}/{{target.id}}/edit">{{target.title}}</a>{{/if}}</td>
+              <td style="text-align:right;white-space:nowrap;color:var(--admin-text-muted);font-size:12px">{{relativeTime}}</td>
+            </tr>
+            {{/each}}
+          </tbody>
+        </table>
+      </div>
+    </div>
+    {{/if}}
+
+    {{#if hasFavorites}}
+    <div class="admin-panel">
+      <div class="admin-panel-header"><h2>Your Favorites</h2></div>
+      <div class="admin-panel-body">
+        <table class="admin-table">
+          <tbody>
+            {{#each favorites}}
+            <tr><td><a href="/admin/content/{{contentType}}/{{contentId}}/edit">{{title}}</a> <span class="status-badge status-badge--draft">{{contentType}}</span></td></tr>
+            {{/each}}
+          </tbody>
+        </table>
+      </div>
+    </div>
+    {{/if}}
+
+    <div class="admin-menu-grid" style="grid-template-columns:1fr">
+      <div class="admin-menu-block">
+        <h3><a href="/admin/content">Content</a></h3>
+        <p>Find and manage content</p>
+        <ul>
+          <li><a href="/admin/content">Content overview</a></li>
+          <li><a href="/admin/comments">Comments</a></li>
+          <li><a href="/admin/trash">Trash</a></li>
+        </ul>
+      </div>
+      <div class="admin-menu-block">
+        <h3><a href="/admin/structure/types">Structure</a></h3>
+        <p>Content types, views, menus</p>
+        <ul>
+          <li><a href="/admin/structure/types">Content types</a></li>
+          <li><a href="/admin/views">Views</a></li>
+          <li><a href="/admin/menus">Menus</a></li>
+          <li><a href="/admin/taxonomy">Taxonomy</a></li>
+          <li><a href="/admin/blocks">Blocks</a></li>
+        </ul>
+      </div>
+      <div class="admin-menu-block">
+        <h3><a href="/admin/users">People</a></h3>
+        <p>Users, roles, permissions</p>
+        <ul>
+          <li><a href="/admin/users">User accounts</a></li>
+          <li><a href="/admin/permissions-matrix">Permissions</a></li>
+        </ul>
+      </div>
+      <div class="admin-menu-block">
+        <h3><a href="/admin/config">Configuration</a></h3>
+        <p>Site settings</p>
+        <ul>
+          <li><a href="/admin/text-formats">Text formats</a></li>
+          <li><a href="/admin/image-styles">Image styles</a></li>
+          <li><a href="/admin/cron">Cron</a></li>
+          <li><a href="/admin/aliases">URL aliases</a></li>
+        </ul>
+      </div>
+      <div class="admin-menu-block">
+        <h3><a href="/admin/reports/status">Reports</a></h3>
+        <p>Status, logs, analytics</p>
+        <ul>
+          <li><a href="/admin/reports/status">Status report</a></li>
+          <li><a href="/admin/analytics">Analytics</a></li>
+          <li><a href="/admin/audit">Audit log</a></li>
+        </ul>
+      </div>
+    </div>
+  </div>
+</div>

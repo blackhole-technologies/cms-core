@@ -1,0 +1,390 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Configuration Diff - CMS Admin</title>
+    <style>
+        * { box-sizing: border-box; }
+        body { margin: 0; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; }
+        .container { max-width: 1400px; margin: 0 auto; padding: 20px; }
+        .header {
+            background-color: #f8f9fa;
+            padding: 20px;
+            border-radius: 8px;
+            margin-bottom: 20px;
+            border: 1px solid #dee2e6;
+        }
+        .header h1 { margin: 0 0 12px 0; }
+        .header-info { display: flex; gap: 40px; flex-wrap: wrap; }
+        .header-info-item { display: flex; flex-direction: column; }
+        .header-info-label { font-size: 12px; color: #6c757d; text-transform: uppercase; margin-bottom: 4px; }
+        .header-info-value { font-weight: bold; }
+        .diff-container {
+            display: flex;
+            gap: 2px;
+            background-color: #dee2e6;
+            border: 1px solid #dee2e6;
+            border-radius: 8px;
+            overflow: hidden;
+        }
+        .diff-side {
+            flex: 1;
+            background-color: white;
+            overflow-x: auto;
+        }
+        .diff-side-header {
+            padding: 12px 16px;
+            background-color: #495057;
+            color: white;
+            font-weight: bold;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        .diff-side-header.original { background-color: #dc3545; }
+        .diff-side-header.modified { background-color: #28a745; }
+        .diff-line-numbers {
+            background-color: #f8f9fa;
+            padding: 8px;
+            text-align: right;
+            font-family: monospace;
+            font-size: 13px;
+            color: #6c757d;
+            min-width: 50px;
+            user-select: none;
+            border-right: 1px solid #dee2e6;
+        }
+        .diff-lines {
+            display: flex;
+        }
+        .diff-content {
+            flex: 1;
+            padding: 8px 12px;
+            font-family: 'Monaco', 'Menlo', 'Ubuntu Mono', monospace;
+            font-size: 13px;
+            line-height: 1.6;
+            white-space: pre;
+            overflow-x: auto;
+        }
+        .diff-line {
+            display: flex;
+            min-height: 21px;
+        }
+        .diff-line.addition { background-color: #d4edda; }
+        .diff-line.deletion { background-color: #f8d7da; }
+        .diff-line.modification { background-color: #fff3cd; }
+        .diff-line.unchanged { background-color: white; }
+        .diff-line:hover { opacity: 0.85; }
+        .diff-controls {
+            margin: 20px 0;
+            display: flex;
+            gap: 12px;
+            align-items: center;
+            flex-wrap: wrap;
+        }
+        .btn {
+            padding: 10px 20px;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 14px;
+            font-weight: 500;
+            transition: all 0.2s;
+        }
+        .btn:hover { transform: translateY(-1px); box-shadow: 0 2px 4px rgba(0,0,0,0.1); }
+        .btn-success { background-color: #28a745; color: white; }
+        .btn-danger { background-color: #dc3545; color: white; }
+        .btn-primary { background-color: #007bff; color: white; }
+        .btn-secondary { background-color: #6c757d; color: white; }
+        .change-selector {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            padding: 8px 12px;
+            background-color: #f8f9fa;
+            border-radius: 4px;
+        }
+        .change-selector input[type="checkbox"] { width: 18px; height: 18px; }
+        .stats {
+            display: flex;
+            gap: 20px;
+            padding: 12px;
+            background-color: #e9ecef;
+            border-radius: 4px;
+            font-size: 14px;
+        }
+        .stat-item { display: flex; align-items: center; gap: 6px; }
+        .stat-value { font-weight: bold; }
+        .stat-additions { color: #28a745; }
+        .stat-deletions { color: #dc3545; }
+        .stat-modifications { color: #ffc107; }
+        .legend {
+            display: flex;
+            gap: 16px;
+            padding: 12px;
+            background-color: #f8f9fa;
+            border-radius: 4px;
+            font-size: 13px;
+            margin-bottom: 20px;
+        }
+        .legend-item { display: flex; align-items: center; gap: 6px; }
+        .legend-color { width: 16px; height: 16px; border-radius: 2px; }
+        .legend-color.addition { background-color: #d4edda; border: 1px solid #28a745; }
+        .legend-color.deletion { background-color: #f8d7da; border: 1px solid #dc3545; }
+        .legend-color.modification { background-color: #fff3cd; border: 1px solid #ffc107; }
+        .legend-color.unchanged { background-color: white; border: 1px solid #dee2e6; }
+        .actions-panel {
+            position: sticky;
+            top: 0;
+            background-color: white;
+            z-index: 100;
+            padding: 16px 0;
+            border-bottom: 2px solid #dee2e6;
+            margin-bottom: 20px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>Configuration Diff: {{configName}}</h1>
+            <div class="header-info">
+                <div class="header-info-item">
+                    <span class="header-info-label">File Path</span>
+                    <span class="header-info-value">{{filePath}}</span>
+                </div>
+                <div class="header-info-item">
+                    <span class="header-info-label">Comparison</span>
+                    <span class="header-info-value">{{comparisonType}}</span>
+                </div>
+                {{#timestamp}}
+                <div class="header-info-item">
+                    <span class="header-info-label">Generated</span>
+                    <span class="header-info-value">{{timestamp}}</span>
+                </div>
+                {{/timestamp}}
+            </div>
+        </div>
+
+        <div class="legend">
+            <div class="legend-item">
+                <span class="legend-color addition"></span>
+                <span>Addition</span>
+            </div>
+            <div class="legend-item">
+                <span class="legend-color deletion"></span>
+                <span>Deletion</span>
+            </div>
+            <div class="legend-item">
+                <span class="legend-color modification"></span>
+                <span>Modification</span>
+            </div>
+            <div class="legend-item">
+                <span class="legend-color unchanged"></span>
+                <span>Unchanged</span>
+            </div>
+        </div>
+
+        <div class="stats">
+            <div class="stat-item">
+                <span>Total Changes:</span>
+                <span class="stat-value">{{stats.total}}</span>
+            </div>
+            <div class="stat-item stat-additions">
+                <span>+</span>
+                <span class="stat-value">{{stats.additions}}</span>
+            </div>
+            <div class="stat-item stat-deletions">
+                <span>-</span>
+                <span class="stat-value">{{stats.deletions}}</span>
+            </div>
+            <div class="stat-item stat-modifications">
+                <span>~</span>
+                <span class="stat-value">{{stats.modifications}}</span>
+            </div>
+        </div>
+
+        <div class="actions-panel">
+            <div class="diff-controls">
+                <button class="btn btn-success" onclick="acceptAllChanges()">Accept All Changes</button>
+                <button class="btn btn-danger" onclick="rejectAllChanges()">Reject All Changes</button>
+                <button class="btn btn-primary" onclick="acceptSelected()">Accept Selected</button>
+                <button class="btn btn-secondary" onclick="downloadDiff()">Download Diff</button>
+                <button class="btn btn-secondary" onclick="goBack()">Back to List</button>
+
+                <div class="change-selector">
+                    <input type="checkbox" id="selectAll" onchange="toggleSelectAll(this)">
+                    <label for="selectAll">Select All Changes</label>
+                </div>
+            </div>
+        </div>
+
+        <div class="diff-container">
+            <div class="diff-side">
+                <div class="diff-side-header original">
+                    <span>Original ({{originalVersion}})</span>
+                </div>
+                <div id="originalContent"></div>
+            </div>
+
+            <div class="diff-side">
+                <div class="diff-side-header modified">
+                    <span>Modified ({{modifiedVersion}})</span>
+                </div>
+                <div id="modifiedContent"></div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const diffData = {{{diffDataJson}}};
+
+        function renderDiff() {
+            const originalContent = document.getElementById('originalContent');
+            const modifiedContent = document.getElementById('modifiedContent');
+
+            let originalHtml = '';
+            let modifiedHtml = '';
+
+            diffData.lines.forEach((item, index) => {
+                const lineNum = index + 1;
+                const checkbox = `<input type="checkbox" class="change-select" value="${index}" style="margin-right: 8px;">`;
+
+                originalHtml += `
+                    <div class="diff-line ${item.originalClass}" data-line="${lineNum}">
+                        <div class="diff-line-numbers">${item.originalLineNum || ''}</div>
+                        <div class="diff-content">${item.showCheckbox ? checkbox : ''}${escapeHtml(item.originalContent)}</div>
+                    </div>
+                `;
+
+                modifiedHtml += `
+                    <div class="diff-line ${item.modifiedClass}" data-line="${lineNum}">
+                        <div class="diff-line-numbers">${item.modifiedLineNum || ''}</div>
+                        <div class="diff-content">${escapeHtml(item.modifiedContent)}</div>
+                    </div>
+                `;
+            });
+
+            originalContent.innerHTML = originalHtml;
+            modifiedContent.innerHTML = modifiedHtml;
+
+            syncScroll();
+        }
+
+        function syncScroll() {
+            const original = document.getElementById('originalContent');
+            const modified = document.getElementById('modifiedContent');
+
+            original.addEventListener('scroll', () => {
+                modified.scrollTop = original.scrollTop;
+            });
+
+            modified.addEventListener('scroll', () => {
+                original.scrollTop = modified.scrollTop;
+            });
+        }
+
+        function toggleSelectAll(checkbox) {
+            document.querySelectorAll('.change-select').forEach(cb => {
+                cb.checked = checkbox.checked;
+            });
+        }
+
+        function acceptAllChanges() {
+            if (confirm('Accept all changes? This will apply all modifications.')) {
+                applyChanges(diffData.lines.map((_, idx) => idx));
+            }
+        }
+
+        function rejectAllChanges() {
+            if (confirm('Reject all changes? This will discard all modifications.')) {
+                window.history.back();
+            }
+        }
+
+        function acceptSelected() {
+            const selected = Array.from(document.querySelectorAll('.change-select:checked'))
+                .map(cb => parseInt(cb.value));
+
+            if (selected.length === 0) {
+                alert('Please select at least one change to accept.');
+                return;
+            }
+
+            if (confirm(`Accept ${selected.length} selected change(s)?`)) {
+                applyChanges(selected);
+            }
+        }
+
+        function applyChanges(indices) {
+            fetch('/admin/config/diff/apply', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    configId: '{{configId}}',
+                    changes: indices,
+                    diffData: diffData
+                })
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    alert('Changes applied successfully.');
+                    window.location.href = '/admin/config/list';
+                } else {
+                    alert('Error: ' + data.error);
+                }
+            })
+            .catch(err => {
+                alert('Error applying changes: ' + err.message);
+            });
+        }
+
+        function downloadDiff() {
+            const blob = new Blob([generateDiffText()], { type: 'text/plain' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `{{configName}}-diff-${Date.now()}.txt`;
+            a.click();
+            URL.revokeObjectURL(url);
+        }
+
+        function generateDiffText() {
+            let text = `Configuration Diff: {{configName}}\n`;
+            text += `File: {{filePath}}\n`;
+            text += `Generated: ${new Date().toISOString()}\n`;
+            text += `\n${'='.repeat(80)}\n\n`;
+
+            diffData.lines.forEach(line => {
+                if (line.originalClass === 'deletion') {
+                    text += `- ${line.originalContent}\n`;
+                } else if (line.modifiedClass === 'addition') {
+                    text += `+ ${line.modifiedContent}\n`;
+                } else if (line.originalClass === 'modification') {
+                    text += `- ${line.originalContent}\n`;
+                    text += `+ ${line.modifiedContent}\n`;
+                } else {
+                    text += `  ${line.originalContent}\n`;
+                }
+            });
+
+            return text;
+        }
+
+        function goBack() {
+            window.history.back();
+        }
+
+        function escapeHtml(text) {
+            if (!text) return '';
+            const div = document.createElement('div');
+            div.textContent = text;
+            return div.innerHTML;
+        }
+
+        renderDiff();
+    </script>
+</body>
+</html>

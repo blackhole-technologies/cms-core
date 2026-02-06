@@ -1,0 +1,219 @@
+<div class="admin-page">
+
+  <div class="admin-header">
+    <h1>{{#if isEdit}}Edit Blueprint{{else}}Create Blueprint{{/if}}</h1>
+    <nav class="admin-nav">
+      <a href="/admin">Dashboard</a>
+      <a href="/admin/content">Content</a>
+      <a href="/admin/blueprints" class="active">Blueprints</a>
+      <a href="/admin/modules">Modules</a>
+    </nav>
+  </div>
+
+  {{#if hasFlash}}
+  <div class="flash flash-{{flash.type}}">
+    {{flash.message}}
+  </div>
+  {{/if}}
+
+  <div class="breadcrumb">
+    <a href="/admin/blueprints">← Back to Blueprints</a>
+  </div>
+
+  <form method="POST" action="{{formAction}}" class="admin-form">
+    {{csrfField}}
+
+    <div class="form-section">
+      <h2>Blueprint Details</h2>
+
+      <div class="form-group">
+        <label for="name">Name *</label>
+        <input type="text" id="name" name="name" value="{{blueprint.name}}" required placeholder="e.g., Blog Post Template">
+        <small>A descriptive name for this blueprint</small>
+      </div>
+
+      <div class="form-group">
+        <label for="description">Description</label>
+        <textarea id="description" name="description" rows="2" placeholder="Optional description of when to use this blueprint">{{blueprint.description}}</textarea>
+      </div>
+
+      <div class="form-group">
+        <label for="type">Content Type *</label>
+        <select id="type" name="type" required {{#if isEdit}}disabled{{/if}}>
+          <option value="">Select a content type...</option>
+          {{#each contentTypes}}
+          <option value="{{type}}" {{#if selected}}selected{{/if}}>{{type}}</option>
+          {{/each}}
+        </select>
+        {{#if isEdit}}
+        <input type="hidden" name="type" value="{{blueprint.type}}">
+        <small>Content type cannot be changed after creation</small>
+        {{/if}}
+      </div>
+    </div>
+
+    <div class="form-section">
+      <h2>Template Fields</h2>
+      <p class="help-text">Define default values for content fields. Use placeholders like <code>{{curlyOpen}}date{{curlyClose}}</code>, <code>{{curlyOpen}}user{{curlyClose}}</code>, <code>{{curlyOpen}}random{{curlyClose}}</code>.</p>
+
+      <div id="template-fields">
+        {{#each templateFields}}
+        <div class="template-field">
+          <input type="text" name="fieldName[]" value="{{name}}" placeholder="Field name" class="field-name">
+          <textarea name="fieldValue[]" placeholder="Default value" rows="2" class="field-value">{{value}}</textarea>
+          <label class="locked-label">
+            <input type="checkbox" name="locked[]" value="{{name}}" {{#if isLocked}}checked{{/if}}>
+            Locked
+          </label>
+          <button type="button" class="btn btn-small btn-danger remove-field">×</button>
+        </div>
+        {{/each}}
+      </div>
+
+      <button type="button" id="add-field" class="btn btn-small">+ Add Field</button>
+    </div>
+
+    {{#if isEdit}}
+    <div class="form-section">
+      <h2>Statistics</h2>
+      <div class="stats-inline">
+        <span>Used: <strong>{{blueprint.usageCount}}</strong> times</span>
+        <span>Created: <strong>{{blueprint.createdFormatted}}</strong></span>
+        <span>Updated: <strong>{{blueprint.updatedFormatted}}</strong></span>
+      </div>
+    </div>
+    {{/if}}
+
+    <div class="form-actions">
+      <button type="submit" class="btn btn-primary">{{#if isEdit}}Save Changes{{else}}Create Blueprint{{/if}}</button>
+      <a href="/admin/blueprints" class="btn">Cancel</a>
+      {{#if isEdit}}
+      <a href="/admin/content/{{blueprint.type}}/new?blueprint={{blueprint.id}}" class="btn">Apply This Blueprint</a>
+      {{/if}}
+    </div>
+  </form>
+
+  <template id="field-template">
+    <div class="template-field">
+      <input type="text" name="fieldName[]" placeholder="Field name" class="field-name">
+      <textarea name="fieldValue[]" placeholder="Default value" rows="2" class="field-value"></textarea>
+      <label class="locked-label">
+        <input type="checkbox" name="locked[]" value="">
+        Locked
+      </label>
+      <button type="button" class="btn btn-small btn-danger remove-field">×</button>
+    </div>
+  </template>
+
+  <script>
+    document.getElementById('add-field').addEventListener('click', function() {
+      const template = document.getElementById('field-template');
+      const clone = template.content.cloneNode(true);
+      document.getElementById('template-fields').appendChild(clone);
+    });
+
+    document.getElementById('template-fields').addEventListener('click', function(e) {
+      if (e.target.classList.contains('remove-field')) {
+        e.target.closest('.template-field').remove();
+      }
+    });
+
+    // Update locked checkbox value when field name changes
+    document.getElementById('template-fields').addEventListener('input', function(e) {
+      if (e.target.classList.contains('field-name')) {
+        const checkbox = e.target.closest('.template-field').querySelector('input[type="checkbox"]');
+        checkbox.value = e.target.value;
+      }
+    });
+  </script>
+
+  <style>
+    .breadcrumb {
+      margin-bottom: 1.5rem;
+    }
+    .breadcrumb a {
+      color: #666;
+      text-decoration: none;
+    }
+    .form-section {
+      background: #fff;
+      border: 1px solid #ddd;
+      border-radius: 4px;
+      padding: 1.5rem;
+      margin-bottom: 1.5rem;
+    }
+    .form-section h2 {
+      margin-top: 0;
+      margin-bottom: 1rem;
+      font-size: 1.1rem;
+    }
+    .form-group {
+      margin-bottom: 1rem;
+    }
+    .form-group label {
+      display: block;
+      margin-bottom: 0.25rem;
+      font-weight: 500;
+    }
+    .form-group input[type="text"],
+    .form-group textarea,
+    .form-group select {
+      width: 100%;
+      padding: 0.5rem;
+      border: 1px solid #ddd;
+      border-radius: 4px;
+      font-size: 1rem;
+    }
+    .form-group small {
+      display: block;
+      margin-top: 0.25rem;
+      color: #666;
+    }
+    .help-text {
+      color: #666;
+      margin-bottom: 1rem;
+    }
+    .template-field {
+      display: grid;
+      grid-template-columns: 150px 1fr auto auto;
+      gap: 0.5rem;
+      align-items: start;
+      margin-bottom: 0.75rem;
+      padding: 0.75rem;
+      background: #f8f9fa;
+      border-radius: 4px;
+    }
+    .field-name {
+      padding: 0.5rem;
+      border: 1px solid #ddd;
+      border-radius: 4px;
+    }
+    .field-value {
+      padding: 0.5rem;
+      border: 1px solid #ddd;
+      border-radius: 4px;
+      resize: vertical;
+    }
+    .locked-label {
+      display: flex;
+      align-items: center;
+      gap: 0.25rem;
+      font-size: 0.85rem;
+      white-space: nowrap;
+    }
+    .stats-inline {
+      display: flex;
+      gap: 2rem;
+      color: #666;
+    }
+    .form-actions {
+      display: flex;
+      gap: 0.5rem;
+    }
+    .btn-danger {
+      background: #dc3545;
+      color: white;
+      border: none;
+    }
+  </style>
+</div>

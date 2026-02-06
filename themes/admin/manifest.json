@@ -1,0 +1,29 @@
+{
+  "name": "admin",
+  "type": "theme",
+  "description": "Professional admin theme inspired by Drupal Seven",
+  "version": "1.0.0",
+  "base_theme": null,
+  "regions": {
+    "header": "Header",
+    "breadcrumb": "Breadcrumb",
+    "sidebar_first": "Sidebar",
+    "content": "Content",
+    "footer": "Footer"
+  },
+  "libraries": {
+    "admin/global": {
+      "css": ["css/style.css"],
+      "js": ["js/admin.js"]
+    }
+  },
+  "features": [
+    "sticky_header",
+    "collapsible_fieldsets",
+    "vertical_tabs"
+  ],
+  "settings": {
+    "sticky_header": true,
+    "show_breadcrumb": true
+  }
+}

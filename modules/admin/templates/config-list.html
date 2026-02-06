@@ -1,0 +1,124 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Configuration List - CMS Admin</title>
+    <style>
+        .config-table { width: 100%; border-collapse: collapse; margin: 20px 0; }
+        .config-table th, .config-table td { padding: 12px; text-align: left; border-bottom: 1px solid #ddd; }
+        .config-table th { background-color: #f4f4f4; font-weight: bold; }
+        .config-table tr:hover { background-color: #f9f9f9; }
+        .locked { color: #e74c3c; font-weight: bold; }
+        .unlocked { color: #27ae60; }
+        .actions { display: flex; gap: 8px; }
+        .btn { padding: 6px 12px; border: none; border-radius: 4px; cursor: pointer; font-size: 14px; }
+        .btn-primary { background-color: #3498db; color: white; }
+        .btn-secondary { background-color: #95a5a6; color: white; }
+        .btn-danger { background-color: #e74c3c; color: white; }
+        .btn-success { background-color: #27ae60; color: white; }
+        .toolbar { margin: 20px 0; display: flex; gap: 12px; align-items: center; }
+        .empty-state { text-align: center; padding: 40px; color: #7f8c8d; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>Configuration Management</h1>
+
+        <div class="toolbar">
+            <button class="btn btn-success" onclick="exportAll()">Export All Configurations</button>
+            <button class="btn btn-primary" onclick="importConfig()">Import Configuration</button>
+            <button class="btn btn-secondary" onclick="refreshList()">Refresh</button>
+        </div>
+
+        {{#hasConfigs}}
+        <table class="config-table">
+            <thead>
+                <tr>
+                    <th>Configuration Name</th>
+                    <th>File Path</th>
+                    <th>Status</th>
+                    <th>Last Modified</th>
+                    <th>Actions</th>
+                </tr>
+            </thead>
+            <tbody>
+                {{#configs}}
+                <tr data-config-id="{{id}}">
+                    <td><strong>{{name}}</strong></td>
+                    <td><code>{{file}}</code></td>
+                    <td>
+                        {{#locked}}
+                        <span class="locked">🔒 Locked</span>
+                        {{/locked}}
+                        {{^locked}}
+                        <span class="unlocked">🔓 Unlocked</span>
+                        {{/locked}}
+                    </td>
+                    <td>{{lastModified}}</td>
+                    <td>
+                        <div class="actions">
+                            <button class="btn btn-primary" onclick="editConfig('{{id}}')">Edit</button>
+                            <button class="btn btn-secondary" onclick="viewConfig('{{id}}')">View</button>
+                            <button class="btn btn-secondary" onclick="exportConfig('{{id}}')">Export</button>
+                            {{^locked}}
+                            <button class="btn btn-danger" onclick="deleteConfig('{{id}}')">Delete</button>
+                            {{/locked}}
+                        </div>
+                    </td>
+                </tr>
+                {{/configs}}
+            </tbody>
+        </table>
+        {{/hasConfigs}}
+
+        {{^hasConfigs}}
+        <div class="empty-state">
+            <h3>No configurations found</h3>
+            <p>Import a configuration to get started.</p>
+        </div>
+        {{/hasConfigs}}
+    </div>
+
+    <script>
+        function exportAll() {
+            window.location.href = '/admin/config/export';
+        }
+
+        function importConfig() {
+            window.location.href = '/admin/config/import';
+        }
+
+        function editConfig(id) {
+            window.location.href = `/admin/config/edit/${id}`;
+        }
+
+        function viewConfig(id) {
+            window.location.href = `/admin/config/view/${id}`;
+        }
+
+        function exportConfig(id) {
+            window.location.href = `/admin/config/export/${id}`;
+        }
+
+        function deleteConfig(id) {
+            if (confirm('Are you sure you want to delete this configuration?')) {
+                fetch(`/admin/config/${id}`, { method: 'DELETE' })
+                    .then(response => response.json())
+                    .then(data => {
+                        if (data.success) {
+                            location.reload();
+                        } else {
+                            alert('Error: ' + data.error);
+                        }
+                    })
+                    .catch(err => alert('Error: ' + err.message));
+            }
+        }
+
+        function refreshList() {
+            location.reload();
+        }
+    </script>
+</body>
+</html>

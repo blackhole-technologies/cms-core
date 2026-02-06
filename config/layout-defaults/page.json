@@ -1,0 +1,29 @@
+{
+  "sections": [
+    {
+      "uuid": "541c6a5d7e5090bf5d9d86c7c011ab94",
+      "layoutId": "two_column",
+      "settings": {
+        "columnWidths": "50-50"
+      },
+      "components": {
+        "first": [],
+        "second": []
+      },
+      "weight": 0
+    },
+    {
+      "uuid": "4a9a0038271a1c785efb843755a5ca44",
+      "layoutId": "two_column",
+      "settings": {
+        "columnWidths": "50-50"
+      },
+      "components": {
+        "first": [],
+        "second": []
+      },
+      "weight": 1
+    }
+  ],
+  "updated": "2026-02-06T17:38:51.002Z"
+}

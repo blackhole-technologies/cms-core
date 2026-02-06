@@ -1,0 +1,374 @@
+<div class="admin-page">
+
+  <div class="admin-header">
+    <h1>{{pageTitle}}</h1>
+    <nav class="admin-nav">
+      <a href="/admin">Dashboard</a>
+      <a href="/admin/content">Content</a>
+      <a href="/admin/api">API</a>
+      <a href="/admin/feeds" class="active">Feeds</a>
+    </nav>
+  </div>
+
+  {{#if hasFlash}}
+  <div class="flash flash-{{flash.type}}">
+    {{flash.message}}
+  </div>
+  {{/if}}
+
+  <div class="breadcrumb">
+    <a href="/admin">Dashboard</a> &rarr;
+    <span>Feeds</span>
+  </div>
+
+  <div class="admin-section">
+    <div class="section-header-row">
+      <h2>Content Feeds</h2>
+      <div class="section-meta">
+        <span class="meta-badge">{{enabledCount}} enabled</span>
+      </div>
+    </div>
+
+    <p class="section-description">
+      Configure RSS, Atom, and JSON feeds for your content types.
+      Enable syndication to allow users to subscribe to your content.
+    </p>
+
+    {{#if hasFeeds}}
+    <div class="feeds-grid">
+      {{#each feeds}}
+      <div class="feed-card {{#if enabled}}enabled{{else}}disabled{{/if}}">
+        <div class="feed-header">
+          <span class="feed-type">{{type}}</span>
+          <span class="feed-status {{#if enabled}}status-enabled{{else}}status-disabled{{/if}}">
+            {{#if enabled}}Enabled{{else}}Disabled{{/if}}
+          </span>
+        </div>
+
+        <div class="feed-info">
+          <div class="feed-stat">
+            <span class="stat-value">{{itemCount}}</span>
+            <span class="stat-label">items</span>
+          </div>
+          <div class="feed-stat">
+            <span class="stat-value">{{limit}}</span>
+            <span class="stat-label">limit</span>
+          </div>
+        </div>
+
+        {{#if enabled}}
+        <div class="feed-urls">
+          <div class="feed-url">
+            <code>RSS</code>
+            <a href="{{urls.rss}}" target="_blank">{{urls.rss}}</a>
+            <button class="btn-copy" onclick="copyUrl('{{../baseUrl}}{{urls.rss}}')" title="Copy URL">&#x1F4CB;</button>
+          </div>
+          <div class="feed-url">
+            <code>Atom</code>
+            <a href="{{urls.atom}}" target="_blank">{{urls.atom}}</a>
+            <button class="btn-copy" onclick="copyUrl('{{../baseUrl}}{{urls.atom}}')" title="Copy URL">&#x1F4CB;</button>
+          </div>
+          <div class="feed-url">
+            <code>JSON</code>
+            <a href="{{urls.json}}" target="_blank">{{urls.json}}</a>
+            <button class="btn-copy" onclick="copyUrl('{{../baseUrl}}{{urls.json}}')" title="Copy URL">&#x1F4CB;</button>
+          </div>
+        </div>
+        {{/if}}
+
+        <details class="feed-config">
+          <summary>Configure</summary>
+          <form method="POST" action="/admin/feeds/{{type}}" class="config-form">
+            {{../../csrfField}}
+
+            <div class="form-group">
+              <label class="checkbox-label">
+                <input type="checkbox" name="enabled" {{#if enabled}}checked{{/if}}>
+                Enable feed
+              </label>
+            </div>
+
+            <div class="form-group">
+              <label for="title-{{type}}">Title</label>
+              <input type="text" id="title-{{type}}" name="title" value="{{title}}" placeholder="Feed title">
+            </div>
+
+            <div class="form-group">
+              <label for="description-{{type}}">Description</label>
+              <input type="text" id="description-{{type}}" name="description" value="{{description}}" placeholder="Feed description">
+            </div>
+
+            <div class="form-group">
+              <label for="limit-{{type}}">Item Limit</label>
+              <input type="number" id="limit-{{type}}" name="limit" value="{{limit}}" min="1" max="100">
+            </div>
+
+            <div class="form-group">
+              <label class="checkbox-label">
+                <input type="checkbox" name="includeContent" checked>
+                Include full content
+              </label>
+            </div>
+
+            <button type="submit" class="btn btn-primary">Save</button>
+          </form>
+        </details>
+      </div>
+      {{/each}}
+    </div>
+    {{else}}
+    <p class="empty-message">No content types found. Create content types to enable feeds.</p>
+    {{/if}}
+  </div>
+
+  <div class="admin-section">
+    <h2>Auto-Discovery</h2>
+    <p>Add these tags to your HTML &lt;head&gt; to enable feed auto-discovery:</p>
+    <pre class="code-block"><code>{{#each feeds}}{{#if enabled}}
+&lt;link rel="alternate" type="application/rss+xml" title="{{title}}" href="{{../baseUrl}}{{urls.rss}}"&gt;{{/if}}{{/each}}</code></pre>
+  </div>
+
+  <div class="admin-section">
+    <h2>Feed Formats</h2>
+    <div class="format-grid">
+      <div class="format-card">
+        <h3>RSS 2.0</h3>
+        <p>Most widely supported format. Compatible with all major feed readers.</p>
+        <code>application/rss+xml</code>
+      </div>
+      <div class="format-card">
+        <h3>Atom 1.0</h3>
+        <p>Modern XML format with better internationalization support.</p>
+        <code>application/atom+xml</code>
+      </div>
+      <div class="format-card">
+        <h3>JSON Feed 1.1</h3>
+        <p>JSON-based format, easy to parse in JavaScript applications.</p>
+        <code>application/feed+json</code>
+      </div>
+    </div>
+  </div>
+
+  <style>
+    .section-header-row {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 0.5rem;
+    }
+    .section-header-row h2 {
+      margin: 0;
+    }
+    .meta-badge {
+      background: #d1fae5;
+      color: #065f46;
+      padding: 0.25rem 0.75rem;
+      border-radius: 9999px;
+      font-size: 0.85rem;
+      font-weight: 500;
+    }
+    .section-description {
+      color: #6b7280;
+      margin-bottom: 1.5rem;
+    }
+    .feeds-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(350px, 1fr));
+      gap: 1.5rem;
+    }
+    .feed-card {
+      background: #f9fafb;
+      border: 1px solid #e5e7eb;
+      border-radius: 8px;
+      padding: 1.25rem;
+    }
+    .feed-card.enabled {
+      border-color: #86efac;
+    }
+    .feed-card.disabled {
+      opacity: 0.7;
+    }
+    .feed-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 1rem;
+    }
+    .feed-type {
+      font-size: 1.25rem;
+      font-weight: 600;
+      color: #111827;
+    }
+    .feed-status {
+      padding: 0.25rem 0.5rem;
+      border-radius: 4px;
+      font-size: 0.75rem;
+      font-weight: 500;
+      text-transform: uppercase;
+    }
+    .status-enabled {
+      background: #d1fae5;
+      color: #065f46;
+    }
+    .status-disabled {
+      background: #f3f4f6;
+      color: #6b7280;
+    }
+    .feed-info {
+      display: flex;
+      gap: 2rem;
+      margin-bottom: 1rem;
+    }
+    .feed-stat {
+      display: flex;
+      align-items: baseline;
+      gap: 0.375rem;
+    }
+    .feed-stat .stat-value {
+      font-size: 1.5rem;
+      font-weight: 600;
+      color: #111827;
+    }
+    .feed-stat .stat-label {
+      font-size: 0.85rem;
+      color: #6b7280;
+    }
+    .feed-urls {
+      margin-bottom: 1rem;
+      padding: 0.75rem;
+      background: white;
+      border: 1px solid #e5e7eb;
+      border-radius: 4px;
+    }
+    .feed-url {
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+      padding: 0.25rem 0;
+      font-size: 0.85rem;
+    }
+    .feed-url code {
+      background: #e5e7eb;
+      padding: 0.125rem 0.375rem;
+      border-radius: 3px;
+      font-size: 0.7rem;
+      min-width: 40px;
+      text-align: center;
+    }
+    .feed-url a {
+      flex: 1;
+      color: #2563eb;
+      text-decoration: none;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+    .feed-url a:hover {
+      text-decoration: underline;
+    }
+    .btn-copy {
+      background: none;
+      border: none;
+      cursor: pointer;
+      padding: 0.25rem;
+      font-size: 0.9rem;
+      opacity: 0.5;
+    }
+    .btn-copy:hover {
+      opacity: 1;
+    }
+    .feed-config {
+      margin-top: 1rem;
+      padding-top: 1rem;
+      border-top: 1px solid #e5e7eb;
+    }
+    .feed-config summary {
+      cursor: pointer;
+      font-weight: 500;
+      color: #374151;
+    }
+    .config-form {
+      margin-top: 1rem;
+    }
+    .config-form .form-group {
+      margin-bottom: 0.75rem;
+    }
+    .config-form label {
+      display: block;
+      margin-bottom: 0.25rem;
+      font-size: 0.85rem;
+      font-weight: 500;
+    }
+    .config-form input[type="text"],
+    .config-form input[type="number"] {
+      width: 100%;
+      padding: 0.5rem;
+      border: 1px solid #d1d5db;
+      border-radius: 4px;
+      font-size: 0.9rem;
+    }
+    .checkbox-label {
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+      font-weight: normal;
+      cursor: pointer;
+    }
+    .code-block {
+      background: #1f2937;
+      color: #f9fafb;
+      padding: 1rem;
+      border-radius: 6px;
+      overflow-x: auto;
+      font-size: 0.85rem;
+    }
+    .format-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+      gap: 1rem;
+    }
+    .format-card {
+      background: #f9fafb;
+      border: 1px solid #e5e7eb;
+      border-radius: 8px;
+      padding: 1rem;
+    }
+    .format-card h3 {
+      margin: 0 0 0.5rem 0;
+      font-size: 1rem;
+    }
+    .format-card p {
+      margin: 0 0 0.5rem 0;
+      font-size: 0.85rem;
+      color: #6b7280;
+    }
+    .format-card code {
+      font-size: 0.75rem;
+      color: #4b5563;
+    }
+    .empty-message {
+      color: #6b7280;
+      font-style: italic;
+      text-align: center;
+      padding: 2rem;
+    }
+  </style>
+  <script>
+    function copyUrl(url) {
+      navigator.clipboard.writeText(url).then(() => {
+        alert('URL copied to clipboard!');
+      }).catch(err => {
+        // Fallback
+        const input = document.createElement('input');
+        input.value = url;
+        document.body.appendChild(input);
+        input.select();
+        document.execCommand('copy');
+        document.body.removeChild(input);
+        alert('URL copied to clipboard!');
+      });
+    }
+  </script>
+  <script src="/public/js/shortcuts.js"></script>
+  <script>Shortcuts.init({ context: 'global' });</script>
+</div>

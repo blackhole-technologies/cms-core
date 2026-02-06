@@ -1,0 +1,12 @@
+/* Admin Default Skin */
+:root {
+  --admin-bg: #f5f5f5;
+  --admin-surface: #ffffff;
+  --admin-border: #e0e0e0;
+  --admin-text: #333333;
+  --admin-text-dim: #666666;
+  --admin-primary: #1976d2;
+  --admin-success: #388e3c;
+  --admin-warning: #f57c00;
+  --admin-error: #d32f2f;
+}

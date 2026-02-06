@@ -1,0 +1,24 @@
+{
+  "greeting": {
+    "enabled": true,
+    "title": "Greeting Feed",
+    "description": "",
+    "limit": 20,
+    "includeContent": true,
+    "contentField": "body",
+    "titleField": "title",
+    "dateField": "created",
+    "authorField": "author",
+    "slugField": "slug",
+    "linkTemplate": "/{{type}}/{{slug}}",
+    "formats": [
+      "rss",
+      "atom",
+      "json"
+    ],
+    "language": "en",
+    "copyright": null,
+    "image": null,
+    "categories": []
+  }
+}

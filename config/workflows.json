@@ -1,0 +1,58 @@
+{
+  "editorial": {
+    "id": "editorial",
+    "label": "Editorial Workflow",
+    "description": "Workflow for content review and approval",
+    "states": {
+      "draft": {
+        "label": "Draft",
+        "weight": 0,
+        "published": false
+      },
+      "in_review": {
+        "label": "In Review",
+        "weight": 10,
+        "published": false
+      },
+      "published": {
+        "label": "Published",
+        "weight": 20,
+        "published": true
+      },
+      "archived": {
+        "label": "Archived",
+        "weight": 30,
+        "published": false
+      }
+    },
+    "transitions": {
+      "submit_for_review": {
+        "label": "Submit for Review",
+        "from": ["draft"],
+        "to": "in_review"
+      },
+      "approve": {
+        "label": "Approve and Publish",
+        "from": ["in_review"],
+        "to": "published"
+      },
+      "reject": {
+        "label": "Send Back to Draft",
+        "from": ["in_review"],
+        "to": "draft"
+      },
+      "archive": {
+        "label": "Archive",
+        "from": ["published"],
+        "to": "archived"
+      },
+      "restore": {
+        "label": "Restore from Archive",
+        "from": ["archived"],
+        "to": "draft"
+      }
+    },
+    "defaultState": "draft",
+    "contentTypes": ["article"]
+  }
+}

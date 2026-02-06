@@ -1,0 +1,19 @@
+{
+  "id": "classic",
+  "name": "Classic",
+  "description": "Traditional layout with header, sidebar, content, and footer",
+  "version": "1.0.0",
+  "regions": ["header", "sidebar", "content", "footer"],
+  "compatibleSkins": ["consciousness-dark", "consciousness-light", "minimal"],
+  "templates": {
+    "page": "page.html",
+    "header": "header.html",
+    "sidebar": "sidebar.html",
+    "footer": "footer.html"
+  },
+  "settings": {
+    "maxWidth": "1200px",
+    "sidebarPosition": "right",
+    "sidebarWidth": "300px"
+  }
+}

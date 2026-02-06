@@ -1,0 +1,144 @@
+<div class="admin-page">
+
+  <div class="admin-header">
+    <h1>Content History</h1>
+    <nav class="admin-nav">
+      <a href="/admin">Dashboard</a>
+      <a href="/admin/content">Content</a>
+      <a href="/admin/reports" class="active">Reports</a>
+    </nav>
+  </div>
+
+  <div class="breadcrumb">
+    <a href="/admin">Dashboard</a> &rarr;
+    <a href="/admin/reports">Reports</a> &rarr;
+    <span>Content History</span>
+  </div>
+
+  {{#if hasFlash}}
+  <div class="flash flash-{{flash.type}}">
+    {{flash.message}}
+  </div>
+  {{/if}}
+
+  <!-- Stats Summary -->
+  <div class="stats-grid stats-grid-2">
+    <div class="stat-card">
+      <div class="stat-value">{{stats.totalUsers}}</div>
+      <div class="stat-label">Users Tracked</div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-value">{{stats.totalReads}}</div>
+      <div class="stat-label">Total Reads</div>
+    </div>
+  </div>
+
+  <!-- User Read History Table -->
+  <div class="admin-section">
+    <div class="section-header">
+      <h2>User Read History</h2>
+    </div>
+
+    {{#if hasUsers}}
+    <table class="admin-table">
+      <thead>
+        <tr>
+          <th>User</th>
+          <th>Last Visit</th>
+          <th>Items Read</th>
+          <th>Actions</th>
+        </tr>
+      </thead>
+      <tbody>
+        {{#each users}}
+        <tr>
+          <td>
+            <strong>{{userName}}</strong>
+            <br>
+            <code>{{userId}}</code>
+          </td>
+          <td>{{lastVisitFormatted}}</td>
+          <td>{{readCount}}</td>
+          <td>
+            <a href="/admin/history/user/{{userId}}" class="btn btn-small">View History</a>
+            <form method="POST" action="/admin/history/user/{{userId}}/clear" class="inline-form" onsubmit="return confirm('Clear read history for this user?')">
+              {{../csrfField}}
+              <button type="submit" class="btn btn-small btn-danger">Clear History</button>
+            </form>
+          </td>
+        </tr>
+        {{/each}}
+      </tbody>
+    </table>
+    {{else}}
+    <p class="empty-message">No read history recorded yet.</p>
+    {{/if}}
+  </div>
+
+  <!-- Info Card -->
+  <div class="admin-section">
+    <div class="info-card">
+      <h3>About Content History</h3>
+      <p>
+        Content history tracks which users have viewed content items across your site.
+        This data helps you understand user engagement and reading patterns.
+      </p>
+      <ul>
+        <li>Tracks content views per user</li>
+        <li>Records last visit time for each content item</li>
+        <li>Stores read count for analytics</li>
+        <li>Privacy: data cleared on user request</li>
+      </ul>
+    </div>
+  </div>
+
+  <style>
+    .stats-grid-2 {
+      grid-template-columns: repeat(2, 1fr);
+      margin-bottom: 1.5rem;
+    }
+    @media (max-width: 600px) {
+      .stats-grid-2 {
+        grid-template-columns: 1fr;
+      }
+    }
+    .section-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 1rem;
+    }
+    .section-header h2 {
+      margin: 0;
+    }
+    .inline-form {
+      display: inline-block;
+      margin-left: 0.5rem;
+    }
+    .info-card {
+      background: #f8f9fa;
+      border: 1px solid #dee2e6;
+      border-radius: 4px;
+      padding: 1.5rem;
+    }
+    .info-card h3 {
+      margin-top: 0;
+      color: #495057;
+    }
+    .info-card p {
+      margin: 0.75rem 0;
+      color: #6c757d;
+    }
+    .info-card ul {
+      margin: 0.75rem 0;
+      padding-left: 1.5rem;
+      color: #6c757d;
+    }
+    .info-card li {
+      margin: 0.5rem 0;
+    }
+  </style>
+
+  <script src="/public/js/shortcuts.js"></script>
+  <script>Shortcuts.init({ context: 'global' });</script>
+</div>

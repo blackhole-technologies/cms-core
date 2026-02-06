@@ -1,0 +1,216 @@
+<div class="admin-page">
+  <link rel="stylesheet" href="/public/css/admin.css">
+
+  <div class="admin-header">
+    <h1>{{pageTitle}}</h1>
+    <nav class="admin-nav">
+      <a href="/admin">Dashboard</a>
+      <a href="/admin/content">Content</a>
+      <a href="/admin/media" class="active">Media</a>
+      <a href="/admin/modules">Modules</a>
+    </nav>
+  </div>
+
+  {{#if hasFlash}}
+  <div class="flash flash-{{flash.type}}">
+    {{flash.message}}
+  </div>
+  {{/if}}
+
+  <div class="admin-section">
+    <div class="section-header">
+      <h2>Media Library ({{totalCount}} files)</h2>
+      <a href="/admin/media/upload" class="btn btn-primary">Upload New</a>
+    </div>
+
+    <div class="media-info">
+      <p>Allowed types: <code>{{allowedTypes}}</code></p>
+      <p>Maximum file size: <strong>{{maxSize}}</strong></p>
+    </div>
+
+    {{#if hasItems}}
+    <div class="media-grid">
+      {{#each items}}
+      <div class="media-card">
+        <div class="media-preview">
+          {{#if isImage}}
+          <img src="{{url}}" alt="{{alt}}" loading="lazy">
+          {{else}}
+          {{#if isVideo}}
+          <video src="{{url}}" controls preload="metadata" muted>
+            Your browser does not support video playback.
+          </video>
+          {{else}}
+          <div class="media-icon">
+            <span class="file-icon">&#128196;</span>
+            <span class="file-ext">{{mimetype}}</span>
+          </div>
+          {{/if}}
+          {{/if}}
+          <span class="file-type-badge badge-{{fileType}}">{{fileType}}</span>
+        </div>
+        <div class="media-info">
+          <div class="media-filename" title="{{filename}}">{{filename}}</div>
+          <div class="media-meta">
+            <span>{{sizeFormatted}}</span>
+            <span>{{createdFormatted}}</span>
+          </div>
+        </div>
+        <div class="media-actions">
+          <a href="{{url}}" target="_blank" class="btn btn-small">View</a>
+          <button type="button" class="btn btn-small" onclick="copyToClipboard('{{url}}')">Copy URL</button>
+          <form method="POST" action="/admin/media/{{id}}/delete" class="inline-form" onsubmit="return confirm('Delete this file?')">
+            <button type="submit" class="btn btn-small btn-danger">Delete</button>
+          </form>
+        </div>
+      </div>
+      {{/each}}
+    </div>
+    {{else}}
+    <p class="empty-message">No media uploaded yet. <a href="/admin/media/upload">Upload your first file</a>.</p>
+    {{/if}}
+  </div>
+
+  <style>
+    .media-info {
+      margin-bottom: 20px;
+      padding: 15px;
+      background: #f8f9fa;
+      border-radius: 8px;
+    }
+
+    .media-info p {
+      margin: 5px 0;
+      font-size: 0.9rem;
+      color: #666;
+    }
+
+    .media-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+      gap: 20px;
+    }
+
+    .media-card {
+      background: white;
+      border-radius: 8px;
+      box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+      overflow: hidden;
+    }
+
+    .media-preview {
+      height: 160px;
+      background: #1a1a1a;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      overflow: hidden;
+      position: relative;
+    }
+
+    .media-preview img {
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+    }
+
+    .media-preview video {
+      width: 100%;
+      height: 100%;
+      object-fit: contain;
+      background: #000;
+    }
+
+    .media-icon {
+      text-align: center;
+      padding: 20px;
+      color: #888;
+    }
+
+    .file-icon {
+      display: block;
+      font-size: 3rem;
+      margin-bottom: 10px;
+    }
+
+    .file-ext {
+      display: block;
+      font-size: 0.7rem;
+      color: #666;
+      word-break: break-word;
+      max-width: 150px;
+    }
+
+    .file-type-badge {
+      position: absolute;
+      top: 8px;
+      right: 8px;
+      padding: 2px 8px;
+      border-radius: 4px;
+      font-size: 0.65rem;
+      font-weight: 600;
+      text-transform: uppercase;
+      color: white;
+    }
+
+    .badge-image {
+      background: #28a745;
+    }
+
+    .badge-video {
+      background: #dc3545;
+    }
+
+    .badge-document {
+      background: #6c757d;
+    }
+
+    .media-card .media-info {
+      padding: 12px;
+      background: white;
+      margin: 0;
+      border-radius: 0;
+    }
+
+    .media-filename {
+      font-weight: 500;
+      font-size: 0.85rem;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    .media-meta {
+      display: flex;
+      justify-content: space-between;
+      font-size: 0.75rem;
+      color: #888;
+      margin-top: 5px;
+    }
+
+    .media-actions {
+      padding: 10px 12px;
+      background: #f8f9fa;
+      border-top: 1px solid #eee;
+      display: flex;
+      gap: 5px;
+      flex-wrap: wrap;
+    }
+
+    .media-actions .btn {
+      font-size: 0.7rem;
+      padding: 3px 8px;
+    }
+  </style>
+
+  <script>
+    function copyToClipboard(text) {
+      const fullUrl = window.location.origin + text;
+      navigator.clipboard.writeText(fullUrl).then(function() {
+        alert('URL copied to clipboard!');
+      }).catch(function(err) {
+        prompt('Copy this URL:', fullUrl);
+      });
+    }
+  </script>
+</div>

@@ -1,0 +1,16 @@
+{
+  "name": "cms-core",
+  "version": "0.0.80",
+  "description": "Minimal JavaScript CMS core with modular architecture",
+  "type": "module",
+  "main": "index.js",
+  "scripts": {
+    "start": "node index.js"
+  },
+  "keywords": [
+    "cms",
+    "modular",
+    "extensible"
+  ],
+  "license": "MIT"
+}

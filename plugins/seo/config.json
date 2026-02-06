@@ -1,0 +1,6 @@
+{
+  "defaultTitle": "My CMS Site",
+  "defaultDescription": "A site powered by CMS Core",
+  "sitemapEnabled": true,
+  "robotsEnabled": true
+}

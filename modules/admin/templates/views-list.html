@@ -1,0 +1,253 @@
+<div class="admin-page">
+
+  <div class="admin-header">
+    <h1>{{pageTitle}}</h1>
+    <nav class="admin-nav">
+      <a href="/admin">Dashboard</a>
+      <a href="/admin/content">Content</a>
+      <a href="/admin/structure" class="active">Structure</a>
+      <a href="/admin/views">Views</a>
+    </nav>
+  </div>
+
+  {{#if hasFlash}}
+  <div class="flash flash-{{flash.type}}">
+    {{flash.message}}
+  </div>
+  {{/if}}
+
+  <div class="breadcrumb">
+    <a href="/admin">Dashboard</a> &rarr;
+    <span>Views</span>
+  </div>
+
+  <div class="admin-section">
+    <div class="section-header-row">
+      <h2>Content Views</h2>
+      <a href="/admin/views/create" class="btn btn-primary">Create View</a>
+    </div>
+
+    {{#if views.length}}
+    <table class="data-table">
+      <thead>
+        <tr>
+          <th>Name</th>
+          <th>Content Type</th>
+          <th>Display Mode</th>
+          <th>Path</th>
+          <th>Status</th>
+          <th>Actions</th>
+        </tr>
+      </thead>
+      <tbody>
+        {{#each views}}
+        <tr>
+          <td>
+            <strong>{{name}}</strong>
+            {{#if description}}
+            <br><small class="description">{{description}}</small>
+            {{/if}}
+          </td>
+          <td><code>{{contentType}}</code></td>
+          <td>
+            <span class="display-badge display-{{displayMode}}">{{displayMode}}</span>
+          </td>
+          <td>
+            {{#if path}}
+            <code>{{path}}</code>
+            {{else}}
+            <span class="empty-value">No path</span>
+            {{/if}}
+          </td>
+          <td>
+            {{#if enabled}}
+            <span class="status-badge status-enabled">Enabled</span>
+            {{else}}
+            <span class="status-badge status-disabled">Disabled</span>
+            {{/if}}
+          </td>
+          <td>
+            <div class="action-buttons">
+              {{#if path}}
+              <a href="{{path}}" class="btn btn-sm" target="_blank" title="View on site">Preview</a>
+              {{/if}}
+              <a href="/admin/views/{{id}}/edit" class="btn btn-sm btn-secondary">Edit</a>
+              <a href="/admin/views/{{id}}/preview" class="btn btn-sm btn-secondary">Test Query</a>
+              <form method="POST" action="/admin/views/{{id}}/delete" style="display: inline;">
+                {{../csrfField}}
+                <button type="submit" class="btn btn-sm btn-danger" onclick="return confirm('Delete this view?')">Delete</button>
+              </form>
+            </div>
+          </td>
+        </tr>
+        {{/each}}
+      </tbody>
+    </table>
+    {{else}}
+    <p class="empty-message">No views defined. Create a view to dynamically display content lists.</p>
+    {{/if}}
+  </div>
+
+  <div class="admin-section">
+    <h2>About Views</h2>
+    <div class="info-grid">
+      <div class="info-card">
+        <h3>What are Views?</h3>
+        <p>Views are customizable content queries that let you display filtered, sorted lists of content anywhere on your site.</p>
+      </div>
+      <div class="info-card">
+        <h3>Display Modes</h3>
+        <p>Choose how to display results: table, grid, list, or custom templates for different presentation styles.</p>
+      </div>
+      <div class="info-card">
+        <h3>Filters & Sorting</h3>
+        <p>Build complex queries with multiple filter conditions and custom sort orders to show exactly what you need.</p>
+      </div>
+    </div>
+  </div>
+
+  <style>
+    .section-header-row {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 1rem;
+    }
+    .section-header-row h2 {
+      margin: 0;
+    }
+    .data-table {
+      width: 100%;
+      border-collapse: collapse;
+    }
+    .data-table th,
+    .data-table td {
+      padding: 0.75rem;
+      text-align: left;
+      border-bottom: 1px solid #e5e7eb;
+    }
+    .data-table th {
+      background: #f9fafb;
+      font-weight: 500;
+      font-size: 0.85rem;
+      text-transform: uppercase;
+      color: #6b7280;
+    }
+    .description {
+      color: #6b7280;
+      font-size: 0.85rem;
+    }
+    .display-badge {
+      display: inline-block;
+      padding: 0.25rem 0.5rem;
+      border-radius: 4px;
+      font-size: 0.75rem;
+      font-weight: 500;
+      text-transform: capitalize;
+    }
+    .display-table {
+      background: #dbeafe;
+      color: #1e40af;
+    }
+    .display-grid {
+      background: #e0e7ff;
+      color: #3730a3;
+    }
+    .display-list {
+      background: #e9d5ff;
+      color: #6b21a8;
+    }
+    .display-custom {
+      background: #fce7f3;
+      color: #9f1239;
+    }
+    .status-badge {
+      display: inline-block;
+      padding: 0.25rem 0.5rem;
+      border-radius: 4px;
+      font-size: 0.75rem;
+      font-weight: 500;
+    }
+    .status-enabled {
+      background: #d1fae5;
+      color: #065f46;
+    }
+    .status-disabled {
+      background: #f3f4f6;
+      color: #6b7280;
+    }
+    .empty-value {
+      color: #9ca3af;
+      font-style: italic;
+      font-size: 0.85rem;
+    }
+    .action-buttons {
+      display: flex;
+      gap: 0.5rem;
+      flex-wrap: wrap;
+    }
+    .btn {
+      display: inline-block;
+      padding: 0.5rem 1rem;
+      border: none;
+      border-radius: 4px;
+      font-size: 0.9rem;
+      cursor: pointer;
+      text-decoration: none;
+    }
+    .btn-primary {
+      background: #2563eb;
+      color: white;
+    }
+    .btn-primary:hover {
+      background: #1d4ed8;
+    }
+    .btn-secondary {
+      background: #e5e7eb;
+      color: #374151;
+    }
+    .btn-secondary:hover {
+      background: #d1d5db;
+    }
+    .btn-danger {
+      background: #dc2626;
+      color: white;
+    }
+    .btn-danger:hover {
+      background: #b91c1c;
+    }
+    .btn-sm {
+      padding: 0.25rem 0.5rem;
+      font-size: 0.8rem;
+    }
+    .empty-message {
+      text-align: center;
+      padding: 2rem;
+      color: #6b7280;
+      font-style: italic;
+    }
+    .info-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+      gap: 1rem;
+    }
+    .info-card {
+      background: #f9fafb;
+      border: 1px solid #e5e7eb;
+      border-radius: 8px;
+      padding: 1rem;
+    }
+    .info-card h3 {
+      margin: 0 0 0.5rem 0;
+      font-size: 1rem;
+      color: #111827;
+    }
+    .info-card p {
+      margin: 0;
+      font-size: 0.85rem;
+      color: #6b7280;
+    }
+  </style>
+  <script src="/public/js/shortcuts.js"></script>
+  <script>Shortcuts.init({ context: 'global' });</script>
+</div>

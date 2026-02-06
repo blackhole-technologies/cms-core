@@ -1,0 +1,305 @@
+<!-- Import preview/result template -->
+<div class="admin-page">
+  <h1>{{#if isPreview}}Import Preview{{else}}Import Complete{{/if}}</h1>
+
+  {{#if isPreview}}
+  <div class="alert alert-info">
+    <strong>Preview Mode:</strong> No changes have been made. Review the results below and click "Confirm Import" to proceed.
+  </div>
+  {{else}}
+  <div class="alert alert-success">
+    <strong>Import Complete!</strong> Content has been imported successfully.
+  </div>
+  {{/if}}
+
+  {{#if hasWarnings}}
+  <div class="alert alert-warning">
+    <strong>Warnings:</strong>
+    <ul>
+      {{#each compat.warnings}}
+      <li>{{this}}</li>
+      {{/each}}
+    </ul>
+  </div>
+  {{/if}}
+
+  <div class="admin-section">
+    <h2>Import Summary</h2>
+
+    <div class="stats-grid">
+      <div class="stat-card">
+        <div class="stat-value">{{result.content.stats.total}}</div>
+        <div class="stat-label">Total Items</div>
+      </div>
+      <div class="stat-card stat-created">
+        <div class="stat-value">{{result.content.stats.created}}</div>
+        <div class="stat-label">{{#if isPreview}}Would Create{{else}}Created{{/if}}</div>
+      </div>
+      <div class="stat-card stat-updated">
+        <div class="stat-value">{{result.content.stats.updated}}</div>
+        <div class="stat-label">{{#if isPreview}}Would Update{{else}}Updated{{/if}}</div>
+      </div>
+      <div class="stat-card stat-skipped">
+        <div class="stat-value">{{result.content.stats.skipped}}</div>
+        <div class="stat-label">Skipped</div>
+      </div>
+    </div>
+  </div>
+
+  {{#if hasTypeDetails}}
+  <div class="admin-section">
+    <h2>By Content Type</h2>
+    <table class="data-table">
+      <thead>
+        <tr>
+          <th>Type</th>
+          <th>Total</th>
+          <th>{{#if isPreview}}Would Create{{else}}Created{{/if}}</th>
+          <th>{{#if isPreview}}Would Update{{else}}Updated{{/if}}</th>
+          <th>Skipped</th>
+          <th>Errors</th>
+        </tr>
+      </thead>
+      <tbody>
+        {{#each typeDetails}}
+        <tr>
+          <td><strong>{{type}}</strong></td>
+          <td>{{total}}</td>
+          <td class="text-success">{{created}}</td>
+          <td class="text-info">{{updated}}</td>
+          <td class="text-muted">{{skipped}}</td>
+          <td class="text-danger">{{errors}}</td>
+        </tr>
+        {{/each}}
+      </tbody>
+    </table>
+  </div>
+  {{/if}}
+
+  {{#if hasErrors}}
+  <div class="admin-section">
+    <h2>Errors</h2>
+    <div class="error-list">
+      {{#each result.content.errors}}
+      <div class="error-item">
+        <strong>{{type}}/{{id}}:</strong> {{error}}
+      </div>
+      {{/each}}
+    </div>
+  </div>
+  {{/if}}
+
+  <div class="admin-section">
+    <h2>Configuration</h2>
+    <table class="data-table">
+      <tbody>
+        <tr>
+          <td>site.json</td>
+          <td>
+            {{#if result.config.site.imported}}
+            <span class="badge badge-success">Imported</span>
+            {{else if result.config.site.wouldImport}}
+            <span class="badge badge-info">Would Import</span>
+            {{else}}
+            <span class="badge badge-secondary">Skipped</span>
+            {{/if}}
+          </td>
+        </tr>
+        <tr>
+          <td>modules.json</td>
+          <td>
+            {{#if result.config.modules.imported}}
+            <span class="badge badge-success">Imported (restart required)</span>
+            {{else if result.config.modules.wouldImport}}
+            <span class="badge badge-info">Would Import</span>
+            {{else}}
+            <span class="badge badge-secondary">Skipped</span>
+            {{/if}}
+          </td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+
+  <div class="admin-section">
+    <h2>Export Info</h2>
+    <dl class="info-list">
+      <dt>Version</dt>
+      <dd>{{data.version}}</dd>
+      <dt>Exported</dt>
+      <dd>{{data.exported}}</dd>
+    </dl>
+  </div>
+
+  {{#if isPreview}}
+  <div class="form-actions">
+    <form method="POST" action="/admin/import" enctype="multipart/form-data" style="display: inline;">
+      {{csrfField}}
+      <input type="hidden" name="action" value="import">
+      {{#if overwrite}}
+      <input type="hidden" name="overwrite" value="on">
+      {{/if}}
+      {{#if importConfig}}
+      <input type="hidden" name="importConfig" value="on">
+      {{/if}}
+      <p class="help-text">To proceed with import, upload the file again:</p>
+      <input type="file" name="file" accept=".json" required style="margin-bottom: 1rem;">
+      <div>
+        <button type="submit" class="btn btn-primary">Confirm Import</button>
+        <a href="/admin/import" class="btn btn-secondary">Cancel</a>
+      </div>
+    </form>
+  </div>
+  {{else}}
+  <div class="form-actions">
+    <a href="/admin/content" class="btn btn-primary">View Content</a>
+    <a href="/admin/import" class="btn btn-secondary">Import More</a>
+    <a href="/admin" class="btn btn-secondary">Dashboard</a>
+  </div>
+  {{/if}}
+</div>
+
+<style>
+.alert {
+  padding: 1rem;
+  border-radius: 4px;
+  margin-bottom: 1rem;
+}
+
+.alert-info {
+  background: #cce5ff;
+  border: 1px solid #b8daff;
+  color: #004085;
+}
+
+.alert-success {
+  background: #d4edda;
+  border: 1px solid #c3e6cb;
+  color: #155724;
+}
+
+.alert-warning {
+  background: #fff3cd;
+  border: 1px solid #ffeeba;
+  color: #856404;
+}
+
+.alert ul {
+  margin: 0.5rem 0 0 1.5rem;
+  padding: 0;
+}
+
+.stats-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+  gap: 1rem;
+}
+
+.stat-card {
+  background: #f8f9fa;
+  padding: 1.5rem;
+  border-radius: 8px;
+  text-align: center;
+}
+
+.stat-value {
+  font-size: 2rem;
+  font-weight: bold;
+  color: #333;
+}
+
+.stat-label {
+  font-size: 0.9rem;
+  color: #666;
+  margin-top: 0.25rem;
+}
+
+.stat-created .stat-value { color: #28a745; }
+.stat-updated .stat-value { color: #007bff; }
+.stat-skipped .stat-value { color: #6c757d; }
+
+.admin-section {
+  margin: 1.5rem 0;
+  padding: 1.5rem;
+  background: #fff;
+  border: 1px solid #dee2e6;
+  border-radius: 8px;
+}
+
+.admin-section h2 {
+  margin-top: 0;
+  font-size: 1.25rem;
+}
+
+.data-table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+.data-table th,
+.data-table td {
+  padding: 0.75rem;
+  text-align: left;
+  border-bottom: 1px solid #dee2e6;
+}
+
+.data-table th {
+  background: #f8f9fa;
+  font-weight: 600;
+}
+
+.text-success { color: #28a745; }
+.text-info { color: #007bff; }
+.text-muted { color: #6c757d; }
+.text-danger { color: #dc3545; }
+
+.badge {
+  display: inline-block;
+  padding: 0.25rem 0.5rem;
+  border-radius: 4px;
+  font-size: 0.85rem;
+}
+
+.badge-success { background: #d4edda; color: #155724; }
+.badge-info { background: #cce5ff; color: #004085; }
+.badge-secondary { background: #e9ecef; color: #495057; }
+
+.error-list {
+  max-height: 200px;
+  overflow-y: auto;
+}
+
+.error-item {
+  padding: 0.5rem;
+  border-bottom: 1px solid #f0f0f0;
+  font-size: 0.9rem;
+}
+
+.info-list {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 0.5rem 1rem;
+}
+
+.info-list dt {
+  font-weight: 600;
+  color: #666;
+}
+
+.info-list dd {
+  margin: 0;
+}
+
+.form-actions {
+  margin-top: 1.5rem;
+  display: flex;
+  gap: 1rem;
+  flex-wrap: wrap;
+}
+
+.help-text {
+  font-size: 0.9rem;
+  color: #666;
+  margin-bottom: 0.5rem;
+}
+</style>
