@@ -1,0 +1,25 @@
+{
+  "sections": [
+    {
+      "uuid": "bec03fc2ab102bc788efde952d2b5d48",
+      "layoutId": "two_column",
+      "settings": {
+        "columnWidths": "50-50"
+      },
+      "components": {
+        "first": [
+          {
+            "uuid": "43253f73c61c5c28cc98243458c0f9f1",
+            "type": "block",
+            "blockId": "text_block",
+            "configuration": {},
+            "weight": 0
+          }
+        ],
+        "second": []
+      },
+      "weight": 0
+    }
+  ],
+  "updated": "2026-02-07T03:06:21.468Z"
+}

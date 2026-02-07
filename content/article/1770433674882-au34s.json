@@ -1,0 +1,10 @@
+{
+  "id": "1770433674882-au34s",
+  "type": "article",
+  "created": "2026-02-07T03:07:54.882Z",
+  "updated": "2026-02-07T03:07:54.882Z",
+  "title": "How to Build a Node.js CMS From Scratch Without Dependencies",
+  "body": "<p>Building a content management system in Node.js without any npm dependencies is a challenging but rewarding exercise. In this comprehensive guide, we explore how to create a CMS from scratch using only built-in Node.js modules. The key to building a nodejs cms is understanding the core modules available. We will cover HTTP servers, file system operations, and routing without external packages. A zero dependency nodejs cms offers complete control over your stack. This approach is ideal for developers who want to understand how frameworks work internally. By the end of this article, you will have a fully functional nodejs cms that handles content creation, editing, and publishing. The architecture follows a service pattern inspired by Drupal, where each feature is a self-contained module with init and register exports. We use flat-file JSON storage instead of a database, making deployment simple. The nodejs cms supports content types, fields, revisions, workflows, and a complete REST API.</p><h2>Getting Started with Your Node.js CMS</h2><p>First, set up your project structure with core services for content management. The nodejs cms architecture separates concerns into distinct services.</p><h3>Content Types and Fields</h3><p>Define your content types in JSON configuration files. Each type has fields with validation rules.</p>",
+  "isDefaultRevision": true,
+  "status": "draft"
+}

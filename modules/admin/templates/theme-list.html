@@ -1,0 +1,130 @@
+<div class="admin-page">
+
+  <div class="admin-header">
+    <h1>{{pageTitle}}</h1>
+    <nav class="admin-nav">
+      <a href="/admin">Dashboard</a>
+      <a href="/admin/structure">Structure</a>
+      <a href="/admin/appearance" class="active">Appearance</a>
+    </nav>
+  </div>
+
+  <div class="breadcrumb">
+    <a href="/admin">Dashboard</a> &rarr;
+    <span>Appearance</span>
+  </div>
+
+  {{#if hasFlash}}
+  <div class="flash flash-{{flash.type}}">
+    {{flash.message}}
+  </div>
+  {{/if}}
+
+  <div class="admin-content">
+    {{#if hasThemes}}
+    <div class="theme-grid">
+      {{#each themes}}
+      <div class="theme-card {{#if isActive}}active{{/if}}">
+        <div class="theme-preview">
+          {{#if screenshot}}
+          <img src="{{screenshot}}" alt="{{name}} preview">
+          {{else}}
+          <div class="theme-placeholder">
+            <span>{{name}}</span>
+          </div>
+          {{/if}}
+        </div>
+        <div class="theme-info">
+          <h3>{{name}} {{#if version}}<small>v{{version}}</small>{{/if}}</h3>
+          {{#if description}}
+          <p>{{description}}</p>
+          {{/if}}
+          {{#if isActive}}
+          <span class="badge badge-success">Active</span>
+          {{/if}}
+        </div>
+        <div class="theme-actions">
+          {{#if isActive}}
+          {{else}}
+          <form method="POST" action="/admin/appearance/{{name}}/activate" style="display:inline">
+            <button type="submit" class="btn btn-primary">Set as Default</button>
+          </form>
+          {{/if}}
+          <a href="/admin/appearance/{{name}}/settings" class="btn btn-sm">Settings</a>
+        </div>
+      </div>
+      {{/each}}
+    </div>
+    {{else}}
+    <div class="empty-state">
+      <p>No themes installed.</p>
+    </div>
+    {{/if}}
+
+    <hr>
+
+    <h2>Theme Engine</h2>
+    <p>
+      <a href="/admin/appearance/layouts" class="btn">Manage Layouts</a>
+    </p>
+  </div>
+
+</div>
+
+<style>
+.theme-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+  gap: 1.5rem;
+}
+.theme-card {
+  border: 1px solid #ddd;
+  border-radius: 8px;
+  overflow: hidden;
+  background: #fff;
+}
+.theme-card.active {
+  border-color: #28a745;
+  box-shadow: 0 0 0 2px rgba(40, 167, 69, 0.25);
+}
+.theme-preview {
+  height: 160px;
+  background: #f5f5f5;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.theme-preview img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+.theme-placeholder {
+  color: #999;
+  font-size: 1.5rem;
+}
+.theme-info {
+  padding: 1rem;
+}
+.theme-info h3 {
+  margin: 0 0 0.5rem;
+}
+.theme-info p {
+  margin: 0;
+  color: #666;
+  font-size: 0.9rem;
+}
+.theme-actions {
+  padding: 1rem;
+  border-top: 1px solid #eee;
+  display: flex;
+  gap: 0.5rem;
+}
+.badge-success {
+  background: #28a745;
+  color: #fff;
+  padding: 0.25em 0.5em;
+  border-radius: 4px;
+  font-size: 0.8rem;
+}
+</style>

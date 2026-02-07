@@ -1,0 +1,13 @@
+{
+  "id": "1770432847791-yjq7m",
+  "type": "article",
+  "created": "2026-02-07T02:54:07.791Z",
+  "updated": "2026-02-07T02:54:07.791Z",
+  "title": "A11Y Test Article",
+  "body": "<h1>Main Title</h1><p>Some text with <img src=\"photo.jpg\"> no alt text.</p><h3>Skipped Heading</h3><p>More text <a href=\"/page\">click here</a> to learn more.</p><h2>Back to H2</h2><p><a href=\"/docs\">read more</a></p>",
+  "isDefaultRevision": true,
+  "status": "draft",
+  "_trashedAt": "2026-02-07T02:56:28.459Z",
+  "_trashedBy": null,
+  "_originalPath": "/Users/Alchemy/Projects/experiments/cms-core/content/article/1770432847791-yjq7m.json"
+}

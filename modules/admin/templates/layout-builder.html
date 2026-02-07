@@ -116,17 +116,17 @@
 </head>
 <body>
   <nav class="admin-nav">
-    <a href="/admin">← Back to Admin</a>
+    <a href="/admin">&larr; Back to Admin</a>
   </nav>
 
   <main class="admin-main">
     <h1>{{pageTitle}}</h1>
 
-    {{#hasFlash}}
+    {{#if hasFlash}}
     <div class="flash flash-{{flash.type}}">
       {{flash.message}}
     </div>
-    {{/hasFlash}}
+    {{/if}}
 
     <!-- Statistics -->
     <section>
@@ -155,7 +155,7 @@
     <section>
       <h2>Default Layouts by Content Type</h2>
 
-      {{#hasDefaults}}
+      {{#if hasDefaults}}
       <table class="defaults-table">
         <thead>
           <tr>
@@ -166,7 +166,7 @@
           </tr>
         </thead>
         <tbody>
-          {{#defaultLayoutInfo}}
+          {{#each defaultLayoutInfo}}
           <tr>
             <td><strong>{{type}}</strong></td>
             <td>{{sectionCount}}</td>
@@ -176,23 +176,23 @@
               <a href="/admin/layout/preview/{{type}}" class="btn btn-small btn-secondary" target="_blank">Preview</a>
             </td>
           </tr>
-          {{/defaultLayoutInfo}}
+          {{/each}}
         </tbody>
       </table>
-      {{/hasDefaults}}
+      {{/if}}
 
-      {{^hasDefaults}}
+      {{#if noDefaults}}
       <p class="empty-message">No content types have default layouts configured yet.</p>
-      {{/hasDefaults}}
+      {{/if}}
 
       <div class="add-default-form">
         <h3>Configure Layout for Content Type</h3>
         <form action="/admin/layout/defaults/page" method="GET" style="display: flex; gap: 10px; align-items: center;">
           <select name="type" onchange="this.form.action='/admin/layout/defaults/' + this.value">
             <option value="">Select content type...</option>
-            {{#contentTypes}}
-            <option value="{{.}}">{{.}}</option>
-            {{/contentTypes}}
+            {{#each contentTypeOptions}}
+            <option value="{{value}}">{{label}}</option>
+            {{/each}}
           </select>
           <button type="submit" class="btn btn-primary">Configure Layout</button>
         </form>
@@ -202,27 +202,7 @@
     <!-- Available Layouts -->
     <section>
       <h2>Available Layout Templates</h2>
-
-      {{#layoutsByCategory}}
-      <div class="category-section">
-        <h3>{{category}}</h3>
-        <div class="layout-grid">
-          {{#layouts}}
-          <div class="layout-card">
-            <h4>{{label}}</h4>
-            <p>{{description}}</p>
-            <p><strong>ID:</strong> <code>{{id}}</code></p>
-            <div class="layout-regions">
-              <strong>Regions:</strong>
-              {{#regions}}
-              <span>{{label}}</span>
-              {{/regions}}
-            </div>
-          </div>
-          {{/layouts}}
-        </div>
-      </div>
-      {{/layoutsByCategory}}
+      {{layoutsHtml}}
     </section>
 
     <!-- CLI Commands Help -->

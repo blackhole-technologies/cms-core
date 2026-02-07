@@ -1,0 +1,66 @@
+# CMS-Core Cursor/AI Rules
+
+## Project Identity
+Zero-dependency Node.js CMS with Drupal-inspired architecture.
+Version: 0.0.80 | 91 services | 352 CLI commands
+
+## Critical Rules
+
+### 1. ZERO DEPENDENCIES
+Never add npm packages. Build everything from Node.js built-ins:
+- `node:http`, `node:fs`, `node:path`, `node:crypto`, `node:url`
+
+### 2. SERVICE PATTERN
+```javascript
+export const name = 'serviceName';
+export function init(context) { /* state + CLI */ return state; }
+export function register(context, state) { /* hooks + routes */ }
+```
+
+### 3. WHY COMMENTS
+```javascript
+// WHY: Drupal separates published from default_revision
+// to allow pending drafts on live content
+```
+
+### 4. DRUPAL ALIGNMENT
+Study patterns at: `/Users/Alchemy/Projects/experiments/drupal-cms/web/core/modules/`
+
+## Quick Reference
+
+```bash
+# Start
+node index.js
+
+# Test
+node index.js help
+node index.js content:list --type=article
+
+# Drupal research
+cat /Users/Alchemy/Projects/experiments/drupal-cms/web/core/modules/{module}/{module}.info.yml
+```
+
+## Structure
+- `core/` — 91 services (don't add lightly)
+- `modules/` — Feature modules (add here)
+- `config/` — JSON configuration
+- `content/` — Flat-file storage
+- `themes/` — Layouts + skins
+
+## Context Files
+- `CLAUDE.md` — Full project harness
+- `HANDOFF-CURRENT.md` — Current state
+- `.claude/agents/` — Agent personas
+- `.claude/skills/` — Research skills
+
+## Don't
+- Add npm dependencies
+- Use callbacks (use async/await)
+- Skip WHY comments
+- Modify core/ without understanding boot.js
+
+## Do
+- Read handoff docs first
+- Study Drupal equivalent
+- Test via CLI
+- Update HANDOFF-CURRENT.md

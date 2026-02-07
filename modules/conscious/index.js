@@ -221,22 +221,87 @@ export function hook_routes(register, context) {
   const content = context.services.get('content');
   const template = context.services.get('template');
   const auth = context.services.get('auth');
+  const themeEngine = context.services.get('themeEngine');
 
   // === PUBLIC ROUTES ===
 
-  // Main explore page - serve the self-contained HTML
+  // Main explore page - rendered through CMS template system
   register('GET', '/explore', async (req, res, params, ctx) => {
-    // Read the explore template directly (it's self-contained with JS)
-    const templatePath = join(baseDir, 'themes', 'default', 'templates', 'conscious', 'explore.html');
-    
     try {
-      const html = readFileSync(templatePath, 'utf-8');
+      // 1. Get theme context
+      const themeContext = themeEngine?.getThemeContext?.() || {};
+      const activeSkin = themeEngine?.getActiveSkin?.() || { id: 'consciousness-dark' };
+      const skinCssPaths = themeEngine?.getSkinCSSPaths?.(activeSkin.id) || [
+        `/themes/skins/consciousness-dark/variables.css`,
+        `/themes/skins/consciousness-dark/overrides.css`
+      ];
+
+      // 2. Get content from CMS
+      const explorations = content.list('exploration', { limit: 100 });
+      const featuredList = content.list('featured', { limit: 10 });
+      const featured = featuredList.items[Math.floor(Math.random() * featuredList.items.length)] || null;
+
+      // 3. Extract bridge topics from explorations
+      const allTopics = new Set();
+      for (const item of explorations.items) {
+        for (const topic of item.topics || []) {
+          allTopics.add(topic);
+        }
+      }
+      const bridges = Array.from(allTopics).sort(() => 0.5 - Math.random()).slice(0, 6);
+
+      // 4. Get RESTS connections
+      const connections = (restsGraph.edges || []).slice(-4).map(e => ({
+        type: e.type || 'connection',
+        from: e.source,
+        to: e.target,
+        isNew: e.timestamp && (Date.now() - new Date(e.timestamp).getTime() < 3600000)
+      }));
+
+      // 5. Build stats
+      const stats = {
+        explorations: explorations.total || explorations.items.length,
+        connections: restsGraph.edges?.length || 0,
+        topics: allTopics.size
+      };
+
+      // 6. Generate session ID
+      const sessionId = Math.random().toString(36).substring(2, 10);
+
+      // 7. Template data
+      const data = {
+        title: 'AM I THAT I AM',
+        site: { name: ctx.config.site.name || 'Consciousness Engine' },
+        skin: { cssPaths: skinCssPaths },
+        personalities: Object.values(personalities).filter(p => p.id !== '_historical'),
+        bridges,
+        featured,
+        connections,
+        stats,
+        sessionId
+      };
+
+      // 8. Read and render explore content template
+      const exploreTemplatePath = join(baseDir, 'themes', 'layouts', 'immersive', 'templates', 'explore.html');
+      const exploreTemplate = readFileSync(exploreTemplatePath, 'utf-8');
+      const exploreContent = template.renderString(exploreTemplate, data);
+
+      // 9. Read and render page layout
+      const pageTemplatePath = join(baseDir, 'themes', 'layouts', 'immersive', 'templates', 'page.html');
+      const pageTemplate = readFileSync(pageTemplatePath, 'utf-8');
+      
+      // 10. Render page with content inserted
+      const html = template.renderString(pageTemplate, {
+        ...data,
+        content: exploreContent
+      });
+
       res.setHeader('Content-Type', 'text/html');
       res.end(html);
     } catch (err) {
-      console.error('[conscious] Failed to load explore template:', err.message);
+      console.error('[conscious] Failed to render explore page:', err);
       res.writeHead(500);
-      res.end('Template not found');
+      res.end(`Error: ${err.message}`);
     }
   });
 

@@ -5152,6 +5152,106 @@ export function hook_cli(register, context) {
     console.log('');
   }, 'Show where a media item is used');
 
+  /**
+   * media:create-from-url <url> - Create media entity from remote URL with oEmbed metadata
+   *
+   * WHY: Tests the full oEmbed metadata extraction pipeline.
+   * Fetches oEmbed data from the provider, extracts title/author/dimensions,
+   * and stores everything with the media entity for later retrieval.
+   */
+  register('media:create-from-url', async (args, ctx) => {
+    const mediaLibrary = ctx.services.get('mediaLibrary');
+    if (!mediaLibrary) {
+      console.log('Media library not enabled');
+      return;
+    }
+
+    if (args.length < 1) {
+      console.error('Usage: media:create-from-url <url> [--name="Video Title"]');
+      return;
+    }
+
+    const url = args[0];
+    const nameFlag = args.find(a => a.startsWith('--name='));
+    const name = nameFlag ? nameFlag.replace('--name=', '') : undefined;
+
+    try {
+      const entity = await mediaLibrary.createFromUrl(url, { name });
+      console.log(`\n=== Media Entity Created ===\n`);
+      console.log(`  ID: ${entity.id}`);
+      console.log(`  Name: ${entity.name}`);
+      console.log(`  Type: ${entity.mediaType}`);
+      console.log(`  Credit: ${entity.credit}`);
+      console.log(`  Thumbnail: ${entity.thumbnail || 'none'}`);
+      if (entity.metadata && entity.metadata.oembed) {
+        const oe = entity.metadata.oembed;
+        console.log(`\n  oEmbed Metadata:`);
+        console.log(`    Title: ${oe.title || 'N/A'}`);
+        console.log(`    Author: ${oe.author_name || 'N/A'}`);
+        console.log(`    Provider: ${oe.provider_name || 'N/A'}`);
+        console.log(`    Dimensions: ${oe.width || '?'}x${oe.height || '?'}`);
+        console.log(`    Thumbnail: ${oe.thumbnail_url || 'N/A'}`);
+      } else {
+        console.log(`\n  oEmbed Metadata: not available (fetch may have failed)`);
+      }
+      console.log('');
+    } catch (err) {
+      console.error(`Error: ${err.message}`);
+    }
+  }, 'Create media entity from remote URL with oEmbed metadata');
+
+  /**
+   * media:show <id> - Show full media entity details including oEmbed metadata
+   */
+  register('media:show', async (args, ctx) => {
+    const mediaLibrary = ctx.services.get('mediaLibrary');
+    if (!mediaLibrary) {
+      console.log('Media library not enabled');
+      return;
+    }
+
+    if (args.length < 1) {
+      console.error('Usage: media:show <media-entity-id>');
+      return;
+    }
+
+    const entity = mediaLibrary.get(args[0]);
+    if (!entity) {
+      console.error('Media entity not found');
+      return;
+    }
+
+    console.log(`\n=== Media Entity: ${entity.id} ===\n`);
+    console.log(`  Name: ${entity.name}`);
+    console.log(`  Type: ${entity.mediaType}`);
+    console.log(`  Path: ${entity.path}`);
+    console.log(`  Credit: ${entity.credit || 'N/A'}`);
+    console.log(`  Alt: ${entity.alt || 'N/A'}`);
+    console.log(`  Thumbnail: ${entity.thumbnail || 'N/A'}`);
+    console.log(`  Status: ${entity.status}`);
+    console.log(`  Created: ${entity.created}`);
+
+    if (entity.metadata) {
+      console.log(`\n  Metadata:`);
+      console.log(`    URL: ${entity.metadata.url || 'N/A'}`);
+      console.log(`    Provider: ${entity.metadata.provider || 'N/A'}`);
+      console.log(`    Video ID: ${entity.metadata.videoId || 'N/A'}`);
+      console.log(`    Embed URL: ${entity.metadata.embedUrl || 'N/A'}`);
+
+      if (entity.metadata.oembed) {
+        const oe = entity.metadata.oembed;
+        console.log(`\n  oEmbed Metadata:`);
+        console.log(`    Type: ${oe.type || 'N/A'}`);
+        console.log(`    Title: ${oe.title || 'N/A'}`);
+        console.log(`    Author: ${oe.author_name || 'N/A'} (${oe.author_url || 'N/A'})`);
+        console.log(`    Provider: ${oe.provider_name || 'N/A'} (${oe.provider_url || 'N/A'})`);
+        console.log(`    Dimensions: ${oe.width || '?'}x${oe.height || '?'}`);
+        console.log(`    Thumbnail: ${oe.thumbnail_url || 'N/A'} (${oe.thumbnail_width || '?'}x${oe.thumbnail_height || '?'})`);
+      }
+    }
+    console.log('');
+  }, 'Show full media entity details including oEmbed metadata');
+
   // ========================================
   // EDITOR CLI COMMANDS
   // ========================================
@@ -13533,15 +13633,26 @@ export function hook_routes(register, context) {
     const stats = layoutBuilder.getStats();
     const contentTypes = content.listTypes().map(t => t.type);
 
-    // Group layouts by category
-    const layoutsByCategory = categories.map(cat => ({
-      category: cat,
-      layouts: layouts.filter(l => l.category === cat).map(l => ({
-        ...l,
-        regionCount: Object.keys(l.regions).length,
-        regionsList: Object.keys(l.regions).join(', '),
-      })),
-    }));
+    // Pre-render layouts HTML since nested iteration is complex for template engine
+    // WHY: Template engine supports {{#each}} but nested each with object-to-array
+    // conversion for regions is fragile. Pre-rendering guarantees correct output.
+    let layoutsHtml = '';
+    for (const cat of categories) {
+      const catLayouts = layouts.filter(l => l.category === cat);
+      layoutsHtml += `<div class="category-section"><h3>${cat}</h3><div class="layout-grid">`;
+      for (const l of catLayouts) {
+        const regionSpans = Object.entries(l.regions)
+          .map(([id, r]) => `<span>${r.label || id}</span>`)
+          .join(' ');
+        layoutsHtml += `<div class="layout-card">
+          <h4>${l.label}</h4>
+          <p>${l.description || ''}</p>
+          <p><strong>ID:</strong> <code>${l.id}</code></p>
+          <div class="layout-regions"><strong>Regions:</strong> ${regionSpans}</div>
+        </div>`;
+      }
+      layoutsHtml += '</div></div>';
+    }
 
     // Get default layout info for each content type
     const defaultLayoutInfo = defaultLayoutTypes.map(type => {
@@ -13554,15 +13665,19 @@ export function hook_routes(register, context) {
       };
     });
 
+    // Convert content types to objects for {{#each}} template iteration
+    const contentTypeOptions = contentTypes.map(t => ({ value: t, label: t }));
+
     const flash = getFlashMessage(req.url);
 
     const html = renderAdmin('layout-builder.html', {
       pageTitle: 'Layout Builder',
-      layoutsByCategory,
+      layoutsHtml,
       hasLayouts: layouts.length > 0,
       defaultLayoutInfo,
       hasDefaults: defaultLayoutInfo.length > 0,
-      contentTypes,
+      noDefaults: defaultLayoutInfo.length === 0,
+      contentTypeOptions,
       stats,
       flash,
       hasFlash: !!flash,

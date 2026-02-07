@@ -1,7 +1,103 @@
 # CMS Core - Handoff Document
 
 ## Version
-**0.0.74** - Content History Tracking
+**0.0.81** - Entity Types System (Drupal-style bundles)
+
+---
+
+## SESSION: 2026-02-07 - Template Fixes + Drupal Deep Dive
+
+### COMPLETED
+- Fixed template name mismatches (code expected different names than actual files):
+  - `content-type-list.html` → `content-types-list.html`
+  - `content-type-form.html` → `content-types-edit.html`
+  - `content-type-fields.html` → `content-types-fields.html`
+  - `content-type-field-form.html` → `content-types-field-edit.html`
+- Created missing templates:
+  - `content-type-display.html` — Manage display modes
+  - `theme-list.html` — Appearance page with theme grid
+- Fixed service name mismatches:
+  - `ctx.services.get('theme')` → `ctx.services.get('themeEngine')`
+  - `ctx.services.get('action')` → `ctx.services.get('actions')`
+  - `ctx.services.get('rule')` → `ctx.services.get('actions')` (rules are part of actions)
+- Fixed template syntax (engine doesn't support `{{this.prop}}`, just `{{prop}}`)
+- Added `fieldCount` to content types list
+- Added `isActive` flag to themes list
+
+### PAGES NOW WORKING
+- `/admin/structure/types` — Lists all content types
+- `/admin/appearance` — Shows layouts with theme cards
+- `/admin/config/actions` — Actions list (empty state)
+- `/admin/config/rules` — Rules list (empty state)
+
+### DRUPAL DEEP DIVE COMPLETED ✓
+Created comprehensive doc: `docs/DRUPAL-DEEP-DIVE.md` (23KB)
+
+**Source Code Analyzed:**
+- `ContentEntityBase.php` (25KB) - Entity architecture, lazy fields, translations
+- `FieldStorageConfig.php` (20KB) - Two-level field system, cardinality, schemas
+- `ViewExecutable.php` (30KB) - Query builder, handlers, displays, exposed filters
+- `Section.php` (12KB) - Layout sections, components, regions, serialization
+- `FormBuilder.php` (25KB) - Form caching, multi-step, AJAX handling
+
+**Key Architectural Patterns Documented:**
+
+1. **Entity System**
+   - ContentEntityBase with lazy field loading
+   - Entity keys cache for performance
+   - Built-in revision and translation tracking
+   - Values stored as `$values[$field][$langcode]`
+
+2. **Field Storage**
+   - Two-level: FieldStorageConfig (global) + FieldConfig (per-bundle)
+   - Cardinality: 1, n, or UNLIMITED (-1)
+   - Schema generated from field type class
+   - Indexes merged: custom + field type defaults
+
+3. **Views Query Builder**
+   - Handler types: field, argument, sort, filter, relationship, header/footer/empty
+   - Execution flow: initDisplay → initHandlers → preQuery → execute → postExecute
+   - Exposed filters with session "remember" support
+   - Multiple displays per view (page, block, feed)
+
+4. **Layout Builder**
+   - Section = layoutId + layoutSettings + components[]
+   - Components keyed by UUID with region + weight
+   - toArray()/fromArray() for serialization
+   - Weight-based ordering with insert helpers
+
+5. **Form API**
+   - buildForm → retrieveForm → prepareForm → processForm
+   - Form caching for multi-step (POST only)
+   - build_id preservation for AJAX
+   - FormState tracks all form state
+
+**Implementation Priorities for CMS Core:**
+- HIGH: Entity/Bundle separation, Two-level fields, Display modes
+- MEDIUM: Views query builder, Config export/import, Plugin discovery
+- LOWER: Layout sections, Form state machine, Revision UI
+
+### IMPLEMENTED: Entity Types System
+New file: `core/entity-types.js` (17KB)
+
+Drupal-style two-level architecture now in CMS Core:
+- 4 built-in entity types: `node`, `user`, `taxonomy_term`, `media`
+- Each has: baseFields, entityKeys, revisionable, translatable flags
+- Bundle management for content types
+- Field storage (global) + field instances (per-bundle)
+- Display modes: full, teaser, card, search_result
+- Config persisted to `config/entity-types/*.json`
+
+Boot log confirms:
+```
+[entity-types] Initialized (4 entity types, 0 bundles)
+[boot] Entity Types/Bundles enabled
+```
+
+### TOKEN USAGE
+- Session start: 44k/200k (22%)
+- Current: ~130k/200k (~65%)
+- Hourly: 75% left · Weekly: 6% left
 
 ---
 
