@@ -2,10 +2,59 @@
   "id": "1770433021822-7irwh",
   "type": "article",
   "created": "2026-02-07T02:57:01.822Z",
-  "updated": "2026-02-07T02:57:13.879Z",
+  "updated": "2026-02-07T03:42:19.683Z",
   "title": "Feature7 Multi Rev",
   "isDefaultRevision": true,
   "status": "draft",
   "publishedAt": "2026-02-07T02:57:07.720Z",
-  "scheduledAt": null
+  "scheduledAt": null,
+  "_layout": {
+    "sections": [
+      {
+        "uuid": "bec03fc2ab102bc788efde952d2b5d48",
+        "layoutId": "two_column",
+        "settings": {
+          "columnWidths": "50-50"
+        },
+        "components": {
+          "first": [
+            {
+              "uuid": "43253f73c61c5c28cc98243458c0f9f1",
+              "type": "block",
+              "blockId": "text_block",
+              "configuration": {},
+              "weight": 0
+            }
+          ],
+          "second": []
+        },
+        "weight": 0
+      },
+      {
+        "uuid": "33ced47fd3a8b326a65dc09539c9bd8b",
+        "layoutId": "three_column",
+        "settings": {
+          "columnWidths": "33-33-33"
+        },
+        "components": {
+          "first": [
+            {
+              "uuid": "3c2278038e6139e0c4178a8101b368f1",
+              "type": "field",
+              "fieldName": "title",
+              "configuration": {
+                "label": "Article Title",
+                "formatter": "default"
+              },
+              "weight": 0
+            }
+          ],
+          "second": [],
+          "third": []
+        },
+        "weight": 1
+      }
+    ],
+    "updated": "2026-02-07T03:42:19.683Z"
+  }
 }

@@ -2880,6 +2880,7 @@ export function hook_cli(register, context) {
 
   /**
    * views:list - List all views
+   * WHY: Provides overview of all defined views with key metadata
    */
   register('views:list', async (args, ctx) => {
     const viewsService = ctx.services.get('views');
@@ -2888,7 +2889,12 @@ export function hook_cli(register, context) {
       return;
     }
 
-    const views = viewsService.listViews();
+    const typeArg = args.find(a => a.startsWith('--type='));
+    const contentType = typeArg ? typeArg.split('=')[1] : undefined;
+    const displayArg = args.find(a => a.startsWith('--display='));
+    const display = displayArg ? displayArg.split('=')[1] : undefined;
+
+    const views = viewsService.listViews({ contentType, display });
     if (views.length === 0) {
       console.log('No views defined');
       return;
@@ -2896,13 +2902,24 @@ export function hook_cli(register, context) {
 
     console.log(`\nViews (${views.length}):\n`);
     for (const view of views) {
-      console.log(`  ${view.id} - ${view.contentType} (${view.filters?.length || 0} filters, ${view.sorts?.length || 0} sorts)`);
+      const filterCount = view.filters?.length || 0;
+      const sortCount = view.sort?.length || 0;
+      const display = view.display || 'page';
+      console.log(`  ${view.id}`);
+      console.log(`    Label: ${view.name}`);
+      console.log(`    Content Type: ${view.contentType}`);
+      console.log(`    Display: ${display}`);
+      console.log(`    Filters: ${filterCount}, Sorts: ${sortCount}`);
+      if (view.description) {
+        console.log(`    Description: ${view.description}`);
+      }
+      console.log('');
     }
-    console.log('');
   }, 'List all views');
 
   /**
-   * views:show <id> - Show view config
+   * views:show <id> - Show full view configuration
+   * WHY: getViewConfig() is the correct API method name in views.js
    */
   register('views:show', async (args, ctx) => {
     const viewsService = ctx.services.get('views');
@@ -2917,21 +2934,43 @@ export function hook_cli(register, context) {
       return;
     }
 
-    const view = viewsService.getView(id);
+    const view = viewsService.getViewConfig(id);
     if (!view) {
       console.log(`View not found: ${id}`);
       return;
     }
 
-    console.log('\nView:', id);
-    console.log('Content Type:', view.contentType);
-    console.log('Filters:', JSON.stringify(view.filters, null, 2));
-    console.log('Sorts:', JSON.stringify(view.sorts, null, 2));
+    console.log(`\nView: ${view.id}`);
+    console.log(`  Label: ${view.name}`);
+    console.log(`  Description: ${view.description || '(none)'}`);
+    console.log(`  Content Type: ${view.contentType}`);
+    console.log(`  Display: ${view.display}`);
+    console.log(`  Path: ${view.path || '(none)'}`);
+    console.log(`  Pager: ${view.pager.type} (limit: ${view.pager.limit})`);
+    console.log(`  Cache: ${view.cache.enabled ? 'enabled' : 'disabled'} (TTL: ${view.cache.ttl}s)`);
+    console.log(`  Created: ${view.created}`);
+    console.log(`  Updated: ${view.updated}`);
+    if (view.filters.length > 0) {
+      console.log(`  Filters:`);
+      for (const f of view.filters) {
+        console.log(`    - ${f.field} ${f.op} ${f.value}`);
+      }
+    }
+    if (view.sort.length > 0) {
+      console.log(`  Sort:`);
+      for (const s of view.sort) {
+        console.log(`    - ${s.field} ${s.dir || 'asc'}`);
+      }
+    }
+    if (view.fields.length > 0) {
+      console.log(`  Fields: ${view.fields.join(', ')}`);
+    }
     console.log('');
   }, 'Show view config');
 
   /**
-   * views:create <id> --type=<contentType> - Create view
+   * views:create <id> --name=<label> --type=<contentType> [--display=<mode>] [--description=<desc>] [--path=<path>]
+   * WHY: createView() requires name (label) and contentType; async for hooks
    */
   register('views:create', async (args, ctx) => {
     const viewsService = ctx.services.get('views');
@@ -2942,7 +2981,7 @@ export function hook_cli(register, context) {
 
     const id = args[0];
     if (!id) {
-      console.log('Usage: views:create <id> --type=<contentType>');
+      console.log('Usage: views:create <id> --name=<label> --type=<contentType> [--display=<mode>] [--description=<desc>] [--path=<path>]');
       return;
     }
 
@@ -2952,13 +2991,42 @@ export function hook_cli(register, context) {
       return;
     }
 
+    const nameArg = args.find(a => a.startsWith('--name='));
+    const descArg = args.find(a => a.startsWith('--description='));
+    const displayArg = args.find(a => a.startsWith('--display='));
+    const pathArg = args.find(a => a.startsWith('--path='));
+
     const contentType = typeArg.split('=')[1];
-    viewsService.createView(id, { contentType, filters: [], sorts: [] });
-    console.log(`Created view: ${id}`);
+    // Default name to id if not provided, for convenience
+    const name = nameArg ? nameArg.split('=').slice(1).join('=') : id;
+    const description = descArg ? descArg.split('=').slice(1).join('=') : '';
+    const display = displayArg ? displayArg.split('=')[1] : 'page';
+    const path = pathArg ? pathArg.split('=').slice(1).join('=') : null;
+
+    try {
+      const view = await viewsService.createView(id, {
+        name,
+        description,
+        contentType,
+        display,
+        path,
+        filters: [],
+        sort: [],
+      });
+      console.log(`\nCreated view: ${view.id}`);
+      console.log(`  Label: ${view.name}`);
+      console.log(`  Content Type: ${view.contentType}`);
+      console.log(`  Display: ${view.display}`);
+      console.log(`  Persisted to: config/views.json`);
+      console.log('');
+    } catch (e) {
+      console.log(`Error creating view: ${e.message}`);
+    }
   }, 'Create view');
 
   /**
    * views:delete <id> - Delete view
+   * WHY: deleteView() is async for hooks
    */
   register('views:delete', async (args, ctx) => {
     const viewsService = ctx.services.get('views');
@@ -2973,12 +3041,17 @@ export function hook_cli(register, context) {
       return;
     }
 
-    viewsService.deleteView(id);
-    console.log(`Deleted view: ${id}`);
+    try {
+      await viewsService.deleteView(id);
+      console.log(`Deleted view: ${id}`);
+    } catch (e) {
+      console.log(`Error: ${e.message}`);
+    }
   }, 'Delete view');
 
   /**
-   * views:execute <id> [--limit=N] - Run view query
+   * views:execute <id> [--limit=N] - Run view query and show results
+   * WHY: executeView() is async and returns {items, total, pager} object
    */
   register('views:execute', async (args, ctx) => {
     const viewsService = ctx.services.get('views');
@@ -2993,20 +3066,27 @@ export function hook_cli(register, context) {
       return;
     }
 
-    const limitArg = args.find(a => a.startsWith('--limit='));
-    const limit = limitArg ? parseInt(limitArg.split('=')[1]) : undefined;
-
-    const results = viewsService.executeView(id, { limit });
-    console.log(`\nView: ${id} (${results.length} results)\n`);
-    for (const item of results) {
-      const title = item.title || item.name || item.id;
-      console.log(`  - ${item.id}: ${title}`);
+    try {
+      const result = await viewsService.executeView(id, {});
+      console.log(`\nView: ${result.view.name} (${result.total} total results)\n`);
+      if (result.items.length === 0) {
+        console.log('  No results');
+      } else {
+        for (const item of result.items) {
+          const title = item.title || item.name || item.id;
+          console.log(`  - ${item.id}: ${title}`);
+        }
+      }
+      console.log(`\n  Page ${result.pager.currentPage + 1} of ${result.pager.totalPages}`);
+      console.log('');
+    } catch (e) {
+      console.log(`Error executing view: ${e.message}`);
     }
-    console.log('');
   }, 'Run view query');
 
   /**
-   * views:export <id> - Export view config
+   * views:export <id> - Export view config as JSON
+   * WHY: getViewConfig() is the correct API method name
    */
   register('views:export', async (args, ctx) => {
     const viewsService = ctx.services.get('views');
@@ -3021,7 +3101,7 @@ export function hook_cli(register, context) {
       return;
     }
 
-    const view = viewsService.getView(id);
+    const view = viewsService.getViewConfig(id);
     if (!view) {
       console.log(`View not found: ${id}`);
       return;

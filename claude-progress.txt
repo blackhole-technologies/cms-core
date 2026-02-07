@@ -431,3 +431,53 @@
 ### Next Steps
 - Continue workspace tier (Features 28-49)
 - Continue pending revisions tier (Features 8, 10-13, 17-24)
+
+## Session 10 - 2026-02-07
+
+### Completed
+- Feature #58: Default layout storage per content type (PASSING)
+  - config/layout-defaults/{type}.json stores default layout per content type
+  - article.json: 1 Two Column section with text_block
+  - page.json: 2 Two Column sections
+  - Admin dashboard at /admin/layout shows all content types with section/component counts
+  - API: GET /api/layout/{type}/sections returns default sections
+  - getDefaultLayout() and setDefaultLayout() in core/layout-builder.js
+- Feature #59: Override layout storage per content item (PASSING)
+  - Per-content layout override stored in content item's _layout field
+  - Admin page: /admin/content/{type}/{id}/layout for managing per-content layouts
+  - Add/remove sections, add/remove blocks, move sections
+  - Banner shows "custom layout override" vs "uses default layout"
+  - getEffectiveLayout() returns override if exists, else falls back to default
+  - hasContentLayoutOverride() detects overrides
+  - REST API: PUT/DELETE /api/layout/{type}/{id}/sections
+- Feature #81: Revert to default button (PASSING)
+  - "Revert to Default Layout" button in Danger Zone sidebar
+  - Confirmation dialog: "Revert to default layout? This will remove all custom sections."
+  - Clicking revert sets _layout to null, removing override
+  - Page reloads showing default layout with "uses the default layout" banner
+  - Revert button disappears after revert (no Danger Zone when using default)
+  - Persists across server restart (verified)
+  - Other content items' overrides unaffected
+
+### Changes Made
+1. **modules/admin/index.js**: Added ~1000 lines for per-content layout management:
+   - GET /admin/content/:type/:id/layout - Per-content layout page
+   - POST /admin/content/:type/:id/layout/add-section
+   - POST /admin/content/:type/:id/layout/remove-section
+   - POST /admin/content/:type/:id/layout/move-section
+   - POST /admin/content/:type/:id/layout/add-block
+   - POST /admin/content/:type/:id/layout/remove-component
+   - POST /admin/content/:type/:id/layout/revert - Revert to default
+   - REST API: PUT/DELETE /api/layout/:type/:id/sections
+
+### Current Status
+- 31/165 features passing (~18.8%)
+- Layout Builder tier: Features 58, 59, 81 done
+- All 3 assigned features completed
+
+### Verification
+- Screenshots: feature81-before-revert.png, feature81-after-revert.png, feature81-after-restart-persisted.png
+- Zero JS console errors
+- Data persists across server restart
+- No mock data patterns
+- Revert only affects targeted content item
