@@ -1098,6 +1098,26 @@ export function registerCli(register) {
     return true;
   }, 'Show currently active workspace');
 
+  // workspace:current - Alias for workspace:active
+  register('workspace:current', async () => {
+    const active = getActiveWorkspace();
+    if (!active) {
+      console.log('Active workspace: live (default)');
+      console.log('No workspace is currently active. Content commands operate on live data.');
+      return true;
+    }
+
+    console.log(`Active workspace: ${active.label} (${active.machineName})`);
+    console.log(`  ID: ${active.id}`);
+    console.log(`  Status: ${active.status}`);
+    console.log(`  Set via: config/workspace-active.json`);
+
+    const associations = getAssociations(active.id);
+    const count = associations.items ? associations.items.length : 0;
+    console.log(`  Content items: ${count}`);
+    return true;
+  }, 'Show currently active workspace (alias for workspace:active)');
+
   // workspace:permissions <user-role>
   register('workspace:permissions', async (args) => {
     const { positional } = parseCliArgs(args);
@@ -1120,6 +1140,62 @@ export function registerCli(register) {
 
     return true;
   }, 'Show workspace permissions for a role');
+
+  // workspace:publish-content <workspaceId|machineName> <contentId>
+  register('workspace:publish-content', async (args) => {
+    const { positional } = parseCliArgs(args);
+    const workspaceIdentifier = positional[0];
+    const contentId = positional[1];
+
+    if (!workspaceIdentifier || !contentId) {
+      console.log('Usage: workspace:publish-content <workspaceId|machineName> <contentId>');
+      console.log('Publishes a single content item from the workspace to live.');
+      return false;
+    }
+
+    try {
+      const result = await publishContent(workspaceIdentifier, contentId);
+      console.log(`\u2713 Published content from workspace "${result.workspaceLabel}" to live`);
+      console.log(`  Content type: ${result.contentType}`);
+      console.log(`  Content ID: ${result.contentId}`);
+      console.log(`  Operation: ${result.operation}`);
+      console.log(`  Workspace association removed`);
+      return true;
+    } catch (err) {
+      console.error(`\u2717 Failed to publish content: ${err.message}`);
+      return false;
+    }
+  }, 'Publish single content item from workspace to live');
+
+  // workspace:associations <workspaceId|machineName> - List content associated with workspace
+  register('workspace:associations', async (args) => {
+    const { positional } = parseCliArgs(args);
+    const identifier = positional[0];
+
+    if (!identifier) {
+      console.log('Usage: workspace:associations <workspaceId|machineName>');
+      return false;
+    }
+
+    const workspace = resolveWorkspace(identifier);
+    if (!workspace) {
+      console.error(`\u2717 Workspace not found: ${identifier}`);
+      return false;
+    }
+
+    const associations = getAssociations(workspace.id);
+    if (!associations.items || associations.items.length === 0) {
+      console.log(`Workspace "${workspace.label}" has no associated content.`);
+      return true;
+    }
+
+    console.log(`Content in workspace "${workspace.label}" (${associations.items.length} items):`);
+    console.log('\u2500'.repeat(80));
+    for (const item of associations.items) {
+      console.log(`  ${item.type}/${item.id} [${item.operation}] (${item.timestamp})`);
+    }
+    return true;
+  }, 'List content associated with a workspace');
 }
 
 /**
@@ -1135,6 +1211,171 @@ function resolveWorkspace(identifier) {
 
   // Try by machine name
   return getByMachineName(identifier);
+}
+
+// ============================================================================
+// Publish Operations
+// ============================================================================
+
+/**
+ * Publish a single content item from a workspace to live.
+ *
+ * WHY SINGLE PUBLISH:
+ * Drupal's workspaces module supports publishing individual content items
+ * from a workspace. This allows selective deployment of changes rather than
+ * requiring an all-or-nothing workspace publish.
+ *
+ * FLOW:
+ * 1. Find the workspace copy of the content (ws-{prefix}-{originalId} or newly created)
+ * 2. Read the workspace copy data
+ * 3. Overwrite the live version with workspace data (stripping workspace metadata)
+ * 4. Delete the workspace copy file
+ * 5. Remove the workspace-content association
+ *
+ * @param {string} workspaceId - Workspace UUID or machine name
+ * @param {string} contentId - Content item ID (the original live ID)
+ * @param {Object} [user] - User performing the action (for permission check)
+ * @returns {Object} Result with published content details
+ * @throws {Error} If workspace/content not found or permission denied
+ */
+export async function publishContent(workspaceId, contentId, user = null) {
+  // Permission check
+  if (user && permissionsModule) {
+    const allowed = await checkPermission(user, 'publish');
+    if (!allowed) {
+      const err = new Error('Permission denied: workspace.publish');
+      err.code = 'PERMISSION_DENIED';
+      err.status = 403;
+      throw err;
+    }
+  }
+
+  // Resolve workspace
+  const workspace = resolveWorkspace(workspaceId);
+  if (!workspace) {
+    throw new Error(`Workspace not found: ${workspaceId}`);
+  }
+
+  // Check that the content is associated with this workspace
+  const associations = getAssociations(workspace.id);
+  const association = associations.items.find(
+    a => a.id === contentId
+  );
+
+  if (!association) {
+    throw new Error(`Content "${contentId}" is not associated with workspace "${workspace.label}"`);
+  }
+
+  const contentType = association.type;
+  const wsPrefix = workspace.id.substring(0, 8);
+  const contentDir = join(baseDir, 'content');
+
+  /**
+   * Read a content JSON file directly from disk.
+   * WHY DIRECT FILE READ:
+   * The content module's read() has workspace-aware logic that would
+   * interfere with our publish operation. We need raw file access to
+   * read workspace copies and write live content without triggering
+   * workspace hooks or redirections.
+   */
+  function readContentFile(type, id) {
+    const filePath = join(contentDir, type, `${id}.json`);
+    if (!existsSync(filePath)) return null;
+    try {
+      return JSON.parse(readFileSync(filePath, 'utf-8'));
+    } catch {
+      return null;
+    }
+  }
+
+  // Determine if this was a create or edit operation
+  if (association.operation === 'create') {
+    // Content was created in the workspace — it has _workspace field.
+    // To publish: remove the _workspace field so it becomes live content.
+    const item = readContentFile(contentType, contentId);
+
+    if (!item) {
+      throw new Error(`Content "${contentId}" (type: ${contentType}) not found`);
+    }
+
+    // Remove workspace metadata to make it live content
+    delete item._workspace;
+    delete item._originalId;
+    delete item._originalType;
+
+    // Write back
+    const filePath = join(contentDir, contentType, `${contentId}.json`);
+    writeFileSync(filePath, JSON.stringify(item, null, 2) + '\n');
+
+  } else {
+    // Content was edited in the workspace — a workspace copy exists
+    // with ID ws-{prefix}-{originalId}
+    const workspaceCopyId = `ws-${wsPrefix}-${contentId}`;
+
+    // Read the workspace copy
+    const workspaceCopy = readContentFile(contentType, workspaceCopyId);
+
+    if (!workspaceCopy) {
+      throw new Error(`Workspace copy "${workspaceCopyId}" not found for content "${contentId}"`);
+    }
+
+    // Prepare the live version: strip workspace metadata, restore original ID
+    const liveContent = { ...workspaceCopy };
+    liveContent.id = contentId;
+    delete liveContent._workspace;
+    delete liveContent._originalId;
+    delete liveContent._originalType;
+    liveContent.updated = new Date().toISOString();
+
+    // Write updated live content
+    const livePath = join(contentDir, contentType, `${contentId}.json`);
+    writeFileSync(livePath, JSON.stringify(liveContent, null, 2) + '\n');
+
+    // Delete the workspace copy
+    const copyPath = join(contentDir, contentType, `${workspaceCopyId}.json`);
+    if (existsSync(copyPath)) {
+      unlinkSync(copyPath);
+    }
+  }
+
+  // Remove the content association from the workspace
+  removeContentAssociation(workspace.id, contentType, contentId);
+
+  // Emit hook
+  if (hooksModule) {
+    try {
+      await hooksModule.emit('workspace:contentPublished', {
+        workspaceId: workspace.id,
+        workspaceLabel: workspace.label,
+        contentType,
+        contentId,
+        operation: association.operation,
+      });
+    } catch (e) {
+      // Non-blocking
+    }
+  }
+
+  // Audit log
+  if (auditModule && typeof auditModule.log === 'function') {
+    auditModule.log('workspace.publishContent', {
+      workspaceId: workspace.id,
+      workspaceLabel: workspace.label,
+      contentType,
+      contentId,
+      operation: association.operation,
+      userId: user?.id,
+    });
+  }
+
+  return {
+    published: true,
+    workspaceId: workspace.id,
+    workspaceLabel: workspace.label,
+    contentType,
+    contentId,
+    operation: association.operation,
+  };
 }
 
 // ============================================================================

@@ -714,3 +714,158 @@
 .stat-label { display: none; }
 .shortcuts-hint { font-size: 12px; color: #999; margin-top: 12px; }
 .shortcuts-hint kbd { background: #f0f0f0; padding: 2px 6px; border-radius: 3px; font-family: monospace; font-size: 12px; }
+
+/* ============================================
+   Workspace Switcher & Status Indicator
+   ============================================ */
+
+/* Environment bar - shows when in a non-live workspace */
+.workspace-environment-bar {
+  background: #f5a623;
+  color: #333;
+  padding: 6px 20px;
+  font-size: 12px;
+  font-weight: 500;
+  text-align: center;
+  z-index: 1001;
+  position: sticky;
+  top: 0;
+}
+
+.workspace-environment-bar .workspace-env-icon {
+  margin-right: 6px;
+}
+
+.workspace-environment-bar .workspace-env-note {
+  margin-left: 12px;
+  opacity: 0.7;
+  font-weight: 400;
+}
+
+/* Workspace switcher button in toolbar */
+.workspace-switcher {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+}
+
+.workspace-switcher-btn {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  background: rgba(255,255,255,0.1);
+  border: 1px solid rgba(255,255,255,0.2);
+  border-radius: 4px;
+  color: #ddd;
+  padding: 4px 10px;
+  font-size: 12px;
+  cursor: pointer;
+  transition: all 0.15s;
+  font-family: inherit;
+}
+
+.workspace-switcher-btn:hover {
+  background: rgba(255,255,255,0.18);
+  color: #fff;
+}
+
+.workspace-arrow {
+  font-size: 10px;
+  opacity: 0.7;
+}
+
+/* Workspace status indicator dot */
+.workspace-indicator {
+  display: inline-block;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: #666;
+  flex-shrink: 0;
+}
+
+.workspace-indicator.workspace-live {
+  background: #4caf50;
+}
+
+.workspace-indicator.workspace-active {
+  background: #f5a623;
+}
+
+/* Dropdown panel */
+.workspace-dropdown {
+  display: none;
+  position: absolute;
+  top: 100%;
+  right: 0;
+  margin-top: 4px;
+  background: #1a1a1a;
+  border: 1px solid #333;
+  border-radius: 6px;
+  min-width: 220px;
+  box-shadow: 0 8px 24px rgba(0,0,0,0.4);
+  z-index: 2000;
+  overflow: hidden;
+}
+
+.workspace-dropdown.open {
+  display: block;
+}
+
+.workspace-dropdown-header {
+  padding: 10px 14px;
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  color: #888;
+  border-bottom: 1px solid #333;
+  font-weight: 600;
+}
+
+.workspace-dropdown form,
+.workspace-dropdown .workspace-options {
+  display: flex;
+  flex-direction: column;
+}
+
+.workspace-option {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 14px;
+  border: none;
+  background: transparent;
+  color: #ccc;
+  font-size: 13px;
+  cursor: pointer;
+  text-align: left;
+  font-family: inherit;
+  transition: background 0.1s;
+  width: 100%;
+}
+
+.workspace-option:hover {
+  background: rgba(255,255,255,0.08);
+  color: #fff;
+}
+
+.workspace-option-active {
+  background: rgba(76, 175, 80, 0.15);
+  color: #4caf50;
+}
+
+.workspace-option-active:hover {
+  background: rgba(76, 175, 80, 0.25);
+}
+
+.workspace-check {
+  margin-left: auto;
+  color: #4caf50;
+  font-weight: bold;
+}
+
+/* When workspace bar is visible, adjust toolbar position */
+.workspace-environment-bar + .admin-toolbar {
+  position: sticky;
+  top: 0;
+}

@@ -764,6 +764,7 @@ export async function boot(baseDir, options = {}) {
         hooks,
         permissions,
         audit,
+        content,
       });
       workspaces.registerCli(cli.createModuleRegister('workspace'));
       if (typeof workspaces.registerRoutes === 'function') {
@@ -774,6 +775,11 @@ export async function boot(baseDir, options = {}) {
         }
       }
       services.register('workspaces', () => workspaces);
+      // WHY LATE INJECTION:
+      // Content.js is initialized before workspaces.js. We inject the workspace
+      // provider so content.create() tags items with _workspace and content.list()
+      // filters by active workspace (Drupal workspaces isolation pattern).
+      content.setWorkspaceProvider(workspaces);
       log('[boot] Workspaces system enabled');
     }
 
@@ -1074,6 +1080,7 @@ export async function boot(baseDir, options = {}) {
         auth,
         hooks,
         router,
+        workspaces,
         config: jsonapiConfig,
       });
       jsonapi.autoRegisterContentTypes();
@@ -1588,6 +1595,95 @@ export async function boot(baseDir, options = {}) {
 
       server.json(res, result);
     }, 'Search content via API');
+
+    // REST API: GET /api/content/:type/:id/pending - Get pending revision count and metadata
+    // WHY: Allows programmatic querying of pending revision status per content item.
+    // Used by admin UI, external integrations, and content moderation dashboards.
+    router.register('GET', '/api/content/:type/:id/pending', async (req, res, params, ctx) => {
+      const { type, id } = params;
+
+      if (!content.hasType(type)) {
+        server.json(res, { error: `Unknown content type: ${type}` }, 404);
+        return;
+      }
+
+      const item = content.read(type, id);
+      if (!item) {
+        server.json(res, { error: `Content not found: ${type}/${id}` }, 404);
+        return;
+      }
+
+      const pendingRevisions = content.getPendingRevisions(type, id);
+      const count = pendingRevisions.length;
+
+      server.json(res, {
+        type,
+        id,
+        hasPendingRevisions: count > 0,
+        pendingRevisionCount: count,
+        pendingRevisions: pendingRevisions.map(rev => ({
+          updated: rev.updated,
+          status: rev.status,
+          isDefaultRevision: rev.isDefaultRevision,
+          title: rev.title || null,
+        })),
+      });
+    }, 'Get pending revision count and metadata for content item');
+
+    // REST API: POST /api/content/:type/:id/draft - Create a pending draft revision
+    router.register('POST', '/api/content/:type/:id/draft', async (req, res, params, ctx) => {
+      const { type, id } = params;
+
+      if (!content.hasType(type)) {
+        server.json(res, { error: `Unknown content type: ${type}` }, 404);
+        return;
+      }
+
+      // Parse request body
+      const body = await new Promise((resolve, reject) => {
+        if (req.body) { resolve(req.body); return; }
+        let data = '';
+        req.on('data', chunk => { data += chunk; });
+        req.on('end', () => {
+          try { resolve(data ? JSON.parse(data) : {}); }
+          catch (e) { reject(new Error('Invalid JSON body')); }
+        });
+        req.on('error', reject);
+      });
+
+      try {
+        const draft = await content.createDraft(type, id, body);
+        server.json(res, {
+          success: true,
+          draft,
+          pendingRevisionCount: content.countPendingRevisions(type, id),
+        }, 201);
+      } catch (err) {
+        server.json(res, { error: err.message }, 400);
+      }
+    }, 'Create a pending draft revision for content item');
+
+    // REST API: POST /api/content/:type/:id/publish-pending - Publish most recent pending revision
+    router.register('POST', '/api/content/:type/:id/publish-pending', async (req, res, params, ctx) => {
+      const { type, id } = params;
+
+      if (!content.hasType(type)) {
+        server.json(res, { error: `Unknown content type: ${type}` }, 404);
+        return;
+      }
+
+      try {
+        const published = await content.publishPendingRevision(type, id);
+        const remainingCount = content.countPendingRevisions(type, id);
+        server.json(res, {
+          success: true,
+          published,
+          pendingRevisionCount: remainingCount,
+        });
+      } catch (err) {
+        server.json(res, { error: err.message }, 400);
+      }
+    }, 'Publish most recent pending revision');
 
     // Register content CLI commands
     // WHY HERE (not in cli.js):
@@ -2500,6 +2596,82 @@ export async function boot(baseDir, options = {}) {
       console.log('');
     }, 'Create content from JSON');
 
+    // content:edit <type> <id> <json> - Update content fields
+    // WHY: Enables workspace-aware editing via CLI. When a workspace is active,
+    // editing live content creates a workspace copy instead of modifying original.
+    cli.register('content:edit', async (args, ctx) => {
+      if (args.length < 3) {
+        console.error('Usage: content:edit <type> <id> <json>');
+        console.error('Example: node index.js content:edit article my-id \'{"title":"New Title"}\'');
+        throw new Error('Type, ID, and JSON data required');
+      }
+
+      const type = args[0];
+      const id = args[1];
+      const jsonStr = args.slice(2).join(' ');
+
+      if (!content.hasType(type)) {
+        console.error(`Unknown content type: "${type}"`);
+        console.error('Use "content:types" to see available types.');
+        throw new Error('Unknown content type');
+      }
+
+      let data;
+      try {
+        data = JSON.parse(jsonStr);
+      } catch (error) {
+        console.error('Invalid JSON:', error.message);
+        throw new Error('Invalid JSON');
+      }
+
+      const item = await content.update(type, id, data);
+
+      if (!item) {
+        console.error(`Content not found: ${type}/${id}`);
+        throw new Error('Content not found');
+      }
+
+      // Show workspace copy indicator if applicable
+      if (item._workspace && item._originalId) {
+        console.log(`\n✓ Workspace copy created (original: ${item._originalId})`);
+        console.log(`  Workspace: ${item._workspace}`);
+      } else {
+        console.log('\n✓ Updated:');
+      }
+      console.log(JSON.stringify(item, null, 2));
+      console.log('');
+    }, 'Edit content fields (workspace-aware)');
+
+    // content:show <type> <id> - Show a single content item
+    // WHY: Workspace-aware read — in a workspace context, returns the workspace
+    // copy if one exists, otherwise returns the live version.
+    cli.register('content:show', async (args, ctx) => {
+      if (args.length < 2) {
+        console.error('Usage: content:show <type> <id>');
+        console.error('Example: node index.js content:show article my-id');
+        throw new Error('Type and ID required');
+      }
+
+      const [type, id] = args;
+
+      if (!content.hasType(type)) {
+        console.error(`Unknown content type: "${type}"`);
+        throw new Error('Unknown content type');
+      }
+
+      const item = content.read(type, id);
+
+      if (!item) {
+        console.error(`Content not found: ${type}/${id}`);
+        throw new Error('Content not found');
+      }
+
+      if (item._workspace) {
+        console.log(`\n[Workspace copy — original: ${item._originalId || 'N/A'}]`);
+      }
+      console.log(JSON.stringify(item, null, 2));
+    }, 'Show a single content item');
+
     // content:delete <type> <id> - Delete content
     cli.register('content:delete', async (args, ctx) => {
       if (args.length < 2) {
@@ -2769,7 +2941,8 @@ export async function boot(baseDir, options = {}) {
 
       const pending = content.getPendingRevisions(type, id);
 
-      console.log(`\nPending revisions for ${type}/${id}:`);
+      const count = content.countPendingRevisions(type, id);
+      console.log(`\nPending revisions for ${type}/${id}: (${count} pending)`);
       if (pending.length === 0) {
         console.log('  (no pending revisions)');
       } else {
