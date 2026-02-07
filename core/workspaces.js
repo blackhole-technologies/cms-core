@@ -66,6 +66,41 @@ let permissionsModule = null;
 /** Reference to audit system for logging actions */
 let auditModule = null;
 
+/** Reference to content system for association cleanup */
+let contentModule = null;
+
+/**
+ * Workspace content associations directory.
+ * Stores JSON files tracking which content items belong to which workspace.
+ * File: config/workspace-associations/{workspaceId}.json
+ * Format: { items: [{ type, id, operation, timestamp }] }
+ *
+ * WHY SEPARATE DIR:
+ * Content associations are per-workspace. Storing them alongside workspace
+ * entities keeps related data together. When a workspace is deleted, we
+ * simply remove the associations file.
+ */
+let associationsDir = null;
+
+/**
+ * Active workspace session state.
+ *
+ * WHY TWO TRACKING MECHANISMS:
+ * 1. CLI: Stores active workspace in config/workspace-active.json for persistence
+ *    across CLI invocations (each `node index.js` is a new process)
+ * 2. HTTP: Stores active workspace per session using X-Workspace header or
+ *    session cookie extension. In-memory Map<sessionId, workspaceId>.
+ *
+ * Drupal uses a session-based approach where the active workspace is stored
+ * in $_SESSION['workspace']. We adapt this for both CLI and HTTP contexts.
+ */
+
+/** File path for CLI active workspace persistence */
+let activeWorkspaceFile = null;
+
+/** In-memory active workspace per HTTP session: Map<sessionId, workspaceId> */
+const sessionWorkspaces = new Map();
+
 /** Module name for service registration */
 export const name = 'workspaces';
 
@@ -92,11 +127,22 @@ export function init(options) {
   permissionsModule = options.permissions || null;
   auditModule = options.audit || null;
 
+  contentModule = options.content || null;
+
   // Ensure workspace storage directory exists
   workspacesDir = join(baseDir, 'config', 'workspaces');
   if (!existsSync(workspacesDir)) {
     mkdirSync(workspacesDir, { recursive: true });
   }
+
+  // Ensure associations directory exists
+  associationsDir = join(baseDir, 'config', 'workspace-associations');
+  if (!existsSync(associationsDir)) {
+    mkdirSync(associationsDir, { recursive: true });
+  }
+
+  // Active workspace file for CLI persistence
+  activeWorkspaceFile = join(baseDir, 'config', 'workspace-active.json');
 
   // Load all existing workspaces into cache
   loadAllWorkspaces();
@@ -382,7 +428,17 @@ export async function remove(id, user = null) {
     throw new Error(`Workspace not found: ${id}`);
   }
 
-  // Remove from disk
+  // If this is the active workspace, clear it
+  const active = getActiveWorkspace();
+  if (active && active.id === id) {
+    setActiveWorkspace(null);
+  }
+
+  // Clean up associated content mappings BEFORE deleting workspace
+  // WHY BEFORE: Once workspace entity is gone, we'd lose the ID reference
+  const removedCount = removeAssociations(id);
+
+  // Remove workspace entity from disk
   const filePath = join(workspacesDir, `${id}.json`);
   if (existsSync(filePath)) {
     unlinkSync(filePath);
@@ -394,7 +450,7 @@ export async function remove(id, user = null) {
   // Emit hook
   if (hooksModule) {
     try {
-      await hooksModule.emit('workspace:deleted', { id, label: workspace.label });
+      await hooksModule.emit('workspace:deleted', { id, label: workspace.label, removedAssociations: removedCount });
     } catch (e) {
       // Non-blocking
     }
@@ -406,10 +462,278 @@ export async function remove(id, user = null) {
       workspaceId: id,
       label: workspace.label,
       userId: user?.id,
+      removedAssociations: removedCount,
     });
   }
 
-  return true;
+  return { deleted: true, removedAssociations: removedCount };
+}
+
+// ============================================================================
+// Active Workspace Session Management
+// ============================================================================
+
+/**
+ * Set the active workspace for CLI context.
+ *
+ * WHY PERSISTENT FILE:
+ * Each CLI invocation (node index.js ...) is a separate process.
+ * To maintain workspace context across commands, we store the active
+ * workspace ID in a persistent JSON file. This mirrors Drupal's session-based
+ * approach but adapted for stateless CLI usage.
+ *
+ * @param {string} workspaceId - Workspace UUID to set as active (or null to clear)
+ * @returns {Object|null} The workspace that was set active, or null if cleared
+ * @throws {Error} If workspace not found
+ */
+export function setActiveWorkspace(workspaceId) {
+  if (!activeWorkspaceFile) {
+    throw new Error('Workspaces not initialized');
+  }
+
+  if (!workspaceId || workspaceId === 'live' || workspaceId === 'none') {
+    // Clear active workspace (return to live)
+    if (existsSync(activeWorkspaceFile)) {
+      unlinkSync(activeWorkspaceFile);
+    }
+    return null;
+  }
+
+  // Resolve by ID or machine name
+  const workspace = resolveWorkspace(workspaceId);
+  if (!workspace) {
+    throw new Error(`Workspace not found: ${workspaceId}`);
+  }
+
+  // Persist active workspace
+  const data = {
+    workspaceId: workspace.id,
+    machineName: workspace.machineName,
+    label: workspace.label,
+    setAt: new Date().toISOString(),
+  };
+  writeFileSync(activeWorkspaceFile, JSON.stringify(data, null, 2), 'utf-8');
+
+  return workspace;
+}
+
+/**
+ * Get the currently active workspace for CLI context.
+ *
+ * @returns {Object|null} Active workspace entity, or null if on live
+ */
+export function getActiveWorkspace() {
+  if (!activeWorkspaceFile || !existsSync(activeWorkspaceFile)) {
+    return null;
+  }
+
+  try {
+    const data = JSON.parse(readFileSync(activeWorkspaceFile, 'utf-8'));
+    if (!data.workspaceId) return null;
+
+    // Verify workspace still exists
+    const workspace = workspaceCache.get(data.workspaceId);
+    if (!workspace) {
+      // Workspace was deleted, clean up stale reference
+      unlinkSync(activeWorkspaceFile);
+      return null;
+    }
+    return workspace;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Set active workspace for an HTTP session.
+ *
+ * WHY SESSION MAP:
+ * HTTP requests are stateless. Each user has their own session, and each
+ * session can be in a different workspace. The X-Workspace header provides
+ * per-request workspace context.
+ *
+ * @param {string} sessionId - Session identifier
+ * @param {string} workspaceId - Workspace UUID (or null to clear)
+ */
+export function setSessionWorkspace(sessionId, workspaceId) {
+  if (!workspaceId) {
+    sessionWorkspaces.delete(sessionId);
+  } else {
+    sessionWorkspaces.set(sessionId, workspaceId);
+  }
+}
+
+/**
+ * Get the active workspace for an HTTP session.
+ *
+ * @param {string} sessionId - Session identifier
+ * @returns {Object|null} Active workspace entity, or null if on live
+ */
+export function getSessionWorkspace(sessionId) {
+  const wsId = sessionWorkspaces.get(sessionId);
+  if (!wsId) return null;
+  return workspaceCache.get(wsId) || null;
+}
+
+/**
+ * Get the active workspace context for a request or CLI.
+ *
+ * WHY UNIFIED:
+ * Other modules need to check the active workspace without caring
+ * whether we're in CLI or HTTP mode. This provides a single entry point.
+ *
+ * @param {Object} [req] - HTTP request (for session-based lookup)
+ * @returns {Object|null} Active workspace entity, or null if on live
+ */
+export function getWorkspaceContext(req = null) {
+  // HTTP: Check X-Workspace header first
+  if (req) {
+    const headerWs = req.headers?.['x-workspace'];
+    if (headerWs) {
+      return resolveWorkspace(headerWs);
+    }
+    // Check session
+    if (req.sessionId) {
+      return getSessionWorkspace(req.sessionId);
+    }
+  }
+
+  // CLI: Check persistent active workspace
+  return getActiveWorkspace();
+}
+
+// ============================================================================
+// Content Associations
+// ============================================================================
+
+/**
+ * Associate content with a workspace.
+ *
+ * WHY TRACK ASSOCIATIONS:
+ * Drupal's workspaces module tracks which content items have been modified
+ * in a workspace. This is essential for:
+ * 1. Publishing workspace (know what to copy to live)
+ * 2. Deleting workspace (know what associations to clean up)
+ * 3. Conflict detection (know what changed)
+ *
+ * @param {string} workspaceId - Workspace UUID
+ * @param {string} contentType - Content type name
+ * @param {string} contentId - Content item ID
+ * @param {string} [operation='edit'] - What was done: 'create', 'edit', 'delete'
+ * @returns {Object} The association entry
+ */
+export function associateContent(workspaceId, contentType, contentId, operation = 'edit') {
+  if (!associationsDir) {
+    throw new Error('Workspaces not initialized');
+  }
+
+  const workspace = workspaceCache.get(workspaceId);
+  if (!workspace) {
+    throw new Error(`Workspace not found: ${workspaceId}`);
+  }
+
+  const associations = getAssociations(workspaceId);
+  const existing = associations.items.findIndex(
+    a => a.type === contentType && a.id === contentId
+  );
+
+  const entry = {
+    type: contentType,
+    id: contentId,
+    operation,
+    timestamp: new Date().toISOString(),
+  };
+
+  if (existing !== -1) {
+    // Update existing association
+    associations.items[existing] = entry;
+  } else {
+    associations.items.push(entry);
+  }
+
+  saveAssociations(workspaceId, associations);
+  return entry;
+}
+
+/**
+ * Get all content associations for a workspace.
+ *
+ * @param {string} workspaceId - Workspace UUID
+ * @returns {Object} Associations object with items array
+ */
+export function getAssociations(workspaceId) {
+  if (!associationsDir) return { items: [] };
+
+  const filePath = join(associationsDir, `${workspaceId}.json`);
+  if (existsSync(filePath)) {
+    try {
+      return JSON.parse(readFileSync(filePath, 'utf-8'));
+    } catch {
+      return { items: [] };
+    }
+  }
+  return { items: [] };
+}
+
+/**
+ * Remove all content associations for a workspace.
+ *
+ * WHY ON DELETE:
+ * When a workspace is deleted, its associated content mappings must be
+ * cleaned up. Orphaned associations would cause confusion and errors
+ * when querying content.
+ *
+ * @param {string} workspaceId - Workspace UUID
+ * @returns {number} Number of associations removed
+ */
+export function removeAssociations(workspaceId) {
+  if (!associationsDir) return 0;
+
+  const filePath = join(associationsDir, `${workspaceId}.json`);
+  if (existsSync(filePath)) {
+    try {
+      const data = JSON.parse(readFileSync(filePath, 'utf-8'));
+      const count = data.items ? data.items.length : 0;
+      unlinkSync(filePath);
+      return count;
+    } catch {
+      try { unlinkSync(filePath); } catch { /* noop */ }
+      return 0;
+    }
+  }
+  return 0;
+}
+
+/**
+ * Save associations to disk.
+ *
+ * @param {string} workspaceId - Workspace UUID
+ * @param {Object} associations - Associations object
+ */
+function saveAssociations(workspaceId, associations) {
+  const filePath = join(associationsDir, `${workspaceId}.json`);
+  writeFileSync(filePath, JSON.stringify(associations, null, 2), 'utf-8');
+}
+
+/**
+ * Remove a specific content association from a workspace.
+ *
+ * @param {string} workspaceId - Workspace UUID
+ * @param {string} contentType - Content type name
+ * @param {string} contentId - Content item ID
+ * @returns {boolean} True if removed
+ */
+export function removeContentAssociation(workspaceId, contentType, contentId) {
+  const associations = getAssociations(workspaceId);
+  const before = associations.items.length;
+  associations.items = associations.items.filter(
+    a => !(a.type === contentType && a.id === contentId)
+  );
+  if (associations.items.length < before) {
+    saveAssociations(workspaceId, associations);
+    return true;
+  }
+  return false;
 }
 
 // ============================================================================
@@ -629,12 +953,13 @@ export function registerCli(register) {
     return true;
   }, 'List all workspaces');
 
-  // workspace:delete <id|machineName>
+  // workspace:delete <id|machineName> --confirm
   register('workspace:delete', async (args) => {
-    const { positional } = parseCliArgs(args);
+    const { positional, options } = parseCliArgs(args);
     const identifier = positional[0];
     if (!identifier) {
-      console.log('Usage: workspace:delete <id|machineName>');
+      console.log('Usage: workspace:delete <id|machineName> --confirm');
+      console.log('The --confirm flag is required to prevent accidental deletion.');
       return false;
     }
 
@@ -645,14 +970,34 @@ export function registerCli(register) {
         return false;
       }
 
-      await remove(workspace.id);
+      // Require --confirm flag to prevent accidental deletion
+      // WHY CONFIRMATION:
+      // Workspace deletion is destructive — it removes the workspace entity
+      // and all associated content mappings. This follows the Drupal pattern
+      // of requiring explicit confirmation for destructive batch operations.
+      if (!options.confirm) {
+        const associations = getAssociations(workspace.id);
+        const itemCount = associations.items ? associations.items.length : 0;
+        console.log(`\u26A0 Workspace "${workspace.label}" (${workspace.id}) will be permanently deleted.`);
+        if (itemCount > 0) {
+          console.log(`  This workspace has ${itemCount} associated content item(s) that will be unlinked.`);
+        }
+        console.log(`  To confirm, re-run with --confirm flag:`);
+        console.log(`  workspace:delete ${identifier} --confirm`);
+        return false;
+      }
+
+      const result = await remove(workspace.id);
       console.log(`\u2713 Workspace deleted: ${workspace.label} (${workspace.id})`);
+      if (result.removedAssociations > 0) {
+        console.log(`  Cleaned up ${result.removedAssociations} content association(s)`);
+      }
       return true;
     } catch (err) {
       console.error(`\u2717 Failed to delete workspace: ${err.message}`);
       return false;
     }
-  }, 'Delete a workspace');
+  }, 'Delete a workspace (requires --confirm)');
 
   // workspace:show <id|machineName>
   register('workspace:show', async (args) => {
@@ -703,6 +1048,55 @@ export function registerCli(register) {
       return false;
     }
   }, 'Update workspace metadata');
+
+  // workspace:switch <id|machineName|live>
+  register('workspace:switch', async (args) => {
+    const { positional } = parseCliArgs(args);
+    const identifier = positional[0];
+    if (!identifier) {
+      console.log('Usage: workspace:switch <id|machineName|live>');
+      console.log('Use "live" to return to the live (default) workspace.');
+      return false;
+    }
+
+    try {
+      if (identifier === 'live' || identifier === 'none') {
+        setActiveWorkspace(null);
+        console.log('\u2713 Switched to live workspace (no active workspace)');
+        return true;
+      }
+
+      const workspace = setActiveWorkspace(identifier);
+      console.log(`\u2713 Active workspace set to: ${workspace.label} (${workspace.machineName})`);
+      console.log(`  ID: ${workspace.id}`);
+      console.log(`  All content commands will now operate in this workspace context.`);
+      return true;
+    } catch (err) {
+      console.error(`\u2717 Failed to switch workspace: ${err.message}`);
+      return false;
+    }
+  }, 'Switch active workspace');
+
+  // workspace:active - Show the currently active workspace
+  register('workspace:active', async () => {
+    const active = getActiveWorkspace();
+    if (!active) {
+      console.log('Active workspace: live (default)');
+      console.log('No workspace is currently active. Content commands operate on live data.');
+      return true;
+    }
+
+    console.log(`Active workspace: ${active.label} (${active.machineName})`);
+    console.log(`  ID: ${active.id}`);
+    console.log(`  Status: ${active.status}`);
+    console.log(`  Set via: config/workspace-active.json`);
+
+    // Show association count
+    const associations = getAssociations(active.id);
+    const count = associations.items ? associations.items.length : 0;
+    console.log(`  Content items: ${count}`);
+    return true;
+  }, 'Show currently active workspace');
 
   // workspace:permissions <user-role>
   register('workspace:permissions', async (args) => {
@@ -827,9 +1221,9 @@ export function registerRoutes(router, auth) {
         return;
       }
 
-      await remove(workspace.id, user);
+      const result = await remove(workspace.id, user);
       res.writeHead(200, { 'Content-Type': 'application/json' });
-      res.end(JSON.stringify({ success: true, deleted: workspace.id }));
+      res.end(JSON.stringify({ success: true, deleted: workspace.id, removedAssociations: result.removedAssociations }));
     } catch (err) {
       const status = err.status || 400;
       res.writeHead(status, { 'Content-Type': 'application/json' });
