@@ -94,6 +94,29 @@ import * as locks from './locks.js';
 import { slugify, generateUniqueSlug, validateSlug, looksLikeId } from './slugify.js';
 
 /**
+ * Constraint service reference (injected after boot)
+ *
+ * WHY LATE-BINDING:
+ * Content.js is initialized before constraints.js in the boot sequence.
+ * The constraints service is injected via setConstraints() after both are initialized.
+ * This avoids circular dependency issues while enabling constraint-based validation
+ * on content create/update.
+ */
+let constraintService = null;
+
+/**
+ * Set the constraint service for content validation
+ *
+ * Called from boot.js after both content and constraints are initialized.
+ * Enables the Drupal-inspired constraint plugin validation on save.
+ *
+ * @param {Object} svc - The constraints service module
+ */
+export function setConstraints(svc) {
+  constraintService = svc;
+}
+
+/**
  * Content type registry
  * Structure: { typeName: { schema, source } }
  *
@@ -847,8 +870,17 @@ export async function create(type, data) {
 
   const { schema } = contentTypes[type];
 
-  // Validate data against schema
-  validateData(data, schema, type);
+  // Run constraint plugin validation if available
+  // WHY CONSTRAINTS BEFORE OLD VALIDATION:
+  // Constraints collect ALL violations at once (Drupal pattern).
+  // If constraints are enabled, they replace the old one-at-a-time validateData.
+  // This gives users a complete list of what needs fixing.
+  if (constraintService) {
+    await constraintService.validateOrThrow(type, data, schema);
+  } else {
+    // Fallback to legacy validation if constraints not initialized
+    validateData(data, schema, type);
+  }
 
   // Generate unique ID and timestamps
   const id = generateId();
@@ -864,6 +896,13 @@ export async function create(type, data) {
     created: now,
     updated: now,
     ...data,
+    // WHY isDefaultRevision on create:
+    // - New content is always the default (canonical) revision
+    // - Enables pending draft workflows where published content
+    //   can have non-default draft revisions alongside it
+    // - Mirrors Drupal's content_moderation: published + isDefaultRevision
+    //   are independent flags allowing "pending draft on published content"
+    isDefaultRevision: true,
   };
 
   // Add workflow fields if enabled
@@ -1029,6 +1068,15 @@ function readRaw(type, id) {
   try {
     const raw = readFileSync(filePath, 'utf-8');
     const item = JSON.parse(raw);
+
+    // WHY DEFAULT isDefaultRevision to true:
+    // - Existing content created before pending revisions feature
+    //   should be treated as the default (canonical) revision
+    // - The main content file (not in .revisions/) is always
+    //   the current default unless explicitly marked otherwise
+    if (item.isDefaultRevision === undefined) {
+      item.isDefaultRevision = true;
+    }
 
     // Store in cache if enabled
     if (cacheEnabled) {
@@ -1274,7 +1322,14 @@ export async function update(type, id, data, options = {}) {
   };
 
   // Validate merged data
-  validateData(merged, schema, type);
+  // WHY CONSTRAINTS ON UPDATE TOO:
+  // Constraints must be enforced on every save, not just create.
+  // Uses merged data so partial updates are validated in full context.
+  if (constraintService) {
+    await constraintService.validateOrThrow(type, merged, schema, { isUpdate: true, id });
+  } else {
+    validateData(merged, schema, type);
+  }
 
   // Handle slug updates (track history for redirects)
   const oldSlug = existing.slug;
@@ -1990,6 +2045,16 @@ export function getSchema(type) {
 }
 
 /**
+ * Get content type info (schema + metadata)
+ *
+ * @param {string} type - Content type name
+ * @returns {Object|null} - Type info { schema, source } or null
+ */
+export function getType(type) {
+  return contentTypes[type] || null;
+}
+
+/**
  * Clear all registered content types (mainly for testing)
  */
 export function clearTypes() {
@@ -2049,9 +2114,23 @@ export function getRevisions(type, id) {
     const filePath = join(revisionsDir, file);
     const stats = statSync(filePath);
 
+    // Read revision content to extract isDefaultRevision flag
+    // WHY include isDefaultRevision in metadata:
+    // - Enables pending revision workflows without reading full revision content
+    // - CLI and UI can show which revision is the default at a glance
+    let isDefaultRevision = false;
+    try {
+      const raw = readFileSync(filePath, 'utf-8');
+      const revisionContent = JSON.parse(raw);
+      isDefaultRevision = revisionContent.isDefaultRevision === true;
+    } catch (e) {
+      // If we can't read the revision, default to false
+    }
+
     revisions.push({
       timestamp,
       size: stats.size,
+      isDefaultRevision,
     });
   }
 

@@ -52,6 +52,7 @@ import * as queue from './queue.js';
 import * as oembed from './oembed.js';
 import * as fields from './fields.js';
 import * as validation from './validation.js';
+import * as constraints from './constraints.js';
 import * as preview from './preview.js';
 import * as email from './email.js';
 import * as notifications from './notifications.js';
@@ -101,6 +102,7 @@ import * as help from './help.js';
 import * as contact from './contact.js';
 import * as ban from './ban.js';
 import * as history from './history.js';
+import * as accessibility from './accessibility.js';
 
 /**
  * Boot phase definitions
@@ -466,6 +468,24 @@ export async function boot(baseDir, options = {}) {
     const validationConfig = context.config.site.validation || { enabled: true };
     validation.init(validationConfig, content);
     services.register('validation', () => validation);
+
+    // Initialize constraint plugin system
+    // WHY AFTER VALIDATION:
+    // Constraints is the Drupal-inspired plugin layer on top of validation.
+    // It needs the content service for constraints like Unique.
+    const constraintsConfig = context.config.site.constraints || { enabled: true };
+    constraints.init(constraintsConfig, content);
+    services.register('constraints', () => constraints);
+
+    // Inject constraint service into content for save-time validation
+    // WHY LATE INJECTION:
+    // Content is initialized before constraints in the boot sequence.
+    // We inject the constraint service after both are ready so that
+    // content.create() and content.update() can run constraint validation.
+    content.setConstraints(constraints);
+
+    // Register constraint CLI commands
+    constraints.registerCLI(cli);
 
     // Initialize preview system
     // WHY AFTER VALIDATION:
@@ -909,6 +929,32 @@ export async function boot(baseDir, options = {}) {
       help.init(baseDir, {}, hooks);
       services.register('help', () => help);
       log('[boot] Help system enabled');
+    }
+
+    // Accessibility checker
+    // WHY HERE: After content, hooks, and all content-related systems
+    const accessibilityConfig = context.config.site.accessibility || { enabled: true };
+    if (accessibilityConfig.enabled !== false) {
+      accessibility.init({
+        baseDir,
+        content,
+        hooks,
+        config: accessibilityConfig,
+      });
+      accessibility.registerCli(cli.createModuleRegister('accessibility'));
+      // WHY pass router with .add alias:
+      // accessibility.registerRoutes expects router.add() but core router
+      // exports register(). We wrap to maintain compatibility.
+      if (typeof accessibility.registerRoutes === 'function') {
+        try {
+          const routerProxy = { add: router.register.bind(router), ...router };
+          accessibility.registerRoutes(routerProxy, auth);
+        } catch (e) {
+          console.error('[boot] Accessibility route registration failed:', e.message);
+        }
+      }
+      services.register('accessibility', () => accessibility);
+      log('[boot] Accessibility checker enabled');
     }
 
     // ========================================
@@ -2446,13 +2492,15 @@ export async function boot(baseDir, options = {}) {
       const revisions = content.getRevisions(type, id);
 
       console.log(`\nRevisions for ${type}/${id}:`);
-      console.log(`  ${current.updated} (current)`);
+      const defaultFlag = current.isDefaultRevision ? ' [default]' : '';
+      console.log(`  ${current.updated} (current)${defaultFlag}`);
 
       if (revisions.length === 0) {
         console.log('  (no previous revisions)');
       } else {
         for (const rev of revisions) {
-          console.log(`  ${rev.timestamp}`);
+          const revDefault = rev.isDefaultRevision ? ' [default]' : '';
+          console.log(`  ${rev.timestamp}${revDefault}`);
         }
       }
 
