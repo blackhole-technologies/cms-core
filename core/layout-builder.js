@@ -1986,6 +1986,83 @@ export function registerRoutes(router, auth) {
   }, 'Delete component from section');
 
   // ------------------------------------------
+  // POST /api/layout/:contentType/:id/sections/reorder
+  // ------------------------------------------
+  // Reorders sections based on an array of UUIDs.
+  // Body: { order: [uuid1, uuid2, ...] }
+  // WHY: Drag-and-drop reordering in the layout builder UI sends
+  // the new section order after a drag operation completes.
+  router.register('POST', '/api/layout/:contentType/:id/sections/reorder', async (req, res, params) => {
+    const { contentType, id } = params;
+
+    try {
+      if (!contentService) {
+        return sendJson(res, 500, { error: 'Content service not initialized' });
+      }
+
+      const item = contentService.read(contentType, id);
+      if (!item) {
+        return sendJson(res, 404, { error: 'Content not found' });
+      }
+
+      let body;
+      try {
+        body = await parseBody(req);
+      } catch (e) {
+        return sendJson(res, 400, { error: 'Invalid JSON', message: e.message });
+      }
+
+      if (!body.order || !Array.isArray(body.order)) {
+        return sendJson(res, 400, { error: 'order must be an array of section UUIDs' });
+      }
+
+      let storage = getEffectiveLayout(contentType, id, item);
+      if (!storage) {
+        return sendJson(res, 404, { error: 'No layout found for this content' });
+      }
+
+      if (!hasContentLayoutOverride(contentType, id)) {
+        storage = cloneLayout(storage);
+      }
+
+      // Reorder sections based on the provided UUID order
+      const sectionMap = new Map();
+      for (const section of storage.sections) {
+        sectionMap.set(section.uuid, section);
+      }
+
+      const reordered = [];
+      for (let i = 0; i < body.order.length; i++) {
+        const section = sectionMap.get(body.order[i]);
+        if (section) {
+          section.weight = i;
+          reordered.push(section);
+        }
+      }
+
+      // Add any sections not in the order array at the end
+      for (const section of storage.sections) {
+        if (!body.order.includes(section.uuid)) {
+          section.weight = reordered.length;
+          reordered.push(section);
+        }
+      }
+
+      storage.sections = reordered;
+      storage.updated = new Date().toISOString();
+
+      await setContentLayout(contentType, id, storage);
+
+      return sendJson(res, 200, {
+        message: 'Sections reordered successfully',
+        order: reordered.map(s => s.uuid),
+      });
+    } catch (err) {
+      return sendJson(res, 500, { error: 'Internal error', message: err.message });
+    }
+  }, 'Reorder sections in content layout');
+
+  // ------------------------------------------
   // GET /api/layout/definitions
   // ------------------------------------------
   // Lists all available layout definitions.
