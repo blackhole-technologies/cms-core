@@ -167,3 +167,41 @@
 ### Next Steps
 - Continue with remaining accessibility features (154-164)
 - Continue pending revisions tier (Features 8, 10-24)
+
+## Session 6 - 2026-02-07
+
+### Completed
+- Feature #136: oEmbed provider registry (PASSING)
+  - core/oembed.js already had full provider registry with Map-based storage
+  - 10 built-in providers: YouTube, Vimeo, Twitter, Instagram, SoundCloud, Spotify, CodePen, TikTok, Flickr, Giphy
+  - Each provider stores name, endpoint URL, and URL patterns (RegExp)
+  - CLI: oembed:providers lists all providers with pattern counts
+  - CLI: oembed:check validates URLs against provider patterns
+- Feature #137: YouTube oEmbed source (PASSING)
+  - YouTube registered with 4 URL patterns (watch, youtu.be, embed, shorts)
+  - oembed:fetch returns full oEmbed response (cached)
+  - Thumbnail URL extracted: https://i.ytimg.com/vi/{id}/hqdefault.jpg
+  - Title, author, provider metadata all extracted correctly
+- Feature #142: oEmbed metadata extraction (PASSING)
+  - Enhanced media-library.js createFromUrl() to fetch oEmbed metadata
+  - Added oembedService injection to media-library init
+  - Full metadata stored: title, author_name, author_url, provider_name, provider_url, thumbnail_url, width, height
+  - Media entity persisted to flat-file JSON with complete oembed object
+  - Fixed media-entity content type registration (registerType → register)
+  - Added CLI: media:create-from-url and media:show for testing
+
+### Changes Made
+1. **core/media-library.js**:
+   - Added oembedService injection via init(options)
+   - Enhanced createFromUrl() to fetch oEmbed metadata and store in entity.metadata.oembed
+   - Fixed registerMediaContentType() to use content.register() instead of non-existent registerType()
+   - Entity name, credit, alt, thumbnail all enriched from oEmbed data
+
+2. **core/boot.js**: Pass oembed service to mediaLibrary.init()
+
+3. **modules/admin/index.js**: Added media:create-from-url and media:show CLI commands
+
+### Current Status
+- 16/165 features passing (~9.7%)
+- oEmbed/Media tier: Features 136, 137, 142 done
+- All 3 assigned features completed
