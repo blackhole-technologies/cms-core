@@ -515,3 +515,43 @@
 - 40/165 features passing (~24.2%)
 - Workspace tier: Features 26, 27, 29, 30, 46, 50 done
 - All 3 assigned features completed
+
+## Session 14 - 2026-02-07
+
+### Completed
+- Feature #67: Layout builder page route /node/:id/layout (PASSING)
+  - Route auto-detects content type by searching all registered types
+  - Shows toolbar with content info, override indicator, edit/preview links
+  - Returns 404 for non-existent content IDs
+  - Renders within admin layout with full nav
+- Feature #68: Layout builder HTML shell - sections grid (PASSING)
+  - Sections rendered as visual cards with header (layout name + badge)
+  - Regions displayed as grid columns matching layout definition
+  - Components shown as chips with type label and detail
+  - Empty regions show "Drop a component here" placeholder
+  - Add Section button with layout chooser UI
+- Feature #70: Component add UI - choose block/field (PASSING)
+  - Modal overlay with type selection: Field, Existing Block, Inline Block
+  - Field type shows dropdown of content type fields (title, body, etc.)
+  - Block type shows text input for block ID
+  - Inline Block type shows block type input + optional title
+  - Back button to return to type selection step
+  - API-based component creation with page reload on success
+
+### Changes Made
+1. **modules/admin/templates/layout-builder-page.html**: New template (550+ lines)
+   with sections grid, drag handles, component chooser modal, and JS helpers.
+
+2. **modules/admin/index.js**: Added 3 routes:
+   - GET /node/:id/layout (layout builder page)
+   - POST /node/:id/layout/add-section (form-based section add)
+   - POST /node/:id/layout/revert (revert to default)
+   Plus field/block options for the component chooser modal.
+
+3. **core/layout-builder.js**: Added POST /api/layout/:contentType/:id/sections/reorder
+   endpoint for drag-and-drop section reordering.
+
+### Current Status
+- 43/165 features passing (~26.1%)
+- Layout Builder UI tier: Features 67, 68, 70 done
+- All 3 assigned features completed
