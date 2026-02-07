@@ -1,0 +1,165 @@
+<div class="admin-page">
+
+  <div class="admin-header">
+    <h1>{{pageTitle}}</h1>
+    <nav class="admin-nav">
+      <a href="/admin">Dashboard</a>
+      <a href="/admin/content">Content</a>
+      <a href="/admin/modules">Modules</a>
+    </nav>
+  </div>
+
+  <div class="breadcrumb">
+    <a href="/admin">Dashboard</a> &rarr;
+    <span>Workspace Preview</span>
+  </div>
+
+  {{#if error}}
+  <div class="flash flash-error">
+    {{error}}
+  </div>
+  {{/if}}
+
+  {{#if workspace}}
+  <div class="admin-section">
+    <div class="section-header">
+      <h2>{{workspace.label}}</h2>
+      <div class="workspace-meta">
+        <span class="status-badge status-{{workspace.status}}">{{workspace.status}}</span>
+        <code class="workspace-machine-name">{{workspace.machineName}}</code>
+      </div>
+    </div>
+
+    {{#if workspace.description}}
+    <div class="workspace-description">
+      <p>{{workspace.description}}</p>
+    </div>
+    {{/if}}
+
+    <div class="workspace-info">
+      <p><strong>Created:</strong> {{workspace.createdFormatted}}</p>
+      <p><strong>Updated:</strong> {{workspace.updatedFormatted}}</p>
+      <p><strong>ID:</strong> <code>{{workspace.id}}</code></p>
+      {{#if workspace.owner}}
+      <p><strong>Owner:</strong> {{workspace.owner}}</p>
+      {{/if}}
+    </div>
+  </div>
+
+  <div class="admin-section">
+    <div class="section-header">
+      <h2>Workspace Content</h2>
+      <p class="section-description">All content items staged in this workspace</p>
+    </div>
+
+    {{#if hasContent}}
+    <table class="admin-table">
+      <thead>
+        <tr>
+          <th>Type</th>
+          <th>ID</th>
+          <th>Title/Preview</th>
+          <th>Operation</th>
+          <th>Modified</th>
+          <th>Actions</th>
+        </tr>
+      </thead>
+      <tbody>
+        {{#each contentItems}}
+        <tr>
+          <td><strong>{{type}}</strong></td>
+          <td><code>{{displayId}}</code></td>
+          <td>
+            {{#if preview}}
+            <div class="content-preview">{{preview}}</div>
+            {{else}}
+            <em class="content-preview-empty">No preview available</em>
+            {{/if}}
+          </td>
+          <td>
+            <span class="operation-badge operation-{{operation}}">{{operation}}</span>
+          </td>
+          <td>
+            <span class="content-date">{{timestampFormatted}}</span>
+          </td>
+          <td>
+            <a href="/admin/content/{{type}}/{{actualId}}/edit" class="btn btn-small">Edit</a>
+            <a href="/api/{{type}}/{{actualId}}" class="btn btn-small" target="_blank">View</a>
+          </td>
+        </tr>
+        {{/each}}
+      </tbody>
+    </table>
+
+    <style>
+      .workspace-meta {
+        display: flex;
+        align-items: center;
+        gap: 0.75rem;
+      }
+      .workspace-machine-name {
+        padding: 0.25rem 0.5rem;
+        background: #f8f9fa;
+        border-radius: 3px;
+        font-size: 0.9rem;
+      }
+      .workspace-description {
+        padding: 1rem;
+        background: #f8f9fa;
+        border-left: 4px solid #0d6efd;
+        margin-bottom: 1rem;
+      }
+      .workspace-info {
+        padding: 1rem;
+        background: #f8f9fa;
+        border-radius: 4px;
+        margin-bottom: 1rem;
+      }
+      .workspace-info p {
+        margin: 0.5rem 0;
+      }
+      .section-description {
+        color: #6c757d;
+        font-size: 0.9rem;
+        margin: 0;
+      }
+      .content-preview {
+        max-width: 400px;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+      }
+      .content-preview-empty {
+        color: #6c757d;
+      }
+      .operation-badge {
+        display: inline-block;
+        padding: 2px 8px;
+        border-radius: 3px;
+        font-size: 0.75rem;
+        font-weight: 600;
+        text-transform: uppercase;
+      }
+      .operation-create {
+        background: #d1ecf1;
+        color: #0c5460;
+        border: 1px solid #bee5eb;
+      }
+      .operation-edit {
+        background: #fff3cd;
+        color: #856404;
+        border: 1px solid #ffc107;
+      }
+      .operation-delete {
+        background: #f8d7da;
+        color: #721c24;
+        border: 1px solid #f5c6cb;
+      }
+    </style>
+    {{else}}
+    <p class="empty-message">No content in this workspace yet.</p>
+    {{/if}}
+  </div>
+  {{/if}}
+
+</div>
