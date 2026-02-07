@@ -698,6 +698,56 @@ export function getPendingRevisions(type, id) {
 }
 
 /**
+ * Check if a content item has pending (non-default) revisions
+ *
+ * WHY: Fast check without loading all revision data. Used by content
+ * listings to show a "pending revision" indicator badge.
+ *
+ * @param {string} type - Content type
+ * @param {string} id - Content ID
+ * @returns {boolean} - True if pending revisions exist
+ */
+export function hasPendingRevisions(type, id) {
+  const revisionsDir = getRevisionsDir(type, id);
+
+  if (!existsSync(revisionsDir)) {
+    return false;
+  }
+
+  const files = readdirSync(revisionsDir).filter(f => f.endsWith('.json'));
+
+  for (const file of files) {
+    try {
+      const filePath = join(revisionsDir, file);
+      const raw = readFileSync(filePath, 'utf-8');
+      const revision = JSON.parse(raw);
+
+      if (revision.isDefaultRevision === false) {
+        return true;
+      }
+    } catch (e) {
+      // Skip unreadable revisions
+    }
+  }
+
+  return false;
+}
+
+/**
+ * Count pending (non-default) revisions for a content item
+ *
+ * WHY: Used by content listings to show exact count of pending drafts.
+ * More informative than just hasPendingRevisions boolean.
+ *
+ * @param {string} type - Content type
+ * @param {string} id - Content ID
+ * @returns {number} - Number of pending revisions
+ */
+export function countPendingRevisions(type, id) {
+  return getPendingRevisions(type, id).length;
+}
+
+/**
  * Publish a pending revision, making it the new default
  *
  * WHY: When a pending draft is approved, it should replace the
