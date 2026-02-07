@@ -1,0 +1,76 @@
+{
+  "id": "1770435892528-pt65h",
+  "type": "article",
+  "created": "2026-02-07T03:44:52.528Z",
+  "updated": "2026-02-07T03:45:45.866Z",
+  "title": "LAYOUT_API_TEST_60",
+  "isDefaultRevision": true,
+  "status": "draft",
+  "_layout": {
+    "sections": [
+      {
+        "uuid": "bec03fc2ab102bc788efde952d2b5d48",
+        "layoutId": "two_column",
+        "settings": {
+          "columnWidths": "50-50"
+        },
+        "components": {
+          "first": [
+            {
+              "uuid": "43253f73c61c5c28cc98243458c0f9f1",
+              "type": "block",
+              "blockId": "text_block",
+              "configuration": {},
+              "weight": 0
+            }
+          ],
+          "second": []
+        },
+        "weight": 0
+      },
+      {
+        "uuid": "3d6cf83936f5ffa91889fb43d6cc7121",
+        "layoutId": "one_column",
+        "settings": {},
+        "components": {
+          "content": [
+            {
+              "uuid": "b6748eb973a30ea19e48b1f7c3bcd68c",
+              "type": "field",
+              "fieldName": "body",
+              "configuration": {
+                "label": "Body",
+                "formatter": "full_html"
+              },
+              "weight": 0
+            }
+          ]
+        },
+        "weight": 1
+      },
+      {
+        "uuid": "20541ffcd17e43a118cc00ed4111e481",
+        "layoutId": "two_column",
+        "settings": {
+          "columnWidths": "60-40"
+        },
+        "components": {
+          "first": [
+            {
+              "uuid": "e0ce39ac64d5079bf221257961e5a4d8",
+              "type": "block",
+              "blockId": "recent_content",
+              "configuration": {
+                "limit": 5
+              },
+              "weight": 0
+            }
+          ],
+          "second": []
+        },
+        "weight": 2
+      }
+    ],
+    "updated": "2026-02-07T03:45:45.866Z"
+  }
+}

@@ -242,3 +242,49 @@
 - 19/165 features passing (~11.5%)
 - SEO tier: Features 158, 159, 160 done
 - All 3 assigned features completed
+
+## Session 8 - 2026-02-07
+
+### Completed
+- Feature #11: New revision inherits isDefaultRevision from workflow state (PASSING)
+  - Added shouldBeDefaultRevision() function that determines flag based on workflow state
+  - Draft on published content → isDefaultRevision: false
+  - Published content → isDefaultRevision: true
+  - New content → always isDefaultRevision: true
+  - Modified update() and setStatus() to use workflow-aware flag setting
+- Feature #12: Draft state creates non-default revision on published content (PASSING)
+  - createDraft() stores pending revision in .revisions/ directory
+  - Published main file stays unchanged (still default)
+  - Draft revision has isDefaultRevision: false, status: draft
+  - JSON:API and content:get return published version (not the draft)
+  - getPendingRevisions() returns only non-default revisions
+  - Modified update() to route draft-on-published through pending revision storage
+- Feature #13: Publish transition makes revision the new default (PASSING)
+  - publishPendingRevision() promotes most recent pending draft to default
+  - Old published version saved as historical revision
+  - New version gets isDefaultRevision: true, status: published
+  - setStatus() detects pending revisions and auto-promotes on publish
+  - Verified via JSON:API, CLI, and browser
+
+### Changes Made
+1. **core/content.js**:
+   - Added shouldBeDefaultRevision() - determines flag from workflow state
+   - Added createDraft() - creates non-default revision on published content
+   - Added getPendingRevisions() - returns pending (non-default) revisions
+   - Added publishPendingRevision() - promotes pending draft to default
+   - Modified update() to detect draft-on-published and route to pending storage
+   - Modified setStatus() to auto-promote pending revisions on publish
+
+2. **core/boot.js**:
+   - Added content:create-draft CLI command
+   - Added content:pending CLI command
+   - Added content:publish-pending CLI command
+
+### Current Status
+- 25/165 features passing (~15.2%)
+- Pending revisions tier: Features 6, 7, 9, 11, 12, 13 done
+- All 3 assigned features completed
+
+### Next Steps
+- Continue pending revisions tier (Features 8, 10, 14-24)
+- Features 14+: CLI content:revisions shows default flag, content:set-default, API flags
