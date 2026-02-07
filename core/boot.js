@@ -98,6 +98,7 @@ import * as displayModes from './display-modes.js';
 import * as batch from './batch.js';
 import * as status from './status.js';
 import * as contextual from './contextual.js';
+import * as workspaces from './workspaces.js';
 import * as help from './help.js';
 import * as contact from './contact.js';
 import * as ban from './ban.js';
@@ -754,6 +755,28 @@ export async function boot(baseDir, options = {}) {
       log('[boot] Permissions system enabled');
     }
 
+    // Workspaces - staging environment system
+    // WHY HERE: After permissions (needs permission checks) and content (workspace content queries)
+    const workspacesConfig = context.config.site.workspaces || { enabled: true };
+    if (workspacesConfig.enabled !== false) {
+      workspaces.init({
+        baseDir,
+        hooks,
+        permissions,
+        audit,
+      });
+      workspaces.registerCli(cli.createModuleRegister('workspace'));
+      if (typeof workspaces.registerRoutes === 'function') {
+        try {
+          workspaces.registerRoutes(router, auth);
+        } catch (e) {
+          console.error('[boot] Workspace route registration failed:', e.message);
+        }
+      }
+      services.register('workspaces', () => workspaces);
+      log('[boot] Workspaces system enabled');
+    }
+
     const formsConfig = context.config.site.forms || { enabled: true };
     if (formsConfig.enabled) {
       forms.init(formsConfig);
@@ -990,6 +1013,14 @@ export async function boot(baseDir, options = {}) {
       layoutBuilder.init(baseDir, content, blocks, layoutBuilderConfig);
       if (layoutBuilder.setHooks) layoutBuilder.setHooks(hooks);
       if (layoutBuilder.setTemplate) layoutBuilder.setTemplate(template);
+      // Register REST API routes for layout builder
+      if (typeof layoutBuilder.registerRoutes === 'function') {
+        try {
+          layoutBuilder.registerRoutes(router, auth);
+        } catch (e) {
+          console.error('[boot] Layout Builder route registration failed:', e.message);
+        }
+      }
       services.register('layoutBuilder', () => layoutBuilder);
       log('[boot] Layout Builder enabled');
     }
@@ -2557,6 +2588,45 @@ export async function boot(baseDir, options = {}) {
       console.log('(previous version saved as new revision)');
     }, 'Revert content to a previous revision');
 
+    // content:set-default <type> <id> <revisionTimestamp> - Set which revision is the default
+    // WHY: Pending revisions workflow needs a way to manually promote a
+    // revision to be the canonical (default) version. Unlike revert, this
+    // explicitly manages the isDefaultRevision flag and fires the
+    // defaultRevisionChanged hook.
+    cli.register('content:set-default', async (args, ctx) => {
+      if (args.length < 3) {
+        console.error('Usage: content:set-default <type> <id> <revisionTimestamp>');
+        console.error('Example: content:set-default article abc123 2024-01-15T11:30:00.000Z');
+        console.error('Use "content:revisions <type> <id>" to see available timestamps');
+        throw new Error('Type, ID, and revision timestamp required');
+      }
+
+      const [type, id, revisionTimestamp] = args;
+
+      if (!content.hasType(type)) {
+        console.error(`Unknown content type: "${type}"`);
+        throw new Error('Unknown content type');
+      }
+
+      const current = content.read(type, id);
+      if (!current) {
+        console.error(`Content not found: ${type}/${id}`);
+        throw new Error('Content not found');
+      }
+
+      try {
+        const newDefault = await content.setDefaultRevision(type, id, revisionTimestamp);
+        console.log(`\nSet default revision for ${type}/${id}:`);
+        console.log(`  Previous default: ${current.updated}`);
+        console.log(`  New default:      ${newDefault.updated} (from revision ${revisionTimestamp})`);
+        console.log(`  isDefaultRevision: ${newDefault.isDefaultRevision}`);
+        console.log(`  title: ${newDefault.title || '(no title)'}`);
+      } catch (error) {
+        console.error(`Error: ${error.message}`);
+        throw error;
+      }
+    }, 'Set which revision is the default (canonical) version');
+
     // content:diff <type> <id> <ts1> <ts2> - Show diff between revisions
     cli.register('content:diff', async (args, ctx) => {
       if (args.length < 4) {
@@ -2641,6 +2711,97 @@ export async function boot(baseDir, options = {}) {
         console.log(`Deleted ${totalDeleted} revision(s) from ${itemsProcessed} item(s).`);
       }
     }, 'Prune old revisions across all content');
+
+    // content:create-draft <type> <id> '{"field":"value"}' - Create draft on published content
+    cli.register('content:create-draft', async (args, ctx) => {
+      if (args.length < 3) {
+        console.error('Usage: content:create-draft <type> <id> \'{"field":"value"}\'');
+        console.error('Example: content:create-draft article abc123 \'{"title":"Updated Title"}\'');
+        throw new Error('Type, ID, and data required');
+      }
+
+      const [type, id, jsonData] = args;
+
+      if (!content.hasType(type)) {
+        console.error(`Unknown content type: "${type}"`);
+        throw new Error('Unknown content type');
+      }
+
+      let data;
+      try {
+        data = JSON.parse(jsonData);
+      } catch (e) {
+        console.error('Invalid JSON data');
+        throw new Error('Invalid JSON');
+      }
+
+      const draft = await content.createDraft(type, id, data);
+
+      if (!draft) {
+        console.error(`Not found: ${type}/${id}`);
+        throw new Error('Content not found');
+      }
+
+      console.log(`Created draft revision for ${type}/${id}`);
+      console.log(`  Status: ${draft.status}`);
+      console.log(`  isDefaultRevision: ${draft.isDefaultRevision}`);
+      console.log(`  Updated: ${draft.updated}`);
+    }, 'Create a draft revision on published content');
+
+    // content:pending <type> <id> - Show pending revisions
+    cli.register('content:pending', async (args, ctx) => {
+      if (args.length < 2) {
+        console.error('Usage: content:pending <type> <id>');
+        throw new Error('Type and ID required');
+      }
+
+      const [type, id] = args;
+
+      if (!content.hasType(type)) {
+        console.error(`Unknown content type: "${type}"`);
+        throw new Error('Unknown content type');
+      }
+
+      const pending = content.getPendingRevisions(type, id);
+
+      console.log(`\nPending revisions for ${type}/${id}:`);
+      if (pending.length === 0) {
+        console.log('  (no pending revisions)');
+      } else {
+        for (const rev of pending) {
+          console.log(`  ${rev.updated} [draft] isDefaultRevision: ${rev.isDefaultRevision}`);
+          if (rev.title) {
+            console.log(`    Title: ${rev.title}`);
+          }
+        }
+      }
+      console.log('');
+    }, 'Show pending (non-default) revisions for content');
+
+    // content:publish-pending <type> <id> [timestamp] - Publish a pending revision
+    cli.register('content:publish-pending', async (args, ctx) => {
+      if (args.length < 2) {
+        console.error('Usage: content:publish-pending <type> <id> [timestamp]');
+        console.error('If no timestamp, publishes the most recent pending revision');
+        throw new Error('Type and ID required');
+      }
+
+      const [type, id, timestamp] = args;
+
+      if (!content.hasType(type)) {
+        console.error(`Unknown content type: "${type}"`);
+        throw new Error('Unknown content type');
+      }
+
+      const published = await content.publishPendingRevision(type, id, timestamp || null);
+
+      console.log(`Published pending revision for ${type}/${id}`);
+      console.log(`  Status: ${published.status}`);
+      console.log(`  isDefaultRevision: ${published.isDefaultRevision}`);
+      if (published.title) {
+        console.log(`  Title: ${published.title}`);
+      }
+    }, 'Publish a pending revision (make it the new default)');
 
     // ==================================================
     // Workflow CLI Commands
