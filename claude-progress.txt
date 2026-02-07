@@ -1,0 +1,28 @@
+## Session 1 - 2026-02-07
+
+### Completed
+- Feature #1: Server starts without errors (PASSING)
+- Feature #2: CLI framework operational - 352 commands (PASSING)
+- Feature #3: Content storage persistence across restart (PASSING)
+
+### Changes Made
+1. **core/boot.js**: Added bridge between config/content-types.json and content system.
+   Config-defined types (article, page) were not registered with content.js,
+   causing CLI/API commands to reject them. Now registers during boot after
+   contentTypes.init().
+
+2. **core/content.js**: Skip readonly fields in validateData(). Fields like
+   `created` and `updated` are required+readonly, auto-set by the system.
+   Without this fix, content:create fails requiring user to provide system fields.
+
+### Current Status
+- 3/165 features passing (1.8%)
+- Infrastructure tier (Features 0-4) mostly verified
+- Features 4 (service architecture) and 0 (redundant with #1) not assigned to this session
+
+### Known Issues
+- `hooks.fire is not a function` warning on content:delete (non-blocking, delete works)
+- Server boot logs show `[discovery] Skipping themes/layouts: no manifest.json found` (cosmetic)
+
+### Next Steps
+- Features 4-5+: Service architecture verification, then pending revisions system
