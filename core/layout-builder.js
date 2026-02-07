@@ -1433,3 +1433,571 @@ export function getStats() {
     cacheSize: renderCache.size,
   };
 }
+
+// ============================================
+// REST API ROUTES
+// ============================================
+
+/**
+ * Parse JSON body from request
+ *
+ * @param {Object} req - HTTP request
+ * @returns {Promise<Object>} Parsed JSON body
+ */
+async function parseBody(req) {
+  let body = '';
+  for await (const chunk of req) body += chunk;
+  return JSON.parse(body);
+}
+
+/**
+ * Send JSON response
+ *
+ * @param {Object} res - HTTP response
+ * @param {number} status - HTTP status code
+ * @param {Object} data - Response data
+ */
+function sendJson(res, status, data) {
+  res.writeHead(status, { 'Content-Type': 'application/json' });
+  res.end(JSON.stringify(data));
+}
+
+/**
+ * Register Layout Builder REST API routes
+ *
+ * WHY REST API:
+ * Layout Builder needs a programmatic API for:
+ * - The visual layout builder UI (drag-drop, add/remove)
+ * - Third-party integrations
+ * - Testing and automation
+ *
+ * ENDPOINTS:
+ * - GET    /api/layout/:contentType/:id/sections              → Get all sections
+ * - POST   /api/layout/:contentType/:id/sections              → Add a section
+ * - PUT    /api/layout/:contentType/:id/sections/:sectionId   → Update/reorder section
+ * - DELETE /api/layout/:contentType/:id/sections/:sectionId   → Delete a section
+ * - POST   /api/layout/:contentType/:id/sections/:sectionId/components → Add component
+ * - PUT    /api/layout/:contentType/:id/sections/:sectionId/components/:componentId → Update component
+ * - DELETE /api/layout/:contentType/:id/sections/:sectionId/components/:componentId → Delete component
+ *
+ * @param {Object} router - Router with register(method, path, handler, description)
+ * @param {Object} auth - Auth service (for future permission checks)
+ */
+export function registerRoutes(router, auth) {
+  // ------------------------------------------
+  // GET /api/layout/:contentType/:id/sections
+  // ------------------------------------------
+  // Returns all layout sections for a content item.
+  // Falls back to content type default layout if no override exists.
+  // Returns 404 if content doesn't exist.
+  router.register('GET', '/api/layout/:contentType/:id/sections', async (req, res, params) => {
+    const { contentType, id } = params;
+
+    try {
+      // Verify content exists
+      if (!contentService) {
+        return sendJson(res, 500, { error: 'Content service not initialized' });
+      }
+
+      const item = contentService.read(contentType, id);
+      if (!item) {
+        return sendJson(res, 404, {
+          error: 'Content not found',
+          message: `No ${contentType} found with ID "${id}"`,
+        });
+      }
+
+      // Get effective layout (override → default → null)
+      const layout = getEffectiveLayout(contentType, id, item);
+
+      if (!layout || !layout.sections || layout.sections.length === 0) {
+        return sendJson(res, 200, {
+          contentType,
+          contentId: id,
+          sections: [],
+          hasOverride: hasContentLayoutOverride(contentType, id),
+          source: 'none',
+        });
+      }
+
+      // Enrich sections with layout definition info
+      const enrichedSections = layout.sections.map(section => {
+        const layoutDef = getLayout(section.layoutId);
+        return {
+          ...section,
+          layout: layoutDef ? {
+            id: layoutDef.id,
+            label: layoutDef.label,
+            category: layoutDef.category,
+            regions: layoutDef.regions,
+          } : null,
+        };
+      });
+
+      return sendJson(res, 200, {
+        contentType,
+        contentId: id,
+        sections: enrichedSections,
+        hasOverride: hasContentLayoutOverride(contentType, id),
+        source: hasContentLayoutOverride(contentType, id) ? 'override' : 'default',
+        updated: layout.updated || null,
+      });
+    } catch (err) {
+      return sendJson(res, 500, { error: 'Internal error', message: err.message });
+    }
+  }, 'Get layout sections for content item');
+
+  // ------------------------------------------
+  // POST /api/layout/:contentType/:id/sections
+  // ------------------------------------------
+  // Adds a new section to a content item's layout.
+  // Creates per-content override if it doesn't exist.
+  // Body: { layoutId: string, settings?: object, position?: number }
+  router.register('POST', '/api/layout/:contentType/:id/sections', async (req, res, params) => {
+    const { contentType, id } = params;
+
+    try {
+      // Verify content exists
+      if (!contentService) {
+        return sendJson(res, 500, { error: 'Content service not initialized' });
+      }
+
+      const item = contentService.read(contentType, id);
+      if (!item) {
+        return sendJson(res, 404, {
+          error: 'Content not found',
+          message: `No ${contentType} found with ID "${id}"`,
+        });
+      }
+
+      // Parse request body
+      let body;
+      try {
+        body = await parseBody(req);
+      } catch (e) {
+        return sendJson(res, 400, { error: 'Invalid JSON', message: e.message });
+      }
+
+      // Validate required fields
+      if (!body.layoutId) {
+        return sendJson(res, 400, {
+          error: 'Validation error',
+          message: 'layoutId is required',
+        });
+      }
+
+      // Verify layout exists
+      const layoutDef = getLayout(body.layoutId);
+      if (!layoutDef) {
+        return sendJson(res, 400, {
+          error: 'Invalid layout',
+          message: `Layout "${body.layoutId}" not found. Available: ${listLayouts().map(l => l.id).join(', ')}`,
+        });
+      }
+
+      // Create the section
+      const section = createSection(body.layoutId, body.settings || {});
+
+      // Get or create layout storage for this content
+      let storage = getEffectiveLayout(contentType, id, item);
+
+      if (!storage || !hasContentLayoutOverride(contentType, id)) {
+        // Clone the default layout or create empty storage
+        storage = storage ? cloneLayout(storage) : { sections: [] };
+      }
+
+      // Add section at specified position or append
+      addSection(storage, section, body.position !== undefined ? body.position : null);
+
+      // Save as per-content override
+      await setContentLayout(contentType, id, storage);
+
+      // Return the created section with layout info
+      return sendJson(res, 201, {
+        section: {
+          ...section,
+          layout: {
+            id: layoutDef.id,
+            label: layoutDef.label,
+            category: layoutDef.category,
+            regions: layoutDef.regions,
+          },
+        },
+        message: 'Section created successfully',
+      });
+    } catch (err) {
+      return sendJson(res, 500, { error: 'Internal error', message: err.message });
+    }
+  }, 'Add section to content layout');
+
+  // ------------------------------------------
+  // PUT /api/layout/:contentType/:id/sections/:sectionId
+  // ------------------------------------------
+  // Updates a section (reorder, change settings).
+  // Body: { position?: number, settings?: object }
+  router.register('PUT', '/api/layout/:contentType/:id/sections/:sectionId', async (req, res, params) => {
+    const { contentType, id, sectionId } = params;
+
+    try {
+      if (!contentService) {
+        return sendJson(res, 500, { error: 'Content service not initialized' });
+      }
+
+      const item = contentService.read(contentType, id);
+      if (!item) {
+        return sendJson(res, 404, { error: 'Content not found' });
+      }
+
+      let body;
+      try {
+        body = await parseBody(req);
+      } catch (e) {
+        return sendJson(res, 400, { error: 'Invalid JSON', message: e.message });
+      }
+
+      let storage = getEffectiveLayout(contentType, id, item);
+      if (!storage) {
+        return sendJson(res, 404, { error: 'No layout found for this content' });
+      }
+
+      // Clone if not already an override
+      if (!hasContentLayoutOverride(contentType, id)) {
+        storage = cloneLayout(storage);
+      }
+
+      // Find the section
+      const section = getSection(storage, sectionId);
+      if (!section) {
+        return sendJson(res, 404, {
+          error: 'Section not found',
+          message: `Section "${sectionId}" not found in layout`,
+        });
+      }
+
+      // Update settings if provided
+      if (body.settings) {
+        updateSectionSettings(storage, sectionId, body.settings);
+      }
+
+      // Move section if position provided
+      if (body.position !== undefined) {
+        moveSection(storage, sectionId, body.position);
+      }
+
+      // Save
+      await setContentLayout(contentType, id, storage);
+
+      const updatedSection = getSection(storage, sectionId);
+      return sendJson(res, 200, {
+        section: updatedSection,
+        message: 'Section updated successfully',
+      });
+    } catch (err) {
+      return sendJson(res, 500, { error: 'Internal error', message: err.message });
+    }
+  }, 'Update/reorder section in content layout');
+
+  // ------------------------------------------
+  // DELETE /api/layout/:contentType/:id/sections/:sectionId
+  // ------------------------------------------
+  // Removes a section from the layout.
+  router.register('DELETE', '/api/layout/:contentType/:id/sections/:sectionId', async (req, res, params) => {
+    const { contentType, id, sectionId } = params;
+
+    try {
+      if (!contentService) {
+        return sendJson(res, 500, { error: 'Content service not initialized' });
+      }
+
+      const item = contentService.read(contentType, id);
+      if (!item) {
+        return sendJson(res, 404, { error: 'Content not found' });
+      }
+
+      let storage = getEffectiveLayout(contentType, id, item);
+      if (!storage) {
+        return sendJson(res, 404, { error: 'No layout found for this content' });
+      }
+
+      if (!hasContentLayoutOverride(contentType, id)) {
+        storage = cloneLayout(storage);
+      }
+
+      const section = getSection(storage, sectionId);
+      if (!section) {
+        return sendJson(res, 404, { error: 'Section not found' });
+      }
+
+      removeSection(storage, sectionId);
+      await setContentLayout(contentType, id, storage);
+
+      return sendJson(res, 200, {
+        message: 'Section deleted successfully',
+        deletedSectionId: sectionId,
+      });
+    } catch (err) {
+      return sendJson(res, 500, { error: 'Internal error', message: err.message });
+    }
+  }, 'Delete section from content layout');
+
+  // ------------------------------------------
+  // POST /api/layout/:contentType/:id/sections/:sectionId/components
+  // ------------------------------------------
+  // Adds a component to a section region.
+  // Body: { region: string, type: string, blockId?: string, fieldName?: string, configuration?: object }
+  router.register('POST', '/api/layout/:contentType/:id/sections/:sectionId/components', async (req, res, params) => {
+    const { contentType, id, sectionId } = params;
+
+    try {
+      if (!contentService) {
+        return sendJson(res, 500, { error: 'Content service not initialized' });
+      }
+
+      const item = contentService.read(contentType, id);
+      if (!item) {
+        return sendJson(res, 404, { error: 'Content not found' });
+      }
+
+      let body;
+      try {
+        body = await parseBody(req);
+      } catch (e) {
+        return sendJson(res, 400, { error: 'Invalid JSON', message: e.message });
+      }
+
+      // Validate required fields
+      if (!body.region) {
+        return sendJson(res, 400, {
+          error: 'Validation error',
+          message: 'region is required',
+        });
+      }
+
+      if (!body.type) {
+        return sendJson(res, 400, {
+          error: 'Validation error',
+          message: 'type is required (block, inline_block, or field)',
+        });
+      }
+
+      const validTypes = ['block', 'inline_block', 'field'];
+      if (!validTypes.includes(body.type)) {
+        return sendJson(res, 400, {
+          error: 'Validation error',
+          message: `type must be one of: ${validTypes.join(', ')}`,
+        });
+      }
+
+      let storage = getEffectiveLayout(contentType, id, item);
+      if (!storage) {
+        return sendJson(res, 404, { error: 'No layout found for this content' });
+      }
+
+      if (!hasContentLayoutOverride(contentType, id)) {
+        storage = cloneLayout(storage);
+      }
+
+      // Find the section
+      const section = getSection(storage, sectionId);
+      if (!section) {
+        return sendJson(res, 404, {
+          error: 'Section not found',
+          message: `Section "${sectionId}" not found in layout`,
+        });
+      }
+
+      // Verify region exists in the layout definition
+      const layoutDef = getLayout(section.layoutId);
+      if (!layoutDef || !layoutDef.regions[body.region]) {
+        const availableRegions = layoutDef ? Object.keys(layoutDef.regions).join(', ') : 'none';
+        return sendJson(res, 400, {
+          error: 'Invalid region',
+          message: `Region "${body.region}" not found in layout "${section.layoutId}". Available regions: ${availableRegions}`,
+        });
+      }
+
+      // Create the component based on type
+      let component;
+      switch (body.type) {
+        case 'block':
+          component = createBlockComponent(body.blockId || '', body.configuration || {});
+          break;
+        case 'inline_block':
+          component = createInlineBlockComponent(body.blockType || '', body.configuration || {});
+          break;
+        case 'field':
+          component = createFieldComponent(body.fieldName || '', body.configuration || {});
+          break;
+      }
+
+      // Add component to the section
+      addComponent(section, body.region, component);
+
+      // Save
+      await setContentLayout(contentType, id, storage);
+
+      return sendJson(res, 201, {
+        component,
+        sectionId,
+        region: body.region,
+        message: 'Component added successfully',
+      });
+    } catch (err) {
+      return sendJson(res, 500, { error: 'Internal error', message: err.message });
+    }
+  }, 'Add component to section region');
+
+  // ------------------------------------------
+  // PUT /api/layout/:contentType/:id/sections/:sectionId/components/:componentId
+  // ------------------------------------------
+  // Updates a component (move to different region, update config).
+  // Body: { region?: string, position?: number, configuration?: object }
+  router.register('PUT', '/api/layout/:contentType/:id/sections/:sectionId/components/:componentId', async (req, res, params) => {
+    const { contentType, id, sectionId, componentId } = params;
+
+    try {
+      if (!contentService) {
+        return sendJson(res, 500, { error: 'Content service not initialized' });
+      }
+
+      const item = contentService.read(contentType, id);
+      if (!item) {
+        return sendJson(res, 404, { error: 'Content not found' });
+      }
+
+      let body;
+      try {
+        body = await parseBody(req);
+      } catch (e) {
+        return sendJson(res, 400, { error: 'Invalid JSON', message: e.message });
+      }
+
+      let storage = getEffectiveLayout(contentType, id, item);
+      if (!storage) {
+        return sendJson(res, 404, { error: 'No layout found' });
+      }
+
+      if (!hasContentLayoutOverride(contentType, id)) {
+        storage = cloneLayout(storage);
+      }
+
+      const section = getSection(storage, sectionId);
+      if (!section) {
+        return sendJson(res, 404, { error: 'Section not found' });
+      }
+
+      // Find the component
+      let found = false;
+      for (const regionId of Object.keys(section.components)) {
+        const comp = section.components[regionId].find(c => c.uuid === componentId);
+        if (comp) {
+          found = true;
+
+          // Update configuration if provided
+          if (body.configuration) {
+            comp.configuration = { ...comp.configuration, ...body.configuration };
+          }
+
+          // Move to different region if specified
+          if (body.region && body.region !== regionId) {
+            moveComponent(section, componentId, body.region, body.position || 0);
+          } else if (body.position !== undefined) {
+            // Reorder within same region
+            const idx = section.components[regionId].findIndex(c => c.uuid === componentId);
+            if (idx !== -1) {
+              const [moved] = section.components[regionId].splice(idx, 1);
+              section.components[regionId].splice(body.position, 0, moved);
+              section.components[regionId].forEach((c, i) => { c.weight = i; });
+            }
+          }
+          break;
+        }
+      }
+
+      if (!found) {
+        return sendJson(res, 404, { error: 'Component not found' });
+      }
+
+      await setContentLayout(contentType, id, storage);
+
+      return sendJson(res, 200, {
+        message: 'Component updated successfully',
+        componentId,
+      });
+    } catch (err) {
+      return sendJson(res, 500, { error: 'Internal error', message: err.message });
+    }
+  }, 'Update/move component in section');
+
+  // ------------------------------------------
+  // DELETE /api/layout/:contentType/:id/sections/:sectionId/components/:componentId
+  // ------------------------------------------
+  // Removes a component from a section.
+  router.register('DELETE', '/api/layout/:contentType/:id/sections/:sectionId/components/:componentId', async (req, res, params) => {
+    const { contentType, id, sectionId, componentId } = params;
+
+    try {
+      if (!contentService) {
+        return sendJson(res, 500, { error: 'Content service not initialized' });
+      }
+
+      const item = contentService.read(contentType, id);
+      if (!item) {
+        return sendJson(res, 404, { error: 'Content not found' });
+      }
+
+      let storage = getEffectiveLayout(contentType, id, item);
+      if (!storage) {
+        return sendJson(res, 404, { error: 'No layout found' });
+      }
+
+      if (!hasContentLayoutOverride(contentType, id)) {
+        storage = cloneLayout(storage);
+      }
+
+      const section = getSection(storage, sectionId);
+      if (!section) {
+        return sendJson(res, 404, { error: 'Section not found' });
+      }
+
+      // Check component exists
+      let found = false;
+      for (const regionId of Object.keys(section.components)) {
+        if (section.components[regionId].find(c => c.uuid === componentId)) {
+          found = true;
+          break;
+        }
+      }
+
+      if (!found) {
+        return sendJson(res, 404, { error: 'Component not found' });
+      }
+
+      removeComponent(section, componentId);
+      await setContentLayout(contentType, id, storage);
+
+      return sendJson(res, 200, {
+        message: 'Component deleted successfully',
+        deletedComponentId: componentId,
+      });
+    } catch (err) {
+      return sendJson(res, 500, { error: 'Internal error', message: err.message });
+    }
+  }, 'Delete component from section');
+
+  // ------------------------------------------
+  // GET /api/layout/definitions
+  // ------------------------------------------
+  // Lists all available layout definitions.
+  router.register('GET', '/api/layout/definitions', async (req, res) => {
+    const url = new URL(req.url, `http://${req.headers.host}`);
+    const category = url.searchParams.get('category') || undefined;
+
+    const layouts = listLayouts(category ? { category } : {});
+
+    return sendJson(res, 200, {
+      layouts,
+      categories: listCategories(),
+    });
+  }, 'List available layout definitions');
+}
