@@ -1,0 +1,1233 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>{{pageTitle}} | Layout Builder</title>
+  <link rel="stylesheet" href="/css/admin.css">
+  <style>
+    /* ========================================
+     * LAYOUT BUILDER PAGE STYLES
+     * ========================================
+     * Feature #67: Layout builder page route
+     * Feature #68: Layout builder HTML shell (sections grid)
+     * Feature #70: Drag handle for sections
+     */
+
+    .layout-builder-toolbar {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 12px 20px;
+      background: #263238;
+      color: white;
+      border-radius: 8px;
+      margin-bottom: 20px;
+    }
+    .layout-builder-toolbar .toolbar-left {
+      display: flex;
+      align-items: center;
+      gap: 15px;
+    }
+    .layout-builder-toolbar .toolbar-right {
+      display: flex;
+      gap: 10px;
+    }
+    .layout-builder-toolbar h2 {
+      margin: 0;
+      font-size: 1.1em;
+    }
+    .layout-builder-toolbar .content-info {
+      font-size: 0.85em;
+      color: #b0bec5;
+    }
+    .toolbar-btn {
+      padding: 8px 16px;
+      border: none;
+      border-radius: 4px;
+      cursor: pointer;
+      font-size: 0.9em;
+      text-decoration: none;
+      display: inline-block;
+    }
+    .toolbar-btn-save {
+      background: #4caf50;
+      color: white;
+    }
+    .toolbar-btn-save:hover {
+      background: #388e3c;
+    }
+    .toolbar-btn-discard {
+      background: #f44336;
+      color: white;
+    }
+    .toolbar-btn-discard:hover {
+      background: #d32f2f;
+    }
+    .toolbar-btn-preview {
+      background: #2196f3;
+      color: white;
+    }
+    .toolbar-btn-preview:hover {
+      background: #1976d2;
+    }
+    .toolbar-btn-back {
+      background: #546e7a;
+      color: white;
+    }
+    .toolbar-btn-back:hover {
+      background: #37474f;
+    }
+
+    /* ========================================
+     * SECTIONS GRID (Feature #68)
+     * ======================================== */
+    .layout-builder-canvas {
+      min-height: 400px;
+      padding: 20px;
+      background: #fafafa;
+      border: 2px dashed #e0e0e0;
+      border-radius: 8px;
+    }
+
+    .section-wrapper {
+      margin-bottom: 16px;
+      position: relative;
+      border: 2px solid #e0e0e0;
+      border-radius: 8px;
+      background: white;
+      transition: border-color 0.2s, box-shadow 0.2s;
+    }
+    .section-wrapper:hover {
+      border-color: #1976d2;
+      box-shadow: 0 2px 8px rgba(25, 118, 210, 0.15);
+    }
+    .section-wrapper.dragging {
+      opacity: 0.5;
+      border-color: #1976d2;
+      box-shadow: 0 4px 16px rgba(25, 118, 210, 0.3);
+    }
+    .section-wrapper.drag-over {
+      border-color: #4caf50;
+      border-style: dashed;
+    }
+
+    /* ========================================
+     * DRAG HANDLE (Feature #70)
+     * ======================================== */
+    .section-drag-handle {
+      position: absolute;
+      left: -36px;
+      top: 50%;
+      transform: translateY(-50%);
+      width: 28px;
+      height: 40px;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 2px;
+      cursor: grab;
+      background: #e0e0e0;
+      border-radius: 4px;
+      transition: background 0.2s, opacity 0.2s;
+      opacity: 0;
+      user-select: none;
+    }
+    .section-wrapper:hover .section-drag-handle {
+      opacity: 1;
+    }
+    .section-drag-handle:hover {
+      background: #1976d2;
+    }
+    .section-drag-handle:active {
+      cursor: grabbing;
+    }
+    .section-drag-handle .drag-dots {
+      width: 14px;
+      height: 3px;
+      border-radius: 1px;
+      background: #666;
+    }
+    .section-drag-handle:hover .drag-dots {
+      background: white;
+    }
+
+    /* Section header */
+    .section-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 10px 16px;
+      background: #1976d2;
+      color: white;
+      border-radius: 6px 6px 0 0;
+    }
+    .section-header-info {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+    .section-header h3 {
+      margin: 0;
+      font-size: 0.95em;
+      font-weight: 600;
+    }
+    .section-header .section-layout-badge {
+      background: rgba(255,255,255,0.2);
+      padding: 2px 8px;
+      border-radius: 10px;
+      font-size: 0.8em;
+    }
+    .section-header-actions {
+      display: flex;
+      gap: 6px;
+    }
+    .section-header-actions button,
+    .section-header-actions a {
+      background: rgba(255,255,255,0.2);
+      border: none;
+      color: white;
+      padding: 4px 10px;
+      border-radius: 4px;
+      cursor: pointer;
+      font-size: 0.8em;
+      text-decoration: none;
+    }
+    .section-header-actions button:hover,
+    .section-header-actions a:hover {
+      background: rgba(255,255,255,0.35);
+    }
+    .section-header-actions .btn-delete-section {
+      background: rgba(244, 67, 54, 0.5);
+    }
+    .section-header-actions .btn-delete-section:hover {
+      background: rgba(244, 67, 54, 0.75);
+    }
+
+    /* Section body & regions grid */
+    .section-body {
+      padding: 12px;
+    }
+    .section-regions-grid {
+      display: grid;
+      gap: 12px;
+      min-height: 80px;
+    }
+    .section-regions-grid.regions-1 {
+      grid-template-columns: 1fr;
+    }
+    .section-regions-grid.regions-2 {
+      grid-template-columns: 1fr 1fr;
+    }
+    .section-regions-grid.regions-3 {
+      grid-template-columns: 1fr 1fr 1fr;
+    }
+    .section-regions-grid.regions-4 {
+      grid-template-columns: 1fr 1fr 1fr 1fr;
+    }
+
+    /* Region */
+    .region-slot {
+      border: 1px dashed #ccc;
+      border-radius: 6px;
+      min-height: 60px;
+      background: #f5f5f5;
+    }
+    .region-slot-header {
+      padding: 6px 10px;
+      font-size: 0.8em;
+      font-weight: 600;
+      color: #666;
+      background: #eeeeee;
+      border-radius: 5px 5px 0 0;
+      border-bottom: 1px solid #ddd;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+    .region-slot-header .add-component-btn {
+      background: #e8f5e9;
+      color: #2e7d32;
+      border: 1px solid #a5d6a7;
+      padding: 2px 8px;
+      border-radius: 3px;
+      cursor: pointer;
+      font-size: 0.85em;
+    }
+    .region-slot-header .add-component-btn:hover {
+      background: #c8e6c9;
+    }
+    .region-slot-content {
+      padding: 8px;
+      min-height: 40px;
+    }
+
+    /* Component items in regions */
+    .component-chip {
+      background: #e3f2fd;
+      border: 1px solid #90caf9;
+      border-radius: 4px;
+      padding: 8px 12px;
+      margin: 4px 0;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      font-size: 0.85em;
+      cursor: move;
+    }
+    .component-chip:hover {
+      background: #bbdefb;
+    }
+    .component-chip-info {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    .component-chip-type {
+      color: #1565c0;
+      font-weight: 600;
+    }
+    .component-chip-detail {
+      color: #666;
+      font-size: 0.9em;
+    }
+    .component-chip-actions button {
+      background: transparent;
+      border: none;
+      color: #f44336;
+      cursor: pointer;
+      font-size: 0.9em;
+      padding: 2px 6px;
+    }
+    .component-chip-actions button:hover {
+      background: #ffebee;
+      border-radius: 3px;
+    }
+
+    /* Empty region state */
+    .region-empty {
+      color: #bbb;
+      text-align: center;
+      padding: 15px;
+      font-size: 0.85em;
+      font-style: italic;
+    }
+
+    /* Add section button */
+    .add-section-area {
+      border: 2px dashed #bbb;
+      border-radius: 8px;
+      padding: 20px;
+      text-align: center;
+      margin: 16px 0;
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+    .add-section-area:hover {
+      border-color: #1976d2;
+      background: #e3f2fd;
+    }
+    .add-section-area .add-icon {
+      font-size: 2em;
+      color: #90caf9;
+    }
+    .add-section-area p {
+      color: #666;
+      margin: 5px 0 0 0;
+    }
+
+    /* Layout chooser (hidden by default) */
+    .layout-chooser {
+      display: none;
+      background: white;
+      border: 1px solid #ddd;
+      border-radius: 8px;
+      padding: 16px;
+      margin: 16px 0;
+      box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+    }
+    .layout-chooser.active {
+      display: block;
+    }
+    .layout-chooser h3 {
+      margin: 0 0 12px 0;
+      font-size: 1em;
+    }
+    .layout-options {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+      gap: 10px;
+    }
+    .layout-option {
+      border: 2px solid #e0e0e0;
+      border-radius: 6px;
+      padding: 12px;
+      text-align: center;
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+    .layout-option:hover {
+      border-color: #1976d2;
+      background: #e3f2fd;
+    }
+    .layout-option .layout-icon {
+      font-size: 1.5em;
+      margin-bottom: 5px;
+    }
+    .layout-option .layout-name {
+      font-size: 0.85em;
+      color: #333;
+    }
+
+    /* Override indicator */
+    .override-indicator {
+      display: inline-block;
+      padding: 3px 10px;
+      border-radius: 12px;
+      font-size: 0.8em;
+      font-weight: 600;
+    }
+    .override-indicator.has-override {
+      background: #fff3e0;
+      color: #e65100;
+    }
+    .override-indicator.using-default {
+      background: #e8f5e9;
+      color: #2e7d32;
+    }
+
+    /* Empty layout state */
+    .empty-layout {
+      text-align: center;
+      padding: 60px 20px;
+      color: #999;
+    }
+    .empty-layout .empty-icon {
+      font-size: 3em;
+      margin-bottom: 10px;
+    }
+    .empty-layout h3 {
+      margin: 10px 0;
+      color: #666;
+    }
+
+    /* Content for padded wrapper around canvas */
+    .layout-builder-content {
+      padding-left: 44px;
+    }
+
+    /* ========================================
+     * COMPONENT ADD UI (Feature #70)
+     * ======================================== */
+    .component-chooser-overlay {
+      display: none;
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      background: rgba(0,0,0,0.4);
+      z-index: 1000;
+      align-items: center;
+      justify-content: center;
+    }
+    .component-chooser-overlay.active {
+      display: flex;
+    }
+    .component-chooser-modal {
+      background: white;
+      border-radius: 12px;
+      box-shadow: 0 8px 32px rgba(0,0,0,0.2);
+      width: 90%;
+      max-width: 600px;
+      max-height: 80vh;
+      overflow-y: auto;
+    }
+    .component-chooser-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 16px 20px;
+      border-bottom: 1px solid #eee;
+    }
+    .component-chooser-header h3 {
+      margin: 0;
+      font-size: 1.1em;
+    }
+    .component-chooser-close {
+      background: none;
+      border: none;
+      font-size: 1.5em;
+      cursor: pointer;
+      color: #666;
+      padding: 0 4px;
+    }
+    .component-chooser-close:hover {
+      color: #333;
+    }
+    .component-chooser-body {
+      padding: 20px;
+    }
+    .component-type-section {
+      margin-bottom: 20px;
+    }
+    .component-type-section h4 {
+      margin: 0 0 10px 0;
+      font-size: 0.95em;
+      color: #666;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+    }
+    .component-type-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
+      gap: 10px;
+    }
+    .component-type-card {
+      border: 2px solid #e0e0e0;
+      border-radius: 8px;
+      padding: 14px;
+      text-align: center;
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+    .component-type-card:hover {
+      border-color: #1976d2;
+      background: #e3f2fd;
+    }
+    .component-type-card .card-icon {
+      font-size: 1.8em;
+      margin-bottom: 6px;
+    }
+    .component-type-card .card-label {
+      font-weight: 600;
+      font-size: 0.9em;
+      color: #333;
+    }
+    .component-type-card .card-desc {
+      font-size: 0.75em;
+      color: #999;
+      margin-top: 3px;
+    }
+
+    /* Component config step in the modal */
+    .component-config-step {
+      display: none;
+      padding: 0;
+    }
+    .component-config-step.active {
+      display: block;
+    }
+    .config-form-group {
+      margin-bottom: 14px;
+    }
+    .config-form-group label {
+      display: block;
+      font-weight: 600;
+      font-size: 0.9em;
+      margin-bottom: 4px;
+      color: #333;
+    }
+    .config-form-group input,
+    .config-form-group select {
+      width: 100%;
+      padding: 8px 10px;
+      border: 1px solid #ddd;
+      border-radius: 4px;
+      font-size: 0.95em;
+      box-sizing: border-box;
+    }
+    .config-form-group input:focus,
+    .config-form-group select:focus {
+      border-color: #1976d2;
+      outline: none;
+      box-shadow: 0 0 0 2px rgba(25,118,210,0.2);
+    }
+    .config-form-actions {
+      display: flex;
+      gap: 10px;
+      justify-content: flex-end;
+      margin-top: 16px;
+      padding-top: 12px;
+      border-top: 1px solid #eee;
+    }
+    .config-form-actions button {
+      padding: 8px 20px;
+      border-radius: 4px;
+      border: none;
+      cursor: pointer;
+      font-size: 0.9em;
+    }
+    .config-btn-add {
+      background: #1976d2;
+      color: white;
+    }
+    .config-btn-add:hover {
+      background: #1565c0;
+    }
+    .config-btn-cancel {
+      background: #eee;
+      color: #333;
+    }
+    .config-btn-cancel:hover {
+      background: #ddd;
+    }
+
+    /* Responsive adjustments */
+    @media (max-width: 768px) {
+      .section-regions-grid.regions-2,
+      .section-regions-grid.regions-3,
+      .section-regions-grid.regions-4 {
+        grid-template-columns: 1fr;
+      }
+      .section-drag-handle {
+        left: -30px;
+        width: 24px;
+        height: 32px;
+      }
+      .layout-builder-content {
+        padding-left: 36px;
+      }
+    }
+  </style>
+</head>
+<body>
+  <nav class="admin-nav">
+    <a href="/admin/content/{{contentType}}">&larr; Back to {{contentType}} list</a>
+    <span style="margin: 0 10px; color: #999;">|</span>
+    <a href="/admin/content/{{contentType}}/{{contentId}}/edit">Edit Content</a>
+    <span style="margin: 0 10px; color: #999;">|</span>
+    <a href="/admin/layout">Layout Builder Dashboard</a>
+  </nav>
+
+  <main class="admin-main">
+    <!-- Toolbar -->
+    <div class="layout-builder-toolbar">
+      <div class="toolbar-left">
+        <h2>Layout Builder</h2>
+        <div class="content-info">
+          <strong>{{contentTitle}}</strong> &mdash; {{contentType}}/{{contentId}}
+        </div>
+        <span class="override-indicator {{overrideClass}}">{{overrideLabel}}</span>
+      </div>
+      <div class="toolbar-right">
+        <a href="/admin/content/{{contentType}}/{{contentId}}/edit" class="toolbar-btn toolbar-btn-back">← Edit</a>
+        <a href="/admin/layout/preview/{{contentType}}?id={{contentId}}" class="toolbar-btn toolbar-btn-preview" target="_blank">Preview</a>
+        <button class="toolbar-btn toolbar-btn-save" id="save-layout-btn" onclick="saveLayout()">💾 Save Layout</button>
+        <button class="toolbar-btn toolbar-btn-discard" id="discard-layout-btn" onclick="discardChanges()">↩ Discard Changes</button>
+        <button class="toolbar-btn" style="background:#7b1fa2;color:white;" id="revisions-btn" onclick="toggleRevisions()">📋 Revisions</button>
+        {{#if hasOverride}}
+        <form action="/node/{{contentId}}/layout/revert" method="POST" style="display:inline;">
+          <button type="submit" class="toolbar-btn" style="background:#795548;color:white;" onclick="return confirm('Revert to default layout? This removes ALL custom sections.')">🔄 Revert to Default</button>
+        </form>
+        {{/if}}
+      </div>
+    </div>
+
+    {{#if hasFlash}}
+    <div class="flash flash-{{flash.type}}">
+      {{flash.message}}
+    </div>
+    {{/if}}
+
+    <!-- Save feedback toast (Feature #79) -->
+    <div id="save-toast" style="display:none; position:fixed; top:20px; right:20px; z-index:9999; padding:12px 24px; border-radius:8px; color:white; font-weight:600; font-size:0.95em; box-shadow:0 4px 16px rgba(0,0,0,0.2); transition: opacity 0.3s;">
+    </div>
+
+    <!-- Layout Revision History Panel (Feature #83) -->
+    <div id="revisions-panel" style="display:none; background:white; border:1px solid #ddd; border-radius:8px; margin-bottom:20px; box-shadow:0 2px 8px rgba(0,0,0,0.1);">
+      <div style="display:flex; justify-content:space-between; align-items:center; padding:12px 16px; background:#f5f5f5; border-radius:8px 8px 0 0; border-bottom:1px solid #ddd;">
+        <h3 style="margin:0; font-size:1em;">📋 Layout Revision History</h3>
+        <button onclick="toggleRevisions()" style="background:none; border:none; cursor:pointer; font-size:1.2em; color:#666;">✕</button>
+      </div>
+      <div id="revisions-list" style="padding:16px; max-height:300px; overflow-y:auto;">
+        <div style="text-align:center; color:#999; padding:20px;">Loading revisions...</div>
+      </div>
+    </div>
+
+    <!-- Layout Builder Canvas -->
+    <div class="layout-builder-content">
+      <div class="layout-builder-canvas" id="layout-canvas">
+        {{sectionsHtml}}
+      </div>
+
+      <!-- Add Section Button -->
+      <div class="add-section-area" id="add-section-trigger" onclick="document.getElementById('layout-chooser').classList.toggle('active')">
+        <div class="add-icon">+</div>
+        <p>Add Section</p>
+      </div>
+
+      <!-- Layout Chooser -->
+      <div class="layout-chooser" id="layout-chooser">
+        <h3>Choose a layout for the new section:</h3>
+        <div class="layout-options">
+          {{layoutOptionsHtml}}
+        </div>
+        <div style="margin-top: 10px; text-align: right;">
+          <button onclick="document.getElementById('layout-chooser').classList.remove('active')" style="background: #eee; border: 1px solid #ccc; padding: 6px 12px; border-radius: 4px; cursor: pointer;">Cancel</button>
+        </div>
+      </div>
+
+      <!-- Hidden form for adding sections -->
+      <form id="add-section-form" action="/node/{{contentId}}/layout/add-section" method="POST" style="display:none;">
+        <input type="hidden" name="contentType" value="{{contentType}}">
+        <input type="hidden" name="layoutId" id="add-section-layout-id" value="">
+      </form>
+    </div>
+  </main>
+
+  <!-- Component Chooser Modal (Feature #70) -->
+  <div class="component-chooser-overlay" id="component-chooser">
+    <div class="component-chooser-modal">
+      <div class="component-chooser-header">
+        <h3 id="chooser-title">Add Component</h3>
+        <button class="component-chooser-close" onclick="closeComponentChooser()">&times;</button>
+      </div>
+      <div class="component-chooser-body">
+        <!-- Step 1: Choose component type -->
+        <div class="component-config-step active" id="chooser-step-type">
+          <div class="component-type-section">
+            <h4>Content Fields</h4>
+            <div class="component-type-grid">
+              <div class="component-type-card" onclick="selectComponentType('field')">
+                <div class="card-icon">📝</div>
+                <div class="card-label">Field</div>
+                <div class="card-desc">Render an entity field</div>
+              </div>
+            </div>
+          </div>
+          <div class="component-type-section">
+            <h4>Blocks</h4>
+            <div class="component-type-grid">
+              <div class="component-type-card" onclick="selectComponentType('block')">
+                <div class="card-icon">🧱</div>
+                <div class="card-label">Existing Block</div>
+                <div class="card-desc">Reference a site block</div>
+              </div>
+              <div class="component-type-card" onclick="selectComponentType('inline_block')">
+                <div class="card-icon">✏️</div>
+                <div class="card-label">Inline Block</div>
+                <div class="card-desc">Create content inline</div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Step 2: Configure field component -->
+        <div class="component-config-step" id="chooser-step-field">
+          <div class="config-form-group">
+            <label for="field-name-select">Select Field</label>
+            <select id="field-name-select">
+              {{fieldOptionsHtml}}
+            </select>
+          </div>
+          <div class="config-form-actions">
+            <button class="config-btn-cancel" onclick="backToTypeStep()">← Back</button>
+            <button class="config-btn-add" onclick="submitComponent('field')">Add Field</button>
+          </div>
+        </div>
+
+        <!-- Step 2: Configure block component -->
+        <div class="component-config-step" id="chooser-step-block">
+          <div class="config-form-group">
+            <label for="block-id-input">Block ID</label>
+            <input type="text" id="block-id-input" placeholder="Enter block ID (e.g., site_header, recent_content)">
+          </div>
+          {{#if hasBlocks}}
+          <div class="config-form-group">
+            <label>Or select available block:</label>
+            <select id="block-id-select" onchange="document.getElementById('block-id-input').value = this.value">
+              <option value="">-- Choose a block --</option>
+              {{blockOptionsHtml}}
+            </select>
+          </div>
+          {{/if}}
+          <div class="config-form-actions">
+            <button class="config-btn-cancel" onclick="backToTypeStep()">← Back</button>
+            <button class="config-btn-add" onclick="submitComponent('block')">Add Block</button>
+          </div>
+        </div>
+
+        <!-- Step 2: Configure inline_block component -->
+        <div class="component-config-step" id="chooser-step-inline_block">
+          <div class="config-form-group">
+            <label for="inline-block-type">Block Type</label>
+            <input type="text" id="inline-block-type" placeholder="Block type (e.g., text, html, list)">
+          </div>
+          <div class="config-form-group">
+            <label for="inline-block-title">Title (optional)</label>
+            <input type="text" id="inline-block-title" placeholder="Block title">
+          </div>
+          <div class="config-form-actions">
+            <button class="config-btn-cancel" onclick="backToTypeStep()">← Back</button>
+            <button class="config-btn-add" onclick="submitComponent('inline_block')">Add Inline Block</button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Layout Builder Scripts (Features #67, #68, #70) -->
+  <script>
+    // Helper: Add a section via form submission
+    function addSection(contentType, contentId, layoutId) {
+      document.getElementById('add-section-layout-id').value = layoutId;
+      document.getElementById('add-section-form').submit();
+    }
+
+    // Helper: Delete a section via API
+    function deleteSection(contentType, contentId, sectionUuid) {
+      fetch('/api/layout/' + contentType + '/' + contentId + '/sections/' + sectionUuid, {
+        method: 'DELETE'
+      }).then(function(resp) {
+        if (resp.ok) {
+          window.location.reload();
+        } else {
+          alert('Failed to delete section');
+        }
+      }).catch(function(err) {
+        alert('Error: ' + err.message);
+      });
+    }
+
+    // Component Chooser Modal state
+    var chooserState = {
+      contentType: '',
+      contentId: '',
+      sectionUuid: '',
+      regionId: ''
+    };
+
+    // Open the component chooser modal (Feature #70)
+    function addComponent(contentType, contentId, sectionUuid, regionId) {
+      chooserState.contentType = contentType;
+      chooserState.contentId = contentId;
+      chooserState.sectionUuid = sectionUuid;
+      chooserState.regionId = regionId;
+
+      // Update title
+      document.getElementById('chooser-title').textContent = 'Add Component to ' + regionId;
+
+      // Show step 1
+      backToTypeStep();
+
+      // Show overlay
+      document.getElementById('component-chooser').classList.add('active');
+    }
+
+    // Close the modal
+    function closeComponentChooser() {
+      document.getElementById('component-chooser').classList.remove('active');
+    }
+
+    // Go back to type selection step
+    function backToTypeStep() {
+      var steps = document.querySelectorAll('.component-config-step');
+      for (var i = 0; i < steps.length; i++) {
+        steps[i].classList.remove('active');
+      }
+      document.getElementById('chooser-step-type').classList.add('active');
+    }
+
+    // Select a component type → show config step
+    function selectComponentType(type) {
+      var steps = document.querySelectorAll('.component-config-step');
+      for (var i = 0; i < steps.length; i++) {
+        steps[i].classList.remove('active');
+      }
+      var stepId = 'chooser-step-' + type;
+      var step = document.getElementById(stepId);
+      if (step) {
+        step.classList.add('active');
+      }
+    }
+
+    // Submit the component via API
+    function submitComponent(type) {
+      var body = {
+        region: chooserState.regionId,
+        type: type
+      };
+
+      if (type === 'field') {
+        var fieldName = document.getElementById('field-name-select').value;
+        if (!fieldName) {
+          alert('Please select a field');
+          return;
+        }
+        body.fieldName = fieldName;
+      } else if (type === 'block') {
+        var blockId = document.getElementById('block-id-input').value;
+        if (!blockId) {
+          alert('Please enter a block ID');
+          return;
+        }
+        body.blockId = blockId;
+      } else if (type === 'inline_block') {
+        var blockType = document.getElementById('inline-block-type').value;
+        if (!blockType) {
+          alert('Please enter a block type');
+          return;
+        }
+        body.blockType = blockType;
+        body.configuration = {
+          title: document.getElementById('inline-block-title').value || ''
+        };
+      }
+
+      fetch('/api/layout/' + chooserState.contentType + '/' + chooserState.contentId + '/sections/' + chooserState.sectionUuid + '/components', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body)
+      }).then(function(resp) {
+        if (resp.ok) {
+          closeComponentChooser();
+          window.location.reload();
+        } else {
+          resp.json().then(function(data) {
+            alert('Error: ' + (data.message || 'Failed to add component'));
+          });
+        }
+      }).catch(function(err) {
+        alert('Error: ' + err.message);
+      });
+    }
+
+    // Close on overlay click
+    document.getElementById('component-chooser').addEventListener('click', function(e) {
+      if (e.target === this) {
+        closeComponentChooser();
+      }
+    });
+
+    // Helper: Remove a component via API
+    function removeComponent(contentType, contentId, sectionUuid, componentUuid) {
+      fetch('/api/layout/' + contentType + '/' + contentId + '/sections/' + sectionUuid + '/components/' + componentUuid, {
+        method: 'DELETE'
+      }).then(function(resp) {
+        if (resp.ok) {
+          window.location.reload();
+        } else {
+          alert('Failed to remove component');
+        }
+      }).catch(function(err) {
+        alert('Error: ' + err.message);
+      });
+    }
+  </script>
+
+  <!-- Save Layout, Discard Changes, Revision History Scripts (Features #79, #80, #83) -->
+  <script>
+    // Feature #79: Save Layout Button
+    // Persists current layout state and creates a revision snapshot
+    function saveLayout() {
+      var btn = document.getElementById('save-layout-btn');
+      btn.disabled = true;
+      btn.textContent = '⏳ Saving...';
+
+      fetch('/api/layout/{{contentType}}/{{contentId}}/save', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ message: 'Manual save from layout builder' })
+      }).then(function(resp) {
+        return resp.json().then(function(data) {
+          if (resp.ok) {
+            showToast('✅ Layout saved successfully!', 'success');
+            btn.textContent = '💾 Save Layout';
+            btn.disabled = false;
+          } else {
+            showToast('❌ Save failed: ' + (data.error || data.message || 'Unknown error'), 'error');
+            btn.textContent = '💾 Save Layout';
+            btn.disabled = false;
+          }
+        });
+      }).catch(function(err) {
+        showToast('❌ Save failed: ' + err.message, 'error');
+        btn.textContent = '💾 Save Layout';
+        btn.disabled = false;
+      });
+    }
+
+    // Feature #80: Discard Changes Button
+    // Reverts to the last saved revision with confirmation dialog
+    function discardChanges() {
+      if (!confirm('Discard all unsaved layout changes? This will revert to the last saved state.')) {
+        return;
+      }
+
+      var btn = document.getElementById('discard-layout-btn');
+      btn.disabled = true;
+      btn.textContent = '⏳ Reverting...';
+
+      fetch('/api/layout/{{contentType}}/{{contentId}}/discard', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' }
+      }).then(function(resp) {
+        return resp.json().then(function(data) {
+          if (resp.ok) {
+            showToast('✅ Changes discarded! Reloading...', 'success');
+            setTimeout(function() { window.location.reload(); }, 800);
+          } else {
+            showToast('❌ Discard failed: ' + (data.error || data.message), 'error');
+            btn.textContent = '↩ Discard Changes';
+            btn.disabled = false;
+          }
+        });
+      }).catch(function(err) {
+        showToast('❌ Discard failed: ' + err.message, 'error');
+        btn.textContent = '↩ Discard Changes';
+        btn.disabled = false;
+      });
+    }
+
+    // Feature #83: Toggle Revision History Panel
+    function toggleRevisions() {
+      var panel = document.getElementById('revisions-panel');
+      if (panel.style.display === 'none') {
+        panel.style.display = 'block';
+        loadRevisions();
+      } else {
+        panel.style.display = 'none';
+      }
+    }
+
+    // Feature #83: Load Revision History from API
+    function loadRevisions() {
+      var listEl = document.getElementById('revisions-list');
+      listEl.innerHTML = '<div style="text-align:center; color:#999; padding:20px;">Loading revisions...</div>';
+
+      fetch('/api/layout/{{contentType}}/{{contentId}}/revisions')
+        .then(function(resp) { return resp.json(); })
+        .then(function(data) {
+          if (!data.revisions || data.revisions.length === 0) {
+            listEl.innerHTML = '<div style="text-align:center; color:#999; padding:20px;">No revisions yet. Click "Save Layout" to create the first revision.</div>';
+            return;
+          }
+
+          var html = '<table style="width:100%; border-collapse:collapse; font-size:0.9em;">';
+          html += '<thead><tr style="border-bottom:2px solid #ddd;">';
+          html += '<th style="text-align:left; padding:8px;">Timestamp</th>';
+          html += '<th style="text-align:left; padding:8px;">Message</th>';
+          html += '<th style="text-align:center; padding:8px;">Sections</th>';
+          html += '<th style="text-align:center; padding:8px;">Components</th>';
+          html += '<th style="text-align:center; padding:8px;">Actions</th>';
+          html += '</tr></thead><tbody>';
+
+          for (var i = 0; i < data.revisions.length; i++) {
+            var rev = data.revisions[i];
+            var date = new Date(rev.timestamp);
+            var dateStr = date.toLocaleDateString() + ' ' + date.toLocaleTimeString();
+            var isCurrent = (i === 0) ? ' <span style="background:#4caf50; color:white; padding:1px 6px; border-radius:10px; font-size:0.8em;">current</span>' : '';
+
+            html += '<tr style="border-bottom:1px solid #eee;">';
+            html += '<td style="padding:8px;">' + dateStr + isCurrent + '</td>';
+            html += '<td style="padding:8px; color:#666;">' + (rev.message || '-') + '</td>';
+            html += '<td style="text-align:center; padding:8px;">' + (rev.sectionCount || 0) + '</td>';
+            html += '<td style="text-align:center; padding:8px;">' + (rev.componentCount || 0) + '</td>';
+            html += '<td style="text-align:center; padding:8px;">';
+            if (i > 0) {
+              html += '<button onclick="revertToRevision(\'' + rev.id + '\')" style="background:#ff9800; color:white; border:none; padding:4px 10px; border-radius:4px; cursor:pointer; font-size:0.85em;">Revert</button>';
+            } else {
+              html += '<span style="color:#999; font-size:0.85em;">Latest</span>';
+            }
+            html += '</td></tr>';
+          }
+
+          html += '</tbody></table>';
+          listEl.innerHTML = html;
+        })
+        .catch(function(err) {
+          listEl.innerHTML = '<div style="text-align:center; color:#f44336; padding:20px;">Error loading revisions: ' + err.message + '</div>';
+        });
+    }
+
+    // Feature #83: Revert to a specific revision
+    function revertToRevision(revisionId) {
+      if (!confirm('Revert to this revision? Current layout will be replaced.')) {
+        return;
+      }
+
+      fetch('/api/layout/{{contentType}}/{{contentId}}/revisions/' + revisionId + '/revert', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' }
+      }).then(function(resp) {
+        return resp.json().then(function(data) {
+          if (resp.ok) {
+            showToast('✅ Layout reverted! Reloading...', 'success');
+            setTimeout(function() { window.location.reload(); }, 800);
+          } else {
+            showToast('❌ Revert failed: ' + (data.error || data.message), 'error');
+          }
+        });
+      }).catch(function(err) {
+        showToast('❌ Revert failed: ' + err.message, 'error');
+      });
+    }
+
+    // Toast notification helper
+    function showToast(message, type) {
+      var toast = document.getElementById('save-toast');
+      toast.textContent = message;
+      toast.style.background = type === 'success' ? '#4caf50' : '#f44336';
+      toast.style.display = 'block';
+      toast.style.opacity = '1';
+
+      setTimeout(function() {
+        toast.style.opacity = '0';
+        setTimeout(function() {
+          toast.style.display = 'none';
+        }, 300);
+      }, 3000);
+    }
+  </script>
+
+  <!-- Drag & Drop Script for Sections (Feature #70) -->
+  <script>
+    (function() {
+      let draggedSection = null;
+      let placeholder = null;
+
+      // Find all section wrappers
+      function getSections() {
+        return document.querySelectorAll('.section-wrapper[draggable="true"]');
+      }
+
+      // Create a placeholder element for drop position indication
+      function createPlaceholder() {
+        const el = document.createElement('div');
+        el.className = 'section-wrapper drag-over';
+        el.style.height = '4px';
+        el.style.background = '#1976d2';
+        el.style.borderRadius = '2px';
+        el.style.margin = '8px 0';
+        el.style.transition = 'height 0.2s';
+        return el;
+      }
+
+      document.addEventListener('dragstart', function(e) {
+        const section = e.target.closest('.section-wrapper[draggable="true"]');
+        if (!section) return;
+
+        // Only initiate drag if the drag handle was used
+        if (!e.target.closest('.section-drag-handle')) {
+          e.preventDefault();
+          return;
+        }
+
+        draggedSection = section;
+        section.classList.add('dragging');
+        e.dataTransfer.effectAllowed = 'move';
+        e.dataTransfer.setData('text/plain', section.dataset.sectionUuid);
+
+        placeholder = createPlaceholder();
+      });
+
+      document.addEventListener('dragover', function(e) {
+        if (!draggedSection) return;
+        e.preventDefault();
+        e.dataTransfer.dropEffect = 'move';
+
+        const canvas = document.getElementById('layout-canvas');
+        if (!canvas) return;
+
+        // Remove existing placeholder
+        if (placeholder && placeholder.parentNode) {
+          placeholder.parentNode.removeChild(placeholder);
+        }
+
+        // Find the closest section to the mouse position
+        const sections = [...canvas.querySelectorAll('.section-wrapper:not(.dragging)')];
+        let closestSection = null;
+        let insertBefore = true;
+
+        for (const section of sections) {
+          const rect = section.getBoundingClientRect();
+          const midY = rect.top + rect.height / 2;
+
+          if (e.clientY < midY) {
+            closestSection = section;
+            insertBefore = true;
+            break;
+          }
+          closestSection = section;
+          insertBefore = false;
+        }
+
+        if (closestSection) {
+          if (insertBefore) {
+            canvas.insertBefore(placeholder, closestSection);
+          } else {
+            canvas.insertBefore(placeholder, closestSection.nextSibling);
+          }
+        } else {
+          canvas.appendChild(placeholder);
+        }
+      });
+
+      document.addEventListener('dragend', function(e) {
+        if (!draggedSection) return;
+
+        draggedSection.classList.remove('dragging');
+
+        // Remove placeholder
+        if (placeholder && placeholder.parentNode) {
+          placeholder.parentNode.removeChild(placeholder);
+        }
+
+        draggedSection = null;
+        placeholder = null;
+      });
+
+      document.addEventListener('drop', function(e) {
+        if (!draggedSection) return;
+        e.preventDefault();
+
+        const canvas = document.getElementById('layout-canvas');
+        if (!canvas) return;
+
+        // Calculate new position based on placeholder location
+        if (placeholder && placeholder.parentNode === canvas) {
+          canvas.insertBefore(draggedSection, placeholder);
+        }
+
+        // Remove placeholder
+        if (placeholder && placeholder.parentNode) {
+          placeholder.parentNode.removeChild(placeholder);
+        }
+
+        // Gather new order and submit via API
+        const sectionElements = canvas.querySelectorAll('.section-wrapper[data-section-uuid]');
+        const newOrder = [...sectionElements].map(el => el.dataset.sectionUuid);
+
+        // Submit reorder via API
+        const contentType = '{{contentType}}';
+        const contentId = '{{contentId}}';
+
+        fetch('/api/layout/' + contentType + '/' + contentId + '/sections/reorder', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({ order: newOrder })
+        }).then(function(resp) {
+          if (resp.ok) {
+            // Visual feedback
+            draggedSection.style.borderColor = '#4caf50';
+            setTimeout(function() {
+              draggedSection.style.borderColor = '';
+            }, 1000);
+          }
+        }).catch(function(err) {
+          console.error('Reorder failed:', err);
+          window.location.reload();
+        });
+
+        draggedSection.classList.remove('dragging');
+        draggedSection = null;
+        placeholder = null;
+      });
+    })();
+  </script>
+</body>
+</html>

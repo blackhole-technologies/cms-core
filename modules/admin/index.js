@@ -12383,6 +12383,66 @@ export function hook_routes(register, context) {
   }, 'Clear user history');
 
   // ==========================================
+  // Views Management
+  // ==========================================
+
+  /**
+   * GET /admin/views - Views admin list page
+   * WHY: Provides admin UI for managing views (saved queries)
+   */
+  register('GET', '/admin/views', async (req, res, params, ctx) => {
+    const viewsService = ctx.services.get('views');
+    if (!viewsService) {
+      res.writeHead(404, { 'Content-Type': 'text/plain' });
+      res.end('Views service not available');
+      return;
+    }
+
+    const viewsList = viewsService.listViews();
+    const flash = getFlashMessage(req.url);
+
+    // Enrich views with computed display properties
+    const views = viewsList.map(v => ({
+      ...v,
+      displayMode: v.display || 'page',
+      filterCount: v.filters?.length || 0,
+      sortCount: v.sort?.length || 0,
+      enabled: true, // Views are always enabled if they exist
+    }));
+
+    const html = renderAdmin('views-list.html', {
+      pageTitle: 'Views',
+      views,
+      hasViews: views.length > 0,
+      flash,
+      hasFlash: !!flash,
+    }, ctx, req);
+
+    server.html(res, html);
+  }, 'Views list');
+
+  /**
+   * POST /admin/views/:id/delete - Delete a view
+   * WHY: Admin UI delete action for views
+   */
+  register('POST', '/admin/views/:id/delete', async (req, res, params, ctx) => {
+    const viewsService = ctx.services.get('views');
+    if (!viewsService) {
+      res.writeHead(404, { 'Content-Type': 'text/plain' });
+      res.end('Views service not available');
+      return;
+    }
+
+    const { id } = params;
+    try {
+      await viewsService.deleteView(id);
+      redirect(res, '/admin/views?success=' + encodeURIComponent(`Deleted view: ${id}`));
+    } catch (error) {
+      redirect(res, '/admin/views?error=' + encodeURIComponent(error.message));
+    }
+  }, 'Delete view');
+
+  // ==========================================
   // Block Management
   // ==========================================
 
@@ -15240,6 +15300,32 @@ export function hook_routes(register, context) {
 
     const flash = getFlashMessage(req.url);
 
+    // Build field options for component chooser (Feature #70)
+    const schema = content.getSchema(contentType);
+    let fieldOptionsHtml = '<option value="">-- Choose a field --</option>';
+    if (schema) {
+      for (const [fieldName, fieldDef] of Object.entries(schema)) {
+        fieldOptionsHtml += `<option value="${fieldName}">${fieldName} (${fieldDef.type || 'text'})</option>`;
+      }
+    }
+
+    // Build block options for component chooser (Feature #70)
+    const blocksService = ctx.services.get('blocks');
+    let blockOptionsHtml = '';
+    let hasBlocks = false;
+    if (blocksService && typeof blocksService.listBlocks === 'function') {
+      const blocks = blocksService.listBlocks({ enabled: true });
+      const blockItems = blocks.items || blocks || [];
+      if (blockItems.length > 0) {
+        hasBlocks = true;
+        for (const block of blockItems) {
+          const blockId = block.id || block.name || '';
+          const blockLabel = block.title || block.label || blockId;
+          blockOptionsHtml += `<option value="${blockId}">${blockLabel}</option>`;
+        }
+      }
+    }
+
     const html = renderAdmin('layout-builder-page.html', {
       pageTitle: `Layout: ${contentTitle}`,
       contentType,
@@ -15250,6 +15336,9 @@ export function hook_routes(register, context) {
       overrideLabel: hasOverride ? 'Override' : 'Default Layout',
       sectionsHtml,
       layoutOptionsHtml,
+      fieldOptionsHtml,
+      blockOptionsHtml,
+      hasBlocks,
       flash,
       hasFlash: !!flash,
     }, ctx, req);
@@ -15330,6 +15419,219 @@ export function hook_routes(register, context) {
       redirect(res, `/node/${id}/layout?error=` + encodeURIComponent(err.message));
     }
   }, 'Revert content layout to default');
+
+  /**
+   * POST /node/:id/layout/save - Save layout with revision tracking (Feature #79)
+   *
+   * WHY: Explicit save button creates a revision snapshot so editors
+   * can track changes and revert if needed.
+   */
+  register('POST', '/node/:id/layout/save', async (req, res, params, ctx) => {
+    const { id } = params;
+    const layoutBuilder = ctx.services.get('layoutBuilder');
+
+    // Find content type
+    const types = content.listTypes();
+    let contentType = null;
+    let contentItem = null;
+    for (const { type } of types) {
+      const item = content.read(type, id);
+      if (item) {
+        contentType = type;
+        contentItem = item;
+        break;
+      }
+    }
+
+    if (!contentType) {
+      redirect(res, `/admin/content?error=` + encodeURIComponent('Content not found'));
+      return;
+    }
+
+    try {
+      const layout = layoutBuilder.getEffectiveLayout(contentType, id, contentItem);
+      if (layout && layout.sections) {
+        layoutBuilder.saveLayoutRevision(contentType, id, layout, 'Manual save');
+      }
+      redirect(res, `/node/${id}/layout?success=` + encodeURIComponent('Layout saved successfully'));
+    } catch (err) {
+      redirect(res, `/node/${id}/layout?error=` + encodeURIComponent(err.message));
+    }
+  }, 'Save layout with revision (Feature #79)');
+
+  /**
+   * POST /node/:id/layout/discard - Discard changes, revert to last saved revision (Feature #80)
+   *
+   * WHY: Allows editors to undo layout changes when they made mistakes.
+   * Reverts to the last saved revision or removes the override entirely.
+   */
+  register('POST', '/node/:id/layout/discard', async (req, res, params, ctx) => {
+    const { id } = params;
+    const layoutBuilder = ctx.services.get('layoutBuilder');
+
+    // Find content type
+    const types = content.listTypes();
+    let contentType = null;
+    for (const { type } of types) {
+      const item = content.read(type, id);
+      if (item) {
+        contentType = type;
+        break;
+      }
+    }
+
+    if (!contentType) {
+      redirect(res, `/admin/content?error=` + encodeURIComponent('Content not found'));
+      return;
+    }
+
+    try {
+      // Get the last saved revision
+      const revisions = layoutBuilder.getLayoutRevisions(contentType, id, 1);
+      if (revisions.length > 0) {
+        await layoutBuilder.revertToLayoutRevision(contentType, id, revisions[0].id);
+        redirect(res, `/node/${id}/layout?success=` + encodeURIComponent('Changes discarded - reverted to last saved state'));
+      } else {
+        // No revisions, revert to default
+        await layoutBuilder.removeContentLayout(contentType, id);
+        redirect(res, `/node/${id}/layout?success=` + encodeURIComponent('Changes discarded - reverted to default layout'));
+      }
+    } catch (err) {
+      redirect(res, `/node/${id}/layout?error=` + encodeURIComponent(err.message));
+    }
+  }, 'Discard layout changes (Feature #80)');
+
+  /**
+   * GET /node/:id/layout/revisions - Layout revision history page (Feature #83)
+   *
+   * WHY: Provides a dedicated page for viewing and reverting layout history.
+   * Supplements the inline revision panel in the layout builder.
+   */
+  register('GET', '/node/:id/layout/revisions', async (req, res, params, ctx) => {
+    const { id } = params;
+    const layoutBuilder = ctx.services.get('layoutBuilder');
+    const server = ctx.services.get('server');
+
+    // Find content type
+    const types = content.listTypes();
+    let contentType = null;
+    let contentItem = null;
+    for (const { type } of types) {
+      const item = content.read(type, id);
+      if (item) {
+        contentType = type;
+        contentItem = item;
+        break;
+      }
+    }
+
+    if (!contentItem) {
+      res.writeHead(404, { 'Content-Type': 'text/html' });
+      res.end('<!DOCTYPE html><html><body><h1>404 - Content Not Found</h1></body></html>');
+      return;
+    }
+
+    const contentTitle = contentItem.title || contentItem.name || id;
+    const revisions = layoutBuilder.getLayoutRevisions(contentType, id, 50);
+    const flash = getFlashMessage(req.url);
+
+    let revisionsHtml = '';
+    if (revisions.length === 0) {
+      revisionsHtml = '<tr><td colspan="5" style="text-align:center; padding:30px; color:#999;">No revisions yet. Save the layout to create the first revision.</td></tr>';
+    } else {
+      for (let i = 0; i < revisions.length; i++) {
+        const rev = revisions[i];
+        const date = new Date(rev.timestamp);
+        const dateStr = date.toLocaleDateString() + ' ' + date.toLocaleTimeString();
+        const isCurrent = i === 0 ? ' <span style="background:#4caf50;color:white;padding:1px 6px;border-radius:10px;font-size:0.8em;">current</span>' : '';
+
+        revisionsHtml += `
+          <tr style="border-bottom:1px solid #eee;">
+            <td style="padding:10px;">${dateStr}${isCurrent}</td>
+            <td style="padding:10px; color:#666;">${rev.message || '-'}</td>
+            <td style="text-align:center; padding:10px;">${rev.sectionCount || 0}</td>
+            <td style="text-align:center; padding:10px;">${rev.componentCount || 0}</td>
+            <td style="text-align:center; padding:10px;">
+              ${i > 0 ?
+                `<form action="/node/${id}/layout/revisions/${rev.id}/revert" method="POST" style="display:inline;">
+                  <button type="submit" style="background:#ff9800;color:white;border:none;padding:5px 12px;border-radius:4px;cursor:pointer;" onclick="return confirm('Revert to this revision?')">Revert</button>
+                </form>` :
+                '<span style="color:#999; font-size:0.9em;">Latest</span>'
+              }
+            </td>
+          </tr>`;
+      }
+    }
+
+    const html = `<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Layout Revisions: ${contentTitle}</title>
+  <link rel="stylesheet" href="/css/admin.css">
+</head>
+<body>
+  <nav class="admin-nav">
+    <a href="/node/${id}/layout">&larr; Back to Layout Builder</a>
+    <span style="margin: 0 10px; color: #999;">|</span>
+    <a href="/admin/content/${contentType}/${id}/edit">Edit Content</a>
+  </nav>
+  <main class="admin-main">
+    <h1>📋 Layout Revision History</h1>
+    <p style="color:#666;">Content: <strong>${contentTitle}</strong> (${contentType}/${id})</p>
+    ${flash ? `<div class="flash flash-${flash.type}">${flash.message}</div>` : ''}
+    <table style="width:100%; border-collapse:collapse; background:white; border-radius:8px; overflow:hidden; box-shadow:0 1px 4px rgba(0,0,0,0.1);">
+      <thead>
+        <tr style="background:#f5f5f5; border-bottom:2px solid #ddd;">
+          <th style="text-align:left; padding:12px;">Timestamp</th>
+          <th style="text-align:left; padding:12px;">Message</th>
+          <th style="text-align:center; padding:12px;">Sections</th>
+          <th style="text-align:center; padding:12px;">Components</th>
+          <th style="text-align:center; padding:12px;">Actions</th>
+        </tr>
+      </thead>
+      <tbody>
+        ${revisionsHtml}
+      </tbody>
+    </table>
+  </main>
+</body>
+</html>`;
+
+    server.html(res, html);
+  }, 'Layout revision history page (Feature #83)');
+
+  /**
+   * POST /node/:id/layout/revisions/:revisionId/revert - Revert to revision (Feature #83)
+   */
+  register('POST', '/node/:id/layout/revisions/:revisionId/revert', async (req, res, params, ctx) => {
+    const { id, revisionId } = params;
+    const layoutBuilder = ctx.services.get('layoutBuilder');
+
+    // Find content type
+    const types = content.listTypes();
+    let contentType = null;
+    for (const { type } of types) {
+      const item = content.read(type, id);
+      if (item) {
+        contentType = type;
+        break;
+      }
+    }
+
+    if (!contentType) {
+      redirect(res, `/admin/content?error=` + encodeURIComponent('Content not found'));
+      return;
+    }
+
+    try {
+      await layoutBuilder.revertToLayoutRevision(contentType, id, revisionId);
+      redirect(res, `/node/${id}/layout?success=` + encodeURIComponent('Layout reverted to previous revision'));
+    } catch (err) {
+      redirect(res, `/node/${id}/layout?error=` + encodeURIComponent(err.message));
+    }
+  }, 'Revert to layout revision (Feature #83)');
 
   /**
    * Helper: Format value for display

@@ -105,6 +105,13 @@ const defaultLayouts = {};
  */
 const renderCache = new Map();
 
+/**
+ * Layout revision history directory
+ * WHY: Enables undo/redo and audit trail for layout changes.
+ * Each save creates a revision snapshot stored as JSON file.
+ */
+let layoutRevisionsDir = null;
+
 // ============================================
 // TYPE DEFINITIONS (JSDoc)
 // ============================================
@@ -179,6 +186,12 @@ export function init(directory, contentSvc, blocksSvc, cfg = {}) {
   const layoutsDir = join(baseDir, 'config', 'layout-defaults');
   if (!existsSync(layoutsDir)) {
     mkdirSync(layoutsDir, { recursive: true });
+  }
+
+  // Layout revisions directory for tracking layout change history
+  layoutRevisionsDir = join(baseDir, 'config', 'layout-revisions');
+  if (!existsSync(layoutRevisionsDir)) {
+    mkdirSync(layoutRevisionsDir, { recursive: true });
   }
 
   // Register built-in layouts
@@ -1435,6 +1448,173 @@ export function getStats() {
 }
 
 // ============================================
+// LAYOUT REVISION HISTORY (Feature #83)
+// ============================================
+
+/**
+ * Save a layout revision snapshot
+ *
+ * WHY REVISIONS:
+ * Layout changes can be destructive. Revision history lets editors
+ * undo changes and compare previous layout configurations.
+ * Follows Drupal's content_moderation pattern applied to layouts.
+ *
+ * @param {string} contentType - Content type
+ * @param {string} contentId - Content ID
+ * @param {LayoutStorage} layout - Layout state to snapshot
+ * @param {string} [message] - Optional revision message
+ * @returns {Object} Revision metadata
+ */
+export function saveLayoutRevision(contentType, contentId, layout, message = '') {
+  if (!layoutRevisionsDir) {
+    throw new Error('Layout revisions directory not initialized');
+  }
+
+  // Create per-content revision directory
+  const revDir = join(layoutRevisionsDir, contentType, contentId);
+  if (!existsSync(revDir)) {
+    mkdirSync(revDir, { recursive: true });
+  }
+
+  const timestamp = new Date().toISOString();
+  const revisionId = Date.now().toString(36) + '-' + randomBytes(4).toString('hex');
+
+  const revision = {
+    id: revisionId,
+    contentType,
+    contentId,
+    timestamp,
+    message: message || 'Layout saved',
+    sectionCount: (layout.sections || []).length,
+    componentCount: countComponents(layout),
+    layout: cloneLayout(layout),
+  };
+
+  const filePath = join(revDir, `${revisionId}.json`);
+  writeFileSync(filePath, JSON.stringify(revision, null, 2), 'utf-8');
+
+  return {
+    id: revisionId,
+    timestamp,
+    message: revision.message,
+    sectionCount: revision.sectionCount,
+    componentCount: revision.componentCount,
+  };
+}
+
+/**
+ * Get layout revision history for a content item
+ *
+ * @param {string} contentType - Content type
+ * @param {string} contentId - Content ID
+ * @param {number} [limit=20] - Max revisions to return
+ * @returns {Object[]} Array of revision metadata (newest first)
+ */
+export function getLayoutRevisions(contentType, contentId, limit = 20) {
+  if (!layoutRevisionsDir) {
+    return [];
+  }
+
+  const revDir = join(layoutRevisionsDir, contentType, contentId);
+  if (!existsSync(revDir)) {
+    return [];
+  }
+
+  const files = readdirSync(revDir)
+    .filter(f => f.endsWith('.json'))
+    .sort()
+    .reverse();
+
+  const revisions = [];
+  for (const file of files.slice(0, limit)) {
+    try {
+      const filePath = join(revDir, file);
+      const data = JSON.parse(readFileSync(filePath, 'utf-8'));
+      revisions.push({
+        id: data.id,
+        timestamp: data.timestamp,
+        message: data.message,
+        sectionCount: data.sectionCount,
+        componentCount: data.componentCount,
+      });
+    } catch (e) {
+      // Skip corrupt revision files
+    }
+  }
+
+  return revisions;
+}
+
+/**
+ * Get a specific layout revision by ID
+ *
+ * @param {string} contentType - Content type
+ * @param {string} contentId - Content ID
+ * @param {string} revisionId - Revision ID
+ * @returns {Object|null} Full revision with layout data, or null
+ */
+export function getLayoutRevision(contentType, contentId, revisionId) {
+  if (!layoutRevisionsDir) {
+    return null;
+  }
+
+  const filePath = join(layoutRevisionsDir, contentType, contentId, `${revisionId}.json`);
+  if (!existsSync(filePath)) {
+    return null;
+  }
+
+  try {
+    return JSON.parse(readFileSync(filePath, 'utf-8'));
+  } catch (e) {
+    return null;
+  }
+}
+
+/**
+ * Revert layout to a specific revision
+ *
+ * WHY: Allows editors to undo layout changes by restoring
+ * a previous revision's layout state.
+ *
+ * @param {string} contentType - Content type
+ * @param {string} contentId - Content ID
+ * @param {string} revisionId - Revision ID to revert to
+ * @returns {Object} The restored layout
+ */
+export async function revertToLayoutRevision(contentType, contentId, revisionId) {
+  const revision = getLayoutRevision(contentType, contentId, revisionId);
+  if (!revision || !revision.layout) {
+    throw new Error(`Layout revision "${revisionId}" not found`);
+  }
+
+  const restoredLayout = cloneLayout(revision.layout);
+  restoredLayout.updated = new Date().toISOString();
+
+  // Save as current layout
+  await setContentLayout(contentType, contentId, restoredLayout);
+
+  // Save a new revision noting this is a revert
+  saveLayoutRevision(contentType, contentId, restoredLayout, `Reverted to revision from ${revision.timestamp}`);
+
+  return restoredLayout;
+}
+
+/**
+ * Count total components across all sections
+ * @param {LayoutStorage} layout
+ * @returns {number}
+ */
+function countComponents(layout) {
+  let count = 0;
+  for (const section of layout.sections || []) {
+    for (const components of Object.values(section.components || {})) {
+      count += (components || []).length;
+    }
+  }
+  return count;
+}
+
+// ============================================
 // REST API ROUTES
 // ============================================
 
@@ -2077,4 +2257,126 @@ export function registerRoutes(router, auth) {
       categories: listCategories(),
     });
   }, 'List available layout definitions');
+
+  // ------------------------------------------
+  // POST /api/layout/:contentType/:id/save
+  // ------------------------------------------
+  // Explicitly save the current layout state with revision tracking (Feature #79)
+  router.register('POST', '/api/layout/:contentType/:id/save', async (req, res, params) => {
+    const { contentType, id } = params;
+
+    try {
+      if (!contentService) {
+        return sendJson(res, 500, { error: 'Content service not initialized' });
+      }
+
+      const item = contentService.read(contentType, id);
+      if (!item) {
+        return sendJson(res, 404, { error: 'Content not found' });
+      }
+
+      let body = {};
+      try { body = await parseBody(req); } catch (e) { /* empty body ok */ }
+
+      const layout = getEffectiveLayout(contentType, id, item);
+      if (!layout || !layout.sections) {
+        return sendJson(res, 400, { error: 'No layout to save' });
+      }
+
+      // Save layout revision
+      const revision = saveLayoutRevision(contentType, id, layout, body.message || 'Manual save');
+
+      return sendJson(res, 200, {
+        message: 'Layout saved successfully',
+        revision,
+        layout: {
+          sections: layout.sections.length,
+          updated: layout.updated,
+        },
+      });
+    } catch (err) {
+      return sendJson(res, 500, { error: 'Internal error', message: err.message });
+    }
+  }, 'Save layout with revision tracking');
+
+  // ------------------------------------------
+  // GET /api/layout/:contentType/:id/revisions
+  // ------------------------------------------
+  // Get layout revision history (Feature #83)
+  router.register('GET', '/api/layout/:contentType/:id/revisions', async (req, res, params) => {
+    const { contentType, id } = params;
+
+    try {
+      const url = new URL(req.url, `http://${req.headers.host}`);
+      const limit = parseInt(url.searchParams.get('limit') || '20', 10);
+
+      const revisions = getLayoutRevisions(contentType, id, limit);
+      return sendJson(res, 200, { revisions, count: revisions.length });
+    } catch (err) {
+      return sendJson(res, 500, { error: 'Internal error', message: err.message });
+    }
+  }, 'Get layout revision history');
+
+  // ------------------------------------------
+  // POST /api/layout/:contentType/:id/revisions/:revisionId/revert
+  // ------------------------------------------
+  // Revert to a specific layout revision (Feature #83)
+  router.register('POST', '/api/layout/:contentType/:id/revisions/:revisionId/revert', async (req, res, params) => {
+    const { contentType, id, revisionId } = params;
+
+    try {
+      const layout = await revertToLayoutRevision(contentType, id, revisionId);
+      return sendJson(res, 200, {
+        message: 'Layout reverted successfully',
+        layout: {
+          sections: layout.sections.length,
+          updated: layout.updated,
+        },
+      });
+    } catch (err) {
+      return sendJson(res, 400, { error: err.message });
+    }
+  }, 'Revert to layout revision');
+
+  // ------------------------------------------
+  // POST /api/layout/:contentType/:id/discard
+  // ------------------------------------------
+  // Discard current layout changes and revert to last saved revision (Feature #80)
+  router.register('POST', '/api/layout/:contentType/:id/discard', async (req, res, params) => {
+    const { contentType, id } = params;
+
+    try {
+      if (!contentService) {
+        return sendJson(res, 500, { error: 'Content service not initialized' });
+      }
+
+      const item = contentService.read(contentType, id);
+      if (!item) {
+        return sendJson(res, 404, { error: 'Content not found' });
+      }
+
+      // Get the last saved revision
+      const revisions = getLayoutRevisions(contentType, id, 1);
+      if (revisions.length === 0) {
+        // No revisions to revert to - remove override
+        await removeContentLayout(contentType, id);
+        return sendJson(res, 200, {
+          message: 'Layout discarded (reverted to default)',
+          action: 'reverted_to_default',
+        });
+      }
+
+      // Revert to the most recent revision
+      const lastRevision = revisions[0];
+      await revertToLayoutRevision(contentType, id, lastRevision.id);
+
+      return sendJson(res, 200, {
+        message: 'Layout changes discarded',
+        action: 'reverted_to_revision',
+        revision: lastRevision,
+      });
+    } catch (err) {
+      return sendJson(res, 500, { error: 'Internal error', message: err.message });
+    }
+  }, 'Discard layout changes');
 }
