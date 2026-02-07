@@ -2904,12 +2904,17 @@ export function hook_cli(register, context) {
     for (const view of views) {
       const filterCount = view.filters?.length || 0;
       const sortCount = view.sort?.length || 0;
-      const display = view.display || 'page';
+      const fieldCount = view.fields?.length || 0;
+      const displayMode = view.display || 'page';
+      // WHY display count = 1: Each view definition in our model has exactly
+      // one display mode. In Drupal, views can have multiple displays; here
+      // the count is always 1 per view entity.
+      const displayCount = 1;
       console.log(`  ${view.id}`);
       console.log(`    Label: ${view.name}`);
       console.log(`    Content Type: ${view.contentType}`);
-      console.log(`    Display: ${display}`);
-      console.log(`    Filters: ${filterCount}, Sorts: ${sortCount}`);
+      console.log(`    Displays: ${displayCount} (${displayMode})`);
+      console.log(`    Fields: ${fieldCount}, Filters: ${filterCount}, Sorts: ${sortCount}`);
       if (view.description) {
         console.log(`    Description: ${view.description}`);
       }
@@ -2981,7 +2986,7 @@ export function hook_cli(register, context) {
 
     const id = args[0];
     if (!id) {
-      console.log('Usage: views:create <id> --name=<label> --type=<contentType> [--display=<mode>] [--description=<desc>] [--path=<path>]');
+      console.log('Usage: views:create <id> --label=<label> --type=<contentType> [--display=<mode>] [--description=<desc>] [--path=<path>]');
       return;
     }
 
@@ -2991,7 +2996,8 @@ export function hook_cli(register, context) {
       return;
     }
 
-    const nameArg = args.find(a => a.startsWith('--name='));
+    // WHY --label alias: Feature spec uses --label, but --name also accepted
+    const nameArg = args.find(a => a.startsWith('--name=')) || args.find(a => a.startsWith('--label='));
     const descArg = args.find(a => a.startsWith('--description='));
     const displayArg = args.find(a => a.startsWith('--display='));
     const pathArg = args.find(a => a.startsWith('--path='));
@@ -3085,8 +3091,10 @@ export function hook_cli(register, context) {
   }, 'Run view query');
 
   /**
-   * views:export <id> - Export view config as JSON
-   * WHY: getViewConfig() is the correct API method name
+   * views:export <id> [--file=<path>] - Export view config as JSON
+   * WHY: getViewConfig() is the correct API method name.
+   * Optional --file flag writes JSON to a file instead of stdout,
+   * enabling round-trip export/import workflows.
    */
   register('views:export', async (args, ctx) => {
     const viewsService = ctx.services.get('views');
@@ -3097,7 +3105,7 @@ export function hook_cli(register, context) {
 
     const id = args[0];
     if (!id) {
-      console.log('Usage: views:export <id>');
+      console.log('Usage: views:export <id> [--file=<path>]');
       return;
     }
 
@@ -3107,8 +3115,137 @@ export function hook_cli(register, context) {
       return;
     }
 
-    console.log(JSON.stringify(view, null, 2));
+    const json = JSON.stringify(view, null, 2);
+
+    // WHY --file: Allows saving export to a file for backup/transfer/import
+    const fileArg = args.find(a => a.startsWith('--file='));
+    if (fileArg) {
+      const filePath = fileArg.split('=').slice(1).join('=');
+      const { writeFileSync } = await import('node:fs');
+      const { resolve } = await import('node:path');
+      const resolvedPath = resolve(filePath);
+      writeFileSync(resolvedPath, json + '\n');
+      console.log(`\nExported view "${id}" to: ${resolvedPath}`);
+      console.log(`  Configuration includes:`);
+      console.log(`    - Display: ${view.display}`);
+      console.log(`    - Fields: ${view.fields?.length || 0}`);
+      console.log(`    - Filters: ${view.filters?.length || 0}`);
+      console.log(`    - Sorts: ${view.sort?.length || 0}`);
+      console.log(`    - Contextual Filters: ${view.contextualFilters?.length || 0}`);
+      console.log(`    - Relationships: ${view.relationships?.length || 0}`);
+      console.log(`    - Cache: ${view.cache?.enabled ? 'enabled' : 'disabled'} (TTL: ${view.cache?.ttl || 0}s)`);
+      console.log('');
+    } else {
+      // WHY stdout: Default behavior outputs JSON for piping to other tools
+      console.log(json);
+    }
   }, 'Export view config');
+
+  /**
+   * views:import <file|json> [--id=<newId>] - Import view from JSON file or inline JSON
+   * WHY: Enables round-trip export/import for backup, migration, and sharing.
+   * The --id flag allows importing under a different ID to avoid conflicts.
+   * Validates the JSON structure before importing to prevent corrupt views.
+   */
+  register('views:import', async (args, ctx) => {
+    const viewsService = ctx.services.get('views');
+    if (!viewsService) {
+      console.log('Views service not available');
+      return;
+    }
+
+    if (args.length === 0) {
+      console.log('Usage: views:import <file.json> [--id=<newId>]');
+      console.log('       views:import \'{"id":"myview","name":"My View",...}\' [--id=<newId>]');
+      return;
+    }
+
+    // WHY --id override: When importing, the user may want a different ID
+    // to avoid conflicts with existing views or to create copies
+    const idArg = args.find(a => a.startsWith('--id='));
+    const overrideId = idArg ? idArg.split('=').slice(1).join('=') : null;
+
+    // Determine if input is a file path or inline JSON
+    let jsonStr;
+    const input = args.filter(a => !a.startsWith('--')).join(' ');
+
+    if (input.trim().startsWith('{')) {
+      // WHY: Allow inline JSON for quick imports and scripting
+      jsonStr = input;
+    } else {
+      // WHY: File-based import for round-trip with views:export --file
+      const { readFileSync, existsSync } = await import('node:fs');
+      const { resolve } = await import('node:path');
+      const filePath = resolve(input);
+
+      if (!existsSync(filePath)) {
+        console.log(`Error: File not found: ${filePath}`);
+        return;
+      }
+
+      try {
+        jsonStr = readFileSync(filePath, 'utf-8');
+      } catch (e) {
+        console.log(`Error reading file: ${e.message}`);
+        return;
+      }
+    }
+
+    // Parse and validate JSON
+    let viewConfig;
+    try {
+      viewConfig = JSON.parse(jsonStr);
+    } catch (e) {
+      console.log(`Error: Invalid JSON - ${e.message}`);
+      return;
+    }
+
+    // WHY: Validate required fields before attempting to create
+    if (!viewConfig.name && !viewConfig.id) {
+      console.log('Error: JSON must include at least "name" or "id"');
+      return;
+    }
+
+    if (!viewConfig.contentType) {
+      console.log('Error: JSON must include "contentType"');
+      return;
+    }
+
+    // Determine the view ID to use
+    const viewId = overrideId || viewConfig.id;
+    if (!viewId) {
+      console.log('Error: No view ID found. Provide --id=<id> or include "id" in JSON');
+      return;
+    }
+
+    // Check if view already exists
+    const existing = viewsService.getViewConfig(viewId);
+    if (existing) {
+      console.log(`Error: View "${viewId}" already exists. Use --id=<newId> to import with a different ID, or delete the existing view first.`);
+      return;
+    }
+
+    // WHY: Strip timestamps so createView generates fresh ones
+    // This ensures imported views get proper creation timestamps
+    const { created, updated, id: _stripId, ...importConfig } = viewConfig;
+
+    try {
+      const view = await viewsService.createView(viewId, importConfig);
+      console.log(`\nImported view: ${view.id}`);
+      console.log(`  Label: ${view.name}`);
+      console.log(`  Content Type: ${view.contentType}`);
+      console.log(`  Display: ${view.display}`);
+      console.log(`  Fields: ${view.fields?.length || 0}`);
+      console.log(`  Filters: ${view.filters?.length || 0}`);
+      console.log(`  Sorts: ${view.sort?.length || 0}`);
+      console.log(`  Contextual Filters: ${view.contextualFilters?.length || 0}`);
+      console.log(`  Relationships: ${view.relationships?.length || 0}`);
+      console.log(`  Persisted to: config/views.json`);
+      console.log('');
+    } catch (e) {
+      console.log(`Error importing view: ${e.message}`);
+    }
+  }, 'Import view from JSON');
 
   // ===== Workflows Commands =====
 
@@ -5740,6 +5877,18 @@ export function hook_routes(register, context) {
     // Get CSRF token for current session
     const csrfToken = req ? auth.getCSRFToken(req) : null;
 
+    // Get workspace context for switcher and status indicator
+    const workspacesService = ctx.services?.get('workspaces');
+    let activeWorkspace = null;
+    let workspaceList = [];
+    if (workspacesService) {
+      activeWorkspace = workspacesService.getWorkspaceContext(req);
+      workspaceList = workspacesService.list({ status: 'active' }).map(ws => ({
+        ...ws,
+        isCurrent: activeWorkspace && activeWorkspace.id === ws.id,
+      }));
+    }
+
     const adminTemplate = loadTemplate(templateName);
     const pageContent = template.renderString(adminTemplate, {
       ...data,
@@ -5767,6 +5916,13 @@ export function hook_routes(register, context) {
       username,
       navDashboard, navContent, navStructure, navAppearance,
       navModules, navConfig, navPeople, navReports,
+      // Workspace data for switcher and status indicator
+      hasWorkspaces: workspaceList.length > 0,
+      workspaces: workspaceList,
+      hasActiveWorkspace: !!activeWorkspace,
+      activeWorkspaceName: activeWorkspace ? activeWorkspace.label : 'Live',
+      activeWorkspaceId: activeWorkspace ? activeWorkspace.id : '',
+      isLiveWorkspace: !activeWorkspace,
     });
   }
 
@@ -5899,6 +6055,48 @@ export function hook_routes(register, context) {
 
     server.html(res, html);
   }, 'Admin dashboard');
+
+  /**
+   * POST /admin/workspace/switch - Switch active workspace
+   *
+   * WHY FORM POST:
+   * Uses a standard HTML form POST for workspace switching.
+   * This follows Drupal's workspace switcher pattern where the
+   * workspace context is set server-side via session/cookies.
+   */
+  register('POST', '/admin/workspace/switch', async (req, res, params, ctx) => {
+    const workspacesService = ctx.services.get('workspaces');
+    if (!workspacesService) {
+      redirect(res, '/admin?message=Workspaces+not+available&type=error');
+      return;
+    }
+
+    const formData = ctx._parsedBody || {};
+    const workspaceId = formData.workspace_id || '';
+
+    try {
+      if (!workspaceId || workspaceId === 'live') {
+        // Switch to live
+        workspacesService.setActiveWorkspace(null);
+        // Also clear HTTP session workspace
+        if (req.sessionId) {
+          workspacesService.setSessionWorkspace(req.sessionId, null);
+        }
+        redirect(res, '/admin?message=Switched+to+Live+workspace&type=success');
+      } else {
+        // Switch to specific workspace
+        workspacesService.setActiveWorkspace(workspaceId);
+        if (req.sessionId) {
+          workspacesService.setSessionWorkspace(req.sessionId, workspaceId);
+        }
+        const ws = workspacesService.get(workspaceId) || workspacesService.getByMachineName(workspaceId);
+        const label = ws ? ws.label : workspaceId;
+        redirect(res, `/admin?message=Switched+to+${encodeURIComponent(label)}+workspace&type=success`);
+      }
+    } catch (err) {
+      redirect(res, `/admin?message=${encodeURIComponent(err.message)}&type=error`);
+    }
+  }, 'Switch workspace');
 
   // ==========================================
   // Content Management
@@ -12422,6 +12620,482 @@ export function hook_routes(register, context) {
   }, 'Views list');
 
   /**
+   * Helper: Build template data for view edit/create form
+   * WHY: Shared between create and edit routes to avoid duplication.
+   * Pre-computes all boolean flags since template engine only supports {{#if var}}.
+   */
+  function buildViewEditData(view, viewsService, isEdit, flash) {
+    // Get content types for dropdown
+    const contentTypes = content.listTypes().map(t => ({
+      value: t.type,
+      label: t.type.charAt(0).toUpperCase() + t.type.slice(1).replace(/-/g, ' '),
+      selected: view ? t.type === view.contentType : false,
+    }));
+
+    // Build available fields list (common content fields + type-specific if possible)
+    const commonFields = [
+      { value: 'title', label: 'Title' },
+      { value: 'body', label: 'Body' },
+      { value: 'status', label: 'Status' },
+      { value: 'published', label: 'Published' },
+      { value: 'author', label: 'Author' },
+      { value: 'created', label: 'Created Date' },
+      { value: 'updated', label: 'Updated Date' },
+      { value: 'id', label: 'ID' },
+      { value: 'type', label: 'Content Type' },
+      { value: 'slug', label: 'Slug' },
+      { value: 'summary', label: 'Summary' },
+      { value: 'tags', label: 'Tags' },
+      { value: 'category', label: 'Category' },
+      { value: 'image', label: 'Image' },
+    ];
+
+    // If view has a content type, try to get schema fields
+    let availableFields = [...commonFields];
+    if (view && view.contentType) {
+      const schema = content.getSchema ? content.getSchema(view.contentType) : null;
+      if (schema && schema.fields) {
+        const schemaFieldNames = Object.keys(schema.fields);
+        for (const fname of schemaFieldNames) {
+          if (!availableFields.find(f => f.value === fname)) {
+            availableFields.push({
+              value: fname,
+              label: fname.charAt(0).toUpperCase() + fname.slice(1).replace(/[_-]/g, ' '),
+            });
+          }
+        }
+      }
+    }
+
+    // Build display tabs
+    const displays = [];
+    const displayType = view ? (view.display || 'page') : 'page';
+    displays.push({
+      type: displayType,
+      label: displayType.charAt(0).toUpperCase() + displayType.slice(1),
+      tabClass: 'active',
+    });
+
+    // Build fields array with pre-computed flags
+    // WHY PRE-RENDER: Template engine doesn't support nested {{#each ../parent}}
+    // So we pre-render option HTML for select elements in each row
+    function buildOptionsHtml(options, selectedValue) {
+      return options.map(o =>
+        `<option value="${o.value}"${o.value === selectedValue ? ' selected' : ''}>${o.label}</option>`
+      ).join('\n              ');
+    }
+
+    const viewFields = [];
+    // WHY: Pre-render complete field row HTML to avoid nested template issues
+    let fieldsRowsHtml = '';
+    if (view && view.fields && Array.isArray(view.fields)) {
+      view.fields.forEach((field, idx) => {
+        const fieldName = typeof field === 'string' ? field : (field.name || field);
+        const fieldLabel = typeof field === 'object' ? (field.label || '') : '';
+        const fieldFormatter = typeof field === 'object' ? (field.formatter || 'default') : 'default';
+
+        const fieldOptionsHtml = buildOptionsHtml(availableFields, fieldName);
+
+        viewFields.push({
+          name: fieldName,
+          label: fieldLabel,
+          formatter: fieldFormatter,
+        });
+
+        fieldsRowsHtml += `
+          <div class="field-row" draggable="true">
+            <span class="drag-handle" title="Drag to reorder">&#9776;</span>
+            <select name="fields[${idx}][name]" class="field-select" required>
+              <option value="">-- Select Field --</option>
+              ${fieldOptionsHtml}
+            </select>
+            <input type="text" name="fields[${idx}][label]" value="${fieldLabel}" placeholder="Custom label (optional)" class="field-label-input">
+            <select name="fields[${idx}][formatter]" class="field-formatter">
+              <option value="default"${fieldFormatter === 'default' ? ' selected' : ''}>Default</option>
+              <option value="trimmed"${fieldFormatter === 'trimmed' ? ' selected' : ''}>Trimmed</option>
+              <option value="raw"${fieldFormatter === 'raw' ? ' selected' : ''}>Raw</option>
+              <option value="date"${fieldFormatter === 'date' ? ' selected' : ''}>Date</option>
+              <option value="link"${fieldFormatter === 'link' ? ' selected' : ''}>Link</option>
+            </select>
+            <button type="button" class="btn btn-sm btn-danger" onclick="removeField(this)">Remove</button>
+          </div>`;
+      });
+    }
+
+    // Build filters array - pre-render HTML to avoid nested template issues
+    const viewFilters = [];
+    let filtersRowsHtml = '';
+    const operators = [
+      { value: '=', label: 'Equals' },
+      { value: '!=', label: 'Not Equals' },
+      { value: 'contains', label: 'Contains' },
+      { value: '>', label: 'Greater Than' },
+      { value: '<', label: 'Less Than' },
+      { value: '>=', label: 'Greater or Equal' },
+      { value: '<=', label: 'Less or Equal' },
+    ];
+    if (view && view.filters && Array.isArray(view.filters)) {
+      view.filters.forEach((filter, idx) => {
+        const filterOp = filter.op || filter.operator || '=';
+        const filterVal = filter.value !== undefined ? String(filter.value) : '';
+        const isExposed = !!filter.exposed;
+
+        viewFilters.push({
+          field: filter.field,
+          operator: filterOp,
+          filterValue: filterVal,
+          exposed: isExposed,
+        });
+
+        const fieldOptsHtml = buildOptionsHtml(availableFields, filter.field);
+        const operatorOptsHtml = buildOptionsHtml(operators, filterOp);
+
+        filtersRowsHtml += `
+          <div class="filter-row">
+            <select name="filters[${idx}][field]" class="filter-field" required>
+              <option value="">-- Select Field --</option>
+              ${fieldOptsHtml}
+            </select>
+            <select name="filters[${idx}][operator]" class="filter-operator" required>
+              ${operatorOptsHtml}
+            </select>
+            <input type="text" name="filters[${idx}][value]" value="${filterVal}" placeholder="Value" required>
+            <label class="checkbox-label checkbox-sm" title="Expose this filter to end users">
+              <input type="checkbox" name="filters[${idx}][exposed]" value="true"${isExposed ? ' checked' : ''}>
+              Exposed
+            </label>
+            <button type="button" class="btn btn-sm btn-danger" onclick="removeFilter(this)">Remove</button>
+          </div>`;
+      });
+    }
+
+    // Build sorts array - pre-render HTML to avoid nested template issues
+    const viewSorts = [];
+    let sortsRowsHtml = '';
+    if (view && view.sort && Array.isArray(view.sort)) {
+      view.sort.forEach((s, idx) => {
+        const dir = (s.dir || s.direction || 'ASC').toUpperCase();
+        viewSorts.push({
+          field: s.field,
+          direction: dir,
+        });
+
+        const sortFieldOptsHtml = buildOptionsHtml(availableFields, s.field);
+
+        sortsRowsHtml += `
+          <div class="sort-row">
+            <select name="sort[${idx}][field]" class="sort-field" required>
+              <option value="">-- Select Field --</option>
+              ${sortFieldOptsHtml}
+            </select>
+            <select name="sort[${idx}][direction]" class="sort-direction" required>
+              <option value="ASC"${dir === 'ASC' ? ' selected' : ''}>Ascending</option>
+              <option value="DESC"${dir === 'DESC' ? ' selected' : ''}>Descending</option>
+            </select>
+            <button type="button" class="btn btn-sm btn-danger" onclick="removeSort(this)">Remove</button>
+          </div>`;
+      });
+    }
+
+    // Pager
+    const pagerType = view ? (view.pager?.type || 'full') : 'full';
+    const itemsPerPage = view ? (view.pager?.limit || 10) : 10;
+
+    // Display type flags
+    const dt = view ? (view.display || 'page') : 'page';
+    const displayMode = view ? (view.displayMode || view.format || 'table') : 'table';
+
+    return {
+      pageTitle: isEdit ? 'Edit View: ' + view.name : 'Create View',
+      breadcrumbLabel: isEdit ? 'Edit: ' + view.name : 'Create View',
+      formAction: isEdit ? '/admin/views/' + view.id : '/admin/views/create',
+      isEdit,
+      viewId: view ? view.id : '',
+      viewName: view ? view.name : '',
+      viewMachineName: view ? view.id : '',
+      viewDescription: view ? (view.description || '') : '',
+      viewEnabled: view ? true : true,
+      viewPath: view ? (view.path || '') : '',
+      viewTemplate: view ? (view.template || '') : '',
+      viewItemsPerPage: itemsPerPage,
+      contentTypes,
+      availableFields: availableFields.map(f => ({ ...f, selected: false })),
+      availableFieldsJSON: JSON.stringify(availableFields),
+      displays,
+      // Fields - pre-rendered HTML for rows (avoids nested template issues)
+      viewFields,
+      hasFields: viewFields.length > 0,
+      fieldCount: viewFields.length,
+      fieldsRowsHtml,
+      // Filters - pre-rendered HTML for rows
+      viewFilters,
+      hasFilters: viewFilters.length > 0,
+      filterCount: viewFilters.length,
+      filtersRowsHtml,
+      // Sorts - pre-rendered HTML for rows
+      viewSorts,
+      hasSorts: viewSorts.length > 0,
+      sortCount: viewSorts.length,
+      sortsRowsHtml,
+      // Pager
+      pagerFull: pagerType === 'full',
+      pagerMini: pagerType === 'mini',
+      pagerNone: pagerType === 'none',
+      // Display type
+      displayPage: dt === 'page',
+      displayBlock: dt === 'block',
+      displayFeed: dt === 'feed',
+      displayEmbed: dt === 'embed',
+      displayAttachment: dt === 'attachment',
+      // Format
+      formatTable: displayMode === 'table',
+      formatGrid: displayMode === 'grid',
+      formatList: displayMode === 'list',
+      formatCustom: displayMode === 'custom',
+      // Flash
+      hasFlash: !!flash,
+      flashType: flash ? flash.type : '',
+      flashMessage: flash ? flash.message : '',
+    };
+  }
+
+  /**
+   * GET /admin/views/create - Create view form
+   * WHY: Admin UI for creating a new view
+   */
+  register('GET', '/admin/views/create', async (req, res, params, ctx) => {
+    const viewsService = ctx.services.get('views');
+    if (!viewsService) {
+      res.writeHead(404, { 'Content-Type': 'text/plain' });
+      res.end('Views service not available');
+      return;
+    }
+
+    const flash = getFlashMessage(req.url);
+    const templateData = buildViewEditData(null, viewsService, false, flash);
+
+    const html = renderAdmin('views-edit.html', templateData, ctx, req);
+    server.html(res, html);
+  }, 'Create view form');
+
+  /**
+   * POST /admin/views/create - Create a new view
+   * WHY: Process form submission to create a view
+   */
+  register('POST', '/admin/views/create', async (req, res, params, ctx) => {
+    const viewsService = ctx.services.get('views');
+    if (!viewsService) {
+      res.writeHead(404, { 'Content-Type': 'text/plain' });
+      res.end('Views service not available');
+      return;
+    }
+
+    try {
+      const formData = ctx._parsedBody || await parseFormBody(req);
+
+      const machineName = (formData.machine_name || '').trim().toLowerCase().replace(/[^a-z_]/g, '');
+      if (!machineName) {
+        redirect(res, '/admin/views/create?error=' + encodeURIComponent('Machine name is required'));
+        return;
+      }
+
+      // Parse fields from form
+      const fields = parseViewArrayFormData(formData, 'fields', ['name', 'label', 'formatter']);
+      // Parse filters from form
+      const filters = parseViewArrayFormData(formData, 'filters', ['field', 'operator', 'value', 'exposed']).map(f => ({
+        field: f.field,
+        op: f.operator || '=',
+        value: f.value,
+        exposed: f.exposed === 'true',
+      }));
+      // Parse sorts from form
+      const sorts = parseViewArrayFormData(formData, 'sort', ['field', 'direction']).map(s => ({
+        field: s.field,
+        dir: (s.direction || 'DESC').toLowerCase(),
+      }));
+
+      const viewConfig = {
+        name: (formData.name || '').trim(),
+        description: (formData.description || '').trim(),
+        contentType: (formData.content_type || '').trim(),
+        display: formData.display_type || 'page',
+        displayMode: formData.display_mode || 'table',
+        path: (formData.path || '').trim() || null,
+        template: (formData.template || '').trim() || null,
+        fields: fields.map(f => f.label ? { name: f.name, label: f.label, formatter: f.formatter || 'default' } : f.name),
+        filters,
+        sort: sorts,
+        pager: {
+          type: formData.pager_type || 'full',
+          limit: parseInt(formData.items_per_page) || 10,
+        },
+      };
+
+      await viewsService.createView(machineName, viewConfig);
+      redirect(res, '/admin/views?success=' + encodeURIComponent('Created view: ' + viewConfig.name));
+    } catch (error) {
+      redirect(res, '/admin/views/create?error=' + encodeURIComponent(error.message));
+    }
+  }, 'Create view');
+
+  /**
+   * GET /admin/views/:id/edit - Edit view form
+   * WHY: Admin UI for editing an existing view configuration
+   */
+  register('GET', '/admin/views/:id/edit', async (req, res, params, ctx) => {
+    const viewsService = ctx.services.get('views');
+    if (!viewsService) {
+      res.writeHead(404, { 'Content-Type': 'text/plain' });
+      res.end('Views service not available');
+      return;
+    }
+
+    const { id } = params;
+    const view = viewsService.getViewConfig(id);
+    if (!view) {
+      redirect(res, '/admin/views?error=' + encodeURIComponent('View not found: ' + id));
+      return;
+    }
+
+    const flash = getFlashMessage(req.url);
+    const templateData = buildViewEditData(view, viewsService, true, flash);
+
+    const html = renderAdmin('views-edit.html', templateData, ctx, req);
+    server.html(res, html);
+  }, 'Edit view form');
+
+  /**
+   * POST /admin/views/:id - Update a view
+   * WHY: Process form submission to update view configuration
+   */
+  register('POST', '/admin/views/:id', async (req, res, params, ctx) => {
+    const viewsService = ctx.services.get('views');
+    if (!viewsService) {
+      res.writeHead(404, { 'Content-Type': 'text/plain' });
+      res.end('Views service not available');
+      return;
+    }
+
+    const { id } = params;
+    try {
+      const formData = ctx._parsedBody || await parseFormBody(req);
+
+      // Parse fields from form
+      const fields = parseViewArrayFormData(formData, 'fields', ['name', 'label', 'formatter']);
+      // Parse filters from form
+      const filters = parseViewArrayFormData(formData, 'filters', ['field', 'operator', 'value', 'exposed']).map(f => ({
+        field: f.field,
+        op: f.operator || '=',
+        value: f.value,
+        exposed: f.exposed === 'true',
+      }));
+      // Parse sorts from form
+      const sorts = parseViewArrayFormData(formData, 'sort', ['field', 'direction']).map(s => ({
+        field: s.field,
+        dir: (s.direction || 'DESC').toLowerCase(),
+      }));
+
+      const updates = {
+        name: (formData.name || '').trim(),
+        description: (formData.description || '').trim(),
+        contentType: (formData.content_type || '').trim(),
+        display: formData.display_type || 'page',
+        displayMode: formData.display_mode || 'table',
+        path: (formData.path || '').trim() || null,
+        template: (formData.template || '').trim() || null,
+        fields: fields.map(f => f.label ? { name: f.name, label: f.label, formatter: f.formatter || 'default' } : f.name),
+        filters,
+        sort: sorts,
+        pager: {
+          type: formData.pager_type || 'full',
+          limit: parseInt(formData.items_per_page) || 10,
+        },
+      };
+
+      await viewsService.updateView(id, updates);
+      redirect(res, '/admin/views/' + id + '/edit?success=' + encodeURIComponent('View saved successfully'));
+    } catch (error) {
+      redirect(res, '/admin/views/' + id + '/edit?error=' + encodeURIComponent(error.message));
+    }
+  }, 'Update view');
+
+  /**
+   * GET /admin/views/:id/preview - Preview view results
+   * WHY: Show live query results for a view
+   */
+  register('GET', '/admin/views/:id/preview', async (req, res, params, ctx) => {
+    const viewsService = ctx.services.get('views');
+    if (!viewsService) {
+      res.writeHead(404, { 'Content-Type': 'text/plain' });
+      res.end('Views service not available');
+      return;
+    }
+
+    const { id } = params;
+    const view = viewsService.getViewConfig(id);
+    if (!view) {
+      redirect(res, '/admin/views?error=' + encodeURIComponent('View not found: ' + id));
+      return;
+    }
+
+    // Execute the view to get results
+    let results = null;
+    let queryError = null;
+    try {
+      results = await viewsService.executeView(id, {});
+    } catch (error) {
+      queryError = error.message;
+    }
+
+    const html = renderAdmin('views-preview.html', {
+      pageTitle: 'Preview: ' + view.name,
+      view,
+      viewId: view.id,
+      viewName: view.name,
+      results,
+      hasResults: results && results.items && results.items.length > 0,
+      resultCount: results ? results.items.length : 0,
+      totalCount: results ? results.total : 0,
+      resultItems: results ? results.items : [],
+      queryError,
+      hasError: !!queryError,
+      resultJSON: results ? JSON.stringify(results, null, 2) : '{}',
+    }, ctx, req);
+
+    server.html(res, html);
+  }, 'Preview view');
+
+  /**
+   * Helper: Parse array-style form data like fields[0][name], filters[1][field]
+   * WHY: HTML forms encode array items as indexed bracket notation.
+   */
+  function parseViewArrayFormData(formData, prefix, keys) {
+    const items = [];
+    let i = 0;
+    while (i < 100) {
+      const hasKey = keys.some(k => formData[prefix + '[' + i + '][' + k + ']'] !== undefined);
+      if (!hasKey) {
+        // Also check for simple array like fields[]
+        if (formData[prefix + '[]'] !== undefined) {
+          const values = Array.isArray(formData[prefix + '[]'])
+            ? formData[prefix + '[]']
+            : [formData[prefix + '[]']];
+          return values.map(v => ({ name: v }));
+        }
+        break;
+      }
+
+      const item = {};
+      for (const k of keys) {
+        item[k] = formData[prefix + '[' + i + '][' + k + ']'] || '';
+      }
+      items.push(item);
+      i++;
+    }
+    return items;
+  }
+
+  /**
    * POST /admin/views/:id/delete - Delete a view
    * WHY: Admin UI delete action for views
    */
@@ -15220,7 +15894,10 @@ export function hook_routes(register, context) {
               }
 
               componentsHtml += `
-                <div class="component-chip" draggable="false">
+                <div class="component-chip" draggable="true" data-component-uuid="${comp.uuid}" data-section-uuid="${section.uuid}" data-region="${regionId}">
+                  <div class="component-drag-handle" role="button" aria-label="Drag to reorder ${typeLabel} ${detailLabel}" aria-roledescription="drag handle" tabindex="0" title="Drag to reorder">
+                    <span class="drag-grip">⠿</span>
+                  </div>
                   <div class="component-chip-info">
                     <span class="component-chip-type">${typeLabel}</span>
                     <span class="component-chip-detail">${detailLabel}</span>
@@ -15249,7 +15926,7 @@ export function hook_routes(register, context) {
         // Section wrapper with drag handle (Feature #70)
         sectionsHtml += `
           <div class="section-wrapper" draggable="true" data-section-uuid="${section.uuid}">
-            <div class="section-drag-handle" title="Drag to reorder">
+            <div class="section-drag-handle" role="button" aria-label="Drag to reorder ${layoutLabel} section" aria-roledescription="drag handle" tabindex="0" title="Drag to reorder">
               <div class="drag-dots"></div>
               <div class="drag-dots"></div>
               <div class="drag-dots"></div>
@@ -15533,6 +16210,15 @@ export function hook_routes(register, context) {
 
     const contentTitle = contentItem.title || contentItem.name || id;
     const revisions = layoutBuilder.getLayoutRevisions(contentType, id, 50);
+
+    // Support JSON format for the inline revision panel (AJAX)
+    const reqUrl = new URL(req.url, `http://${req.headers.host}`);
+    if (reqUrl.searchParams.get('format') === 'json') {
+      res.writeHead(200, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ revisions, count: revisions.length }));
+      return;
+    }
+
     const flash = getFlashMessage(req.url);
 
     let revisionsHtml = '';
