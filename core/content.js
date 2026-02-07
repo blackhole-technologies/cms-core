@@ -543,6 +543,240 @@ function saveRevision(type, id, content) {
 }
 
 /**
+ * PENDING REVISIONS SYSTEM:
+ * =========================
+ * Implements Drupal's content_moderation pattern:
+ * - Published content can have "pending" draft revisions
+ * - The main content file is always the "default" (public-facing) version
+ * - Drafts on published content are stored as non-default revisions
+ * - Publishing a pending draft promotes it to the default
+ *
+ * KEY CONCEPT: isDefaultRevision flag
+ * - true  = this version is the public-facing, canonical version
+ * - false = this is a pending draft, not visible to the public
+ *
+ * The main content file (content/{type}/{id}.json) always holds the
+ * default revision. Non-default drafts live in .revisions/.
+ *
+ * WHY THIS APPROACH:
+ * - read() and list() automatically return the published version
+ * - No changes needed to existing API consumers
+ * - Drafts are accessible via getPendingRevisions() or includeAllRevisions
+ * - Mirrors Drupal's separation of published + isDefaultRevision flags
+ */
+
+/**
+ * Determine isDefaultRevision value based on workflow state
+ *
+ * WHY: In Drupal's content_moderation, the isDefaultRevision flag is
+ * determined by the workflow state, not set manually. Published content
+ * is always the default. Drafts on published content are non-default.
+ *
+ * @param {string} targetStatus - The workflow status being set
+ * @param {Object} existing - The existing content item (null for new content)
+ * @returns {boolean} - Whether the revision should be the default
+ */
+function shouldBeDefaultRevision(targetStatus, existing = null) {
+  // Published content is always the default revision
+  if (targetStatus === 'published') {
+    return true;
+  }
+
+  // If creating new content (no existing), it's always the default
+  if (!existing) {
+    return true;
+  }
+
+  // If existing content is published and we're creating a draft,
+  // the draft should NOT be the default (pending revision pattern)
+  if (existing.status === 'published' && targetStatus === 'draft') {
+    return false;
+  }
+
+  // For non-published existing content changing to draft,
+  // keep it as default (normal draft editing)
+  return true;
+}
+
+/**
+ * Create a draft revision on published content (pending revision)
+ *
+ * WHY: When published content is edited as a draft, the edit should
+ * NOT overwrite the live version. Instead, it's stored as a
+ * non-default revision in .revisions/ directory.
+ *
+ * @param {string} type - Content type
+ * @param {string} id - Content ID
+ * @param {Object} data - New field data for the draft
+ * @param {Object} options - Options (userId, etc.)
+ * @returns {Promise<Object>} - The pending draft revision
+ */
+export async function createDraft(type, id, data, options = {}) {
+  const existing = read(type, id);
+  if (!existing) {
+    throw new Error(`Content not found: ${type}/${id}`);
+  }
+
+  // Only create pending revisions on published content
+  // For non-published content, use normal update()
+  if (existing.status !== 'published') {
+    return update(type, id, { ...data, status: 'draft' }, options);
+  }
+
+  const { schema } = contentTypes[type];
+  const now = new Date().toISOString();
+
+  // Merge existing with draft data
+  const draft = {
+    ...existing,
+    ...data,
+    // Preserve system fields
+    id: existing.id,
+    type: existing.type,
+    created: existing.created,
+    updated: now,
+    // Mark as draft, non-default revision
+    status: 'draft',
+    isDefaultRevision: false,
+  };
+
+  // Save draft as a revision (non-default)
+  if (revisionsEnabled) {
+    ensureRevisionsDir(type, id);
+    const revisionPath = getRevisionPath(type, id, now);
+    writeFileSync(revisionPath, JSON.stringify(draft, null, 2) + '\n');
+  }
+
+  // Fire hook so other modules know a pending draft was created
+  await hooks.trigger('content:pendingDraftCreated', {
+    type,
+    id,
+    draft,
+    published: existing,
+  });
+
+  return draft;
+}
+
+/**
+ * Get pending (non-default) revisions for a content item
+ *
+ * @param {string} type - Content type
+ * @param {string} id - Content ID
+ * @returns {Array<Object>} - List of pending revision objects with full content
+ */
+export function getPendingRevisions(type, id) {
+  const revisionsDir = getRevisionsDir(type, id);
+
+  if (!existsSync(revisionsDir)) {
+    return [];
+  }
+
+  const files = readdirSync(revisionsDir)
+    .filter(f => f.endsWith('.json'))
+    .sort()
+    .reverse();
+
+  const pending = [];
+
+  for (const file of files) {
+    try {
+      const filePath = join(revisionsDir, file);
+      const raw = readFileSync(filePath, 'utf-8');
+      const revision = JSON.parse(raw);
+
+      // Only include non-default revisions (pending drafts)
+      if (revision.isDefaultRevision === false) {
+        pending.push(revision);
+      }
+    } catch (e) {
+      // Skip unreadable revisions
+    }
+  }
+
+  return pending;
+}
+
+/**
+ * Publish a pending revision, making it the new default
+ *
+ * WHY: When a pending draft is approved, it should replace the
+ * current published version as the default revision.
+ *
+ * BEHAVIOR:
+ * 1. Save current published version as a revision
+ * 2. Replace main file with the pending draft (now published)
+ * 3. Mark the new version as isDefaultRevision: true, status: published
+ *
+ * @param {string} type - Content type
+ * @param {string} id - Content ID
+ * @param {string} revisionTimestamp - ISO timestamp of the pending revision to publish
+ * @returns {Promise<Object>} - The newly published content
+ */
+export async function publishPendingRevision(type, id, revisionTimestamp = null) {
+  const existing = read(type, id);
+  if (!existing) {
+    throw new Error(`Content not found: ${type}/${id}`);
+  }
+
+  // Find the pending revision to publish
+  let pendingDraft;
+
+  if (revisionTimestamp) {
+    // Specific revision requested
+    pendingDraft = getRevision(type, id, revisionTimestamp);
+    if (!pendingDraft || pendingDraft.isDefaultRevision !== false) {
+      throw new Error(`No pending revision found at timestamp: ${revisionTimestamp}`);
+    }
+  } else {
+    // Get the most recent pending revision
+    const pending = getPendingRevisions(type, id);
+    if (pending.length === 0) {
+      throw new Error(`No pending revisions found for ${type}/${id}`);
+    }
+    pendingDraft = pending[0]; // Most recent
+  }
+
+  const now = new Date().toISOString();
+
+  // 1. Save current published version as a historical revision
+  if (revisionsEnabled) {
+    saveRevision(type, id, existing);
+  }
+
+  // 2. Build the new published version from the pending draft
+  const newPublished = {
+    ...pendingDraft,
+    status: 'published',
+    isDefaultRevision: true,
+    updated: now,
+    publishedAt: existing.publishedAt || now,
+  };
+
+  // 3. Write the new version as the main content file
+  const filePath = getContentPath(type, id);
+  writeFileSync(filePath, JSON.stringify(newPublished, null, 2) + '\n');
+
+  // 4. Invalidate cache
+  if (cacheEnabled) {
+    cache.delete(cache.itemKey(type, id));
+    cache.clear(`content:${type}:list:*`);
+  }
+
+  // 5. Fire hooks
+  await hooks.trigger('content:afterStatusChange', {
+    type,
+    id,
+    from: 'draft',
+    to: 'published',
+    item: newPublished,
+  });
+  await hooks.trigger('content:published', { type, item: newPublished });
+
+  return newPublished;
+}
+
+/**
  * Internal prune function (doesn't check revisionsEnabled)
  *
  * @param {string} type - Content type
@@ -1311,6 +1545,7 @@ export async function update(type, id, data, options = {}) {
   // - Partial updates are more ergonomic
   // - Less data over the wire
   // - Less chance of overwriting parallel edits
+  const now = new Date().toISOString();
   const merged = {
     ...existing,
     ...data,
@@ -1318,8 +1553,45 @@ export async function update(type, id, data, options = {}) {
     id: existing.id,
     type: existing.type,
     created: existing.created,
-    updated: new Date().toISOString(),
+    updated: now,
   };
+
+  // PENDING REVISIONS: Set isDefaultRevision based on workflow state
+  // WHY: Mirrors Drupal's content_moderation where the isDefaultRevision
+  // flag is determined by the workflow transition, not manually set.
+  // - Publishing → always default
+  // - Draft on published content → non-default (pending revision)
+  // - Draft on draft content → stays default (normal editing)
+  if (workflowEnabled) {
+    const targetStatus = merged.status || existing.status || 'draft';
+    merged.isDefaultRevision = shouldBeDefaultRevision(targetStatus, existing);
+  }
+
+  // PENDING REVISION ROUTING:
+  // If the update results in a non-default revision (draft on published),
+  // store as a pending revision instead of overwriting the main file.
+  // This keeps the published version intact for public-facing reads.
+  if (workflowEnabled && merged.isDefaultRevision === false && existing.status === 'published') {
+    // Store as pending revision in .revisions/ directory
+    if (revisionsEnabled) {
+      ensureRevisionsDir(type, id);
+      const revisionPath = getRevisionPath(type, id, now);
+      writeFileSync(revisionPath, JSON.stringify(merged, null, 2) + '\n');
+    }
+
+    // Fire hook so other modules know a pending draft was created
+    await hooks.trigger('content:pendingDraftCreated', {
+      type,
+      id,
+      draft: merged,
+      published: existing,
+    });
+
+    // Fire afterUpdate hook with the draft (but don't overwrite main file)
+    await hooks.trigger('content:afterUpdate', { type, item: merged });
+
+    return merged;
+  }
 
   // Validate merged data
   // WHY CONSTRAINTS ON UPDATE TOO:
@@ -2241,6 +2513,103 @@ export async function revertTo(type, id, timestamp) {
 }
 
 /**
+ * Set a specific revision as the default (canonical) revision
+ *
+ * WHY SEPARATE FROM revertTo:
+ * - revertTo is about restoring content, focused on the "updated" timestamp
+ * - setDefaultRevision is about the pending revisions workflow:
+ *   it explicitly manages the isDefaultRevision flag
+ * - In Drupal's content_moderation, setting the default revision
+ *   is the mechanism by which a pending draft becomes canonical
+ *
+ * BEHAVIOR:
+ * 1. Save current default as a non-default revision
+ * 2. Load the target revision content
+ * 3. Write it as the main file with isDefaultRevision: true
+ * 4. Remove the target from the revisions directory
+ *
+ * @param {string} type - Content type
+ * @param {string} id - Content ID
+ * @param {string} revisionTimestamp - ISO timestamp of the revision to make default
+ * @returns {Promise<Object>} - The new default content
+ */
+export async function setDefaultRevision(type, id, revisionTimestamp) {
+  const current = read(type, id);
+  if (!current) {
+    throw new Error(`Content not found: ${type}/${id}`);
+  }
+
+  // Load the target revision
+  const targetRevision = getRevision(type, id, revisionTimestamp);
+  if (!targetRevision) {
+    throw new Error(`Revision not found: ${revisionTimestamp}`);
+  }
+
+  // Save current version as a non-default revision
+  // WHY NON-DEFAULT:
+  // - The current content is being replaced as the default
+  // - It should be preserved in history but no longer be canonical
+  if (revisionsEnabled) {
+    const currentAsRevision = { ...current, isDefaultRevision: false };
+    saveRevision(type, id, currentAsRevision);
+  }
+
+  const now = new Date().toISOString();
+
+  // Build the new default from the target revision
+  const newDefault = {
+    ...targetRevision,
+    isDefaultRevision: true,
+    updated: now,
+  };
+
+  // Write as the main content file
+  const filePath = getContentPath(type, id);
+  writeFileSync(filePath, JSON.stringify(newDefault, null, 2) + '\n');
+
+  // Remove the target revision file (it's now the main content)
+  // WHY REMOVE:
+  // - Avoids having the same content in both the main file and revisions
+  // - The old default is now in revisions, so nothing is lost
+  const revisionsDir = getRevisionsDir(type, id);
+  const tsFormatted = revisionTimestamp.replace(/:/g, '-');
+  const possibleFiles = readdirSync(revisionsDir).filter(f => f.endsWith('.json'));
+  for (const file of possibleFiles) {
+    const fileTs = file.replace('.json', '').replace(/-/g, ':').replace(/T(\d+):(\d+):/, (m, h, min) => `T${h}:${min}:`);
+    // Match by checking if the revision content matches
+    try {
+      const revPath = join(revisionsDir, file);
+      const rev = JSON.parse(readFileSync(revPath, 'utf-8'));
+      if (rev.updated === targetRevision.updated && rev.title === targetRevision.title) {
+        unlinkSync(revPath);
+        break;
+      }
+    } catch (e) {
+      // Skip
+    }
+  }
+
+  // Invalidate cache
+  if (cacheEnabled) {
+    cache.delete(cache.itemKey(type, id));
+    cache.clear(`content:${type}:list:*`);
+  }
+
+  // Fire hook
+  await hooks.trigger('content:defaultRevisionChanged', {
+    type,
+    id,
+    newDefault,
+    previousDefault: current,
+    revisionTimestamp,
+  });
+
+  await hooks.trigger('content:afterUpdate', { type, item: newDefault });
+
+  return newDefault;
+}
+
+/**
  * Compare two revisions or a revision with current content
  *
  * @param {string} type - Content type
@@ -2725,6 +3094,19 @@ export async function setStatus(type, id, status, options = {}) {
 
   const now = new Date().toISOString();
 
+  // PENDING REVISION PUBLISH:
+  // When publishing and there are pending draft revisions, promote the
+  // most recent pending draft to become the new default (live) version.
+  // This is Feature #13: "Publish transition makes revision the new default"
+  if (toStatus === 'published' && existing.status === 'published') {
+    const pending = getPendingRevisions(type, id);
+    if (pending.length > 0) {
+      // Promote the most recent pending draft
+      const published = await publishPendingRevision(type, id);
+      return published;
+    }
+  }
+
   // Build update data
   const updateData = {
     status: toStatus,
@@ -2734,6 +3116,11 @@ export async function setStatus(type, id, status, options = {}) {
   if (toStatus === 'published' && !existing.publishedAt) {
     updateData.publishedAt = now;
   }
+
+  // PENDING REVISIONS: Set isDefaultRevision based on target status
+  // WHY: When status changes, the isDefaultRevision flag must reflect
+  // whether this version should be the public-facing default.
+  updateData.isDefaultRevision = shouldBeDefaultRevision(toStatus, existing);
 
   // Handle scheduledAt for pending status
   if (toStatus === 'pending' && options.scheduledAt) {
