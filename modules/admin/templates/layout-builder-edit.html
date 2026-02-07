@@ -125,11 +125,6 @@
       background: #f5f5f5;
       border-radius: 8px;
     }
-    .add-form h4 {
-      margin: 0 0 10px 0;
-      font-size: 0.95em;
-      color: #333;
-    }
     .add-form select,
     .add-form input[type="text"] {
       width: 100%;
@@ -188,162 +183,34 @@
 </head>
 <body>
   <nav class="admin-nav">
-    <a href="/admin/layout">← Back to Layout Builder</a>
+    <a href="/admin/layout">&larr; Back to Layout Builder</a>
   </nav>
 
   <main class="admin-main">
     <h1>Layout: {{contentType}}</h1>
 
-    {{#hasFlash}}
+    {{#if hasFlash}}
     <div class="flash flash-{{flash.type}}">
       {{flash.message}}
     </div>
-    {{/hasFlash}}
+    {{/if}}
 
     <p class="meta-info">
       <strong>Content Type:</strong> {{contentType}} |
       <strong>Last Updated:</strong> {{lastUpdated}} |
-      <a href="/admin/layout/preview/{{contentType}}" target="_blank" class="preview-link">Preview Layout →</a>
+      <a href="/admin/layout/preview/{{contentType}}" target="_blank" class="preview-link">Preview Layout &rarr;</a>
     </p>
 
     <div class="layout-editor">
       <!-- Sections Panel -->
       <div class="sections-panel">
         <h2>Sections</h2>
-
-        {{#hasSections}}
-        {{#sections}}
-        <div class="section-card">
-          <div class="section-header">
-            <h3>{{layoutLabel}}</h3>
-            <div class="section-actions">
-              {{^isFirst}}
-              <form action="/admin/layout/defaults/{{contentType}}/move-section" method="POST" class="inline-form">
-                <input type="hidden" name="sectionUuid" value="{{uuid}}">
-                <input type="hidden" name="direction" value="up">
-                <input type="hidden" name="_csrf" value="{{csrfToken}}">
-                <input type="submit" value="↑" title="Move up">
-              </form>
-              {{/isFirst}}
-              {{^isLast}}
-              <form action="/admin/layout/defaults/{{contentType}}/move-section" method="POST" class="inline-form">
-                <input type="hidden" name="sectionUuid" value="{{uuid}}">
-                <input type="hidden" name="direction" value="down">
-                <input type="hidden" name="_csrf" value="{{csrfToken}}">
-                <input type="submit" value="↓" title="Move down">
-              </form>
-              {{/isLast}}
-              <form action="/admin/layout/defaults/{{contentType}}/remove-section" method="POST" class="inline-form" onsubmit="return confirm('Remove this section?')">
-                <input type="hidden" name="sectionUuid" value="{{uuid}}">
-                <input type="hidden" name="_csrf" value="{{csrfToken}}">
-                <input type="submit" value="×" title="Remove section">
-              </form>
-            </div>
-          </div>
-          <div class="section-body">
-            <small class="component-uuid">UUID: {{uuidShort}}...</small>
-            <div class="section-regions">
-              {{#regions}}
-              <div class="region-container">
-                <div class="region-header">{{label}}</div>
-                <div class="region-content">
-                  {{#hasComponents}}
-                  {{#components}}
-                  <div class="component-item">
-                    <div class="component-info">
-                      <span class="component-type">{{typeLabel}}</span>
-                      <span class="component-uuid">({{uuidShort}}...)</span>
-                    </div>
-                    <div class="component-actions">
-                      <form action="/admin/layout/defaults/{{contentType}}/remove-component" method="POST" class="inline-form" onsubmit="return confirm('Remove this component?')">
-                        <input type="hidden" name="sectionUuid" value="{{uuid}}">
-                        <input type="hidden" name="componentUuid" value="{{uuid}}">
-                        <input type="hidden" name="_csrf" value="{{csrfToken}}">
-                        <button type="submit">×</button>
-                      </form>
-                    </div>
-                  </div>
-                  {{/components}}
-                  {{/hasComponents}}
-                  {{^hasComponents}}
-                  <p style="color: #999; font-size: 0.9em; text-align: center;">Drop blocks here</p>
-                  {{/hasComponents}}
-
-                  <!-- Add block form -->
-                  {{#hasBlocks}}
-                  <form action="/admin/layout/defaults/{{contentType}}/add-block" method="POST" style="margin-top: 10px;">
-                    <input type="hidden" name="sectionUuid" value="{{uuid}}">
-                    <input type="hidden" name="regionId" value="{{id}}">
-                    <input type="hidden" name="_csrf" value="{{csrfToken}}">
-                    <select name="blockId" style="width: 70%; padding: 4px; font-size: 0.85em;">
-                      <option value="">Add block...</option>
-                      {{#blocks}}
-                      <option value="{{id}}">{{adminTitle}}</option>
-                      {{/blocks}}
-                    </select>
-                    <button type="submit" class="btn btn-small" style="padding: 4px 8px;">+</button>
-                  </form>
-                  {{/hasBlocks}}
-                </div>
-              </div>
-              {{/regions}}
-            </div>
-          </div>
-        </div>
-        {{/sections}}
-        {{/hasSections}}
-
-        {{^hasSections}}
-        <div class="empty-section">
-          <p>No sections yet.</p>
-          <p>Add a section from the sidebar to start building your layout.</p>
-        </div>
-        {{/hasSections}}
+        {{sectionsHtml}}
       </div>
 
       <!-- Sidebar Panel -->
       <div class="sidebar-panel">
-        <h3>Add Section</h3>
-        <form action="/admin/layout/defaults/{{contentType}}/add-section" method="POST" class="add-form">
-          <input type="hidden" name="_csrf" value="{{csrfToken}}">
-          <label for="layoutId">Layout Template:</label>
-          <select name="layoutId" id="layoutId" required>
-            <option value="">Select layout...</option>
-            {{#layouts}}
-            <option value="{{id}}">{{label}} ({{regionsList}})</option>
-            {{/layouts}}
-          </select>
-          <button type="submit" class="btn btn-primary">Add Section</button>
-        </form>
-
-        <hr style="margin: 20px 0;">
-
-        <h3>Available Blocks</h3>
-        {{#hasBlocks}}
-        <ul style="font-size: 0.9em; padding-left: 20px;">
-          {{#blocks}}
-          <li><strong>{{adminTitle}}</strong> <span style="color: #999;">({{type}})</span></li>
-          {{/blocks}}
-        </ul>
-        <p style="font-size: 0.85em; color: #666;">
-          <a href="/admin/blocks">Manage Blocks →</a>
-        </p>
-        {{/hasBlocks}}
-        {{^hasBlocks}}
-        <p style="color: #999; font-size: 0.9em;">
-          No blocks available. <a href="/admin/blocks/add">Create a block</a> first.
-        </p>
-        {{/hasBlocks}}
-
-        <!-- Danger Zone -->
-        <div class="danger-zone">
-          <h4>Danger Zone</h4>
-          <p style="font-size: 0.85em;">Clear all sections from this layout:</p>
-          <form action="/admin/layout/defaults/{{contentType}}/clear" method="POST" onsubmit="return confirm('Are you sure you want to clear all sections? This cannot be undone.')">
-            <input type="hidden" name="_csrf" value="{{csrfToken}}">
-            <button type="submit" class="btn btn-danger">Clear All Sections</button>
-          </form>
-        </div>
+        {{sidebarHtml}}
       </div>
     </div>
   </main>
