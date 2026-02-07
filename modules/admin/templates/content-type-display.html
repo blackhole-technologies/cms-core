@@ -1,0 +1,110 @@
+<div class="admin-page">
+
+  <div class="admin-header">
+    <h1>{{pageTitle}}</h1>
+    <nav class="admin-nav">
+      <a href="/admin">Dashboard</a>
+      <a href="/admin/structure" class="active">Structure</a>
+      <a href="/admin/content">Content</a>
+    </nav>
+  </div>
+
+  <div class="breadcrumb">
+    <a href="/admin">Dashboard</a> &rarr;
+    <a href="/admin/structure">Structure</a> &rarr;
+    <a href="/admin/structure/types">Content Types</a> &rarr;
+    <a href="/admin/structure/types/{{type}}">{{type}}</a> &rarr;
+    <span>Manage Display</span>
+  </div>
+
+  {{#if hasFlash}}
+  <div class="flash flash-{{flash.type}}">
+    {{flash.message}}
+  </div>
+  {{/if}}
+
+  <div class="admin-tabs">
+    <a href="/admin/structure/types/{{type}}" class="tab">Edit</a>
+    <a href="/admin/structure/types/{{type}}/fields" class="tab">Manage Fields</a>
+    <a href="/admin/structure/types/{{type}}/display" class="tab active">Manage Display</a>
+  </div>
+
+  <div class="admin-content">
+    <div class="display-modes">
+      <h3>View Modes</h3>
+      <p>Configure how content is displayed in different contexts.</p>
+
+      <div class="mode-list">
+        <div class="mode-item">
+          <h4>Default</h4>
+          <p>Full content display</p>
+          <form method="POST" action="/admin/structure/types/{{type}}/display/default">
+            <button type="submit" class="btn btn-sm">Configure</button>
+          </form>
+        </div>
+
+        <div class="mode-item">
+          <h4>Teaser</h4>
+          <p>Summary view for listings</p>
+          <form method="POST" action="/admin/structure/types/{{type}}/display/teaser">
+            <button type="submit" class="btn btn-sm">Configure</button>
+          </form>
+        </div>
+
+        <div class="mode-item">
+          <h4>Search Result</h4>
+          <p>Display in search results</p>
+          <form method="POST" action="/admin/structure/types/{{type}}/display/search">
+            <button type="submit" class="btn btn-sm">Configure</button>
+          </form>
+        </div>
+      </div>
+    </div>
+  </div>
+
+</div>
+
+<style>
+.admin-tabs {
+  display: flex;
+  gap: 0;
+  margin-bottom: 1.5rem;
+  border-bottom: 2px solid #ddd;
+}
+.tab {
+  padding: 0.75rem 1.5rem;
+  text-decoration: none;
+  color: #666;
+  border-bottom: 2px solid transparent;
+  margin-bottom: -2px;
+}
+.tab:hover {
+  color: #333;
+}
+.tab.active {
+  color: #0066cc;
+  border-bottom-color: #0066cc;
+}
+.mode-list {
+  display: grid;
+  gap: 1rem;
+  margin-top: 1rem;
+}
+.mode-item {
+  padding: 1rem;
+  border: 1px solid #ddd;
+  border-radius: 4px;
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+}
+.mode-item h4 {
+  margin: 0;
+  min-width: 150px;
+}
+.mode-item p {
+  margin: 0;
+  flex: 1;
+  color: #666;
+}
+</style>

@@ -1,6 +1,6 @@
 {
   "id": "curate",
-  "name": "Curate",
+  "name": "curate",
   "description": "Knowledge bank curation engine - conversation parsing, tag suggestions, compaction",
   "version": "1.0.0",
   "dependencies": []

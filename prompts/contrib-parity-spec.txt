@@ -1,0 +1,456 @@
+# CMS-Core Contrib Parity Specification
+
+## Project Overview
+
+**Name:** CMS-Core Contrib Parity
+**Type:** Zero-dependency Node.js CMS extensions
+**Version Target:** 1.1.0
+**Existing Codebase:** /Users/Alchemy/Projects/experiments/cms-core (v0.0.80+)
+
+This specification defines features to add Drupal contrib module functionality to CMS-Core, based on analysis of 67 Drupal-CMS contrib modules.
+
+## Technology Stack
+
+- **Runtime:** Node.js 20+ (ES modules)
+- **Dependencies:** ZERO npm packages (all built from node: built-ins)
+- **Storage:** Flat-file JSON
+- **Server:** node:http
+- **Architecture:** Service pattern (init/register exports)
+
+## Core Constraint
+
+**CRITICAL:** This project has NO npm dependencies by design. All functionality must be built using only Node.js built-in modules.
+
+## Feature Count
+
+**feature_count: 200**
+
+This is a LARGE complexity project adding contrib module parity.
+
+---
+
+## TIER 1: AI CORE (Features 1-25)
+
+Based on Drupal's `ai` module. Provides abstraction layer for AI services.
+
+### Core Concept
+- Provider plugins (OpenAI, Anthropic, Ollama, etc.)
+- Operation types (chat, embeddings, TTS, STT, image generation)
+- Unified API regardless of provider
+- Key/credential management via config
+
+### Features
+
+1. AI Provider plugin interface (getModels, isUsable, getSupportedOperations)
+2. AI Provider plugin manager (discover, load, instantiate providers)
+3. OpenAI provider implementation
+4. Anthropic provider implementation
+5. Ollama provider implementation (local models)
+6. Chat operation type with streaming support
+7. Chat message format (system, user, assistant roles)
+8. Embeddings operation type (text to vector)
+9. Text-to-Speech operation type
+10. Speech-to-Text operation type
+11. Text-to-Image operation type
+12. Image classification operation type
+13. Content moderation operation type
+14. Provider configuration UI in admin
+15. Model selection per operation type
+16. API key storage in config (encrypted)
+17. Provider health check endpoint
+18. Usage tracking and logging
+19. Rate limiting per provider
+20. Fallback provider chains
+21. CLI: ai:providers - list configured providers
+22. CLI: ai:chat - interactive chat session
+23. CLI: ai:embed - generate embeddings
+24. CLI: ai:test - test provider connectivity
+25. Admin: /admin/config/ai - AI settings dashboard
+
+---
+
+## TIER 2: AI AGENTS (Features 26-50)
+
+Based on Drupal's `ai_agents` module. Makes CMS taskable by AI.
+
+### Core Concept
+- Function calling plugins that AI can invoke
+- Structured tool definitions with JSON schemas
+- Permission-controlled execution
+- Context injection for AI understanding
+
+### Features
+
+26. Function call plugin interface (name, description, parameters, execute)
+27. Function call plugin manager
+28. Tool: list_entity_types - enumerate all content types
+29. Tool: list_bundles - list content type bundles
+30. Tool: list_content - query content with filters
+31. Tool: get_content - read specific content item
+32. Tool: create_content - create new content
+33. Tool: update_content - modify existing content
+34. Tool: delete_content - remove content
+35. Tool: create_content_type - define new content type
+36. Tool: modify_content_type - update content type schema
+37. Tool: list_field_types - enumerate available field types
+38. Tool: get_field_config - read field configuration
+39. Tool: modify_field_config - update field settings
+40. Tool: list_users - enumerate users
+41. Tool: get_user - read user details
+42. Tool: create_user - create new user
+43. Tool: modify_user - update user
+44. Tool: execute_cli - run CLI commands (sandboxed)
+45. Tool: search_content - full-text search
+46. Agent conversation context management
+47. Agent memory/state persistence
+48. Agent permission scoping
+49. CLI: ai:agent - start agent conversation
+50. Admin: /admin/ai/agents - agent management
+
+---
+
+## TIER 3: ECA - EVENT CONDITION ACTION (Features 51-90)
+
+Based on Drupal's `eca` module. No-code automation rules engine.
+
+### Core Concept
+- Events trigger rule evaluation
+- Conditions filter when rules execute
+- Actions perform operations
+- Models stored as config (importable/exportable)
+
+### Features
+
+51. ECA model config entity (events, conditions, actions, connections)
+52. ECA model storage and loading
+53. ECA processor (evaluate models on events)
+54. Event plugin interface (id, label, contextProvides)
+55. Condition plugin interface (id, label, evaluate)
+56. Action plugin interface (id, label, execute)
+57. Event: content:create - fires on content creation
+58. Event: content:update - fires on content update
+59. Event: content:delete - fires on content deletion
+60. Event: content:view - fires on content view
+61. Event: user:login - fires on user login
+62. Event: user:logout - fires on user logout
+63. Event: user:create - fires on user registration
+64. Event: cron - fires on scheduled intervals
+65. Event: http:request - fires on specific routes
+66. Condition: content_type_is - check content type
+67. Condition: user_has_role - check user role
+68. Condition: field_value_is - check field value
+69. Condition: entity_is_new - check if newly created
+70. Condition: compare_values - compare two values
+71. Condition: php_eval - evaluate expression (sandboxed)
+72. Action: set_field_value - modify field value
+73. Action: send_email - send email notification
+74. Action: create_content - create new content
+75. Action: delete_content - delete content
+76. Action: publish_content - set published status
+77. Action: unpublish_content - clear published status
+78. Action: add_role - add role to user
+79. Action: remove_role - remove role from user
+80. Action: redirect - redirect response
+81. Action: set_message - display user message
+82. Action: log_message - write to audit log
+83. Action: trigger_webhook - fire webhook
+84. Action: queue_job - add to background queue
+85. ECA token replacement in action parameters
+86. ECA context stack (nested rule execution)
+87. ECA recursion prevention
+88. CLI: eca:list - list all ECA models
+89. CLI: eca:export - export model to JSON
+90. Admin: /admin/config/eca - ECA management UI
+
+---
+
+## TIER 4: SCHEDULER (Features 91-105)
+
+Based on Drupal's `scheduler` module. Scheduled publish/unpublish.
+
+### Core Concept
+- Schedule content to publish at future date
+- Schedule content to unpublish at future date
+- Works with content moderation/workflow
+
+### Features
+
+91. Add `scheduledPublish` field to content metadata
+92. Add `scheduledUnpublish` field to content metadata
+93. Scheduler cron job (runs every minute)
+94. Process scheduled publish queue
+95. Process scheduled unpublish queue
+96. Scheduler integration with workflow states
+97. Per-content-type scheduler settings
+98. Default publish/unpublish times
+99. Scheduler permission: schedule content
+100. CLI: scheduler:list - list scheduled content
+101. CLI: scheduler:publish-now - force immediate publish
+102. CLI: scheduler:unpublish-now - force immediate unpublish
+103. Admin: scheduler widget in content form
+104. Admin: /admin/content/scheduled - scheduled content view
+105. Scheduler hooks for custom handling
+
+---
+
+## TIER 5: PATHAUTO (Features 106-120)
+
+Based on Drupal's `pathauto` module. Automatic URL alias generation.
+
+### Core Concept
+- Patterns define how URLs are generated
+- Tokens replaced with content values
+- Automatic alias on content save
+- Bulk generation for existing content
+
+### Features
+
+106. Pathauto pattern config entity
+107. Pattern storage per content type
+108. Token system for pattern replacement
+109. Token: [content:title] - content title
+110. Token: [content:type] - content type machine name
+111. Token: [content:created:Y] - year created
+112. Token: [content:created:m] - month created
+113. Token: [content:id] - content ID
+114. Token: [user:name] - author username
+115. Auto-generate alias on content create
+116. Auto-update alias on content update
+117. Alias uniqueness enforcement (append -1, -2, etc.)
+118. Transliteration for non-ASCII characters
+119. CLI: pathauto:generate - bulk generate aliases
+120. Admin: /admin/config/pathauto - pattern management
+
+---
+
+## TIER 6: REDIRECT (Features 121-135)
+
+Based on Drupal's `redirect` module. URL redirect management.
+
+### Core Concept
+- Track old URLs and redirect to new
+- Automatic redirect on alias change
+- Manual redirect creation
+- 301/302/307 status codes
+
+### Features
+
+121. Redirect config entity (source, destination, status_code)
+122. Redirect storage and lookup
+123. Redirect middleware (intercept requests)
+124. Auto-create redirect on alias change
+125. Redirect loop detection
+126. Per-redirect access tracking (hit count)
+127. Redirect status codes: 301, 302, 307
+128. Wildcard redirects (path/*)
+129. Query string preservation option
+130. Redirect import from CSV
+131. Redirect export to CSV
+132. CLI: redirect:list - list all redirects
+133. CLI: redirect:add - create redirect
+134. CLI: redirect:test - test redirect resolution
+135. Admin: /admin/config/redirects - redirect management
+
+---
+
+## TIER 7: SIMPLE SITEMAP (Features 136-150)
+
+Based on Drupal's `simple_sitemap` module. XML sitemap generation.
+
+### Core Concept
+- Auto-generate sitemap.xml
+- Include configurable content types
+- Priority and changefreq per type
+- Ping search engines on update
+
+### Features
+
+136. Sitemap generator service
+137. Per-content-type sitemap settings (include, priority, changefreq)
+138. Sitemap index for large sites (split by type)
+139. Sitemap caching (regenerate on content change)
+140. Hreflang support for multilingual content
+141. Image sitemap extension
+142. Video sitemap extension (if video content)
+143. News sitemap extension
+144. Sitemap.xml route handler
+145. Robots.txt sitemap reference
+146. Search engine ping on sitemap update (Google, Bing)
+147. IndexNow protocol support
+148. CLI: sitemap:generate - force regenerate
+149. CLI: sitemap:ping - notify search engines
+150. Admin: /admin/config/sitemap - sitemap settings
+
+---
+
+## TIER 8: TRASH / SOFT DELETE (Features 151-165)
+
+Based on Drupal's `trash` module. Soft-delete with recovery.
+
+### Core Concept
+- Content is "deleted" but actually hidden
+- Trash can view for recovery
+- Auto-purge after configurable period
+- Works across all content types
+
+### Features
+
+151. Add `deleted` timestamp field to content metadata
+152. Modify content.remove() to set deleted instead of unlink
+153. Modify content.list() to exclude deleted by default
+154. content.list() option: includeDeleted
+155. Trash query scope (only deleted items)
+156. content.restore(type, id) - undelete content
+157. content.purge(type, id) - permanent delete
+158. Trash auto-purge cron job
+159. Configurable auto-purge period (30 days default)
+160. Per-content-type trash settings
+161. Trash permission: view deleted content
+162. Trash permission: restore deleted content
+163. Trash permission: purge deleted content
+164. CLI: trash:list - list deleted content
+165. CLI: trash:restore - restore content
+166. CLI: trash:purge - permanently delete
+167. CLI: trash:empty - purge all trash
+168. Admin: /admin/content/trash - trash can view
+
+---
+
+## TIER 9: METATAG (Features 169-185)
+
+Based on Drupal's `metatag` module. SEO metadata management.
+
+### Core Concept
+- Per-content meta tag overrides
+- Default patterns per content type
+- Open Graph and Twitter Card support
+- Structured data (JSON-LD)
+
+### Features
+
+169. Metatag field type for content
+170. Default metatag patterns per content type
+171. Token replacement in metatag patterns
+172. Meta: title tag
+173. Meta: description
+174. Meta: keywords
+175. Meta: canonical URL
+176. Meta: robots (index, follow, etc.)
+177. Open Graph: og:title, og:description, og:image
+178. Open Graph: og:type, og:url, og:site_name
+179. Twitter Card: twitter:card, twitter:title, twitter:description
+180. Twitter Card: twitter:image, twitter:site
+181. JSON-LD structured data output
+182. Metatag inheritance (content type → content)
+183. CLI: metatag:analyze - analyze content SEO
+184. Admin: metatag fields in content form
+185. Admin: /admin/config/metatag - default patterns
+
+---
+
+## TIER 10: SEARCH API (Features 186-200)
+
+Based on Drupal's `search_api` module. Configurable search framework.
+
+### Core Concept
+- Search index abstraction (database, external)
+- Configurable indexed fields
+- Processors for text analysis
+- Search API for querying
+
+### Features
+
+186. Search index config entity (name, datasource, fields)
+187. Search server config entity (backend plugin)
+188. Database search backend (default)
+189. Index field configuration (fulltext, keyword, date, etc.)
+190. Content datasource (index content types)
+191. User datasource (index users)
+192. Indexing queue with batch processing
+193. Processor: HTML stripper
+194. Processor: Tokenizer
+195. Processor: Stemmer (basic English)
+196. Processor: Stopwords filter
+197. Search query builder API
+198. Faceted search support (counts per field value)
+199. CLI: search:index - trigger indexing
+200. CLI: search:reindex - clear and rebuild index
+201. CLI: search:query - test search query
+202. Admin: /admin/config/search - search index management
+
+---
+
+## Implementation Notes
+
+### AI Integration Pattern
+```javascript
+// Provider registration
+export function init(ctx) {
+  const ai = ctx.services.get('ai');
+  ai.registerProvider('openai', {
+    models: ['gpt-4', 'gpt-3.5-turbo'],
+    operations: ['chat', 'embeddings'],
+    async chat(messages, model, options) { ... }
+  });
+}
+```
+
+### ECA Rule Pattern
+```javascript
+// Rule stored as JSON config
+{
+  "id": "notify-on-publish",
+  "events": ["content:create"],
+  "conditions": [
+    { "plugin": "content_type_is", "value": "article" },
+    { "plugin": "field_value_is", "field": "status", "value": true }
+  ],
+  "actions": [
+    { "plugin": "send_email", "to": "[author:email]", "subject": "Published!" }
+  ]
+}
+```
+
+### Function Call Pattern
+```javascript
+// AI function call plugin
+export const functionCall = {
+  name: 'create_content',
+  description: 'Create new content in the CMS',
+  parameters: {
+    type: { type: 'string', required: true },
+    data: { type: 'object', required: true }
+  },
+  async execute({ type, data }, ctx) {
+    const content = ctx.services.get('content');
+    return content.create(type, data);
+  }
+};
+```
+
+---
+
+## Priority Order
+
+1. **TIER 8: Trash** (151-168) - Low complexity, high value, foundational
+2. **TIER 5: Pathauto** (106-120) - Low complexity, high SEO value
+3. **TIER 6: Redirect** (121-135) - Low complexity, pairs with pathauto
+4. **TIER 4: Scheduler** (91-105) - Medium complexity, high workflow value
+5. **TIER 9: Metatag** (169-185) - Medium complexity, high SEO value
+6. **TIER 7: Sitemap** (136-150) - Medium complexity, SEO value
+7. **TIER 10: Search API** (186-202) - Medium complexity, core feature
+8. **TIER 3: ECA** (51-90) - High complexity, transformative capability
+9. **TIER 1: AI Core** (1-25) - High complexity, future-facing
+10. **TIER 2: AI Agents** (26-50) - High complexity, depends on AI Core
+
+---
+
+## Success Criteria
+
+Each feature should:
+1. Work with zero npm dependencies
+2. Follow existing CMS-Core patterns
+3. Include CLI commands where appropriate
+4. Include admin UI where appropriate
+5. Be testable in isolation
+6. Integrate with existing content/auth systems

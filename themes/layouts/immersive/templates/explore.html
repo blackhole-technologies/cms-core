@@ -1,0 +1,476 @@
+<style>
+  /* Explore-specific styles extending theme variables */
+  .explore-container {
+    max-width: 1400px;
+    margin: 0 auto;
+    padding: var(--spacing-lg, 2rem);
+    display: grid;
+    grid-template-columns: 1fr 350px;
+    gap: var(--spacing-lg, 2rem);
+  }
+
+  .explore-header {
+    grid-column: 1 / -1;
+    text-align: center;
+    padding: var(--spacing-lg, 2rem) 0;
+    border-bottom: 1px solid var(--color-border);
+  }
+
+  .explore-header h1 {
+    font-size: var(--font-size-2xl, 2rem);
+    font-weight: normal;
+    color: var(--color-primary);
+    letter-spacing: 0.1em;
+  }
+
+  .explore-header p {
+    color: var(--color-text-dim);
+    font-style: italic;
+    margin-top: var(--spacing-sm, 0.5rem);
+  }
+
+  .explore-main {
+    display: flex;
+    flex-direction: column;
+    gap: var(--spacing-lg, 2rem);
+  }
+
+  /* Personality selector */
+  .personality-bar {
+    background: var(--color-surface);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-lg, 12px);
+    padding: var(--spacing-md, 1rem) var(--spacing-lg, 1.5rem);
+    display: flex;
+    align-items: center;
+    gap: var(--spacing-md, 1rem);
+  }
+
+  .personality-bar label { color: var(--color-text-dim); }
+  .personality-bar select {
+    background: var(--color-surface-2);
+    border: 1px solid var(--color-border);
+    color: var(--color-text);
+    padding: var(--spacing-sm, 0.5rem) var(--spacing-md, 1rem);
+    border-radius: var(--radius-md, 8px);
+    min-width: 300px;
+  }
+
+  /* Bridge pills */
+  .bridges {
+    background: var(--color-surface);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-lg, 12px);
+    padding: var(--spacing-lg, 1.5rem);
+  }
+
+  .bridges h2 {
+    font-size: var(--font-size-base, 1rem);
+    color: var(--color-text-dim);
+    font-weight: normal;
+    margin-bottom: var(--spacing-md, 1rem);
+  }
+
+  .bridge-pills {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.75rem;
+  }
+
+  .bridge-pill {
+    background: var(--color-surface-2);
+    border: 1px solid var(--color-border);
+    padding: var(--spacing-sm, 0.5rem) var(--spacing-md, 1rem);
+    border-radius: 20px;
+    cursor: pointer;
+    transition: all 0.2s;
+  }
+
+  .bridge-pill:hover {
+    border-color: var(--color-primary);
+    color: var(--color-primary);
+  }
+
+  /* Featured */
+  .featured {
+    background: var(--color-surface);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-lg, 12px);
+    padding: var(--spacing-lg, 1.5rem);
+  }
+
+  .featured-label {
+    font-size: var(--font-size-xs, 0.8rem);
+    color: var(--color-primary-dim);
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+    margin-bottom: var(--spacing-md, 1rem);
+  }
+
+  .featured-content {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: var(--spacing-lg, 1.5rem);
+  }
+
+  .featured-source {
+    background: var(--color-surface-2);
+    border-radius: var(--radius-md, 8px);
+    padding: var(--spacing-md, 1rem);
+  }
+
+  .featured-source h3 {
+    color: var(--color-tertiary);
+    margin-bottom: var(--spacing-sm, 0.5rem);
+  }
+
+  .featured-source a { color: var(--color-tertiary); text-decoration: none; }
+
+  .featured-take {
+    border-left: 2px solid var(--color-primary);
+    padding-left: var(--spacing-md, 1rem);
+  }
+
+  .featured-take h3 {
+    color: var(--color-primary);
+    margin-bottom: var(--spacing-sm, 0.5rem);
+  }
+
+  .featured-take p { font-style: italic; }
+
+  .discuss-btn {
+    background: var(--color-primary);
+    color: var(--color-bg);
+    border: none;
+    padding: var(--spacing-sm, 0.5rem) var(--spacing-md, 1rem);
+    border-radius: var(--radius-sm, 6px);
+    cursor: pointer;
+    margin-top: var(--spacing-md, 1rem);
+  }
+
+  /* Conversation */
+  .conversation {
+    flex: 1;
+    background: var(--color-surface);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-lg, 12px);
+    display: flex;
+    flex-direction: column;
+    min-height: 400px;
+  }
+
+  .conversation-header {
+    padding: var(--spacing-md, 1rem) var(--spacing-lg, 1.5rem);
+    border-bottom: 1px solid var(--color-border);
+    color: var(--color-text-dim);
+  }
+
+  .conversation-messages {
+    flex: 1;
+    padding: var(--spacing-lg, 1.5rem);
+    overflow-y: auto;
+    display: flex;
+    flex-direction: column;
+    gap: var(--spacing-md, 1rem);
+  }
+
+  .message {
+    max-width: 85%;
+    padding: var(--spacing-md, 1rem);
+    border-radius: var(--radius-lg, 12px);
+  }
+
+  .message.user {
+    background: var(--color-surface-2);
+    align-self: flex-end;
+  }
+
+  .message.assistant {
+    background: linear-gradient(135deg, var(--color-surface-2), rgba(26, 26, 40, 0.8));
+    border-left: 2px solid var(--color-primary-dim);
+    align-self: flex-start;
+  }
+
+  .conversation-input {
+    padding: var(--spacing-md, 1rem);
+    border-top: 1px solid var(--color-border);
+    display: flex;
+    gap: 0.75rem;
+  }
+
+  .conversation-input input {
+    flex: 1;
+    background: var(--color-surface-2);
+    border: 1px solid var(--color-border);
+    padding: 0.75rem var(--spacing-md, 1rem);
+    border-radius: var(--radius-md, 8px);
+    color: var(--color-text);
+  }
+
+  .conversation-input button {
+    background: var(--color-primary);
+    color: var(--color-bg);
+    border: none;
+    padding: 0.75rem var(--spacing-lg, 1.5rem);
+    border-radius: var(--radius-md, 8px);
+    cursor: pointer;
+  }
+
+  /* Sidebar */
+  .explore-sidebar {
+    display: flex;
+    flex-direction: column;
+    gap: var(--spacing-lg, 1.5rem);
+  }
+
+  .sidebar-section {
+    background: var(--color-surface);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-lg, 12px);
+    padding: 1.25rem;
+  }
+
+  .sidebar-section h3 {
+    font-size: var(--font-size-xs, 0.85rem);
+    color: var(--color-text-dim);
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    margin-bottom: var(--spacing-md, 1rem);
+    font-weight: normal;
+  }
+
+  .connection {
+    padding: 0.75rem 0;
+    border-bottom: 1px solid var(--color-border);
+  }
+
+  .connection:last-child { border-bottom: none; }
+
+  .connection-type {
+    font-size: var(--font-size-xs, 0.75rem);
+    color: var(--color-secondary);
+    margin-bottom: 0.25rem;
+  }
+
+  .connection-nodes {
+    display: flex;
+    align-items: center;
+    gap: var(--spacing-sm, 0.5rem);
+    color: var(--color-text-dim);
+  }
+
+  .connection-arrow { color: var(--color-primary-dim); }
+
+  .stat {
+    display: flex;
+    justify-content: space-between;
+    padding: var(--spacing-sm, 0.5rem) 0;
+  }
+
+  .stat-value {
+    color: var(--color-primary);
+    font-family: var(--font-family-mono, monospace);
+  }
+
+  .welcome {
+    text-align: center;
+    padding: 3rem;
+    color: var(--color-text-dim);
+  }
+
+  .welcome h3 {
+    color: var(--color-text);
+    margin-bottom: var(--spacing-md, 1rem);
+    font-weight: normal;
+  }
+
+  @keyframes pulse {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.5; }
+  }
+
+  .new-badge {
+    background: var(--color-success);
+    color: var(--color-bg);
+    font-size: 0.65rem;
+    padding: 0.15rem 0.4rem;
+    border-radius: 4px;
+    margin-left: var(--spacing-sm, 0.5rem);
+    animation: pulse 2s infinite;
+  }
+
+  @media (max-width: 900px) {
+    .explore-container { grid-template-columns: 1fr; }
+    .featured-content { grid-template-columns: 1fr; }
+  }
+</style>
+
+<div class="explore-container">
+  <header class="explore-header">
+    <h1>AM I THAT I AM</h1>
+    <p>A living exploration of consciousness, pattern, and meaning</p>
+  </header>
+
+  <main class="explore-main">
+    <!-- Personality selector -->
+    <section class="personality-bar">
+      <label for="personality">Voice:</label>
+      <select id="personality" onchange="setPersonality(this.value)">
+        {{#each personalities}}
+        <option value="{{id}}">{{emoji}} {{name}} — {{description}}</option>
+        {{/each}}
+      </select>
+      <span class="personality-note" id="personalityNote"></span>
+    </section>
+
+    <!-- Bridge topics from CMS -->
+    <section class="bridges">
+      <h2>💭 What if we explored...</h2>
+      <div class="bridge-pills" id="bridgePills">
+        {{#each bridges}}
+        <span class="bridge-pill" onclick="startConversation('{{this}}')">{{this}}</span>
+        {{/each}}
+      </div>
+      <button class="refresh-bridges" onclick="refreshBridges()">↻ different paths</button>
+    </section>
+
+    <!-- Featured piece from CMS -->
+    {{#if featured}}
+    <section class="featured">
+      <div class="featured-label">Featured Connection</div>
+      <div class="featured-content">
+        <div class="featured-source">
+          <h3>{{featured.sourceTitle}}</h3>
+          <p>{{featured.summary}}</p>
+          <a href="{{featured.sourceUrl}}" target="_blank">Read source →</a>
+        </div>
+        <div class="featured-take">
+          <h3>The Pattern I See</h3>
+          <p>{{featured.take}}</p>
+          <button class="discuss-btn" onclick="discussFeatured()">Discuss this →</button>
+        </div>
+      </div>
+    </section>
+    {{/if}}
+
+    <!-- Conversation -->
+    <section class="conversation">
+      <div class="conversation-header">
+        <span id="conversationState">Start a conversation...</span>
+      </div>
+      <div class="conversation-messages" id="messages">
+        <div class="welcome">
+          <h3>Every visit is a unique exploration</h3>
+          <p>Click a topic above, discuss the featured piece, or ask your own question.</p>
+        </div>
+      </div>
+      <div class="conversation-input">
+        <input type="text" id="userInput" placeholder="What are you curious about?" 
+               onkeypress="if(event.key === 'Enter') sendMessage()">
+        <button onclick="sendMessage()">Send</button>
+      </div>
+    </section>
+  </main>
+
+  <aside class="explore-sidebar">
+    <!-- Connections from RESTS -->
+    <div class="sidebar-section">
+      <h3>🔗 Recent Connections</h3>
+      <div id="connectionsList">
+        {{#each connections}}
+        <div class="connection">
+          <div class="connection-type">{{type}}{{#if isNew}}<span class="new-badge">new</span>{{/if}}</div>
+          <div class="connection-nodes">
+            <span>{{from}}</span>
+            <span class="connection-arrow">↔</span>
+            <span>{{to}}</span>
+          </div>
+        </div>
+        {{/each}}
+      </div>
+    </div>
+
+    <!-- Stats from CMS -->
+    <div class="sidebar-section">
+      <h3>📊 Knowledge State</h3>
+      <div class="stat"><span>Explorations</span><span class="stat-value">{{stats.explorations}}</span></div>
+      <div class="stat"><span>Connections</span><span class="stat-value">{{stats.connections}}</span></div>
+      <div class="stat"><span>Topics</span><span class="stat-value">{{stats.topics}}</span></div>
+    </div>
+
+    <!-- Session -->
+    <div class="sidebar-section">
+      <h3>🌀 Your Session</h3>
+      <p>Session: <span style="font-family: monospace; color: var(--color-tertiary);">{{sessionId}}</span></p>
+      <p style="margin-top: 0.5rem; font-style: italic;">Each conversation creates its own path.</p>
+    </div>
+  </aside>
+</div>
+
+<script>
+  const API_BASE = '/api/conscious';
+  const sessionId = '{{sessionId}}';
+  let currentPersonality = 'default';
+
+  function setPersonality(key) {
+    currentPersonality = key;
+  }
+
+  function startConversation(topic) {
+    document.getElementById('userInput').value = `Tell me about ${topic}...`;
+    document.getElementById('userInput').focus();
+  }
+
+  function discussFeatured() {
+    document.getElementById('userInput').value = 'Let\'s discuss the featured piece - what other connections do you see?';
+    document.getElementById('userInput').focus();
+  }
+
+  function addMessage(text, role) {
+    const container = document.getElementById('messages');
+    const welcome = container.querySelector('.welcome');
+    if (welcome) welcome.remove();
+
+    const msg = document.createElement('div');
+    msg.className = `message ${role}`;
+    msg.textContent = text;
+    container.appendChild(msg);
+    container.scrollTop = container.scrollHeight;
+  }
+
+  async function sendMessage() {
+    const input = document.getElementById('userInput');
+    const text = input.value.trim();
+    if (!text) return;
+
+    addMessage(text, 'user');
+    input.value = '';
+    document.getElementById('conversationState').textContent = '🌀 Searching knowledge...';
+
+    try {
+      const res = await fetch(`${API_BASE}/chat`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ sessionId, message: text, personality: currentPersonality })
+      });
+      const data = await res.json();
+      document.getElementById('conversationState').textContent = 'Start a conversation...';
+      addMessage(data.response || data.error || 'No response', 'assistant');
+    } catch (err) {
+      addMessage('Connection error. Please try again.', 'assistant');
+    }
+  }
+
+  async function refreshBridges() {
+    try {
+      const res = await fetch(`${API_BASE}/bridges`);
+      const data = await res.json();
+      const container = document.getElementById('bridgePills');
+      container.innerHTML = data.bridges.map(t => 
+        `<span class="bridge-pill" onclick="startConversation('${t}')">${t}</span>`
+      ).join('');
+    } catch (err) {
+      console.error('Failed to refresh bridges:', err);
+    }
+  }
+</script>

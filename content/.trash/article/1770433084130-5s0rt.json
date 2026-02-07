@@ -1,0 +1,17 @@
+{
+  "id": "1770433084130-5s0rt",
+  "type": "article",
+  "created": "2026-02-07T02:58:04.130Z",
+  "updated": "2026-02-07T02:58:04.130Z",
+  "title": "A11y Test",
+  "summary": "test summary",
+  "body": {
+    "value": "<img src=\"test.jpg\"><a href=\"/page\">click here</a><h3>Skip heading</h3>",
+    "format": "basic_html"
+  },
+  "isDefaultRevision": true,
+  "status": "draft",
+  "_trashedAt": "2026-02-07T02:58:32.672Z",
+  "_trashedBy": null,
+  "_originalPath": "/Users/Alchemy/Projects/experiments/cms-core/content/article/1770433084130-5s0rt.json"
+}

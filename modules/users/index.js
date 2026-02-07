@@ -478,13 +478,14 @@ export function hook_middleware(use, context) {
 
     // Public API routes that don't require authentication
     const publicPaths = [
-      '/api/consciousness/stats',
-      '/api/consciousness/bridges',
-      '/api/consciousness/featured',
-      '/api/consciousness/connections',
-      '/api/consciousness/personalities',
-      '/api/consciousness/chat',
-      '/api/consciousness/interpret',
+      '/api/conscious/stats',
+      '/api/conscious/bridges',
+      '/api/conscious/featured',
+      '/api/conscious/connections',
+      '/api/conscious/personalities',
+      '/api/conscious/chat',
+      '/api/conscious/interpret',
+      '/api/conscious/recent',
       '/api/health',
     ];
     

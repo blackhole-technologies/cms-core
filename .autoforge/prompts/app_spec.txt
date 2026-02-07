@@ -1,0 +1,339 @@
+# CMS-Core Feature Specification
+
+## Project Overview
+
+**Name:** CMS-Core
+**Type:** Zero-dependency Node.js CMS with Drupal-inspired architecture
+**Version Target:** 1.0.0
+**Existing Codebase:** /Users/Alchemy/Projects/experiments/cms-core (v0.0.80)
+
+This specification defines features to bring CMS-Core to full Drupal parity, based on comprehensive analysis of Drupal's 75 core modules.
+
+## Technology Stack
+
+- **Runtime:** Node.js 20+ (ES modules)
+- **Dependencies:** ZERO npm packages (all built from node: built-ins)
+- **Storage:** Flat-file JSON
+- **Server:** node:http
+- **Architecture:** Service pattern (init/register exports)
+
+## Core Constraint
+
+**CRITICAL:** This project has NO npm dependencies by design. All functionality must be built using only Node.js built-in modules:
+- node:http, node:https
+- node:fs, node:path
+- node:crypto
+- node:url
+- node:stream
+- node:events
+
+## Feature Count
+
+**feature_count: 165**
+
+This is a MEDIUM complexity project targeting Drupal parity.
+
+---
+
+## TIER 1: INFRASTRUCTURE (Features 0-4)
+
+These must pass before any functional features.
+
+### Feature 0: Server starts without errors
+- Start server with `node index.js`
+- Verify no errors in console
+- Server responds on http://localhost:3001
+
+### Feature 1: CLI framework operational
+- Run `node index.js help`
+- Verify 300+ commands listed
+- Commands execute without errors
+
+### Feature 2: Content storage persistence
+- Create content via CLI: `node index.js content:create article '{"title":"TEST_12345"}'`
+- Stop server completely
+- Restart server
+- Verify content still exists via `node index.js content:list --type=article`
+
+### Feature 3: Configuration loading
+- Read config/site.json
+- Read config/modules.json
+- All registered modules initialize
+
+### Feature 4: Service architecture intact
+- All 91 core services load
+- Services register CLI commands
+- Hook system functional
+
+---
+
+## TIER 2: PENDING REVISIONS (Features 5-24)
+
+Based on Drupal's content_moderation module. Allows draft edits on published content.
+
+### Core Concept
+- `published` flag = visible to public
+- `isDefaultRevision` flag = canonical version
+- These are INDEPENDENT, enabling "pending draft on published content"
+
+### Features
+
+5. Add isDefaultRevision field to revision metadata
+6. Content.get() returns default revision by default
+7. Content.get() accepts includeAllRevisions option
+8. Content.list() returns default revisions only by default
+9. Content.list() accepts includeAllRevisions option
+10. New revision inherits isDefaultRevision from workflow state
+11. Draft state creates non-default revision on published content
+12. Publish transition makes revision the new default
+13. CLI: content:revisions shows default flag
+14. CLI: content:set-default sets default revision
+15. API: GET /jsonapi returns default revisions only
+16. API: GET /jsonapi?include=allRevisions returns all
+17. Pending revision indicator in content list
+18. Pending revision count per content item
+19. Discard pending revision action
+20. Compare pending to published revision
+21. Workflow state reflects pending status
+22. Content moderation dashboard shows pending items
+23. Bulk publish pending revisions
+24. Audit log tracks default revision changes
+
+---
+
+## TIER 3: WORKSPACES (Features 25-54)
+
+Based on Drupal's workspaces module. Staging environments for content.
+
+### Core Concept
+- Workspace = isolated staging environment
+- Changes in workspace don't affect live
+- Publish workspace = copy all changes to live
+
+### Features
+
+25. Workspace entity with id, label, status
+26. Create workspace via CLI
+27. List workspaces via CLI
+28. Delete workspace via CLI
+29. Active workspace stored in session
+30. Switch workspace via CLI
+31. Content queries filter by active workspace
+32. Workspace association table (content → workspace)
+33. Create content in workspace
+34. Edit content in workspace (creates workspace copy)
+35. View content shows workspace version if active
+36. Workspace preview URL pattern
+37. Workspace switcher UI component
+38. Workspace status indicator
+39. Publish single content from workspace
+40. Publish entire workspace to live
+41. Workspace publish validation (no conflicts)
+42. Workspace conflict detection
+43. Workspace merge for non-conflicting changes
+44. Workspace activity log
+45. Delete workspace with confirmation
+46. Workspace content diff against live
+47. API: Workspace header for requests
+48. API: Workspace-aware content endpoints
+49. Workspace permissions (create, edit, publish)
+50. Workspace assignment to users
+51. Workspace parent (nested workspaces)
+52. Workspace expiration date
+53. Scheduled workspace publish
+54. Workspace analytics (changes count, age)
+
+---
+
+## TIER 4: LAYOUT BUILDER UI (Features 55-84)
+
+Based on Drupal's layout_builder module. Visual page composition.
+
+### Core Concept
+- Sections contain components
+- Components are blocks or fields
+- Drag-drop interface for arrangement
+
+### Features
+
+55. Section data model (layout, regions, components)
+56. SectionComponent data model (uuid, region, config)
+57. Default layout storage per content type
+58. Override layout storage per content item
+59. Layout REST API: GET sections
+60. Layout REST API: POST section
+61. Layout REST API: PUT section (reorder)
+62. Layout REST API: DELETE section
+63. Layout REST API: POST component to section
+64. Layout REST API: PUT component (move/update)
+65. Layout REST API: DELETE component
+66. Layout builder page route (/node/{id}/layout)
+67. Layout builder HTML shell (sections grid)
+68. Section add UI (choose layout)
+69. Component add UI (choose block/field)
+70. Drag handle for sections
+71. Drag handle for components
+72. Section reorder via drag
+73. Component move between regions via drag
+74. Component configuration modal
+75. Field block renders entity field
+76. Custom block (inline content)
+77. Existing block reference
+78. Save layout button
+79. Discard changes button
+80. Revert to default button
+81. Layout preview (view as visitor)
+82. Layout revision history
+83. Copy layout from another content
+84. Layout templates (save/load)
+
+---
+
+## TIER 5: VIEWS UI (Features 85-114)
+
+Based on Drupal's views_ui module. Visual query builder.
+
+### Core Concept
+- Views = saved queries with display configuration
+- Visual interface for building queries
+- Multiple displays per view (page, block, feed)
+
+### Features
+
+85. View entity (id, label, config)
+86. View storage (config/views.json)
+87. Create view via CLI
+88. List views via CLI
+89. Delete view via CLI
+90. Execute view via CLI
+91. Views admin page (/admin/views)
+92. View edit page (/admin/views/{id}/edit)
+93. Add display UI (page, block, feed)
+94. Display settings panel
+95. Fields configuration panel
+96. Add field UI (choose from entity fields)
+97. Field settings (label, formatter)
+98. Filter configuration panel
+99. Add filter UI (choose field, operator, value)
+100. Exposed filter option
+101. Sort configuration panel
+102. Add sort UI (field, direction)
+103. Pager configuration
+104. Path configuration (for page displays)
+105. View preview with live results
+106. View query inspection (show generated query)
+107. View clone
+108. View export (JSON)
+109. View import (JSON)
+110. Contextual filter (argument) support
+111. Relationship support (entity references)
+112. Aggregation support (GROUP BY)
+113. Header/footer areas
+114. Empty state configuration
+
+---
+
+## TIER 6: VALIDATION CONSTRAINTS (Features 115-134)
+
+Based on Drupal's validation system. Declarative field validation.
+
+### Features
+
+115. Constraint plugin architecture
+116. Required constraint
+117. Length constraint (min/max)
+118. Regex constraint
+119. Email constraint
+120. URL constraint
+121. Range constraint (min/max number)
+122. Unique constraint (per content type)
+123. Entity reference constraint (valid target)
+124. File extension constraint
+125. File size constraint
+126. Image dimension constraint
+127. Date range constraint (min/max date)
+128. Custom constraint registration
+129. Constraint error messages
+130. Constraint on content save
+131. Constraint on API create/update
+132. Constraint violation response (JSON:API format)
+133. Form-level validation display
+134. Bulk validation check CLI
+
+---
+
+## TIER 7: MEDIA ENHANCEMENTS (Features 135-149)
+
+Based on Drupal's media module enhancements.
+
+### Features
+
+135. oEmbed provider registry
+136. YouTube oEmbed source
+137. Vimeo oEmbed source
+138. Twitter oEmbed source
+139. Instagram oEmbed source
+140. oEmbed thumbnail fetching
+141. oEmbed metadata extraction
+142. Remote video media type
+143. Media browser modal improvements
+144. Media bulk upload
+145. Media usage tracking (where used)
+146. Media replace (update all references)
+147. Focal point for images
+148. Image alt text enforcement
+149. Media folder organization
+
+---
+
+## TIER 8: ACCESSIBILITY & SEO (Features 150-164)
+
+Based on Drupal's editoria11y and yoast_seo patterns.
+
+### Features
+
+150. Accessibility checker service
+151. Missing alt text detection
+152. Heading hierarchy validation
+153. Link text quality check
+154. Color contrast warnings
+155. ARIA label suggestions
+156. Accessibility score per content
+157. SEO analyzer service
+158. Focus keyword configuration
+159. Title tag analysis
+160. Meta description analysis
+161. Content length analysis
+162. Keyword density check
+163. Readability score
+164. SEO score per content
+
+---
+
+## Testing Approach
+
+All features tested via:
+1. CLI commands (node index.js {command})
+2. HTTP API (curl localhost:3001/api/...)
+3. Server restart persistence
+4. No mock data - real flat-file storage
+
+## Drupal Reference
+
+For implementation patterns, reference:
+/Users/Alchemy/Projects/experiments/drupal-cms/web/core/modules/
+
+Key modules:
+- content_moderation (pending revisions)
+- workspaces (staging)
+- layout_builder (visual composition)
+- views + views_ui (query builder)
+- media (oEmbed)
+
+## Success Criteria
+
+1. All 165 features pass verification
+2. Zero npm dependencies added
+3. Backward compatible with existing content
+4. CLI and API interfaces consistent
+5. Documentation updated

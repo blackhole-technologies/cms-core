@@ -1,0 +1,85 @@
+{
+  "jsonapi": {
+    "version": "1.1"
+  },
+  "data": [
+    {
+      "type": "article",
+      "id": "1770433084130-5s0rt",
+      "attributes": {
+        "title": "A11y Test",
+        "summary": "test summary",
+        "body": {
+          "value": "<img src=\"test.jpg\"><a href=\"/page\">click here</a><h3>Skip heading</h3>",
+          "format": "basic_html"
+        },
+        "isDefaultRevision": true,
+        "status": "draft"
+      },
+      "links": {
+        "self": "/jsonapi/article/1770433084130-5s0rt"
+      }
+    },
+    {
+      "type": "article",
+      "id": "1770433053484-iwosu",
+      "attributes": {
+        "title": "Default Rev Test Regression",
+        "isDefaultRevision": true,
+        "status": "draft"
+      },
+      "links": {
+        "self": "/jsonapi/article/1770433053484-iwosu"
+      }
+    },
+    {
+      "type": "article",
+      "id": "1770433021822-7irwh",
+      "attributes": {
+        "title": "Feature7 Multi Rev",
+        "isDefaultRevision": true,
+        "status": "draft",
+        "publishedAt": "2026-02-07T02:57:07.720Z",
+        "scheduledAt": null
+      },
+      "links": {
+        "self": "/jsonapi/article/1770433021822-7irwh"
+      }
+    },
+    {
+      "type": "article",
+      "id": "1770432995527-7k9x9",
+      "attributes": {
+        "title": "ALT_TEXT_TEST_152",
+        "body": "<p>Article with <img src=\"sunset.jpg\"> and <img src=\"mountains.png\"> missing alt text.</p>",
+        "isDefaultRevision": true,
+        "status": "draft"
+      },
+      "links": {
+        "self": "/jsonapi/article/1770432995527-7k9x9"
+      }
+    },
+    {
+      "type": "article",
+      "id": "1770432848806-bvb33",
+      "attributes": {
+        "title": "Rev Test A",
+        "isDefaultRevision": true,
+        "status": "published",
+        "publishedAt": "2026-02-07T02:54:15.307Z",
+        "scheduledAt": null
+      },
+      "links": {
+        "self": "/jsonapi/article/1770432848806-bvb33"
+      }
+    }
+  ],
+  "meta": {
+    "total": 5,
+    "offset": 0,
+    "limit": 20
+  },
+  "links": {
+    "self": "/jsonapi/article"
+  }
+}

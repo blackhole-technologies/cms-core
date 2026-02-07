@@ -60,6 +60,7 @@ let mediaService = null;
 let contentService = null;
 let imageStylesService = null;
 let hooksService = null;
+let oembedService = null;
 
 /**
  * Media type definitions
@@ -139,6 +140,7 @@ export function init(options = {}) {
   contentService = options.content;
   imageStylesService = options.imageStyles;
   hooksService = options.hooks;
+  oembedService = options.oembed || null;
 
   if (options.config) {
     config = { ...config, ...options.config };
@@ -165,21 +167,31 @@ function registerMediaContentType() {
   }
 
   // Register via content service
-  if (contentService.registerType) {
-    contentService.registerType(config.contentType, {
-      name: { type: 'string', required: true },
-      mediaType: { type: 'string', required: true },
-      filename: { type: 'string', required: true },
-      path: { type: 'string', required: true },
-      mimeType: { type: 'string' },
-      size: { type: 'number' },
-      metadata: { type: 'object' },
-      thumbnail: { type: 'string' },
-      tags: { type: 'array' },
-      alt: { type: 'string' },
-      caption: { type: 'string' },
-      credit: { type: 'string' },
-    }, 'core:media-library');
+  // WHY try both names: content.js exports register() not registerType().
+  // We check both for forward compatibility.
+  const registerFn = contentService.registerType || contentService.register;
+  if (registerFn) {
+    try {
+      registerFn(config.contentType, {
+        name: { type: 'string', required: true },
+        mediaType: { type: 'string', required: true },
+        filename: { type: 'string', required: true },
+        path: { type: 'string', required: true },
+        mimeType: { type: 'string' },
+        size: { type: 'number' },
+        metadata: { type: 'object' },
+        thumbnail: { type: 'string' },
+        tags: { type: 'array' },
+        alt: { type: 'string' },
+        caption: { type: 'string' },
+        credit: { type: 'string' },
+      }, 'core:media-library');
+    } catch (err) {
+      // Type may already be registered by another module
+      if (!err.message.includes('already registered')) {
+        console.warn(`[media-library] Could not register content type: ${err.message}`);
+      }
+    }
   }
 }
 
@@ -472,9 +484,22 @@ export async function createFromUrl(url, options = {}) {
     await hooksService.trigger('media-library:beforeCreate', { url, options, mediaType: 'remote_video' });
   }
 
-  // Create media entity
+  // Fetch oEmbed metadata to enrich entity with title, author, dimensions, etc.
+  // WHY: Basic URL parsing only gives us provider/videoId. oEmbed gives us
+  // rich metadata (title, author, thumbnail, dimensions) from the provider's API.
+  let oembedData = null;
+  if (oembedService) {
+    try {
+      oembedData = await oembedService.fetchEmbed(url);
+    } catch (err) {
+      // oEmbed fetch is best-effort; continue with basic URL-parsed info
+      console.warn(`[media-library] oEmbed fetch failed for ${url}: ${err.message}`);
+    }
+  }
+
+  // Create media entity with oEmbed-enriched metadata
   const entity = {
-    name: options.name || `${videoInfo.provider} video`,
+    name: options.name || (oembedData && oembedData.title) || `${videoInfo.provider} video`,
     mediaType: 'remote_video',
     filename: url,
     path: url,
@@ -485,12 +510,27 @@ export async function createFromUrl(url, options = {}) {
       provider: videoInfo.provider,
       videoId: videoInfo.videoId,
       embedUrl: videoInfo.embedUrl,
+      // oEmbed-extracted metadata stored alongside parsed info
+      oembed: oembedData ? {
+        type: oembedData.type || null,
+        title: oembedData.title || null,
+        author_name: oembedData.author_name || null,
+        author_url: oembedData.author_url || null,
+        provider_name: oembedData.provider_name || null,
+        provider_url: oembedData.provider_url || null,
+        thumbnail_url: oembedData.thumbnail_url || null,
+        thumbnail_width: oembedData.thumbnail_width || null,
+        thumbnail_height: oembedData.thumbnail_height || null,
+        html: oembedData.html || null,
+        width: oembedData.width || null,
+        height: oembedData.height || null,
+      } : null,
     },
-    thumbnail: videoInfo.thumbnailUrl || null,
+    thumbnail: (oembedData && oembedData.thumbnail_url) || videoInfo.thumbnailUrl || null,
     tags: options.tags || [],
-    alt: options.alt || '',
+    alt: options.alt || (oembedData && oembedData.title) || '',
     caption: options.caption || '',
-    credit: options.credit || videoInfo.provider,
+    credit: options.credit || (oembedData && oembedData.author_name) || videoInfo.provider,
     status: options.status || 'published',
   };
 

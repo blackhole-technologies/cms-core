@@ -1,9 +1,16 @@
 {
   "name": "My Site",
-  "version": "0.0.80",
-  "port": 3000,
+  "version": "0.0.81",
+  "port": 3001,
   "env": "development",
   "theme": "default",
+  "themeEngine": {
+    "layout": "immersive",
+    "skin": "consciousness-dark"
+  },
+  "adminTheme": {
+    "skin": "default"
+  },
   "sessionSecret": "cms-dev-secret-change-in-production",
   "i18n": {
     "enabled": true,
