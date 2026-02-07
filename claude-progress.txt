@@ -481,3 +481,37 @@
 - Data persists across server restart
 - No mock data patterns
 - Revert only affects targeted content item
+
+## Session 13 - 2026-02-07
+
+### Completed
+- Feature #29: Delete workspace via CLI (PASSING)
+  - workspace:delete <id|machineName> removes workspace entity from disk and cache
+  - Associated content mappings cleaned up on delete (config/workspace-associations/)
+  - Workspace removed from list after deletion
+  - Data persistence verified
+- Feature #46: Delete workspace with confirmation (PASSING)
+  - workspace:delete without --confirm shows warning and blocks deletion
+  - Warning displays association count
+  - workspace:delete with --confirm proceeds with full cleanup
+  - Workspace entity + associations both removed
+- Feature #30: Active workspace stored in session (PASSING)
+  - workspace:switch <id|machineName|live> sets active workspace
+  - workspace:active shows currently active workspace
+  - Active workspace persisted in config/workspace-active.json (survives process restarts)
+  - HTTP session workspace via X-Workspace header and sessionWorkspaces Map
+  - getWorkspaceContext() provides unified lookup for CLI and HTTP
+
+### Changes Made
+1. **core/workspaces.js**: Major expansion (~400 lines added)
+   - Content association tracking system (associateContent, getAssociations, removeAssociations)
+   - Active workspace session management (setActiveWorkspace, getActiveWorkspace, getWorkspaceContext)
+   - HTTP session workspace (setSessionWorkspace, getSessionWorkspace)
+   - workspace:delete requires --confirm flag
+   - workspace:switch and workspace:active CLI commands
+   - Delete cleans up associations + active workspace reference
+
+### Current Status
+- 40/165 features passing (~24.2%)
+- Workspace tier: Features 26, 27, 29, 30, 46, 50 done
+- All 3 assigned features completed
