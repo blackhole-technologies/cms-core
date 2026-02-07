@@ -87,6 +87,7 @@ import * as configManagement from './config-management.js';
 import * as tokens from './tokens.js';
 import * as textFormats from './text-formats.js';
 import * as entity from './entity.js';
+import * as entityTypes from './entity-types.js';
 import * as actions from './actions.js';
 import * as userFields from './user-fields.js';
 import * as themeSettings from './theme-settings.js';
@@ -801,6 +802,25 @@ export async function boot(baseDir, options = {}) {
     if (contentTypesConfig.enabled) {
       await contentTypes.init(baseDir, fields, validation);
       services.register('contentTypes', () => contentTypes);
+
+      // WHY: Bridge config-based content types to the content system.
+      // content-types.json defines types (article, page, etc.) but they need
+      // to be registered with content.js so CLI/API commands recognize them.
+      // Modules register their own types via hook_content, but config types
+      // need explicit registration here.
+      const configTypes = contentTypes.listTypes();
+      const configRegister = content.createModuleRegister('config:content-types');
+      for (const typeDef of configTypes) {
+        if (!content.hasType(typeDef.id)) {
+          // Build schema from the content type fields definition
+          const schema = {};
+          for (const [fieldName, fieldDef] of Object.entries(typeDef.fields)) {
+            schema[fieldName] = { ...fieldDef };
+          }
+          configRegister(typeDef.id, schema);
+        }
+      }
+
       log('[boot] Content types builder enabled');
     }
 
@@ -816,6 +836,14 @@ export async function boot(baseDir, options = {}) {
       entity.init({ content, taxonomy, auth, media, blocks });
       services.register('entity', () => entity);
       log('[boot] Entity API enabled');
+    }
+
+    // Entity Types & Bundles (Drupal-style two-level architecture)
+    const entityTypesConfig = context.config.site.entityTypes || { enabled: true };
+    if (entityTypesConfig.enabled !== false) {
+      entityTypes.init(baseDir, contentTypes);
+      services.register('entityTypes', () => entityTypes);
+      log('[boot] Entity Types/Bundles enabled');
     }
 
     // Actions (uses hooks, email, tokens)
@@ -846,7 +874,7 @@ export async function boot(baseDir, options = {}) {
       themeEngine.init({
         baseDir,
         config: {
-          theme: context.config.site.theme || { layout: 'immersive', skin: 'consciousness-dark' },
+          theme: context.config.site.themeEngine || { layout: 'immersive', skin: 'consciousness-dark' },
           adminTheme: context.config.site.adminTheme || { skin: 'default' },
         },
       });

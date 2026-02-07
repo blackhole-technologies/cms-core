@@ -714,6 +714,14 @@ function validateData(data, schema, type, options = {}) {
   for (const [fieldName, fieldDef] of Object.entries(schema)) {
     const value = data[fieldName];
 
+    // Skip readonly fields during validation — they are auto-set by the system
+    // WHY: Fields like 'created' and 'updated' are required but readonly,
+    // meaning the system populates them automatically. User-supplied data
+    // should not be required to include these fields.
+    if (fieldDef.readonly) {
+      continue;
+    }
+
     // Check required fields
     if (fieldDef.required && (value === undefined || value === null)) {
       throw new Error(`Missing required field "${fieldName}" for content type "${type}"`);
