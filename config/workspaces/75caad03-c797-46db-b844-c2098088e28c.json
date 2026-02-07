@@ -1,0 +1,11 @@
+{
+  "id": "75caad03-c797-46db-b844-c2098088e28c",
+  "label": "Staging Environment",
+  "machineName": "staging",
+  "status": "active",
+  "owner": null,
+  "created": "2026-02-07T03:51:10.157Z",
+  "updated": "2026-02-07T03:51:10.157Z",
+  "parent": null,
+  "description": ""
+}
