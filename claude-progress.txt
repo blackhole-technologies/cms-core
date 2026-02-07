@@ -288,3 +288,52 @@
 ### Next Steps
 - Continue pending revisions tier (Features 8, 10, 14-24)
 - Features 14+: CLI content:revisions shows default flag, content:set-default, API flags
+
+## Session 9 - 2026-02-07
+
+### Completed
+- Feature #60: Layout REST API: GET sections (PASSING)
+  - GET /api/layout/:contentType/:id/sections returns all sections
+  - Sections enriched with layout definition info (regions, label, category)
+  - Returns hasOverride flag and source (default vs override)
+  - 404 for non-existent content
+  - Falls back to content type default layout
+- Feature #61: Layout REST API: POST section (PASSING)
+  - POST /api/layout/:contentType/:id/sections creates new section
+  - Body: { layoutId, settings?, position? }
+  - Creates per-content override if none exists
+  - Validates layoutId against registered layouts
+  - Returns created section with layout definition info
+  - Error on invalid layout with list of available layouts
+- Feature #64: Layout REST API: POST component to section (PASSING)
+  - POST /api/layout/:contentType/:id/sections/:sectionId/components
+  - Body: { region, type, blockId?, fieldName?, configuration? }
+  - Component created with UUID, assigned to specified region
+  - Validates region against layout definition
+  - Supports block, inline_block, and field component types
+  - Error on invalid region with list of available regions
+
+### Changes Made
+1. **core/layout-builder.js**: Added registerRoutes() with 7 REST API endpoints:
+   - GET /api/layout/:contentType/:id/sections
+   - POST /api/layout/:contentType/:id/sections
+   - PUT /api/layout/:contentType/:id/sections/:sectionId
+   - DELETE /api/layout/:contentType/:id/sections/:sectionId
+   - POST /api/layout/:contentType/:id/sections/:sectionId/components
+   - PUT /api/layout/:contentType/:id/sections/:sectionId/components/:componentId
+   - DELETE /api/layout/:contentType/:id/sections/:sectionId/components/:componentId
+   - GET /api/layout/definitions (list available layouts)
+
+2. **core/boot.js**: Wired up layoutBuilder.registerRoutes(router, auth)
+
+### Current Status
+- 25+3=28/165 features passing (~17.0%)
+- Layout Builder REST API tier: Features 60, 61, 64 done
+- All 3 assigned features completed
+
+### Verification
+- Data persists across server restart (flat-file JSON in content items)
+- No mock data patterns found
+- Zero JS console errors
+- Bearer token auth required for all endpoints
+- 404/400 error handling for all edge cases
