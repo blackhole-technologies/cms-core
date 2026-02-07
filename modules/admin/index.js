@@ -91,6 +91,40 @@ function parseFormBody(req) {
 }
 
 /**
+ * Parse JSON request body
+ * WHY: API routes need to parse JSON payloads for REST operations.
+ * Used for PUT/POST/PATCH requests with Content-Type: application/json.
+ */
+function parseJsonBody(req) {
+  return new Promise((resolve, reject) => {
+    let body = '';
+
+    req.on('data', chunk => {
+      body += chunk.toString();
+      // WHY 1MB LIMIT: Prevents memory exhaustion attacks
+      if (body.length > 1024 * 1024) {
+        reject(new Error('Request body too large'));
+      }
+    });
+
+    req.on('end', () => {
+      try {
+        if (!body) {
+          resolve({});
+          return;
+        }
+        const data = JSON.parse(body);
+        resolve(data);
+      } catch (error) {
+        reject(new Error('Invalid JSON body: ' + error.message));
+      }
+    });
+
+    req.on('error', reject);
+  });
+}
+
+/**
  * Get flash message from query string
  */
 function getFlashMessage(url) {
@@ -5904,6 +5938,10 @@ export function hook_routes(register, context) {
       const isFavorite = user && favoritesService ?
         favoritesService.isFavorite(user.id, type, item.id) : false;
 
+      // Check for pending revisions (non-default drafts)
+      const hasPendingRevisions = content.hasPendingRevisions(type, item.id);
+      const pendingRevisionCount = hasPendingRevisions ? content.countPendingRevisions(type, item.id) : 0;
+
       return {
         ...item,
         type, // Include type for links
@@ -5913,6 +5951,8 @@ export function hook_routes(register, context) {
         scheduledAtFormatted: item.scheduledAt ? formatDate(item.scheduledAt) : null,
         preview: previewParts.join('\n'),
         isFavorite,
+        hasPendingRevisions,
+        pendingRevisionCount,
       };
     });
 
@@ -14270,6 +14310,477 @@ export function hook_routes(register, context) {
     });
   }, 'List layout definitions');
 
+  /**
+   * PUT /api/layout/:type/:id/sections - Set per-content layout override
+   *
+   * WHY: Enables creating custom layouts for individual content items.
+   * Body should contain: { sections: [...] }
+   */
+  register('PUT', '/api/layout/:type/:id/sections', async (req, res, params, ctx) => {
+    const { type, id } = params;
+    const layoutBuilder = ctx.services.get('layoutBuilder');
+
+    if (!layoutBuilder) {
+      server.json(res, { error: 'Layout Builder not enabled' }, 503);
+      return;
+    }
+
+    try {
+      const body = await parseJsonBody(req);
+      const { sections } = body;
+
+      if (!sections || !Array.isArray(sections)) {
+        server.json(res, { error: 'sections array is required' }, 400);
+        return;
+      }
+
+      await layoutBuilder.setContentLayout(type, id, { sections });
+
+      server.json(res, {
+        success: true,
+        contentType: type,
+        contentId: id,
+        sectionCount: sections.length,
+      });
+    } catch (error) {
+      server.json(res, { error: error.message }, 400);
+    }
+  }, 'Set per-content layout override');
+
+  /**
+   * DELETE /api/layout/:type/:id/sections - Remove per-content layout override
+   *
+   * WHY: Allows reverting to content type default layout.
+   */
+  register('DELETE', '/api/layout/:type/:id/sections', async (req, res, params, ctx) => {
+    const { type, id } = params;
+    const layoutBuilder = ctx.services.get('layoutBuilder');
+
+    if (!layoutBuilder) {
+      server.json(res, { error: 'Layout Builder not enabled' }, 503);
+      return;
+    }
+
+    try {
+      await layoutBuilder.removeContentLayout(type, id);
+
+      server.json(res, {
+        success: true,
+        contentType: type,
+        contentId: id,
+        reverted: true,
+      });
+    } catch (error) {
+      server.json(res, { error: error.message }, 400);
+    }
+  }, 'Remove per-content layout override');
+
+  // ========================================
+  // PER-CONTENT LAYOUT OVERRIDE ADMIN ROUTES
+  // ========================================
+
+  /**
+   * GET /admin/content/:type/:id/layout - Manage layout for specific content item
+   *
+   * WHY: Provides UI for creating custom layouts for individual content items.
+   * Shows current effective layout (override or default) with edit capabilities.
+   */
+  register('GET', '/admin/content/:type/:id/layout', async (req, res, params, ctx) => {
+    const { type, id } = params;
+    const layoutBuilder = ctx.services.get('layoutBuilder');
+    const blocksService = ctx.services.get('blocks');
+    const contentService = ctx.services.get('content');
+
+    if (!layoutBuilder) {
+      redirect(res, '/admin?error=' + encodeURIComponent('Layout Builder not enabled'));
+      return;
+    }
+
+    // Get content item for title display
+    const item = contentService ? contentService.read(type, id) : null;
+    if (!item) {
+      redirect(res, `/admin/content/${type}?error=` + encodeURIComponent('Content not found'));
+      return;
+    }
+    const itemTitle = item.title || item.name || id;
+
+    // Get effective layout (per-content override or default)
+    const storage = layoutBuilder.getEffectiveLayout(type, id) || { sections: [] };
+    const hasOverride = layoutBuilder.hasContentLayoutOverride(type, id);
+    const layouts = layoutBuilder.listLayouts();
+    const blocks = blocksService ? blocksService.listBlocks({ enabled: true }).items : [];
+    const csrfToken = req ? (ctx.services.get('auth')?.getCSRFToken(req) || '') : '';
+
+    // Pre-render sections HTML (same pattern as default layout edit)
+    // WHY: Template engine doesn't support deeply nested Mustache-style sections.
+    let sectionsHtml = '';
+    const sectionsList = storage.sections || [];
+    if (sectionsList.length === 0) {
+      sectionsHtml = '<div class="empty-section"><p>No sections yet.</p><p>Add a section from the sidebar to start building your layout.</p></div>';
+    } else {
+      for (let i = 0; i < sectionsList.length; i++) {
+        const section = sectionsList[i];
+        const layoutDef = layoutBuilder.getLayout(section.layoutId);
+        const layoutLabel = layoutDef?.label || section.layoutId;
+        const uuidShort = section.uuid.substring(0, 8);
+
+        // Section action buttons (move up/down, remove)
+        let actionBtns = '';
+        if (i > 0) {
+          actionBtns += `<form action="/admin/content/${type}/${id}/layout/move-section" method="POST" class="inline-form">
+            <input type="hidden" name="sectionUuid" value="${section.uuid}">
+            <input type="hidden" name="direction" value="up">
+            <input type="hidden" name="_csrf" value="${csrfToken}">
+            <input type="submit" value="↑" title="Move up">
+          </form>`;
+        }
+        if (i < sectionsList.length - 1) {
+          actionBtns += `<form action="/admin/content/${type}/${id}/layout/move-section" method="POST" class="inline-form">
+            <input type="hidden" name="sectionUuid" value="${section.uuid}">
+            <input type="hidden" name="direction" value="down">
+            <input type="hidden" name="_csrf" value="${csrfToken}">
+            <input type="submit" value="↓" title="Move down">
+          </form>`;
+        }
+        actionBtns += `<form action="/admin/content/${type}/${id}/layout/remove-section" method="POST" class="inline-form" onsubmit="return confirm('Remove this section?')">
+          <input type="hidden" name="sectionUuid" value="${section.uuid}">
+          <input type="hidden" name="_csrf" value="${csrfToken}">
+          <input type="submit" value="×" title="Remove section">
+        </form>`;
+
+        // Regions with components
+        let regionsHtml = '';
+        for (const [regionId, region] of Object.entries(layoutDef?.regions || {})) {
+          const components = section.components[regionId] || [];
+          let componentsHtml = '';
+          if (components.length > 0) {
+            for (const comp of components) {
+              const typeLabel = comp.type === 'block' ? `Block: ${comp.blockId}` :
+                comp.type === 'inline_block' ? `Inline: ${comp.blockType}` :
+                comp.type === 'field' ? `Field: ${comp.fieldName}` : comp.type;
+              const configStr = comp.configuration && Object.keys(comp.configuration).length > 0
+                ? ` <span style="color:#999;font-size:0.8em">[configured]</span>` : '';
+              componentsHtml += `<div class="component-item">
+                <div class="component-info">
+                  <span class="component-type">${typeLabel}</span>${configStr}
+                  <span class="component-uuid">(${comp.uuid.substring(0, 8)}...)</span>
+                </div>
+                <div class="component-actions">
+                  <form action="/admin/content/${type}/${id}/layout/remove-component" method="POST" class="inline-form" onsubmit="return confirm('Remove this component?')">
+                    <input type="hidden" name="sectionUuid" value="${section.uuid}">
+                    <input type="hidden" name="componentUuid" value="${comp.uuid}">
+                    <input type="hidden" name="_csrf" value="${csrfToken}">
+                    <button type="submit">×</button>
+                  </form>
+                </div>
+              </div>`;
+            }
+          } else {
+            componentsHtml = '<p style="color: #999; font-size: 0.9em; text-align: center;">Drop blocks here</p>';
+          }
+
+          // Add block form for this region
+          let addBlockForm = '';
+          if (blocks.length > 0) {
+            const blockOptions = blocks.map(b =>
+              `<option value="${b.id}">${b.adminTitle || b.title || b.id}</option>`
+            ).join('');
+            addBlockForm = `<form action="/admin/content/${type}/${id}/layout/add-block" method="POST" style="margin-top: 10px;">
+              <input type="hidden" name="sectionUuid" value="${section.uuid}">
+              <input type="hidden" name="regionId" value="${regionId}">
+              <input type="hidden" name="_csrf" value="${csrfToken}">
+              <select name="blockId" style="width: 70%; padding: 4px; font-size: 0.85em;">
+                <option value="">Add block...</option>
+                ${blockOptions}
+              </select>
+              <button type="submit" class="btn btn-small" style="padding: 4px 8px;">+</button>
+            </form>`;
+          }
+
+          regionsHtml += `<div class="region-container">
+            <div class="region-header">${region.label || regionId}</div>
+            <div class="region-content">
+              ${componentsHtml}
+              ${addBlockForm}
+            </div>
+          </div>`;
+        }
+
+        sectionsHtml += `<div class="section-card">
+          <div class="section-header">
+            <h3>${layoutLabel}</h3>
+            <div class="section-actions">${actionBtns}</div>
+          </div>
+          <div class="section-body">
+            <small class="component-uuid">UUID: ${uuidShort}...</small>
+            <div class="section-regions">${regionsHtml}</div>
+          </div>
+        </div>`;
+      }
+    }
+
+    // Pre-render sidebar HTML
+    const layoutOptions = layouts.map(l =>
+      `<option value="${l.id}">${l.label} (${Object.keys(l.regions).join(', ')})</option>`
+    ).join('');
+
+    let blocksListHtml = '';
+    if (blocks.length > 0) {
+      const blockItems = blocks.map(b =>
+        `<li><strong>${b.adminTitle || b.title || b.id}</strong> <span style="color: #999;">(${b.type})</span></li>`
+      ).join('');
+      blocksListHtml = `<ul style="font-size: 0.9em; padding-left: 20px;">${blockItems}</ul>
+        <p style="font-size: 0.85em; color: #666;"><a href="/admin/blocks">Manage Blocks →</a></p>`;
+    } else {
+      blocksListHtml = '<p style="color: #999; font-size: 0.9em;">No blocks available. <a href="/admin/blocks/add">Create a block</a> first.</p>';
+    }
+
+    const overrideStatusHtml = hasOverride
+      ? '<div class="info-banner" style="background: #e3f2fd; border-left: 4px solid #2196f3; padding: 12px; margin-bottom: 16px;">This content item has a custom layout override.</div>'
+      : '<div class="info-banner" style="background: #fff8e1; border-left: 4px solid #ff9800; padding: 12px; margin-bottom: 16px;">This content item uses the default layout for <strong>' + type + '</strong>. Changes will create an override.</div>';
+
+    let revertButtonHtml = '';
+    if (hasOverride) {
+      revertButtonHtml = `<form action="/admin/content/${type}/${id}/layout/revert" method="POST" onsubmit="return confirm('Revert to default layout? This will remove all custom sections.')">
+        <input type="hidden" name="_csrf" value="${csrfToken}">
+        <button type="submit" class="btn btn-danger">Revert to Default Layout</button>
+      </form>`;
+    }
+
+    const sidebarHtml = `<h3>Add Section</h3>
+      <form action="/admin/content/${type}/${id}/layout/add-section" method="POST" class="add-form">
+        <input type="hidden" name="_csrf" value="${csrfToken}">
+        <label for="layoutId">Layout Template:</label>
+        <select name="layoutId" id="layoutId" required>
+          <option value="">Select layout...</option>
+          ${layoutOptions}
+        </select>
+        <button type="submit" class="btn btn-primary">Add Section</button>
+      </form>
+      <hr style="margin: 20px 0;">
+      <h3>Available Blocks</h3>
+      ${blocksListHtml}
+      ${hasOverride ? '<hr style="margin: 20px 0;"><div class="danger-zone"><h4>Danger Zone</h4><p style="font-size: 0.85em;">Revert to default layout:</p>' + revertButtonHtml + '</div>' : ''}`;
+
+    const flash = getFlashMessage(req.url);
+
+    const html = renderAdmin('layout-builder-edit.html', {
+      pageTitle: `Layout: ${itemTitle}`,
+      contentType: type,
+      sectionsHtml: overrideStatusHtml + sectionsHtml,
+      sidebarHtml,
+      lastUpdated: storage.updated ? formatDate(storage.updated) : 'Never',
+      flash,
+      hasFlash: !!flash,
+    }, ctx, req);
+
+    server.html(res, html);
+  }, 'Edit per-content layout override');
+
+  /**
+   * POST /admin/content/:type/:id/layout/add-section - Add section to content layout
+   */
+  register('POST', '/admin/content/:type/:id/layout/add-section', async (req, res, params, ctx) => {
+    const { type, id } = params;
+    const layoutBuilder = ctx.services.get('layoutBuilder');
+
+    if (!layoutBuilder) {
+      redirect(res, '/admin?error=' + encodeURIComponent('Layout Builder not enabled'));
+      return;
+    }
+
+    try {
+      const body = ctx._parsedBody || await parseFormBody(req);
+      const layoutId = body.layoutId;
+
+      if (!layoutId) {
+        redirect(res, `/admin/content/${type}/${id}/layout?error=` + encodeURIComponent('Layout is required'));
+        return;
+      }
+
+      let storage = layoutBuilder.getEffectiveLayout(type, id) || { sections: [] };
+      const section = layoutBuilder.createSection(layoutId);
+      storage = layoutBuilder.addSection(storage, section);
+      await layoutBuilder.setContentLayout(type, id, storage);
+
+      redirect(res, `/admin/content/${type}/${id}/layout?success=` + encodeURIComponent('Section added'));
+    } catch (error) {
+      redirect(res, `/admin/content/${type}/${id}/layout?error=` + encodeURIComponent(error.message));
+    }
+  }, 'Add section to content layout');
+
+  /**
+   * POST /admin/content/:type/:id/layout/remove-section - Remove section from content layout
+   */
+  register('POST', '/admin/content/:type/:id/layout/remove-section', async (req, res, params, ctx) => {
+    const { type, id } = params;
+    const layoutBuilder = ctx.services.get('layoutBuilder');
+
+    if (!layoutBuilder) {
+      redirect(res, '/admin?error=' + encodeURIComponent('Layout Builder not enabled'));
+      return;
+    }
+
+    try {
+      const body = ctx._parsedBody || await parseFormBody(req);
+      const sectionUuid = body.sectionUuid;
+
+      let storage = layoutBuilder.getEffectiveLayout(type, id);
+      if (!storage) {
+        redirect(res, `/admin/content/${type}/${id}/layout?error=` + encodeURIComponent('No layout found'));
+        return;
+      }
+
+      storage = layoutBuilder.removeSection(storage, sectionUuid);
+      await layoutBuilder.setContentLayout(type, id, storage);
+
+      redirect(res, `/admin/content/${type}/${id}/layout?success=` + encodeURIComponent('Section removed'));
+    } catch (error) {
+      redirect(res, `/admin/content/${type}/${id}/layout?error=` + encodeURIComponent(error.message));
+    }
+  }, 'Remove section from content layout');
+
+  /**
+   * POST /admin/content/:type/:id/layout/move-section - Move section up/down in content layout
+   */
+  register('POST', '/admin/content/:type/:id/layout/move-section', async (req, res, params, ctx) => {
+    const { type, id } = params;
+    const layoutBuilder = ctx.services.get('layoutBuilder');
+
+    if (!layoutBuilder) {
+      redirect(res, '/admin?error=' + encodeURIComponent('Layout Builder not enabled'));
+      return;
+    }
+
+    try {
+      const body = ctx._parsedBody || await parseFormBody(req);
+      const sectionUuid = body.sectionUuid;
+      const direction = body.direction; // 'up' or 'down'
+
+      let storage = layoutBuilder.getEffectiveLayout(type, id);
+      if (!storage) {
+        redirect(res, `/admin/content/${type}/${id}/layout?error=` + encodeURIComponent('No layout found'));
+        return;
+      }
+
+      const currentIndex = storage.sections.findIndex(s => s.uuid === sectionUuid);
+      if (currentIndex === -1) {
+        redirect(res, `/admin/content/${type}/${id}/layout?error=` + encodeURIComponent('Section not found'));
+        return;
+      }
+
+      const newIndex = direction === 'up' ? currentIndex - 1 : currentIndex + 1;
+      if (newIndex >= 0 && newIndex < storage.sections.length) {
+        storage = layoutBuilder.moveSection(storage, sectionUuid, newIndex);
+        await layoutBuilder.setContentLayout(type, id, storage);
+      }
+
+      redirect(res, `/admin/content/${type}/${id}/layout?success=` + encodeURIComponent('Section moved'));
+    } catch (error) {
+      redirect(res, `/admin/content/${type}/${id}/layout?error=` + encodeURIComponent(error.message));
+    }
+  }, 'Move section in content layout');
+
+  /**
+   * POST /admin/content/:type/:id/layout/add-block - Add block to content layout section
+   */
+  register('POST', '/admin/content/:type/:id/layout/add-block', async (req, res, params, ctx) => {
+    const { type, id } = params;
+    const layoutBuilder = ctx.services.get('layoutBuilder');
+
+    if (!layoutBuilder) {
+      redirect(res, '/admin?error=' + encodeURIComponent('Layout Builder not enabled'));
+      return;
+    }
+
+    try {
+      const body = ctx._parsedBody || await parseFormBody(req);
+      const { sectionUuid, regionId, blockId } = body;
+
+      if (!sectionUuid || !regionId || !blockId) {
+        redirect(res, `/admin/content/${type}/${id}/layout?error=` + encodeURIComponent('Missing required fields'));
+        return;
+      }
+
+      let storage = layoutBuilder.getEffectiveLayout(type, id);
+      if (!storage) {
+        redirect(res, `/admin/content/${type}/${id}/layout?error=` + encodeURIComponent('No layout found'));
+        return;
+      }
+
+      const section = layoutBuilder.getSection(storage, sectionUuid);
+      if (!section) {
+        redirect(res, `/admin/content/${type}/${id}/layout?error=` + encodeURIComponent('Section not found'));
+        return;
+      }
+
+      const component = layoutBuilder.createBlockComponent(blockId);
+      layoutBuilder.addComponent(section, regionId, component);
+      await layoutBuilder.setContentLayout(type, id, storage);
+
+      redirect(res, `/admin/content/${type}/${id}/layout?success=` + encodeURIComponent('Block added'));
+    } catch (error) {
+      redirect(res, `/admin/content/${type}/${id}/layout?error=` + encodeURIComponent(error.message));
+    }
+  }, 'Add block to content layout section');
+
+  /**
+   * POST /admin/content/:type/:id/layout/remove-component - Remove component from content layout section
+   */
+  register('POST', '/admin/content/:type/:id/layout/remove-component', async (req, res, params, ctx) => {
+    const { type, id } = params;
+    const layoutBuilder = ctx.services.get('layoutBuilder');
+
+    if (!layoutBuilder) {
+      redirect(res, '/admin?error=' + encodeURIComponent('Layout Builder not enabled'));
+      return;
+    }
+
+    try {
+      const body = ctx._parsedBody || await parseFormBody(req);
+      const { sectionUuid, componentUuid } = body;
+
+      let storage = layoutBuilder.getEffectiveLayout(type, id);
+      if (!storage) {
+        redirect(res, `/admin/content/${type}/${id}/layout?error=` + encodeURIComponent('No layout found'));
+        return;
+      }
+
+      const section = layoutBuilder.getSection(storage, sectionUuid);
+      if (!section) {
+        redirect(res, `/admin/content/${type}/${id}/layout?error=` + encodeURIComponent('Section not found'));
+        return;
+      }
+
+      layoutBuilder.removeComponent(section, componentUuid);
+      await layoutBuilder.setContentLayout(type, id, storage);
+
+      redirect(res, `/admin/content/${type}/${id}/layout?success=` + encodeURIComponent('Component removed'));
+    } catch (error) {
+      redirect(res, `/admin/content/${type}/${id}/layout?error=` + encodeURIComponent(error.message));
+    }
+  }, 'Remove component from content layout section');
+
+  /**
+   * POST /admin/content/:type/:id/layout/revert - Revert to default layout (remove override)
+   */
+  register('POST', '/admin/content/:type/:id/layout/revert', async (req, res, params, ctx) => {
+    const { type, id } = params;
+    const layoutBuilder = ctx.services.get('layoutBuilder');
+
+    if (!layoutBuilder) {
+      redirect(res, '/admin?error=' + encodeURIComponent('Layout Builder not enabled'));
+      return;
+    }
+
+    try {
+      await layoutBuilder.removeContentLayout(type, id);
+      redirect(res, `/admin/content/${type}/${id}/layout?success=` + encodeURIComponent('Reverted to default layout'));
+    } catch (error) {
+      redirect(res, `/admin/content/${type}/${id}/layout?error=` + encodeURIComponent(error.message));
+    }
+  }, 'Revert to default layout');
+
   // ========================================
   // MEDIA LIBRARY ROUTES
   // ========================================
@@ -14471,6 +14982,274 @@ export function hook_routes(register, context) {
 
     server.html(res, html);
   }, 'JSON:API explorer');
+
+  // ========================================
+  // LAYOUT BUILDER PAGE ROUTE (Feature #67)
+  // ========================================
+
+  /**
+   * GET /node/:id/layout - Layout builder page for a specific content item
+   *
+   * WHY /node/:id/layout:
+   * Follows Drupal's convention where /node/{nid}/layout opens the layout builder.
+   * Auto-detects content type by searching across all registered types.
+   *
+   * FEATURES IMPLEMENTED:
+   * - Feature #67: Dedicated page route for the layout builder interface
+   * - Feature #68: Layout builder HTML shell with sections grid
+   * - Feature #70: Drag handle for sections (via draggable attribute + JS)
+   */
+  register('GET', '/node/:id/layout', async (req, res, params, ctx) => {
+    const { id } = params;
+    const layoutBuilder = ctx.services.get('layoutBuilder');
+    const server = ctx.services.get('server');
+
+    if (!layoutBuilder) {
+      redirect(res, '/admin?error=' + encodeURIComponent('Layout Builder not enabled'));
+      return;
+    }
+
+    // Auto-detect content type by searching across all registered types
+    // WHY: Drupal's /node/{id}/layout doesn't include type in the URL,
+    // so we need to find which type this content belongs to.
+    const types = content.listTypes();
+    let contentItem = null;
+    let contentType = null;
+
+    for (const { type } of types) {
+      const item = content.read(type, id);
+      if (item) {
+        contentItem = item;
+        contentType = type;
+        break;
+      }
+    }
+
+    // 404 for non-existent content
+    if (!contentItem) {
+      res.writeHead(404, { 'Content-Type': 'text/html' });
+      res.end(`<!DOCTYPE html><html><head><title>404 Not Found</title><link rel="stylesheet" href="/css/admin.css"></head>
+<body><main class="admin-main"><h1>404 - Content Not Found</h1>
+<p>No content found with ID "${id.replace(/[<>"'&]/g, '')}".</p>
+<a href="/admin/content" class="btn btn-primary">← Back to Content</a></main></body></html>`);
+      return;
+    }
+
+    const contentId = contentItem.id || id;
+    const contentTitle = contentItem.title || contentItem.name || contentItem.subject || contentId;
+
+    // Get the effective layout (override > default > empty)
+    const effectiveLayout = layoutBuilder.getEffectiveLayout(contentType, contentId, contentItem);
+    const hasOverride = layoutBuilder.hasContentLayoutOverride(contentType, contentId);
+    const layouts = layoutBuilder.listLayouts();
+
+    // Build sections HTML (Feature #68: sections grid)
+    let sectionsHtml = '';
+
+    if (effectiveLayout && effectiveLayout.sections && effectiveLayout.sections.length > 0) {
+      const sortedSections = [...effectiveLayout.sections].sort((a, b) => (a.weight || 0) - (b.weight || 0));
+
+      for (const section of sortedSections) {
+        const layoutDef = layoutBuilder.getLayout(section.layoutId);
+        const layoutLabel = layoutDef ? layoutDef.label : section.layoutId;
+        const regions = layoutDef ? layoutDef.regions : {};
+        const regionCount = Object.keys(regions).length;
+
+        // Build regions HTML
+        let regionsHtml = '';
+        const sortedRegions = Object.entries(regions)
+          .sort((a, b) => (a[1].weight || 0) - (b[1].weight || 0));
+
+        for (const [regionId, regionDef] of sortedRegions) {
+          const components = (section.components && section.components[regionId]) || [];
+
+          let componentsHtml = '';
+          if (components.length > 0) {
+            for (const comp of components.sort((a, b) => (a.weight || 0) - (b.weight || 0))) {
+              let typeLabel = comp.type;
+              let detailLabel = '';
+              if (comp.type === 'block') {
+                typeLabel = 'Block';
+                detailLabel = comp.blockId || '(no block ID)';
+              } else if (comp.type === 'inline_block') {
+                typeLabel = 'Inline Block';
+                detailLabel = comp.blockType || '';
+              } else if (comp.type === 'field') {
+                typeLabel = 'Field';
+                detailLabel = comp.fieldName || '';
+              }
+
+              componentsHtml += `
+                <div class="component-chip" draggable="false">
+                  <div class="component-chip-info">
+                    <span class="component-chip-type">${typeLabel}</span>
+                    <span class="component-chip-detail">${detailLabel}</span>
+                  </div>
+                  <div class="component-chip-actions">
+                    <button title="Remove component" onclick="if(confirm('Remove this component?')) removeComponent('${contentType}', '${contentId}', '${section.uuid}', '${comp.uuid}')">✕</button>
+                  </div>
+                </div>`;
+            }
+          } else {
+            componentsHtml = '<div class="region-empty">Drop a component here</div>';
+          }
+
+          regionsHtml += `
+            <div class="region-slot" data-region="${regionId}">
+              <div class="region-slot-header">
+                <span>${regionDef.label || regionId}</span>
+                <button class="add-component-btn" onclick="addComponent('${contentType}', '${contentId}', '${section.uuid}', '${regionId}')">+ Add</button>
+              </div>
+              <div class="region-slot-content">
+                ${componentsHtml}
+              </div>
+            </div>`;
+        }
+
+        // Section wrapper with drag handle (Feature #70)
+        sectionsHtml += `
+          <div class="section-wrapper" draggable="true" data-section-uuid="${section.uuid}">
+            <div class="section-drag-handle" title="Drag to reorder">
+              <div class="drag-dots"></div>
+              <div class="drag-dots"></div>
+              <div class="drag-dots"></div>
+              <div class="drag-dots"></div>
+              <div class="drag-dots"></div>
+            </div>
+            <div class="section-header">
+              <div class="section-header-info">
+                <h3>${layoutLabel}</h3>
+                <span class="section-layout-badge">${section.layoutId}</span>
+              </div>
+              <div class="section-header-actions">
+                <button onclick="if(confirm('Delete this section?')) deleteSection('${contentType}', '${contentId}', '${section.uuid}')" class="btn-delete-section">Delete</button>
+              </div>
+            </div>
+            <div class="section-body">
+              <div class="section-regions-grid regions-${regionCount}">
+                ${regionsHtml}
+              </div>
+            </div>
+          </div>`;
+      }
+    } else {
+      sectionsHtml = `
+        <div class="empty-layout">
+          <div class="empty-icon">📐</div>
+          <h3>No Layout Defined</h3>
+          <p>This content has no layout sections yet. Click "Add Section" below to start building.</p>
+        </div>`;
+    }
+
+    // Build layout options HTML for the layout chooser
+    let layoutOptionsHtml = '';
+    for (const layout of layouts) {
+      const regionCount = Object.keys(layout.regions).length;
+      // Simple column icons based on region count
+      const icon = regionCount === 1 ? '▮' :
+                   regionCount === 2 ? '▮▮' :
+                   regionCount === 3 ? '▮▮▮' :
+                   regionCount === 4 ? '▮▮▮▮' : '▦';
+
+      layoutOptionsHtml += `
+        <div class="layout-option" onclick="addSection('${contentType}', '${contentId}', '${layout.id}')">
+          <div class="layout-icon">${icon}</div>
+          <div class="layout-name">${layout.label}</div>
+        </div>`;
+    }
+
+    const flash = getFlashMessage(req.url);
+
+    const html = renderAdmin('layout-builder-page.html', {
+      pageTitle: `Layout: ${contentTitle}`,
+      contentType,
+      contentId,
+      contentTitle,
+      hasOverride,
+      overrideClass: hasOverride ? 'has-override' : 'using-default',
+      overrideLabel: hasOverride ? 'Override' : 'Default Layout',
+      sectionsHtml,
+      layoutOptionsHtml,
+      flash,
+      hasFlash: !!flash,
+    }, ctx, req);
+
+    server.html(res, html);
+  }, 'Layout builder page for content item');
+
+  /**
+   * POST /node/:id/layout/add-section - Add a section to content layout
+   */
+  register('POST', '/node/:id/layout/add-section', async (req, res, params, ctx) => {
+    const { id } = params;
+    const layoutBuilder = ctx.services.get('layoutBuilder');
+
+    // Parse form body
+    const body = await parseFormBody(req);
+    const layoutId = body.layoutId;
+    const contentType = body.contentType;
+
+    if (!layoutId || !contentType) {
+      redirect(res, `/node/${id}/layout?error=` + encodeURIComponent('Missing layoutId or contentType'));
+      return;
+    }
+
+    try {
+      const item = content.read(contentType, id);
+      if (!item) {
+        redirect(res, `/node/${id}/layout?error=` + encodeURIComponent('Content not found'));
+        return;
+      }
+
+      // Get or create layout storage
+      let storage = layoutBuilder.getEffectiveLayout(contentType, id, item);
+      if (!storage || !layoutBuilder.hasContentLayoutOverride(contentType, id)) {
+        storage = storage ? layoutBuilder.cloneLayout(storage) : { sections: [] };
+      }
+
+      // Create and add section
+      const section = layoutBuilder.createSection(layoutId);
+      layoutBuilder.addSection(storage, section);
+
+      // Save as per-content override
+      await layoutBuilder.setContentLayout(contentType, id, storage);
+
+      redirect(res, `/node/${id}/layout?success=` + encodeURIComponent(`Section "${layoutBuilder.getLayout(layoutId).label}" added`));
+    } catch (err) {
+      redirect(res, `/node/${id}/layout?error=` + encodeURIComponent(err.message));
+    }
+  }, 'Add section to content layout');
+
+  /**
+   * POST /node/:id/layout/revert - Revert content layout to default
+   */
+  register('POST', '/node/:id/layout/revert', async (req, res, params, ctx) => {
+    const { id } = params;
+    const layoutBuilder = ctx.services.get('layoutBuilder');
+
+    // Find content type
+    const types = content.listTypes();
+    let contentType = null;
+    for (const { type } of types) {
+      const item = content.read(type, id);
+      if (item) {
+        contentType = type;
+        break;
+      }
+    }
+
+    if (!contentType) {
+      redirect(res, `/admin/content?error=` + encodeURIComponent('Content not found'));
+      return;
+    }
+
+    try {
+      await layoutBuilder.removeContentLayout(contentType, id);
+      redirect(res, `/node/${id}/layout?success=` + encodeURIComponent('Layout reverted to default'));
+    } catch (err) {
+      redirect(res, `/node/${id}/layout?error=` + encodeURIComponent(err.message));
+    }
+  }, 'Revert content layout to default');
 
   /**
    * Helper: Format value for display
