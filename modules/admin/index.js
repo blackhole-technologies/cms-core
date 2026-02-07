@@ -3498,24 +3498,35 @@ export function hook_cli(register, context) {
 
   /**
    * config:list - List config items
+   *
+   * WHY USE configManagement SERVICE:
+   * The 'config' service returns the raw config object (context.config).
+   * The 'configManagement' service provides the registry of tracked configs
+   * with methods like getRegistry(), getConfig(), exportConfig(), etc.
    */
   register('config:list', async (args, ctx) => {
-    const configService = ctx.services.get('config');
-    if (!configService) {
-      console.log('Config service not available');
+    const configMgmt = ctx.services.get('configManagement');
+    if (!configMgmt) {
+      console.log('Config management service not available');
       return;
     }
 
-    const items = configService.listItems();
-    if (items.length === 0) {
-      console.log('No config items');
+    const registryInfo = configMgmt.getRegistry();
+    const configNames = Object.keys(registryInfo.configs);
+
+    if (configNames.length === 0) {
+      console.log('No config items registered');
       return;
     }
 
-    console.log(`\nConfig Items (${items.length}):\n`);
-    for (const item of items) {
-      console.log(`  ${item.key} = ${JSON.stringify(item.value)}`);
+    console.log(`\nRegistered Configs (${configNames.length}):\n`);
+    for (const name of configNames.sort()) {
+      const meta = registryInfo.configs[name];
+      const locked = registryInfo.locked.includes(name) ? ' [LOCKED]' : '';
+      console.log(`  ${name} (${meta.file})${locked}`);
     }
+    console.log(`\nEnvironments: ${Object.keys(registryInfo.environments).join(', ')}`);
+    console.log(`History entries: ${registryInfo.historyCount}`);
     console.log('');
   }, 'List config items');
 
@@ -3523,52 +3534,75 @@ export function hook_cli(register, context) {
    * config:export [--items=a,b,c] - Export config
    */
   register('config:export', async (args, ctx) => {
-    const configService = ctx.services.get('config');
-    if (!configService) {
-      console.log('Config service not available');
+    const configMgmt = ctx.services.get('configManagement');
+    if (!configMgmt) {
+      console.log('Config management service not available');
       return;
     }
 
     const itemsArg = args.find(a => a.startsWith('--items='));
-    const items = itemsArg ? itemsArg.split('=')[1].split(',') : undefined;
+    const items = itemsArg ? itemsArg.split('=')[1].split(',') : null;
 
-    const exported = configService.exportConfig(items);
-    console.log(JSON.stringify(exported, null, 2));
+    try {
+      const archivePath = await configMgmt.exportConfig(items);
+      console.log(`Config exported to: ${archivePath}`);
+    } catch (error) {
+      console.log(`Error: ${error.message}`);
+    }
   }, 'Export config');
 
   /**
-   * config:import <file> - Import config
+   * config:import <file> [--overwrite] [--dry-run] - Import config
    */
   register('config:import', async (args, ctx) => {
-    const configService = ctx.services.get('config');
-    if (!configService) {
-      console.log('Config service not available');
+    const configMgmt = ctx.services.get('configManagement');
+    if (!configMgmt) {
+      console.log('Config management service not available');
       return;
     }
 
-    const file = args[0];
+    const file = args.find(a => !a.startsWith('--'));
     if (!file) {
-      console.log('Usage: config:import <file>');
+      console.log('Usage: config:import <file> [--overwrite] [--dry-run]');
       return;
     }
+
+    const overwrite = args.includes('--overwrite');
+    const dryRun = args.includes('--dry-run');
 
     try {
-      const { readFileSync } = await import('node:fs');
-      const data = JSON.parse(readFileSync(file, 'utf-8'));
-      configService.importConfig(data);
-      console.log(`Imported config from ${file}`);
+      const result = await configMgmt.importConfig(file, { overwrite, dryRun });
+      if (dryRun) {
+        console.log('\n[DRY RUN] No changes applied.\n');
+      }
+      console.log(`Imported: ${result.imported.length}`);
+      console.log(`Skipped: ${result.skipped.length}`);
+      console.log(`Failed: ${result.failed.length}`);
+      if (result.skipped.length > 0) {
+        console.log('\nSkipped:');
+        for (const s of result.skipped) {
+          console.log(`  ${s.name}: ${s.reason}`);
+        }
+      }
+      if (result.failed.length > 0) {
+        console.log('\nFailed:');
+        for (const f of result.failed) {
+          console.log(`  ${f.name}: ${f.reason}`);
+        }
+      }
+      console.log('');
     } catch (error) {
       console.log(`Error: ${error.message}`);
     }
   }, 'Import config');
 
   /**
-   * config:diff <file> - Show diff
+   * config:diff <file> - Show diff between current config and archive
    */
   register('config:diff', async (args, ctx) => {
-    const configService = ctx.services.get('config');
-    if (!configService) {
-      console.log('Config service not available');
+    const configMgmt = ctx.services.get('configManagement');
+    if (!configMgmt) {
+      console.log('Config management service not available');
       return;
     }
 
@@ -3579,15 +3613,23 @@ export function hook_cli(register, context) {
     }
 
     try {
-      const { readFileSync } = await import('node:fs');
-      const data = JSON.parse(readFileSync(file, 'utf-8'));
-      const diff = configService.diffConfig(data);
+      const diff = await configMgmt.diffConfig(file);
 
       console.log('\nConfig Diff:\n');
-      for (const item of diff) {
-        console.log(`  ${item.key}:`);
-        console.log(`    current: ${JSON.stringify(item.current)}`);
-        console.log(`    incoming: ${JSON.stringify(item.incoming)}`);
+      if (diff.added.length > 0) {
+        console.log(`  Added (${diff.added.length}): ${diff.added.join(', ')}`);
+      }
+      if (diff.modified.length > 0) {
+        console.log(`  Modified (${diff.modified.length}):`);
+        for (const m of diff.modified) {
+          console.log(`    ${m.name}`);
+        }
+      }
+      if (diff.removed.length > 0) {
+        console.log(`  Removed (${diff.removed.length}): ${diff.removed.join(', ')}`);
+      }
+      if (diff.unchanged.length > 0) {
+        console.log(`  Unchanged (${diff.unchanged.length}): ${diff.unchanged.join(', ')}`);
       }
       console.log('');
     } catch (error) {
@@ -3962,7 +4004,7 @@ export function hook_cli(register, context) {
    * actions:list - List available actions
    */
   register('actions:list', async (args, ctx) => {
-    const actionService = ctx.services.get('action');
+    const actionService = ctx.services.get('actions');
     if (!actionService) {
       console.error('Action service not available');
       return;
@@ -3985,7 +4027,7 @@ export function hook_cli(register, context) {
    * actions:execute <action> [--target=type:id] - Execute action
    */
   register('actions:execute', async (args, ctx) => {
-    const actionService = ctx.services.get('action');
+    const actionService = ctx.services.get('actions');
     if (!actionService) {
       console.error('Action service not available');
       return;
@@ -4143,7 +4185,7 @@ export function hook_cli(register, context) {
    * theme:list - List themes
    */
   register('theme:list', async (args, ctx) => {
-    const themeService = ctx.services.get('theme');
+    const themeService = ctx.services.get('themeEngine');
     if (!themeService) {
       console.error('Theme service not available');
       return;
@@ -4169,7 +4211,7 @@ export function hook_cli(register, context) {
    * theme:active - Show active theme
    */
   register('theme:active', async (args, ctx) => {
-    const themeService = ctx.services.get('theme');
+    const themeService = ctx.services.get('themeEngine');
     if (!themeService) {
       console.error('Theme service not available');
       return;
@@ -4191,7 +4233,7 @@ export function hook_cli(register, context) {
    * theme:activate <name> - Activate theme
    */
   register('theme:activate', async (args, ctx) => {
-    const themeService = ctx.services.get('theme');
+    const themeService = ctx.services.get('themeEngine');
     if (!themeService) {
       console.error('Theme service not available');
       return;
@@ -4216,7 +4258,7 @@ export function hook_cli(register, context) {
    * theme:settings <name> - Show theme settings
    */
   register('theme:settings', async (args, ctx) => {
-    const themeService = ctx.services.get('theme');
+    const themeService = ctx.services.get('themeEngine');
     if (!themeService) {
       console.error('Theme service not available');
       return;
@@ -4239,7 +4281,7 @@ export function hook_cli(register, context) {
    * theme:set <name> <key> <value> - Set theme setting
    */
   register('theme:set', async (args, ctx) => {
-    const themeService = ctx.services.get('theme');
+    const themeService = ctx.services.get('themeEngine');
     if (!themeService) {
       console.error('Theme service not available');
       return;
@@ -12519,10 +12561,13 @@ export function hook_routes(register, context) {
    * GET /admin/structure/types - List content types
    */
   register('GET', '/admin/structure/types', async (req, res, params, ctx) => {
-    const types = content.listTypes();
+    const types = content.listTypes().map(t => ({
+      ...t,
+      fieldCount: Object.keys(t.schema || {}).length,
+    }));
     const flash = getFlashMessage(req.url);
 
-    const html = renderAdmin('content-type-list.html', {
+    const html = renderAdmin('content-types-list.html', {
       pageTitle: 'Content Types',
       types,
       hasTypes: types.length > 0,
@@ -12537,7 +12582,7 @@ export function hook_routes(register, context) {
    * GET /admin/structure/types/new - Create content type form
    */
   register('GET', '/admin/structure/types/new', async (req, res, params, ctx) => {
-    const html = renderAdmin('content-type-form.html', {
+    const html = renderAdmin('content-types-edit.html', {
       pageTitle: 'Create Content Type',
       isNew: true,
     }, ctx, req);
@@ -12574,7 +12619,7 @@ export function hook_routes(register, context) {
     }
 
     const schema = content.getSchema(type);
-    const html = renderAdmin('content-type-form.html', {
+    const html = renderAdmin('content-types-edit.html', {
       pageTitle: `Edit Content Type: ${type}`,
       type,
       schemaJson: JSON.stringify(schema, null, 2),
@@ -12631,7 +12676,7 @@ export function hook_routes(register, context) {
 
     const flash = getFlashMessage(req.url);
 
-    const html = renderAdmin('content-type-fields.html', {
+    const html = renderAdmin('content-types-fields.html', {
       pageTitle: `Manage Fields: ${type}`,
       type,
       fields,
@@ -12683,7 +12728,7 @@ export function hook_routes(register, context) {
       return;
     }
 
-    const html = renderAdmin('content-type-field-form.html', {
+    const html = renderAdmin('content-types-field-edit.html', {
       pageTitle: `Edit Field: ${field}`,
       type,
       field,
@@ -12775,17 +12820,17 @@ export function hook_routes(register, context) {
    * GET /admin/config/actions - List actions
    */
   register('GET', '/admin/config/actions', async (req, res, params, ctx) => {
-    const actionService = ctx.services.get('action');
-    if (!actionService) {
+    const actionsService = ctx.services.get('actions');
+    if (!actionsService) {
       res.writeHead(404, { 'Content-Type': 'text/plain' });
-      res.end('Action service not available');
+      res.end('Actions service not available');
       return;
     }
 
-    const actions = actionService.listActions();
+    const actions = actionsService.getActions ? actionsService.getActions() : [];
     const flash = getFlashMessage(req.url);
 
-    const html = renderAdmin('action-list.html', {
+    const html = renderAdmin('actions-list.html', {
       pageTitle: 'Actions',
       actions,
       hasActions: actions && actions.length > 0,
@@ -12800,17 +12845,17 @@ export function hook_routes(register, context) {
    * GET /admin/config/rules - List rules
    */
   register('GET', '/admin/config/rules', async (req, res, params, ctx) => {
-    const ruleService = ctx.services.get('rule');
-    if (!ruleService) {
+    const actionsService = ctx.services.get('actions');
+    if (!actionsService) {
       res.writeHead(404, { 'Content-Type': 'text/plain' });
-      res.end('Rule service not available');
+      res.end('Actions service not available');
       return;
     }
 
-    const rules = ruleService.listRules();
+    const rules = actionsService.getRules ? actionsService.getRules() : [];
     const flash = getFlashMessage(req.url);
 
-    const html = renderAdmin('rule-list.html', {
+    const html = renderAdmin('rules-list.html', {
       pageTitle: 'Rules',
       rules,
       hasRules: rules && rules.length > 0,
@@ -12837,7 +12882,7 @@ export function hook_routes(register, context) {
    * POST /admin/config/rules - Create rule
    */
   register('POST', '/admin/config/rules', async (req, res, params, ctx) => {
-    const ruleService = ctx.services.get('rule');
+    const ruleService = ctx.services.get('actions');
     if (!ruleService) {
       res.writeHead(404, { 'Content-Type': 'text/plain' });
       res.end('Rule service not available');
@@ -12866,7 +12911,7 @@ export function hook_routes(register, context) {
    */
   register('GET', '/admin/config/rules/:id', async (req, res, params, ctx) => {
     const { id } = params;
-    const ruleService = ctx.services.get('rule');
+    const ruleService = ctx.services.get('actions');
     if (!ruleService) {
       res.writeHead(404, { 'Content-Type': 'text/plain' });
       res.end('Rule service not available');
@@ -12894,7 +12939,7 @@ export function hook_routes(register, context) {
    */
   register('POST', '/admin/config/rules/:id', async (req, res, params, ctx) => {
     const { id } = params;
-    const ruleService = ctx.services.get('rule');
+    const ruleService = ctx.services.get('actions');
     if (!ruleService) {
       res.writeHead(404, { 'Content-Type': 'text/plain' });
       res.end('Rule service not available');
@@ -12922,7 +12967,7 @@ export function hook_routes(register, context) {
    */
   register('POST', '/admin/config/rules/:id/delete', async (req, res, params, ctx) => {
     const { id } = params;
-    const ruleService = ctx.services.get('rule');
+    const ruleService = ctx.services.get('actions');
     if (!ruleService) {
       res.writeHead(404, { 'Content-Type': 'text/plain' });
       res.end('Rule service not available');
@@ -13086,15 +13131,27 @@ export function hook_routes(register, context) {
    * GET /admin/appearance - List themes
    */
   register('GET', '/admin/appearance', async (req, res, params, ctx) => {
-    const themeService = ctx.services.get('theme');
-    if (!themeService) {
+    const themeEngine = ctx.services.get('themeEngine');
+    if (!themeEngine) {
       res.writeHead(404, { 'Content-Type': 'text/plain' });
-      res.end('Theme service not available');
+      res.end('Theme engine not available');
       return;
     }
 
-    const themes = themeService.listThemes ? themeService.listThemes() : [];
-    const activeTheme = ctx.config.site.theme || 'default';
+    // Get layouts and skins from theme engine
+    const layouts = themeEngine.listLayouts ? themeEngine.listLayouts() : [];
+    const skins = themeEngine.listSkins ? themeEngine.listSkins() : [];
+    const activeTheme = themeEngine.getActiveTheme ? themeEngine.getActiveTheme() : {};
+
+    // Combine layouts and skins into theme entries for display
+    const themes = layouts.map(layout => ({
+      name: layout.id || layout.name,
+      description: layout.description || '',
+      version: layout.version,
+      isActive: activeTheme.layout === (layout.id || layout.name),
+      skins: skins.filter(s => !s.layoutId || s.layoutId === layout.id),
+    }));
+
     const flash = getFlashMessage(req.url);
 
     const html = renderAdmin('theme-list.html', {
@@ -13102,6 +13159,8 @@ export function hook_routes(register, context) {
       themes,
       hasThemes: themes.length > 0,
       activeTheme,
+      layouts,
+      skins,
       flash,
       hasFlash: !!flash,
     }, ctx, req);
@@ -13114,7 +13173,7 @@ export function hook_routes(register, context) {
    */
   register('GET', '/admin/appearance/:theme/settings', async (req, res, params, ctx) => {
     const { theme } = params;
-    const themeService = ctx.services.get('theme');
+    const themeService = ctx.services.get('themeEngine');
     if (!themeService) {
       res.writeHead(404, { 'Content-Type': 'text/plain' });
       res.end('Theme service not available');
@@ -13141,7 +13200,7 @@ export function hook_routes(register, context) {
    */
   register('POST', '/admin/appearance/:theme/settings', async (req, res, params, ctx) => {
     const { theme } = params;
-    const themeService = ctx.services.get('theme');
+    const themeService = ctx.services.get('themeEngine');
     if (!themeService) {
       res.writeHead(404, { 'Content-Type': 'text/plain' });
       res.end('Theme service not available');
@@ -13167,7 +13226,7 @@ export function hook_routes(register, context) {
    */
   register('POST', '/admin/appearance/:theme/activate', async (req, res, params, ctx) => {
     const { theme } = params;
-    const themeService = ctx.services.get('theme');
+    const themeService = ctx.services.get('themeEngine');
     if (!themeService) {
       res.writeHead(404, { 'Content-Type': 'text/plain' });
       res.end('Theme service not available');

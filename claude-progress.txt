@@ -15,14 +15,35 @@
    `created` and `updated` are required+readonly, auto-set by the system.
    Without this fix, content:create fails requiring user to provide system fields.
 
+## Session 2 - 2026-02-07
+
+### Completed
+- Feature #4: Configuration loading (PASSING)
+  - config/site.json and config/modules.json valid
+  - All 9 modules initialize from config
+  - 17 config items registered and tracked by configManagement service
+  - config:show, config:list, config:export all work
+- Feature #5: Service architecture intact (PASSING)
+  - 90 core JS files, 72 registered named services, 352 CLI commands
+  - Hook system verified (hello/test boot+ready hooks fire)
+  - No service loading errors in startup logs
+  - Admin dashboard fully functional
+
+### Changes Made
+1. **modules/admin/index.js**: Fixed config:list, config:export, config:import, config:diff
+   CLI commands. They were calling methods on raw config object (`ctx.services.get('config')`)
+   instead of the configManagement service (`ctx.services.get('configManagement')`).
+   Rewired all 4 commands to use proper service API (getRegistry, exportConfig, importConfig, diffConfig).
+
 ### Current Status
-- 3/165 features passing (1.8%)
-- Infrastructure tier (Features 0-4) mostly verified
-- Features 4 (service architecture) and 0 (redundant with #1) not assigned to this session
+- 5/165 features passing (3.0%)
+- Infrastructure tier (Features 0-5) COMPLETE
+- Ready for Tier 2: Pending Revisions (Features 5-24)
 
 ### Known Issues
 - `hooks.fire is not a function` warning on content:delete (non-blocking, delete works)
 - Server boot logs show `[discovery] Skipping themes/layouts: no manifest.json found` (cosmetic)
+- status:report CLI command broken (statusService.getReport not a function)
 
 ### Next Steps
-- Features 4-5+: Service architecture verification, then pending revisions system
+- Feature 5+: Add isDefaultRevision field to revision metadata (pending revisions tier)
