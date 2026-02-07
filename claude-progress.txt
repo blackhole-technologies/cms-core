@@ -87,3 +87,44 @@
 ### Current Status
 - 8/165 features passing (4.8%)
 - Validation constraint tier started (Features 116, 117, 131 done)
+
+## Session 4 - 2026-02-07
+
+### Completed
+- Feature #6: Add isDefaultRevision field to revision metadata (PASSING)
+  - New content created with isDefaultRevision: true
+  - Existing content defaults to isDefaultRevision: true when read (backward compat)
+  - Revision metadata (getRevisions) includes isDefaultRevision flag
+  - content:revisions CLI shows [default] indicator
+  - Field is a boolean, persisted in JSON files
+- Feature #7: Content.get() returns default revision by default (PASSING)
+  - read() returns the main content file which IS the default revision
+  - Returned data includes isDefaultRevision: true
+  - Non-default revisions (in .revisions/) not returned by read()
+  - Verified via JSON:API: /jsonapi/article/{id}
+- Feature #9: Content.list() returns default revisions only by default (PASSING)
+  - list() reads from type directory, only .json files (not .revisions/)
+  - All listed items have isDefaultRevision: true
+  - Count matches number of content items, not total revision count
+  - Verified via CLI and JSON:API
+
+### Changes Made
+1. **core/content.js**:
+   - Added isDefaultRevision: true to create() content object
+   - Added isDefaultRevision defaulting to true in readRaw() for backward compat
+   - Updated getRevisions() to include isDefaultRevision in revision metadata
+
+2. **core/boot.js**:
+   - Updated content:revisions CLI to show [default] flag
+   - Fixed accessibility.registerRoutes boot crash (router.add vs register mismatch)
+
+### Current Status
+- 11/165 features passing (6.7%)
+- Pending revisions tier started (Features 6, 7, 9 done)
+
+### Known Issues
+- Template rendering shows raw Handlebars in admin content list ({{#if ../workflowEnabled}})
+- hooks.fire is not a function warning on content:delete (non-blocking)
+
+### Next Steps
+- Continue pending revisions tier (Features 8, 10-24)
