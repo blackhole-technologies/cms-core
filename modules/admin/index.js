@@ -14114,6 +14114,163 @@ export function hook_routes(register, context) {
   }, 'Preview rendered layout');
 
   // ========================================
+  // LAYOUT BUILDER REST API ROUTES
+  // ========================================
+
+  /**
+   * GET /api/layout/:type/sections - Get default layout sections for a content type
+   *
+   * WHY REST API: Enables headless/decoupled usage of layout data.
+   * Returns sections with regions and components in JSON format.
+   */
+  register('GET', '/api/layout/:type/sections', async (req, res, params, ctx) => {
+    const { type } = params;
+    const layoutBuilder = ctx.services.get('layoutBuilder');
+
+    if (!layoutBuilder) {
+      server.json(res, { error: 'Layout Builder not enabled' }, 503);
+      return;
+    }
+
+    const storage = layoutBuilder.getDefaultLayout(type);
+    if (!storage) {
+      server.json(res, { error: `No default layout for content type: ${type}` }, 404);
+      return;
+    }
+
+    // Enrich sections with layout definition info
+    const sections = (storage.sections || []).map(section => {
+      const layoutDef = layoutBuilder.getLayout(section.layoutId);
+      return {
+        uuid: section.uuid,
+        layoutId: section.layoutId,
+        layoutLabel: layoutDef?.label || section.layoutId,
+        layoutCategory: layoutDef?.category || 'Unknown',
+        settings: section.settings,
+        weight: section.weight,
+        regions: Object.entries(layoutDef?.regions || {}).map(([regionId, region]) => ({
+          id: regionId,
+          label: region.label,
+          weight: region.weight || 0,
+          components: (section.components[regionId] || []).map(comp => ({
+            uuid: comp.uuid,
+            type: comp.type,
+            blockId: comp.blockId || null,
+            blockType: comp.blockType || null,
+            fieldName: comp.fieldName || null,
+            configuration: comp.configuration || {},
+            weight: comp.weight,
+          })),
+        })),
+      };
+    });
+
+    server.json(res, {
+      contentType: type,
+      sections,
+      sectionCount: sections.length,
+      updated: storage.updated || null,
+    });
+  }, 'Get layout sections for content type');
+
+  /**
+   * GET /api/layout/:type/:id/sections - Get effective layout for a specific content item
+   *
+   * WHY: Returns per-content override if exists, otherwise falls back to default.
+   * This is what a front-end would call to render a specific content item's layout.
+   */
+  register('GET', '/api/layout/:type/:id/sections', async (req, res, params, ctx) => {
+    const { type, id } = params;
+    const layoutBuilder = ctx.services.get('layoutBuilder');
+
+    if (!layoutBuilder) {
+      server.json(res, { error: 'Layout Builder not enabled' }, 503);
+      return;
+    }
+
+    // Get effective layout (per-content override or default)
+    const layout = layoutBuilder.getEffectiveLayout(type, id);
+
+    if (!layout) {
+      server.json(res, { error: `No layout found for ${type}/${id}` }, 404);
+      return;
+    }
+
+    // Determine if this is an override or default
+    const hasOverride = layoutBuilder.hasContentLayoutOverride(type, id);
+
+    // Enrich sections with layout definition info
+    const sections = (layout.sections || []).map(section => {
+      const layoutDef = layoutBuilder.getLayout(section.layoutId);
+      return {
+        uuid: section.uuid,
+        layoutId: section.layoutId,
+        layoutLabel: layoutDef?.label || section.layoutId,
+        layoutCategory: layoutDef?.category || 'Unknown',
+        settings: section.settings,
+        weight: section.weight,
+        regions: Object.entries(layoutDef?.regions || {}).map(([regionId, region]) => ({
+          id: regionId,
+          label: region.label,
+          weight: region.weight || 0,
+          components: (section.components[regionId] || []).map(comp => ({
+            uuid: comp.uuid,
+            type: comp.type,
+            blockId: comp.blockId || null,
+            blockType: comp.blockType || null,
+            fieldName: comp.fieldName || null,
+            configuration: comp.configuration || {},
+            weight: comp.weight,
+          })),
+        })),
+      };
+    });
+
+    server.json(res, {
+      contentType: type,
+      contentId: id,
+      isOverride: hasOverride,
+      sections,
+      sectionCount: sections.length,
+      updated: layout.updated || null,
+    });
+  }, 'Get effective layout sections for content item');
+
+  /**
+   * GET /api/layout/definitions - List all layout definitions
+   *
+   * WHY: Enables front-ends to know what layout options are available.
+   */
+  register('GET', '/api/layout/definitions', async (req, res, params, ctx) => {
+    const layoutBuilder = ctx.services.get('layoutBuilder');
+
+    if (!layoutBuilder) {
+      server.json(res, { error: 'Layout Builder not enabled' }, 503);
+      return;
+    }
+
+    const layouts = layoutBuilder.listLayouts();
+    const definitions = layouts.map(l => ({
+      id: l.id,
+      label: l.label,
+      description: l.description,
+      category: l.category,
+      icon: l.icon,
+      regions: Object.entries(l.regions).map(([id, r]) => ({
+        id,
+        label: r.label,
+        weight: r.weight || 0,
+      })),
+    }));
+
+    server.json(res, {
+      definitions,
+      count: definitions.length,
+      categories: layoutBuilder.listCategories(),
+    });
+  }, 'List layout definitions');
+
+  // ========================================
   // MEDIA LIBRARY ROUTES
   // ========================================
 
