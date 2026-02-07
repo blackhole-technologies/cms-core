@@ -13702,54 +13702,162 @@ export function hook_routes(register, context) {
     const storage = layoutBuilder.getDefaultLayout(type) || { sections: [] };
     const layouts = layoutBuilder.listLayouts();
     const blocks = blocksService ? blocksService.listBlocks({ enabled: true }).items : [];
+    const csrfToken = req ? (ctx.services.get('auth')?.getCSRFToken(req) || '') : '';
 
-    // Enrich sections with layout info
-    const sections = (storage.sections || []).map((section, index) => {
-      const layoutDef = layoutBuilder.getLayout(section.layoutId);
-      const regions = Object.entries(layoutDef?.regions || {}).map(([regionId, region]) => {
-        const components = (section.components[regionId] || []).map(comp => ({
-          ...comp,
-          uuidShort: comp.uuid.substring(0, 8),
-          typeLabel: comp.type === 'block' ? `Block: ${comp.blockId}` :
-            comp.type === 'inline_block' ? `Inline: ${comp.blockType}` :
-            comp.type === 'field' ? `Field: ${comp.fieldName}` : comp.type,
-        }));
-        return {
-          id: regionId,
-          label: region.label,
-          components,
-          hasComponents: components.length > 0,
-        };
-      });
+    // Pre-render sections HTML
+    // WHY: Template engine doesn't support deeply nested Mustache-style sections.
+    // Pre-rendering in the handler guarantees correct output for sections → regions → components.
+    let sectionsHtml = '';
+    const sectionsList = storage.sections || [];
+    if (sectionsList.length === 0) {
+      sectionsHtml = '<div class="empty-section"><p>No sections yet.</p><p>Add a section from the sidebar to start building your layout.</p></div>';
+    } else {
+      for (let i = 0; i < sectionsList.length; i++) {
+        const section = sectionsList[i];
+        const layoutDef = layoutBuilder.getLayout(section.layoutId);
+        const layoutLabel = layoutDef?.label || section.layoutId;
+        const uuidShort = section.uuid.substring(0, 8);
 
-      return {
-        ...section,
-        uuidShort: section.uuid.substring(0, 8),
-        layoutLabel: layoutDef?.label || section.layoutId,
-        regions,
-        index,
-        isFirst: index === 0,
-        isLast: index === storage.sections.length - 1,
-      };
-    });
+        // Section action buttons (move up/down, remove)
+        let actionBtns = '';
+        if (i > 0) {
+          actionBtns += `<form action="/admin/layout/defaults/${type}/move-section" method="POST" class="inline-form">
+            <input type="hidden" name="sectionUuid" value="${section.uuid}">
+            <input type="hidden" name="direction" value="up">
+            <input type="hidden" name="_csrf" value="${csrfToken}">
+            <input type="submit" value="↑" title="Move up">
+          </form>`;
+        }
+        if (i < sectionsList.length - 1) {
+          actionBtns += `<form action="/admin/layout/defaults/${type}/move-section" method="POST" class="inline-form">
+            <input type="hidden" name="sectionUuid" value="${section.uuid}">
+            <input type="hidden" name="direction" value="down">
+            <input type="hidden" name="_csrf" value="${csrfToken}">
+            <input type="submit" value="↓" title="Move down">
+          </form>`;
+        }
+        actionBtns += `<form action="/admin/layout/defaults/${type}/remove-section" method="POST" class="inline-form" onsubmit="return confirm('Remove this section?')">
+          <input type="hidden" name="sectionUuid" value="${section.uuid}">
+          <input type="hidden" name="_csrf" value="${csrfToken}">
+          <input type="submit" value="×" title="Remove section">
+        </form>`;
+
+        // Regions with components
+        let regionsHtml = '';
+        for (const [regionId, region] of Object.entries(layoutDef?.regions || {})) {
+          const components = section.components[regionId] || [];
+          let componentsHtml = '';
+          if (components.length > 0) {
+            for (const comp of components) {
+              const typeLabel = comp.type === 'block' ? `Block: ${comp.blockId}` :
+                comp.type === 'inline_block' ? `Inline: ${comp.blockType}` :
+                comp.type === 'field' ? `Field: ${comp.fieldName}` : comp.type;
+              const configStr = comp.configuration && Object.keys(comp.configuration).length > 0
+                ? ` <span style="color:#999;font-size:0.8em">[configured]</span>` : '';
+              componentsHtml += `<div class="component-item">
+                <div class="component-info">
+                  <span class="component-type">${typeLabel}</span>${configStr}
+                  <span class="component-uuid">(${comp.uuid.substring(0, 8)}...)</span>
+                </div>
+                <div class="component-actions">
+                  <form action="/admin/layout/defaults/${type}/remove-component" method="POST" class="inline-form" onsubmit="return confirm('Remove this component?')">
+                    <input type="hidden" name="sectionUuid" value="${section.uuid}">
+                    <input type="hidden" name="componentUuid" value="${comp.uuid}">
+                    <input type="hidden" name="_csrf" value="${csrfToken}">
+                    <button type="submit">×</button>
+                  </form>
+                </div>
+              </div>`;
+            }
+          } else {
+            componentsHtml = '<p style="color: #999; font-size: 0.9em; text-align: center;">Drop blocks here</p>';
+          }
+
+          // Add block form for this region
+          let addBlockForm = '';
+          if (blocks.length > 0) {
+            const blockOptions = blocks.map(b =>
+              `<option value="${b.id}">${b.adminTitle || b.title || b.id}</option>`
+            ).join('');
+            addBlockForm = `<form action="/admin/layout/defaults/${type}/add-block" method="POST" style="margin-top: 10px;">
+              <input type="hidden" name="sectionUuid" value="${section.uuid}">
+              <input type="hidden" name="regionId" value="${regionId}">
+              <input type="hidden" name="_csrf" value="${csrfToken}">
+              <select name="blockId" style="width: 70%; padding: 4px; font-size: 0.85em;">
+                <option value="">Add block...</option>
+                ${blockOptions}
+              </select>
+              <button type="submit" class="btn btn-small" style="padding: 4px 8px;">+</button>
+            </form>`;
+          }
+
+          regionsHtml += `<div class="region-container">
+            <div class="region-header">${region.label || regionId}</div>
+            <div class="region-content">
+              ${componentsHtml}
+              ${addBlockForm}
+            </div>
+          </div>`;
+        }
+
+        sectionsHtml += `<div class="section-card">
+          <div class="section-header">
+            <h3>${layoutLabel}</h3>
+            <div class="section-actions">${actionBtns}</div>
+          </div>
+          <div class="section-body">
+            <small class="component-uuid">UUID: ${uuidShort}...</small>
+            <div class="section-regions">${regionsHtml}</div>
+          </div>
+        </div>`;
+      }
+    }
+
+    // Pre-render sidebar HTML
+    const layoutOptions = layouts.map(l =>
+      `<option value="${l.id}">${l.label} (${Object.keys(l.regions).join(', ')})</option>`
+    ).join('');
+
+    let blocksListHtml = '';
+    if (blocks.length > 0) {
+      const blockItems = blocks.map(b =>
+        `<li><strong>${b.adminTitle || b.title || b.id}</strong> <span style="color: #999;">(${b.type})</span></li>`
+      ).join('');
+      blocksListHtml = `<ul style="font-size: 0.9em; padding-left: 20px;">${blockItems}</ul>
+        <p style="font-size: 0.85em; color: #666;"><a href="/admin/blocks">Manage Blocks →</a></p>`;
+    } else {
+      blocksListHtml = '<p style="color: #999; font-size: 0.9em;">No blocks available. <a href="/admin/blocks/add">Create a block</a> first.</p>';
+    }
+
+    const sidebarHtml = `<h3>Add Section</h3>
+      <form action="/admin/layout/defaults/${type}/add-section" method="POST" class="add-form">
+        <input type="hidden" name="_csrf" value="${csrfToken}">
+        <label for="layoutId">Layout Template:</label>
+        <select name="layoutId" id="layoutId" required>
+          <option value="">Select layout...</option>
+          ${layoutOptions}
+        </select>
+        <button type="submit" class="btn btn-primary">Add Section</button>
+      </form>
+      <hr style="margin: 20px 0;">
+      <h3>Available Blocks</h3>
+      ${blocksListHtml}
+      <div class="danger-zone">
+        <h4>Danger Zone</h4>
+        <p style="font-size: 0.85em;">Clear all sections from this layout:</p>
+        <form action="/admin/layout/defaults/${type}/clear" method="POST" onsubmit="return confirm('Are you sure you want to clear all sections? This cannot be undone.')">
+          <input type="hidden" name="_csrf" value="${csrfToken}">
+          <button type="submit" class="btn btn-danger">Clear All Sections</button>
+        </form>
+      </div>`;
 
     const flash = getFlashMessage(req.url);
 
     const html = renderAdmin('layout-builder-edit.html', {
       pageTitle: `Layout: ${type}`,
       contentType: type,
-      sections,
-      hasSections: sections.length > 0,
-      layouts: layouts.map(l => ({
-        ...l,
-        regionsList: Object.keys(l.regions).join(', '),
-      })),
-      blocks: blocks.map(b => ({
-        id: b.id,
-        adminTitle: b.adminTitle || b.title || b.id,
-        type: b.type,
-      })),
-      hasBlocks: blocks.length > 0,
+      sectionsHtml,
+      sidebarHtml,
       lastUpdated: storage.updated ? formatDate(storage.updated) : 'Never',
       flash,
       hasFlash: !!flash,
