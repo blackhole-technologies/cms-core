@@ -47,3 +47,43 @@
 
 ### Next Steps
 - Feature 5+: Add isDefaultRevision field to revision metadata (pending revisions tier)
+
+## Session 3 - 2026-02-07
+
+### Completed
+- Feature #116: Constraint plugin architecture (PASSING)
+  - Created core/constraints.js with Drupal-inspired constraint plugin system
+  - 8 built-in constraint plugins: Required, Length, Regex, Email, Url, Range, Unique, NotBlank
+  - Constraints registered by name, implement validate() method, return violation objects
+  - Runtime registration supported (new constraints can be added after boot)
+  - CLI commands: constraints:list, constraints:validate, constraints:check
+- Feature #117: Required constraint (PASSING)
+  - Required constraint validates non-null, non-undefined, non-empty values
+  - Article content type has Required constraint on title field
+  - Create without required field blocked with descriptive error
+  - Error message identifies the field name
+  - Create with field present succeeds
+- Feature #131: Constraint on content save (PASSING)
+  - Constraints enforced on content.create() and content.update()
+  - Save blocked when violations exist
+  - ALL violations reported at once (not one-at-a-time)
+  - Tested with multiple required fields showing all errors simultaneously
+  - Fix violations and save succeeds
+
+### Changes Made
+1. **core/constraints.js**: New Drupal-inspired constraint plugin architecture.
+   Plugin registry with register/get/has/list. Violation objects with
+   constraint, field, message, value, code. validate() collects all violations.
+   validateOrThrow() for content save integration. CLI commands for listing
+   and checking constraints.
+
+2. **core/boot.js**: Import and initialize constraints service after validation.
+   Register as service, inject into content via setConstraints().
+
+3. **core/content.js**: Added constraintService injection via setConstraints().
+   Modified create() and update() to use constraint validation when available,
+   falling back to legacy validateData() if not. Added getType() export.
+
+### Current Status
+- 8/165 features passing (4.8%)
+- Validation constraint tier started (Features 116, 117, 131 done)
