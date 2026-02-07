@@ -103,6 +103,7 @@ import * as contact from './contact.js';
 import * as ban from './ban.js';
 import * as history from './history.js';
 import * as accessibility from './accessibility.js';
+import * as seo from './seo.js';
 
 /**
  * Boot phase definitions
@@ -957,6 +958,28 @@ export async function boot(baseDir, options = {}) {
       log('[boot] Accessibility checker enabled');
     }
 
+    // SEO analyzer service
+    // WHY HERE: After content, hooks, and accessibility (similar pattern)
+    const seoConfig = context.config.site.seo || { enabled: true };
+    if (seoConfig.enabled !== false) {
+      seo.init({
+        baseDir,
+        content,
+        hooks,
+        config: seoConfig,
+      });
+      seo.registerCli(cli.createModuleRegister('seo'));
+      if (typeof seo.registerRoutes === 'function') {
+        try {
+          seo.registerRoutes(router, auth);
+        } catch (e) {
+          console.error('[boot] SEO route registration failed:', e.message);
+        }
+      }
+      services.register('seo', () => seo);
+      log('[boot] SEO analyzer enabled');
+    }
+
     // ========================================
     // Phase 4 Systems - Layout Builder, Media Library, Editor, etc.
     // WHY HERE: After all Phase 3 systems are initialized
@@ -979,6 +1002,7 @@ export async function boot(baseDir, options = {}) {
         content,
         imageStyles,
         hooks,
+        oembed,
         config: mediaLibraryConfig,
       });
       services.register('mediaLibrary', () => mediaLibrary);
