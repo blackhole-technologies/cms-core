@@ -55,6 +55,30 @@
     "media.delete.any": {
       "label": "Delete any media",
       "module": "media"
+    },
+    "workspace.create": {
+      "label": "Create new workspaces",
+      "module": "workspaces"
+    },
+    "workspace.edit": {
+      "label": "Edit workspace metadata",
+      "module": "workspaces"
+    },
+    "workspace.delete": {
+      "label": "Delete workspaces",
+      "module": "workspaces"
+    },
+    "workspace.publish": {
+      "label": "Publish workspace to live",
+      "module": "workspaces"
+    },
+    "workspace.view": {
+      "label": "View workspace contents",
+      "module": "workspaces"
+    },
+    "workspace.switch": {
+      "label": "Switch active workspace",
+      "module": "workspaces"
     }
   },
   "roles": {
@@ -94,7 +118,11 @@
         "content.*.edit.any",
         "content.*.delete.any",
         "content.*.publish",
-        "media.delete.any"
+        "media.delete.any",
+        "workspace.create",
+        "workspace.edit",
+        "workspace.view",
+        "workspace.switch"
       ]
     },
     "admin": {
