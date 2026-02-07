@@ -205,3 +205,40 @@
 - 16/165 features passing (~9.7%)
 - oEmbed/Media tier: Features 136, 137, 142 done
 - All 3 assigned features completed
+
+## Session 7 - 2026-02-07
+
+### Completed
+- Feature #158: SEO analyzer service (PASSING)
+  - New core/seo.js with plugin-based analyzer system
+  - 10 built-in analyzers: title length, keyword in title, meta description,
+    keyword in meta description, content length, keyword density, keyword in URL,
+    heading analysis, readability score, internal links
+  - SEO score 0-100 with weighted pass/error/warning/info
+  - CLI: seo:analyze, seo:analyzers, seo:keyword, seo:meta, seo:scan
+  - REST API: GET/POST /api/seo/analyze, GET /api/seo/analyzers, GET/PUT /api/seo/meta
+  - Admin dashboard at /admin/seo with live analysis UI
+- Feature #159: Focus keyword configuration (PASSING)
+  - Focus keyword stored persistently in config/seo-metadata/ as JSON
+  - seo:keyword CLI sets keyword and auto-runs analysis
+  - Keyword analyzed in title, body, URL, meta description, headings
+  - Keyword density reported with count and percentage
+  - Persists across server restart (flat-file storage)
+- Feature #160: Title tag analysis (PASSING)
+  - Short title (5 chars) → warning "too short"
+  - Long title (167 chars) → warning "too long, will be truncated"
+  - Optimal title (48 chars) → pass "Title length is optimal"
+  - All scenarios verified via CLI and browser UI
+
+### Changes Made
+1. **core/seo.js**: New SEO analyzer service (~800 lines).
+   Plugin-based analyzer architecture with registerAnalyzer(). Focus keyword
+   storage in config/seo-metadata/. Flesch-Kincaid readability scoring.
+   Full CLI and API integration. Admin dashboard.
+
+2. **core/boot.js**: Import and initialize SEO service after accessibility.
+
+### Current Status
+- 19/165 features passing (~11.5%)
+- SEO tier: Features 158, 159, 160 done
+- All 3 assigned features completed
