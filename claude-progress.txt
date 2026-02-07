@@ -337,3 +337,43 @@
 - Zero JS console errors
 - Bearer token auth required for all endpoints
 - 404/400 error handling for all edge cases
+
+## Session 8 - 2026-02-07
+
+### Completed
+- Feature #14: CLI content:revisions shows default flag (PASSING)
+  - content:revisions CLI already showed [default] for isDefaultRevision=true revisions
+  - Verified with content that has default and non-default (pending) revisions
+  - Non-default revisions show without [default] flag
+- Feature #15: CLI content:set-default sets default revision (PASSING)
+  - New setDefaultRevision() function in core/content.js
+  - New content:set-default CLI command in core/boot.js
+  - Saves current default as non-default revision
+  - Promotes target revision to main content file with isDefaultRevision: true
+  - Removes target from revisions dir to avoid duplication
+  - Verified: previously-default revision no longer shows [default]
+  - Verified: content:get / edit page returns the new default
+- Feature #16: API GET /jsonapi returns default revisions only (PASSING)
+  - JSON:API list endpoint calls content.list() which reads main files only
+  - Main files always have isDefaultRevision: true
+  - Revisions in .revisions/ are never returned by list()
+  - Verified: 13/13 articles have isDefaultRevision: true
+  - Verified: 0 articles with isDefaultRevision: false
+  - JSON:API response follows spec (jsonapi.version, data[], type, id, attributes, links)
+
+### Changes Made
+1. **core/content.js**: Added setDefaultRevision(type, id, revisionTimestamp) function.
+   Saves current default as non-default revision, promotes target revision
+   to main file with isDefaultRevision: true, cleans up revision file.
+
+2. **core/boot.js**: Added content:set-default CLI command.
+   Usage: content:set-default <type> <id> <revisionTimestamp>
+   Shows previous/new default info on success.
+
+### Current Status
+- 25/165 features passing (~15.2%)
+- Pending revisions tier: Features 6, 7, 9, 14, 15, 16 done
+- All 3 assigned features completed
+
+### Next Steps
+- Continue pending revisions tier (Features 8, 10-13, 17-24)
