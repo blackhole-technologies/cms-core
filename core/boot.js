@@ -2403,7 +2403,12 @@ export async function boot(baseDir, options = {}) {
       console.log(`\n${type} content${filterInfo} (showing ${startItem}-${endItem} of ${result.total}):\n`);
 
       for (const item of result.items) {
-        console.log(`  ID: ${item.id}`);
+        // Check for pending revisions indicator
+        const hasPending = content.hasPendingRevisions(type, item.id);
+        const pendingCount = hasPending ? content.countPendingRevisions(type, item.id) : 0;
+        const pendingIndicator = hasPending ? ` [PENDING: ${pendingCount} draft(s)]` : '';
+
+        console.log(`  ID: ${item.id}${pendingIndicator}`);
         console.log(`  Created: ${item.created}`);
 
         // Show user fields (exclude system fields)
