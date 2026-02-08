@@ -248,12 +248,30 @@ export async function createView(id, viewConfig) {
 
   // Build view object
   const now = new Date().toISOString();
+
+  // WHY: Build displays array from config. Each display has its own type, settings, path, format.
+  // This mirrors Drupal Views where a single view can have page, block, and feed displays.
+  const displays = viewConfig.displays || [{
+    id: 'default',
+    type: viewConfig.display || 'page',
+    label: (viewConfig.display || 'page').charAt(0).toUpperCase() + (viewConfig.display || 'page').slice(1),
+    path: viewConfig.path || null,
+    displayMode: viewConfig.displayMode || 'table',
+    template: viewConfig.template || null,
+    pager: {
+      type: viewConfig.pager?.type || 'full',
+      limit: viewConfig.pager?.limit || config.defaultLimit,
+    },
+    isDefault: true,
+  }];
+
   const view = {
     id,
     name: viewConfig.name,
     description: viewConfig.description || '',
     contentType: viewConfig.contentType,
     display: viewConfig.display || 'page',
+    displays,
     path: viewConfig.path || null,
     filters: viewConfig.filters || [],
     contextualFilters: viewConfig.contextualFilters || [],
@@ -475,6 +493,10 @@ function selectFields(items, fields) {
     return items;
   }
 
+  // WHY: Fields can be strings ("title") or objects ({name: "title", label: "Custom Title", formatter: "raw"}).
+  // Normalize to extract field names for data selection.
+  const fieldNames = fields.map(f => typeof f === 'string' ? f : (f.name || f));
+
   return items.map(item => {
     const selected = {};
 
@@ -483,9 +505,9 @@ function selectFields(items, fields) {
     selected.type = item.type;
 
     // Include selected fields
-    for (const field of fields) {
-      if (item[field] !== undefined) {
-        selected[field] = item[field];
+    for (const fieldName of fieldNames) {
+      if (item[fieldName] !== undefined) {
+        selected[fieldName] = item[fieldName];
       }
     }
 
@@ -790,4 +812,167 @@ export function getConfig() {
  */
 export function isEnabled() {
   return config.enabled;
+}
+
+// ============================================
+// DISPLAY MANAGEMENT
+// ============================================
+
+/**
+ * Add a display to a view
+ *
+ * WHY: Drupal Views support multiple displays per view (page, block, feed).
+ * Each display has its own settings (path, format, pager) while sharing
+ * the underlying query configuration. This enables a single view to
+ * render as both a page at /articles and a sidebar block.
+ *
+ * @param {string} viewId - View ID
+ * @param {Object} displayConfig - Display configuration
+ * @returns {Promise<Object>} Created display
+ */
+export async function addDisplay(viewId, displayConfig) {
+  const view = views[viewId];
+  if (!view) {
+    throw new Error(`View "${viewId}" not found`);
+  }
+
+  if (!view.displays) view.displays = [];
+
+  // WHY: Generate unique display ID by counting existing displays of same type.
+  // Drupal uses this pattern (page_1, page_2, block_1) to allow multiple
+  // displays of the same type on a single view.
+  const typeCount = view.displays.filter(d => d.type === displayConfig.type).length;
+  const displayId = displayConfig.type + '_' + (typeCount + 1);
+
+  const display = {
+    id: displayId,
+    type: displayConfig.type,
+    label: displayConfig.label || displayConfig.type.charAt(0).toUpperCase() + displayConfig.type.slice(1),
+    path: displayConfig.path || null,
+    displayMode: displayConfig.displayMode || 'table',
+    template: displayConfig.template || null,
+    pager: {
+      type: displayConfig.pager?.type || 'full',
+      limit: displayConfig.pager?.limit || config.defaultLimit,
+    },
+    isDefault: view.displays.length === 0,
+  };
+
+  view.displays.push(display);
+  view.updated = new Date().toISOString();
+  saveViews();
+
+  // Fire hook so other modules can react
+  await hooksService.trigger('views:displayAdded', { viewId, display });
+
+  return display;
+}
+
+/**
+ * Update a display's settings
+ *
+ * WHY: Each display has independent settings (title, format, path, pager).
+ * Updating one display should not affect others in the same view.
+ *
+ * @param {string} viewId - View ID
+ * @param {string} displayId - Display ID within the view
+ * @param {Object} updates - Fields to update on the display
+ * @returns {Promise<Object>} Updated display
+ */
+export async function updateDisplay(viewId, displayId, updates) {
+  const view = views[viewId];
+  if (!view) {
+    throw new Error(`View "${viewId}" not found`);
+  }
+
+  const display = view.displays?.find(d => d.id === displayId);
+  if (!display) {
+    throw new Error(`Display "${displayId}" not found in view "${viewId}"`);
+  }
+
+  // WHY: Selective merge - preserve fields not in updates, overwrite those that are.
+  // Special handling for nested pager object to avoid losing settings.
+  if (updates.pager) {
+    display.pager = { ...display.pager, ...updates.pager };
+    delete updates.pager;
+  }
+  Object.assign(display, updates);
+
+  view.updated = new Date().toISOString();
+  saveViews();
+
+  await hooksService.trigger('views:displayUpdated', { viewId, displayId, display });
+
+  return display;
+}
+
+/**
+ * Remove a display from a view
+ *
+ * @param {string} viewId - View ID
+ * @param {string} displayId - Display ID to remove
+ * @returns {Promise<void>}
+ */
+export async function removeDisplay(viewId, displayId) {
+  const view = views[viewId];
+  if (!view) {
+    throw new Error(`View "${viewId}" not found`);
+  }
+
+  const idx = view.displays?.findIndex(d => d.id === displayId);
+  if (idx === undefined || idx === -1) {
+    throw new Error(`Display "${displayId}" not found in view "${viewId}"`);
+  }
+
+  const removed = view.displays.splice(idx, 1)[0];
+  view.updated = new Date().toISOString();
+  saveViews();
+
+  await hooksService.trigger('views:displayRemoved', { viewId, displayId, display: removed });
+}
+
+/**
+ * Get views that have page displays with paths configured
+ *
+ * WHY: Page displays with paths need to be served as actual URL routes.
+ * This function collects all such routes so the server can register them.
+ * Checks both the new per-display path and the legacy top-level path.
+ *
+ * @returns {Array<Object>} Array of { viewId, displayId, path, view, display }
+ */
+export function getPageDisplayRoutes() {
+  const routes = [];
+  for (const view of Object.values(views)) {
+    // Check displays array for page displays with paths
+    if (view.displays && Array.isArray(view.displays)) {
+      for (const display of view.displays) {
+        if (display.type === 'page' && display.path) {
+          routes.push({
+            viewId: view.id,
+            displayId: display.id,
+            path: display.path,
+            view,
+            display,
+          });
+        }
+      }
+    }
+
+    // WHY: Also check legacy top-level path for backward compatibility.
+    // Older views may have path set at the view level instead of per-display.
+    if (view.path && view.display === 'page') {
+      // Avoid duplicates if the same path is already in a display
+      const alreadyAdded = routes.some(r => r.viewId === view.id && r.path === view.path);
+      if (!alreadyAdded) {
+        routes.push({
+          viewId: view.id,
+          displayId: 'default',
+          path: view.path,
+          view,
+          display: view.displays?.[0] || { type: 'page', displayMode: 'table' },
+        });
+      }
+    }
+  }
+  return routes;
 }
