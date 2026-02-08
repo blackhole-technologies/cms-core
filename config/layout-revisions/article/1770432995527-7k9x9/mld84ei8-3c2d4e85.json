@@ -1,13 +1,12 @@
 {
-  "id": "1770432995527-7k9x9",
-  "type": "article",
-  "created": "2026-02-07T02:56:35.527Z",
-  "updated": "2026-02-08T04:09:01.736Z",
-  "title": "ALT_TEXT_TEST_152",
-  "body": "<p>Article with <img src=\"sunset.jpg\" alt=\"Beautiful sunset over the ocean\"> and <img src=\"mountains.png\" alt=\"Snow-capped mountain range\"> now with alt text.</p>",
-  "isDefaultRevision": true,
-  "status": "draft",
-  "_layout": {
+  "id": "mld84ei8-3c2d4e85",
+  "contentType": "article",
+  "contentId": "1770432995527-7k9x9",
+  "timestamp": "2026-02-08T04:09:01.808Z",
+  "message": "Copied layout from \"Rev Test A - Draft Edit\" (article/1770432848806-bvb33)",
+  "sectionCount": 2,
+  "componentCount": 1,
+  "layout": {
     "sections": [
       {
         "uuid": "5bde59b48a717bd098b728025e92fb8f",

@@ -99,31 +99,6 @@
     ],
     "filterLogic": "AND"
   },
-  "recent_articles": {
-    "id": "recent_articles",
-    "name": "Recent Articles",
-    "description": "",
-    "contentType": "article",
-    "display": "page",
-    "path": null,
-    "filters": [],
-    "contextualFilters": [],
-    "sort": [],
-    "pager": {
-      "type": "full",
-      "limit": 10,
-      "offset": 0
-    },
-    "fields": [],
-    "relationships": [],
-    "aggregation": null,
-    "cache": {
-      "enabled": true,
-      "ttl": 300
-    },
-    "created": "2026-02-07T04:03:26.078Z",
-    "updated": "2026-02-07T04:03:26.078Z"
-  },
   "complex_test_view": {
     "id": "complex_test_view",
     "name": "Complex Test View",

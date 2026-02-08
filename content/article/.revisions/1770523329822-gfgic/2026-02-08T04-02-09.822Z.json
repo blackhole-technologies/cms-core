@@ -1,0 +1,11 @@
+{
+  "id": "1770523329822-gfgic",
+  "type": "article",
+  "created": "2026-02-08T04:02:09.822Z",
+  "updated": "2026-02-08T04:02:09.822Z",
+  "title": "FIELD_RENDER_TEST_76",
+  "body": "This is the body content that should be rendered in the layout builder field preview. It demonstrates Feature #76.",
+  "status": "published",
+  "isDefaultRevision": true,
+  "publishedAt": "2026-02-08T04:02:09.822Z"
+}
