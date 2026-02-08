@@ -14,6 +14,10 @@
   "alt": "Screenshot showing exposed filter form with status field",
   "caption": "",
   "credit": "",
+  "focalPoint": {
+    "x": 0.75,
+    "y": 0.25
+  },
   "status": "published",
   "isDefaultRevision": true,
   "publishedAt": "2026-02-08T05:45:21.696Z"
