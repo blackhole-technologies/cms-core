@@ -200,6 +200,11 @@ function validateViewConfig(viewConfig) {
     }
   }
 
+  // Validate filterLogic
+  if (viewConfig.filterLogic && !['AND', 'OR'].includes(viewConfig.filterLogic)) {
+    throw new Error('View filterLogic must be "AND" or "OR"');
+  }
+
   // Validate sort
   if (viewConfig.sort) {
     if (!Array.isArray(viewConfig.sort)) {
@@ -274,6 +279,7 @@ export async function createView(id, viewConfig) {
     displays,
     path: viewConfig.path || null,
     filters: viewConfig.filters || [],
+    filterLogic: viewConfig.filterLogic || 'AND',
     contextualFilters: viewConfig.contextualFilters || [],
     sort: viewConfig.sort || [],
     pager: {
@@ -638,6 +644,7 @@ export async function executeView(id, context = {}) {
       op: OPERATORS[f.op] || f.op,
       value: f.value,
     })),
+    filterLogic: view.filterLogic || 'AND',
     sort: view.sort[0]?.field || 'created',
     order: view.sort[0]?.dir || 'desc',
     offset: view.pager.offset,
