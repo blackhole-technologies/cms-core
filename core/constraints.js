@@ -418,7 +418,7 @@ function registerBuiltinConstraints() {
           createViolation(
             'Length',
             context.fieldName,
-            `${label} must be at least ${options.min} characters`,
+            `${label} must be at least ${options.min} characters (got ${value.length})`,
             value,
             'TOO_SHORT'
           )
@@ -429,7 +429,7 @@ function registerBuiltinConstraints() {
           createViolation(
             'Length',
             context.fieldName,
-            `${label} must be at most ${options.max} characters`,
+            `${label} must be at most ${options.max} characters (got ${value.length})`,
             value,
             'TOO_LONG'
           )

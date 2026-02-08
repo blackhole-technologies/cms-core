@@ -1495,7 +1495,20 @@ export async function boot(baseDir, options = {}) {
         const item = await content.create(type, data);
         server.json(res, item, 201);
       } catch (error) {
-        server.json(res, { error: error.message }, 400);
+        // Return 422 for constraint violations with per-field details
+        if (error.code === 'CONSTRAINT_VIOLATION' && Array.isArray(error.violations)) {
+          server.json(res, {
+            error: 'Constraint violation',
+            violations: error.violations.map(v => ({
+              field: v.field,
+              constraint: v.constraint,
+              message: v.message,
+              code: v.code
+            }))
+          }, 422);
+        } else {
+          server.json(res, { error: error.message }, 400);
+        }
       }
     }, 'Create content');
 
@@ -1519,7 +1532,20 @@ export async function boot(baseDir, options = {}) {
 
         server.json(res, item);
       } catch (error) {
-        server.json(res, { error: error.message }, 400);
+        // Return 422 for constraint violations with per-field details
+        if (error.code === 'CONSTRAINT_VIOLATION' && Array.isArray(error.violations)) {
+          server.json(res, {
+            error: 'Constraint violation',
+            violations: error.violations.map(v => ({
+              field: v.field,
+              constraint: v.constraint,
+              message: v.message,
+              code: v.code
+            }))
+          }, 422);
+        } else {
+          server.json(res, { error: error.message }, 400);
+        }
       }
     }, 'Update content');
 
