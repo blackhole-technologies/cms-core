@@ -2,7 +2,7 @@
   "id": "1770522115021-cw038",
   "type": "article",
   "created": "2026-02-08T03:41:55.021Z",
-  "updated": "2026-02-08T03:43:21.143Z",
+  "updated": "2026-02-08T03:54:59.477Z",
   "title": "PERSISTENCE_TEST_98765",
   "isDefaultRevision": true,
   "status": "draft",
@@ -15,30 +15,22 @@
           "columnWidths": "50-50"
         },
         "components": {
-          "first": [
+          "first": [],
+          "second": [
             {
               "uuid": "43253f73c61c5c28cc98243458c0f9f1",
               "type": "block",
               "blockId": "text_block",
-              "configuration": {},
+              "configuration": {
+                "label": "Test Label",
+                "showBorder": true,
+                "customClass": "featured-text"
+              },
               "weight": 0
             }
-          ],
-          "second": []
+          ]
         },
         "weight": 0
-      },
-      {
-        "uuid": "ed31478bc71022ec3eb8c670d88247a1",
-        "layoutId": "two_column",
-        "settings": {
-          "columnWidths": "50-50"
-        },
-        "components": {
-          "first": [],
-          "second": []
-        },
-        "weight": 1
       },
       {
         "uuid": "b666f71e567223dd55068270796af19d",
@@ -47,9 +39,9 @@
         "components": {
           "content": []
         },
-        "weight": 2
+        "weight": 1
       }
     ],
-    "updated": "2026-02-08T03:43:27.221Z"
+    "updated": "2026-02-08T03:57:47.011Z"
   }
 }

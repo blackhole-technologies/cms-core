@@ -2,7 +2,7 @@
   "id": "1770522115021-cw038",
   "type": "article",
   "created": "2026-02-08T03:41:55.021Z",
-  "updated": "2026-02-08T03:43:39.354Z",
+  "updated": "2026-02-08T03:57:47.011Z",
   "title": "PERSISTENCE_TEST_98765",
   "isDefaultRevision": true,
   "status": "draft",
@@ -15,16 +15,23 @@
           "columnWidths": "50-50"
         },
         "components": {
-          "first": [
+          "first": [],
+          "second": [
             {
               "uuid": "43253f73c61c5c28cc98243458c0f9f1",
               "type": "block",
               "blockId": "text_block",
-              "configuration": {},
+              "configuration": {
+                "label": "Test Label",
+                "showBorder": true,
+                "customClass": "featured-text",
+                "heading": "Updated Heading",
+                "fontSize": "large",
+                "alignment": "center"
+              },
               "weight": 0
             }
-          ],
-          "second": []
+          ]
         },
         "weight": 0
       },
@@ -38,6 +45,6 @@
         "weight": 1
       }
     ],
-    "updated": "2026-02-08T03:43:51.945Z"
+    "updated": "2026-02-08T03:58:00.072Z"
   }
 }
