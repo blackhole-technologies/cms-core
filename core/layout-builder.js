@@ -2078,6 +2078,11 @@ export function registerRoutes(router, auth) {
             comp.configuration = { ...comp.configuration, ...body.configuration };
           }
 
+          // Update component-type-specific fields (Feature #75)
+          if (body.fieldName !== undefined) comp.fieldName = body.fieldName;
+          if (body.blockId !== undefined) comp.blockId = body.blockId;
+          if (body.blockType !== undefined) comp.blockType = body.blockType;
+
           // Move to different region if specified
           if (body.region && body.region !== regionId) {
             moveComponent(section, componentId, body.region, body.position || 0);
@@ -2479,4 +2484,73 @@ export function registerRoutes(router, auth) {
       return sendJson(res, 500, { error: 'Internal error', message: err.message });
     }
   }, 'Discard layout changes');
+
+  // ------------------------------------------
+  // GET /api/layout/:contentType/:id/field-preview/:fieldName
+  // ------------------------------------------
+  // Returns the rendered preview of a field value for a content item.
+  // WHY: Feature #76 - Field blocks need to render actual entity field values.
+  // This endpoint enables the layout builder UI to fetch live field values
+  // for preview, including after content updates.
+  router.register('GET', '/api/layout/:contentType/:id/field-preview/:fieldName', async (req, res, params) => {
+    const { contentType, id, fieldName } = params;
+
+    try {
+      if (!contentService) {
+        return sendJson(res, 500, { error: 'Content service not initialized' });
+      }
+
+      const item = contentService.read(contentType, id);
+      if (!item) {
+        return sendJson(res, 404, { error: 'Content not found' });
+      }
+
+      const fieldValue = item[fieldName];
+      const hasValue = fieldValue !== undefined && fieldValue !== null && fieldValue !== '';
+
+      return sendJson(res, 200, {
+        contentType,
+        contentId: id,
+        fieldName,
+        value: hasValue ? String(fieldValue) : null,
+        hasValue,
+        rendered: hasValue
+          ? `<div class="${config.classPrefix}-field ${config.classPrefix}-field-${fieldName}">${escapeHtml(String(fieldValue))}</div>`
+          : `<div class="${config.classPrefix}-field ${config.classPrefix}-field-${fieldName} field-empty">(empty)</div>`,
+      });
+    } catch (err) {
+      return sendJson(res, 500, { error: 'Internal error', message: err.message });
+    }
+  }, 'Get field value preview for layout builder');
+
+  // ------------------------------------------
+  // GET /api/layout/:contentType/:id/render-preview
+  // ------------------------------------------
+  // Returns the fully rendered layout HTML for a content item.
+  // WHY: Feature #76 - Enables the layout builder to show a live preview
+  // of the entire layout with actual field values rendered.
+  router.register('GET', '/api/layout/:contentType/:id/render-preview', async (req, res, params) => {
+    const { contentType, id } = params;
+
+    try {
+      if (!contentService) {
+        return sendJson(res, 500, { error: 'Content service not initialized' });
+      }
+
+      const item = contentService.read(contentType, id);
+      if (!item) {
+        return sendJson(res, 404, { error: 'Content not found' });
+      }
+
+      const html = await renderContentLayout(contentType, id, { content: item });
+      return sendJson(res, 200, {
+        contentType,
+        contentId: id,
+        html,
+        hasLayout: !!html,
+      });
+    } catch (err) {
+      return sendJson(res, 500, { error: 'Internal error', message: err.message });
+    }
+  }, 'Get rendered layout preview for content item');
 }

@@ -29,6 +29,7 @@
 import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { readFileSync } from 'node:fs';
+import crypto from 'node:crypto';
 
 // Get the directory of this module for loading templates
 const __dirname = dirname(fileURLToPath(import.meta.url));
@@ -17405,6 +17406,9 @@ export function hook_routes(register, context) {
     const hasOverride = layoutBuilder.hasContentLayoutOverride(contentType, contentId);
     const layouts = layoutBuilder.listLayouts();
 
+    // Get blocks service early for component preview rendering (Features #76, #77, #78)
+    const blocksService = ctx.services.get('blocks');
+
     // Build sections HTML (Feature #68: sections grid)
     let sectionsHtml = '';
 
@@ -17430,29 +17434,100 @@ export function hook_routes(register, context) {
             for (const comp of components.sort((a, b) => (a.weight || 0) - (b.weight || 0))) {
               let typeLabel = comp.type;
               let detailLabel = '';
+              let previewHtml = '';
+
               if (comp.type === 'block') {
                 typeLabel = 'Block';
                 detailLabel = comp.blockId || '(no block ID)';
+
+                // Feature #78: Existing block reference - render block preview
+                if (comp.blockId && blocksService && typeof blocksService.getBlock === 'function') {
+                  const referencedBlock = blocksService.getBlock(comp.blockId);
+                  if (referencedBlock) {
+                    const blockTitle = (referencedBlock.title || referencedBlock.adminTitle || comp.blockId).replace(/[<>"'&]/g, c => ({'<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;','&':'&amp;'}[c]));
+                    const blockType = (referencedBlock.type || 'custom').replace(/[<>"'&]/g, c => ({'<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;','&':'&amp;'}[c]));
+                    const blockBody = referencedBlock.config && referencedBlock.config.body
+                      ? referencedBlock.config.body.replace(/[<>"'&]/g, c => ({'<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;','&':'&amp;'}[c])).substring(0, 200)
+                      : '';
+                    previewHtml = `<div class="component-preview-wrapper"><div class="component-block-preview">
+                      <div class="block-title">${blockTitle}<span class="block-type">${blockType}</span></div>
+                      ${blockBody ? `<div>${blockBody}</div>` : '<div style="color:#9e9e9e;font-style:italic;">Block content</div>'}
+                    </div></div>`;
+                  } else {
+                    previewHtml = `<div class="component-preview-wrapper"><div class="component-block-preview"><span class="block-not-found">Block "${comp.blockId.replace(/[<>"'&]/g, '')}" not found</span></div></div>`;
+                  }
+                }
               } else if (comp.type === 'inline_block') {
                 typeLabel = 'Inline Block';
                 detailLabel = comp.blockType || '';
+
+                // Feature #77: Custom block (inline content) - render inline block preview
+                const inlineTitle = (comp.configuration && comp.configuration.title)
+                  ? comp.configuration.title.replace(/[<>"'&]/g, c => ({'<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;','&':'&amp;'}[c]))
+                  : '';
+                const inlineBody = (comp.configuration && comp.configuration.body)
+                  ? comp.configuration.body.replace(/[<>"'&]/g, c => ({'<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;','&':'&amp;'}[c])).substring(0, 200)
+                  : '';
+                const blockTypeSafe = (comp.blockType || 'custom').replace(/[<>"'&]/g, c => ({'<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;','&':'&amp;'}[c]));
+                previewHtml = `<div class="component-preview-wrapper"><div class="component-inline-preview">
+                  <div class="inline-title">${inlineTitle || blockTypeSafe} block</div>
+                  ${inlineBody ? `<div class="inline-body">${inlineBody}</div>` : '<div style="color:#9e9e9e;font-style:italic;">Inline block content</div>'}
+                </div></div>`;
               } else if (comp.type === 'field') {
                 typeLabel = 'Field';
                 detailLabel = comp.fieldName || '';
+
+                // Feature #76: Field block renders entity field - show actual field value
+                if (comp.fieldName && contentItem) {
+                  const fieldValue = contentItem[comp.fieldName];
+                  const fieldSchema = content.getSchema(contentType);
+                  const fieldDef = fieldSchema ? fieldSchema[comp.fieldName] : null;
+                  const fieldType = fieldDef ? (fieldDef.type || 'text') : 'text';
+
+                  if (fieldValue !== undefined && fieldValue !== null && fieldValue !== '') {
+                    const safeValue = String(fieldValue).replace(/[<>"'&]/g, c => ({'<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;','&':'&amp;'}[c]));
+                    const displayValue = safeValue.length > 300 ? safeValue.substring(0, 300) + '...' : safeValue;
+                    previewHtml = `<div class="component-preview-wrapper"><div class="component-field-preview">
+                      <div class="field-label">${comp.fieldName}<span class="field-type-badge">${fieldType}</span></div>
+                      <div class="field-value">${displayValue}</div>
+                    </div></div>`;
+                  } else {
+                    previewHtml = `<div class="component-preview-wrapper"><div class="component-field-preview">
+                      <div class="field-label">${comp.fieldName}<span class="field-type-badge">${fieldType}</span></div>
+                      <div class="field-empty">(empty)</div>
+                    </div></div>`;
+                  }
+                }
               }
 
+              // Serialize component data for the config modal (Feature #75)
+              const compData = JSON.stringify({
+                type: comp.type,
+                fieldName: comp.fieldName || '',
+                blockId: comp.blockId || '',
+                blockType: comp.blockType || '',
+                configuration: comp.configuration || {}
+              }).replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+
+              // Show config label if present
+              const configLabel = comp.configuration && comp.configuration.label
+                ? ` <span style="color:#9c27b0;font-size:0.85em;font-style:italic;">[${comp.configuration.label.replace(/[<>"'&]/g, '')}]</span>`
+                : '';
+
               componentsHtml += `
-                <div class="component-chip" draggable="true" data-component-uuid="${comp.uuid}" data-section-uuid="${section.uuid}" data-region="${regionId}">
+                <div class="component-chip${previewHtml ? ' component-chip-with-preview' : ''}" draggable="true" data-component-uuid="${comp.uuid}" data-section-uuid="${section.uuid}" data-region="${regionId}">
                   <div class="component-drag-handle" role="button" aria-label="Drag to reorder ${typeLabel} ${detailLabel}" aria-roledescription="drag handle" tabindex="0" title="Drag to reorder">
                     <span class="drag-grip">⠿</span>
                   </div>
                   <div class="component-chip-info">
                     <span class="component-chip-type">${typeLabel}</span>
-                    <span class="component-chip-detail">${detailLabel}</span>
+                    <span class="component-chip-detail">${detailLabel}${configLabel}</span>
                   </div>
                   <div class="component-chip-actions">
+                    <button class="btn-configure" title="Configure component" onclick="openConfigModal('${contentType}', '${contentId}', '${section.uuid}', '${comp.uuid}', '${comp.type}', JSON.parse(this.dataset.compdata))" data-compdata="${compData}">⚙</button>
                     <button title="Remove component" onclick="if(confirm('Remove this component?')) removeComponent('${contentType}', '${contentId}', '${section.uuid}', '${comp.uuid}')">✕</button>
                   </div>
+                  ${previewHtml}
                 </div>`;
             }
           } else {
@@ -17535,7 +17610,7 @@ export function hook_routes(register, context) {
     }
 
     // Build block options for component chooser (Feature #70)
-    const blocksService = ctx.services.get('blocks');
+    // blocksService already obtained above for component preview rendering
     let blockOptionsHtml = '';
     let hasBlocks = false;
     if (blocksService && typeof blocksService.listBlocks === 'function') {
@@ -17613,6 +17688,161 @@ export function hook_routes(register, context) {
       redirect(res, `/node/${id}/layout?error=` + encodeURIComponent(err.message));
     }
   }, 'Add section to content layout');
+
+  /**
+   * POST /node/:id/layout/add-component - Add a component to a section region
+   *
+   * WHY FORM-BASED:
+   * The layout builder page uses session cookies for auth, not API tokens.
+   * This form-based route handles all component types (field, block, inline_block)
+   * using the same auth as the admin pages.
+   *
+   * Features #76 (field), #77 (inline_block), #78 (block)
+   */
+  register('POST', '/node/:id/layout/add-component', async (req, res, params, ctx) => {
+    const { id } = params;
+    const layoutBuilder = ctx.services.get('layoutBuilder');
+
+    const body = await parseFormBody(req);
+    const { contentType: ct, sectionUuid, region, type: compType, fieldName, blockId, blockType, inlineTitle, inlineBody } = body;
+
+    if (!ct || !sectionUuid || !region || !compType) {
+      redirect(res, `/node/${id}/layout?error=` + encodeURIComponent('Missing required fields'));
+      return;
+    }
+
+    try {
+      const item = content.read(ct, id);
+      if (!item) {
+        redirect(res, `/node/${id}/layout?error=` + encodeURIComponent('Content not found'));
+        return;
+      }
+
+      // Get or create layout storage
+      let storage = layoutBuilder.getEffectiveLayout(ct, id, item);
+      if (!storage || !layoutBuilder.hasContentLayoutOverride(ct, id)) {
+        storage = storage ? layoutBuilder.cloneLayout(storage) : { sections: [] };
+      }
+
+      const section = layoutBuilder.getSection(storage, sectionUuid);
+      if (!section) {
+        redirect(res, `/node/${id}/layout?error=` + encodeURIComponent('Section not found'));
+        return;
+      }
+
+      let component;
+      if (compType === 'field') {
+        component = layoutBuilder.createFieldComponent(fieldName || '', {});
+      } else if (compType === 'block') {
+        component = layoutBuilder.createBlockComponent(blockId || '', {});
+      } else if (compType === 'inline_block') {
+        component = layoutBuilder.createInlineBlockComponent(blockType || '', {
+          title: inlineTitle || '',
+          body: inlineBody || '',
+        });
+      } else {
+        redirect(res, `/node/${id}/layout?error=` + encodeURIComponent('Invalid component type'));
+        return;
+      }
+
+      layoutBuilder.addComponent(section, region, component);
+      await layoutBuilder.setContentLayout(ct, id, storage);
+
+      redirect(res, `/node/${id}/layout?success=` + encodeURIComponent(`${compType} component added`));
+    } catch (err) {
+      redirect(res, `/node/${id}/layout?error=` + encodeURIComponent(err.message));
+    }
+  }, 'Add component to layout section (form-based)');
+
+  /**
+   * POST /node/:id/layout/remove-component - Remove a component from a section
+   *
+   * WHY: Form-based route for removing components using session auth.
+   */
+  register('POST', '/node/:id/layout/remove-component', async (req, res, params, ctx) => {
+    const { id } = params;
+    const layoutBuilder = ctx.services.get('layoutBuilder');
+
+    const body = await parseFormBody(req);
+    const { contentType: ct, sectionUuid, componentUuid } = body;
+
+    if (!ct || !sectionUuid || !componentUuid) {
+      redirect(res, `/node/${id}/layout?error=` + encodeURIComponent('Missing required fields'));
+      return;
+    }
+
+    try {
+      const item = content.read(ct, id);
+      if (!item) {
+        redirect(res, `/node/${id}/layout?error=` + encodeURIComponent('Content not found'));
+        return;
+      }
+
+      let storage = layoutBuilder.getEffectiveLayout(ct, id, item);
+      if (!storage) {
+        redirect(res, `/node/${id}/layout?error=` + encodeURIComponent('No layout found'));
+        return;
+      }
+
+      if (!layoutBuilder.hasContentLayoutOverride(ct, id)) {
+        storage = layoutBuilder.cloneLayout(storage);
+      }
+
+      const section = layoutBuilder.getSection(storage, sectionUuid);
+      if (!section) {
+        redirect(res, `/node/${id}/layout?error=` + encodeURIComponent('Section not found'));
+        return;
+      }
+
+      layoutBuilder.removeComponent(section, componentUuid);
+      await layoutBuilder.setContentLayout(ct, id, storage);
+
+      redirect(res, `/node/${id}/layout?success=` + encodeURIComponent('Component removed'));
+    } catch (err) {
+      redirect(res, `/node/${id}/layout?error=` + encodeURIComponent(err.message));
+    }
+  }, 'Remove component from layout section (form-based)');
+
+  /**
+   * POST /node/:id/layout/delete-section - Delete a section (form-based)
+   */
+  register('POST', '/node/:id/layout/delete-section', async (req, res, params, ctx) => {
+    const { id } = params;
+    const layoutBuilder = ctx.services.get('layoutBuilder');
+
+    const body = await parseFormBody(req);
+    const { contentType: ct, sectionUuid } = body;
+
+    if (!ct || !sectionUuid) {
+      redirect(res, `/node/${id}/layout?error=` + encodeURIComponent('Missing required fields'));
+      return;
+    }
+
+    try {
+      const item = content.read(ct, id);
+      if (!item) {
+        redirect(res, `/node/${id}/layout?error=` + encodeURIComponent('Content not found'));
+        return;
+      }
+
+      let storage = layoutBuilder.getEffectiveLayout(ct, id, item);
+      if (!storage) {
+        redirect(res, `/node/${id}/layout?error=` + encodeURIComponent('No layout found'));
+        return;
+      }
+
+      if (!layoutBuilder.hasContentLayoutOverride(ct, id)) {
+        storage = layoutBuilder.cloneLayout(storage);
+      }
+
+      layoutBuilder.removeSection(storage, sectionUuid);
+      await layoutBuilder.setContentLayout(ct, id, storage);
+
+      redirect(res, `/node/${id}/layout?success=` + encodeURIComponent('Section deleted'));
+    } catch (err) {
+      redirect(res, `/node/${id}/layout?error=` + encodeURIComponent(err.message));
+    }
+  }, 'Delete section from layout (form-based)');
 
   /**
    * POST /node/:id/layout/revert - Revert content layout to default
@@ -17866,6 +18096,301 @@ export function hook_routes(register, context) {
       redirect(res, `/node/${id}/layout?error=` + encodeURIComponent(err.message));
     }
   }, 'Revert to layout revision (Feature #83)');
+
+  /**
+   * GET /node/:id/layout/preview - Layout preview as visitor (Feature #82)
+   *
+   * WHY: Editors need to see how the layout will render to site visitors
+   * without edit controls, drag handles, or admin UI. This renders the
+   * layout with actual content field data, exactly as a visitor would see it.
+   */
+  register('GET', '/node/:id/layout/preview', async (req, res, params, ctx) => {
+    const { id } = params;
+    const layoutBuilder = ctx.services.get('layoutBuilder');
+    const server = ctx.services.get('server');
+    const blocksService = ctx.services.get('blocks');
+
+    if (!layoutBuilder) {
+      res.writeHead(503, { 'Content-Type': 'text/html' });
+      res.end('<!DOCTYPE html><html><body><p>Layout Builder not enabled</p></body></html>');
+      return;
+    }
+
+    // Auto-detect content type
+    const types = content.listTypes();
+    let contentItem = null;
+    let contentType = null;
+    for (const { type } of types) {
+      const item = content.read(type, id);
+      if (item) {
+        contentItem = item;
+        contentType = type;
+        break;
+      }
+    }
+
+    if (!contentItem) {
+      res.writeHead(404, { 'Content-Type': 'text/html' });
+      res.end(`<!DOCTYPE html><html><body><h1>404 - Content Not Found</h1><p>No content found with ID "${id.replace(/[<>"'&]/g, '')}".</p></body></html>`);
+      return;
+    }
+
+    const contentId = contentItem.id || id;
+    const contentTitle = contentItem.title || contentItem.name || contentItem.subject || contentId;
+    const effectiveLayout = layoutBuilder.getEffectiveLayout(contentType, contentId, contentItem);
+
+    if (!effectiveLayout || !effectiveLayout.sections || effectiveLayout.sections.length === 0) {
+      const html = `<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>${contentTitle} - Preview</title>
+  <style>
+    body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; margin: 0; padding: 20px; background: #f5f5f5; color: #333; }
+    .preview-banner { background: #2196f3; color: white; padding: 8px 20px; text-align: center; font-size: 0.85em; margin: -20px -20px 20px -20px; }
+    .preview-banner a { color: white; margin-left: 20px; }
+    .content-wrapper { max-width: 960px; margin: 0 auto; background: white; padding: 40px; border-radius: 8px; box-shadow: 0 1px 4px rgba(0,0,0,0.1); }
+    h1 { margin-top: 0; }
+  </style>
+</head>
+<body>
+  <div class="preview-banner">
+    📋 Layout Preview Mode &mdash; Viewing as a visitor would see this page
+    <a href="/node/${contentId}/layout">← Back to Layout Builder</a>
+  </div>
+  <div class="content-wrapper">
+    <h1>${contentTitle.replace(/[<>"'&]/g, c => ({'<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;','&':'&amp;'}[c]))}</h1>
+    <p style="color: #999; font-style: italic;">No layout defined for this content.</p>
+  </div>
+</body>
+</html>`;
+      server.html(res, html);
+      return;
+    }
+
+    // Render each section as a visitor would see it
+    const sortedSections = [...effectiveLayout.sections].sort((a, b) => (a.weight || 0) - (b.weight || 0));
+    let sectionsHtml = '';
+
+    for (const section of sortedSections) {
+      const layoutDef = layoutBuilder.getLayout(section.layoutId);
+      if (!layoutDef) continue;
+
+      const regions = layoutDef.regions || {};
+      const regionCount = Object.keys(regions).length;
+      const sortedRegions = Object.entries(regions).sort((a, b) => (a[1].weight || 0) - (b[1].weight || 0));
+
+      let regionsHtml = '';
+      for (const [regionId, regionDef] of sortedRegions) {
+        const components = (section.components && section.components[regionId]) || [];
+        let componentsHtml = '';
+
+        for (const comp of components.sort((a, b) => (a.weight || 0) - (b.weight || 0))) {
+          let componentHtml = '';
+
+          if (comp.type === 'field' && comp.fieldName && contentItem) {
+            // Render actual field value
+            const value = contentItem[comp.fieldName];
+            if (value !== undefined && value !== null && value !== '') {
+              const safeValue = String(value).replace(/[<>"'&]/g, c => ({'<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;','&':'&amp;'}[c]));
+              const label = comp.configuration && comp.configuration.hideLabel ? '' : `<div class="field-label">${comp.fieldName}</div>`;
+              componentHtml = `<div class="layout-field layout-field-${comp.fieldName}">
+                ${label}
+                <div class="field-value">${safeValue}</div>
+              </div>`;
+            }
+          } else if (comp.type === 'block' && comp.blockId) {
+            // Render block reference
+            if (blocksService && typeof blocksService.getBlock === 'function') {
+              const block = blocksService.getBlock(comp.blockId);
+              if (block) {
+                const blockTitle = (block.title || block.adminTitle || '').replace(/[<>"'&]/g, c => ({'<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;','&':'&amp;'}[c]));
+                const blockBody = (block.config && block.config.body) ? block.config.body.replace(/[<>"'&]/g, c => ({'<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;','&':'&amp;'}[c])) : '';
+                componentHtml = `<div class="layout-block">
+                  ${blockTitle ? `<h3 class="block-title">${blockTitle}</h3>` : ''}
+                  ${blockBody ? `<div class="block-body">${blockBody}</div>` : ''}
+                </div>`;
+              }
+            }
+          } else if (comp.type === 'inline_block') {
+            // Render inline block content
+            const title = (comp.configuration && comp.configuration.title) ? comp.configuration.title.replace(/[<>"'&]/g, c => ({'<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;','&':'&amp;'}[c])) : '';
+            const body = (comp.configuration && comp.configuration.body) ? comp.configuration.body.replace(/[<>"'&]/g, c => ({'<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;','&':'&amp;'}[c])) : '';
+            componentHtml = `<div class="layout-inline-block">
+              ${title ? `<h3>${title}</h3>` : ''}
+              ${body ? `<div>${body}</div>` : ''}
+            </div>`;
+          }
+
+          if (componentHtml) {
+            const label = comp.configuration && comp.configuration.label
+              ? `<div class="component-label">${comp.configuration.label.replace(/[<>"'&]/g, c => ({'<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;','&':'&amp;'}[c]))}</div>`
+              : '';
+            const cssClass = comp.configuration && comp.configuration.cssClass ? ' ' + comp.configuration.cssClass.replace(/[<>"'&]/g, '') : '';
+            componentsHtml += `<div class="layout-component${cssClass}">${label}${componentHtml}</div>`;
+          }
+        }
+
+        regionsHtml += `<div class="layout-region layout-region-${regionId}">${componentsHtml}</div>`;
+      }
+
+      // Determine grid columns
+      const colWidths = section.settings && section.settings.columnWidths;
+      let gridStyle = '';
+      if (colWidths) {
+        const cols = colWidths.split('-').map(w => w + 'fr').join(' ');
+        gridStyle = `grid-template-columns: ${cols};`;
+      } else if (regionCount > 1) {
+        gridStyle = `grid-template-columns: repeat(${regionCount}, 1fr);`;
+      }
+
+      sectionsHtml += `<div class="layout-section layout-${section.layoutId}" style="${regionCount > 1 ? 'display:grid;gap:24px;' + gridStyle : ''}">${regionsHtml}</div>`;
+    }
+
+    const previewHtml = `<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>${contentTitle.replace(/[<>"'&]/g, c => ({'<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;','&':'&amp;'}[c]))} - Preview</title>
+  <style>
+    /* Clean visitor-facing styles - no admin chrome */
+    * { box-sizing: border-box; }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+      margin: 0; padding: 0; background: #f8f9fa; color: #333; line-height: 1.6;
+    }
+    .preview-banner {
+      background: #2196f3; color: white; padding: 8px 20px;
+      text-align: center; font-size: 0.85em; position: sticky; top: 0; z-index: 1000;
+    }
+    .preview-banner a { color: white; margin-left: 20px; text-decoration: underline; }
+    .content-wrapper {
+      max-width: 1100px; margin: 24px auto; background: white;
+      padding: 40px; border-radius: 8px; box-shadow: 0 1px 6px rgba(0,0,0,0.08);
+    }
+    .content-title { margin: 0 0 24px 0; font-size: 2em; color: #1a1a1a; }
+    .layout-section { margin-bottom: 32px; }
+    .layout-region { padding: 0; }
+    .layout-component { margin-bottom: 16px; }
+    .component-label { font-size: 0.8em; text-transform: uppercase; letter-spacing: 0.5px; color: #888; margin-bottom: 4px; }
+    .layout-field .field-label { font-weight: 600; color: #555; font-size: 0.9em; margin-bottom: 4px; text-transform: capitalize; }
+    .layout-field .field-value { color: #333; }
+    .layout-block .block-title { margin: 0 0 8px 0; font-size: 1.2em; color: #1a1a1a; }
+    .layout-block .block-body { color: #444; }
+    .layout-inline-block h3 { margin: 0 0 8px 0; font-size: 1.1em; }
+    @media (max-width: 768px) {
+      .layout-section { display: block !important; }
+      .content-wrapper { padding: 20px; margin: 12px; }
+    }
+  </style>
+</head>
+<body>
+  <div class="preview-banner">
+    👁️ Layout Preview &mdash; Viewing as a visitor would see this page
+    <a href="/node/${contentId}/layout">← Back to Layout Builder</a>
+  </div>
+  <div class="content-wrapper">
+    <h1 class="content-title">${contentTitle.replace(/[<>"'&]/g, c => ({'<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;','&':'&amp;'}[c]))}</h1>
+    ${sectionsHtml}
+  </div>
+</body>
+</html>`;
+
+    server.html(res, previewHtml);
+  }, 'Layout preview as visitor (Feature #82)');
+
+  /**
+   * POST /node/:id/layout/copy-from - Copy layout from another content item (Feature #84)
+   *
+   * WHY: Content editors often want to reuse a layout they've built for one
+   * content item on another. This copies the full layout structure (sections,
+   * components, settings) from source to target without modifying the source.
+   */
+  register('POST', '/node/:id/layout/copy-from', async (req, res, params, ctx) => {
+    const { id } = params;
+    const layoutBuilder = ctx.services.get('layoutBuilder');
+
+    // Parse form body to get source content ID
+    const body = await parseFormBody(req);
+    const sourceId = body.sourceId;
+
+    if (!sourceId) {
+      redirect(res, `/node/${id}/layout?error=` + encodeURIComponent('Source content ID is required'));
+      return;
+    }
+
+    // Find target content type and item
+    const types = content.listTypes();
+    let targetType = null;
+    let targetItem = null;
+    for (const { type } of types) {
+      const item = content.read(type, id);
+      if (item) {
+        targetType = type;
+        targetItem = item;
+        break;
+      }
+    }
+
+    if (!targetItem) {
+      redirect(res, `/admin/content?error=` + encodeURIComponent('Target content not found'));
+      return;
+    }
+
+    // Find source content type and item
+    let sourceType = null;
+    let sourceItem = null;
+    for (const { type } of types) {
+      const item = content.read(type, sourceId);
+      if (item) {
+        sourceType = type;
+        sourceItem = item;
+        break;
+      }
+    }
+
+    if (!sourceItem) {
+      redirect(res, `/node/${id}/layout?error=` + encodeURIComponent(`Source content "${sourceId}" not found`));
+      return;
+    }
+
+    try {
+      // Get the source layout
+      const sourceLayout = layoutBuilder.getEffectiveLayout(sourceType, sourceId, sourceItem);
+      if (!sourceLayout || !sourceLayout.sections || sourceLayout.sections.length === 0) {
+        redirect(res, `/node/${id}/layout?error=` + encodeURIComponent('Source content has no layout to copy'));
+        return;
+      }
+
+      // Deep clone the layout and regenerate all UUIDs to avoid conflicts
+      const clonedLayout = layoutBuilder.cloneLayout(sourceLayout);
+
+      // Regenerate UUIDs for sections and components so they're independent
+      for (const section of clonedLayout.sections) {
+        section.uuid = crypto.randomBytes(16).toString('hex');
+        for (const regionId of Object.keys(section.components || {})) {
+          for (const comp of section.components[regionId] || []) {
+            comp.uuid = crypto.randomBytes(16).toString('hex');
+          }
+        }
+      }
+
+      clonedLayout.updated = new Date().toISOString();
+
+      // Save as the target content's layout override
+      await layoutBuilder.setContentLayout(targetType, id, clonedLayout);
+
+      // Save a revision noting the copy
+      const sourceTitle = sourceItem.title || sourceItem.name || sourceId;
+      layoutBuilder.saveLayoutRevision(targetType, id, clonedLayout, `Copied layout from "${sourceTitle}" (${sourceType}/${sourceId})`);
+
+      redirect(res, `/node/${id}/layout?success=` + encodeURIComponent(`Layout copied from "${sourceTitle}" successfully`));
+    } catch (err) {
+      redirect(res, `/node/${id}/layout?error=` + encodeURIComponent(err.message));
+    }
+  }, 'Copy layout from another content (Feature #84)');
 
   /**
    * Helper: Format value for display
