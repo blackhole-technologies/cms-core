@@ -1,3 +1,23 @@
+## Session 28 - 2026-02-08
+
+### Completed
+- Feature #55: Workspace analytics (changes count, age) (PASSING)
+  - getWorkspaceAnalytics() function in core/workspaces.js
+  - Returns: change count, workspace age (days/hours/minutes), content type breakdown, activity summary, staleness indicator, children count
+  - Content type breakdown groups by type with operation counts (create/edit) and latest change timestamp
+  - Activity breakdown from per-workspace activity logs
+  - Staleness detection: workspace flagged stale if no activity for 7+ days
+  - workspace:analytics CLI command with formatted console output
+  - GET /api/workspaces/:id/analytics REST API endpoint
+  - GET /workspace/:id/analytics admin page with stats cards, tables, nav links
+  - Admin UI shows: 4 stat cards (changes, age, activities, children), content type table, activity breakdown table
+  - Zero console errors, data persists across server restart
+  - Screenshots: feature55-workspace-analytics.png, feature55-activity-test-analytics.png
+
+### Current Status
+- 113/165 features passing (~68.5%)
+- Feature #55 completed
+
 ## Session 25 - 2026-02-08
 
 ### Completed
