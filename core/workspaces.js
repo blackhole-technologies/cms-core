@@ -82,6 +82,9 @@ let contentModule = null;
  */
 let associationsDir = null;
 
+/** Activity log directory for per-workspace action tracking */
+let activityDir = null;
+
 /**
  * Active workspace session state.
  *
@@ -139,6 +142,12 @@ export function init(options) {
   associationsDir = join(baseDir, 'config', 'workspace-associations');
   if (!existsSync(associationsDir)) {
     mkdirSync(associationsDir, { recursive: true });
+  }
+
+  // Ensure activity log directory exists
+  activityDir = join(baseDir, 'config', 'workspace-activity');
+  if (!existsSync(activityDir)) {
+    mkdirSync(activityDir, { recursive: true });
   }
 
   // Active workspace file for CLI persistence
@@ -298,6 +307,12 @@ export async function create(data, user = null) {
     });
   }
 
+  // Activity log: workspace creation is logged as the first entry
+  logActivity(workspace.id, 'workspace.create', {
+    label: workspace.label,
+    machineName: workspace.machineName,
+  }, user);
+
   return workspace;
 }
 
@@ -400,6 +415,11 @@ export async function update(id, updates, user = null) {
     }
   }
 
+  // Activity log
+  logActivity(id, 'workspace.update', {
+    fields: Object.keys(updates).filter(k => allowedFields.includes(k)),
+  }, user);
+
   return workspace;
 }
 
@@ -464,6 +484,20 @@ export async function remove(id, user = null) {
       userId: user?.id,
       removedAssociations: removedCount,
     });
+  }
+
+  // Activity log — log before removing workspace
+  // Note: we log BEFORE returning, even though workspace entity is deleted.
+  // The activity file itself is cleaned up below.
+  logActivity(id, 'workspace.delete', {
+    label: workspace.label,
+    removedAssociations: removedCount,
+  }, user);
+
+  // Clean up activity log file
+  const activityPath = join(activityDir, `${id}.json`);
+  if (existsSync(activityPath)) {
+    unlinkSync(activityPath);
   }
 
   return { deleted: true, removedAssociations: removedCount };
@@ -661,6 +695,13 @@ export function associateContent(workspaceId, contentType, contentId, operation 
   }
 
   saveAssociations(workspaceId, associations);
+
+  // Activity log
+  logActivity(workspaceId, `content.${operation}`, {
+    contentType,
+    contentId,
+  }, null);
+
   return entry;
 }
 
@@ -740,6 +781,13 @@ export function removeContentAssociation(workspaceId, contentType, contentId) {
   );
   if (associations.items.length < before) {
     saveAssociations(workspaceId, associations);
+
+    // Activity log
+    logActivity(workspaceId, 'content.remove_association', {
+      contentType,
+      contentId,
+    }, null);
+
     return true;
   }
   return false;
@@ -1600,6 +1648,12 @@ export async function publishContent(workspaceId, contentId, user = null) {
     }
   }
 
+  // Activity log
+  logActivity(workspace.id, 'workspace.publish_content', {
+    contentType,
+    contentId,
+  }, user);
+
   // Remove the content association from the workspace
   removeContentAssociation(workspace.id, contentType, contentId);
 
@@ -1755,6 +1809,12 @@ export async function publishWorkspace(workspaceId, options = {}, user = null) {
       userId: user?.id,
     });
   }
+
+  // Activity log
+  logActivity(workspace.id, 'workspace.publish', {
+    itemCount: results.length,
+    errorCount: errors.length,
+  }, user);
 
   return {
     published: true,
