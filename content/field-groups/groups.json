@@ -178,5 +178,35 @@
     "children": [],
     "created_at": "2026-02-08T09:41:32.330Z",
     "updated_at": "2026-02-08T09:41:32.330Z"
+  },
+  {
+    "id": "node.article.default.regression_test",
+    "entity_type": "node",
+    "bundle": "article",
+    "mode": "default",
+    "group_name": "regression_test",
+    "label": "Regression Test Group",
+    "format_type": "fieldset",
+    "format_settings": {},
+    "parent_name": null,
+    "weight": 0,
+    "children": [],
+    "created_at": "2026-02-08T09:45:43.202Z",
+    "updated_at": "2026-02-08T09:45:43.203Z"
+  },
+  {
+    "id": "node.article.teaser.teaser_regression",
+    "entity_type": "node",
+    "bundle": "article",
+    "mode": "teaser",
+    "group_name": "teaser_regression",
+    "label": "Teaser Regression Test",
+    "format_type": "fieldset",
+    "format_settings": {},
+    "parent_name": null,
+    "weight": 0,
+    "children": [],
+    "created_at": "2026-02-08T09:45:54.341Z",
+    "updated_at": "2026-02-08T09:45:54.341Z"
   }
 ]
