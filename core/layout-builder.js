@@ -2243,6 +2243,106 @@ export function registerRoutes(router, auth) {
   }, 'Reorder sections in content layout');
 
   // ------------------------------------------
+  // POST /api/layout/:contentType/:id/components/move
+  // ------------------------------------------
+  // Moves a component between sections and/or regions (Feature #74).
+  // WHY: The layout builder drag-and-drop UI needs to move components
+  // across different sections, not just within a single section. The
+  // PUT endpoint above only handles intra-section moves, so this
+  // dedicated endpoint handles the cross-section case.
+  // Body: { componentUuid, sourceSectionUuid, sourceRegion, targetSectionUuid, targetRegion, componentOrder }
+  router.register('POST', '/api/layout/:contentType/:id/components/move', async (req, res, params) => {
+    const { contentType, id } = params;
+
+    try {
+      if (!contentService) {
+        return sendJson(res, 500, { error: 'Content service not initialized' });
+      }
+
+      const item = contentService.read(contentType, id);
+      if (!item) {
+        return sendJson(res, 404, { error: 'Content not found' });
+      }
+
+      let body;
+      try {
+        body = await parseBody(req);
+      } catch (e) {
+        return sendJson(res, 400, { error: 'Invalid JSON', message: e.message });
+      }
+
+      const { componentUuid, sourceSectionUuid, sourceRegion, targetSectionUuid, targetRegion, componentOrder } = body;
+
+      if (!componentUuid || !sourceSectionUuid || !sourceRegion || !targetSectionUuid || !targetRegion) {
+        return sendJson(res, 400, { error: 'Missing required fields: componentUuid, sourceSectionUuid, sourceRegion, targetSectionUuid, targetRegion' });
+      }
+
+      let storage = getEffectiveLayout(contentType, id, item);
+      if (!storage) {
+        return sendJson(res, 404, { error: 'No layout found' });
+      }
+
+      // Clone default layout to create an override if needed
+      if (!hasContentLayoutOverride(contentType, id)) {
+        storage = cloneLayout(storage);
+      }
+
+      const sourceSection = getSection(storage, sourceSectionUuid);
+      if (!sourceSection) {
+        return sendJson(res, 404, { error: 'Source section not found' });
+      }
+
+      const targetSection = getSection(storage, targetSectionUuid);
+      if (!targetSection) {
+        return sendJson(res, 404, { error: 'Target section not found' });
+      }
+
+      // Find and remove the component from source region
+      const sourceComponents = sourceSection.components[sourceRegion] || [];
+      const compIndex = sourceComponents.findIndex(c => c.uuid === componentUuid);
+      if (compIndex === -1) {
+        return sendJson(res, 404, { error: 'Component not found in source region' });
+      }
+
+      const [component] = sourceComponents.splice(compIndex, 1);
+
+      // Ensure target region array exists
+      if (!targetSection.components[targetRegion]) {
+        targetSection.components[targetRegion] = [];
+      }
+
+      // Insert into target region
+      // If componentOrder is provided, use it to determine position
+      if (componentOrder && Array.isArray(componentOrder)) {
+        const targetPos = componentOrder.indexOf(componentUuid);
+        if (targetPos !== -1) {
+          targetSection.components[targetRegion].splice(targetPos, 0, component);
+        } else {
+          targetSection.components[targetRegion].push(component);
+        }
+      } else {
+        targetSection.components[targetRegion].push(component);
+      }
+
+      // Update weights for both source and target regions
+      sourceComponents.forEach((c, i) => { c.weight = i; });
+      targetSection.components[targetRegion].forEach((c, i) => { c.weight = i; });
+
+      storage.updated = new Date().toISOString();
+      await setContentLayout(contentType, id, storage);
+
+      return sendJson(res, 200, {
+        message: 'Component moved successfully',
+        componentUuid,
+        from: { section: sourceSectionUuid, region: sourceRegion },
+        to: { section: targetSectionUuid, region: targetRegion },
+      });
+    } catch (err) {
+      return sendJson(res, 500, { error: 'Internal error', message: err.message });
+    }
+  }, 'Move component between sections/regions');
+
+  // ------------------------------------------
   // GET /api/layout/definitions
   // ------------------------------------------
   // Lists all available layout definitions.
