@@ -3,7 +3,7 @@
   "type": "article",
   "created": "2026-02-07T02:54:08.806Z",
   "updated": "2026-02-08T04:08:13.267Z",
-  "title": "Updated Title for Feature 76 Verification",
+  "title": "UPDATED TITLE TEST 76 - Field Rendering Verified",
   "isDefaultRevision": true,
   "status": "published",
   "publishedAt": "2026-02-07T02:54:15.307Z",
@@ -39,8 +39,8 @@
               "type": "inline_block",
               "blockType": "text",
               "configuration": {
-                "title": "Welcome Section",
-                "body": "This is custom inline content created directly in the layout builder. It supports rich text and is stored with the layout."
+                "title": "UPDATED Inline Block for Feature 77",
+                "body": "This inline block content was UPDATED to verify Feature #77 - inline content persistence and rendering."
               },
               "weight": 0
             },

@@ -2,12 +2,12 @@
   "id": "test_block_78",
   "type": "html",
   "adminTitle": "Test Block 78",
-  "title": "Reusable Test Block",
+  "title": "UPDATED Reusable Block (Feature 78)",
   "showTitle": true,
   "regionId": null,
   "weight": 0,
   "config": {
-    "body": "<p>This is reusable block content for Feature #78 testing.</p>"
+    "body": "<p><strong>UPDATED:</strong> This reusable block was modified to verify Feature #78 - block reference updates.</p>"
   },
   "visibility": [],
   "enabled": true,

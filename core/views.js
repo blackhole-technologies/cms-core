@@ -290,6 +290,7 @@ export async function createView(id, viewConfig) {
     fields: viewConfig.fields || [],
     relationships: viewConfig.relationships || [],
     aggregation: viewConfig.aggregation || null,
+    emptyState: viewConfig.emptyState || null,
     cache: {
       enabled: viewConfig.cache?.enabled ?? config.cacheEnabled,
       ttl: viewConfig.cache?.ttl || config.cacheTTL,
@@ -388,6 +389,62 @@ export async function deleteView(id) {
 
   // Fire after hook
   await hooksService.trigger('views:afterDelete', { viewId: id });
+}
+
+/**
+ * Clone a view to create a copy
+ *
+ * WHY THIS EXISTS:
+ * When creating similar views, cloning an existing view is faster than
+ * building from scratch. The clone gets a unique ID but preserves all
+ * configuration (filters, sorts, fields, displays) from the original.
+ * This is a common pattern in Drupal Views UI.
+ *
+ * @param {string} sourceId - ID of view to clone
+ * @param {string} newId - ID for the cloned view (must be unique)
+ * @param {Object} options - Optional overrides (name, label, description)
+ * @returns {Promise<Object>} Cloned view
+ */
+export async function cloneView(sourceId, newId, options = {}) {
+  const source = views[sourceId];
+  if (!source) {
+    throw new Error(`Source view "${sourceId}" not found`);
+  }
+
+  // Check if new ID already exists
+  if (views[newId]) {
+    throw new Error(`View "${newId}" already exists`);
+  }
+
+  // Deep clone the source view configuration
+  // WHY: Deep clone prevents modifications to the clone from affecting the original
+  const cloned = JSON.parse(JSON.stringify(source));
+
+  // Update identifying fields
+  cloned.id = newId;
+  cloned.name = options.name || `${source.name} (Copy)`;
+  cloned.label = options.label || `${source.label} (Copy)`;
+  cloned.description = options.description || `Cloned from ${source.name}`;
+  cloned.created = new Date().toISOString();
+  cloned.updated = new Date().toISOString();
+
+  // WHY: Clear cache settings on clone - the cloned view should start fresh
+  // and not share cache entries with the original view
+  if (cloned.cache) {
+    delete cloned.cache.lastClear;
+  }
+
+  // Fire before hook
+  await hooksService.trigger('views:beforeClone', { source, cloned });
+
+  // Add to views registry
+  views[newId] = cloned;
+  saveViews();
+
+  // Fire after hook
+  await hooksService.trigger('views:afterClone', { source, cloned });
+
+  return cloned;
 }
 
 /**
@@ -751,6 +808,9 @@ export async function executeView(id, context = {}) {
       hasPrev: view.pager.offset > 0,
     },
     aggregation: aggregated,
+    // WHY: Empty state message shown when no results found
+    // Allows views to provide custom messaging instead of generic "No results"
+    emptyState: result.items.length === 0 ? (view.emptyState || null) : null,
   };
 
   // Cache result
