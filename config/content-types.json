@@ -47,6 +47,36 @@
           }
         }
       },
+      "email": {
+        "type": "string",
+        "required": false,
+        "weight": 6,
+        "label": "Email",
+        "constraints": {
+          "Email": {}
+        }
+      },
+      "website": {
+        "type": "string",
+        "required": false,
+        "weight": 7,
+        "label": "Website",
+        "constraints": {
+          "Url": {}
+        }
+      },
+      "rating": {
+        "type": "integer",
+        "required": false,
+        "weight": 8,
+        "label": "Rating",
+        "constraints": {
+          "Range": {
+            "min": 1,
+            "max": 100
+          }
+        }
+      },
       "created": {
         "type": "datetime",
         "required": true,

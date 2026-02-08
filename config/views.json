@@ -179,5 +179,64 @@
     },
     "created": "2026-02-08T01:46:02.916Z",
     "updated": "2026-02-08T01:46:02.916Z"
+  },
+  "test_required_ctx": {
+    "id": "test_required_ctx",
+    "name": "Required Contextual Filter",
+    "description": "",
+    "contentType": "article",
+    "display": "page",
+    "displays": [
+      {
+        "id": "default",
+        "type": "page",
+        "label": "Page",
+        "path": null,
+        "displayMode": "table",
+        "template": null,
+        "pager": {
+          "type": "full",
+          "limit": 10
+        },
+        "isDefault": true
+      }
+    ],
+    "path": null,
+    "filters": [],
+    "filterLogic": "AND",
+    "contextualFilters": [
+      {
+        "field": "author",
+        "source": "url",
+        "param": "author",
+        "required": true,
+        "op": "="
+      }
+    ],
+    "sort": [
+      {
+        "field": "created",
+        "dir": "desc"
+      }
+    ],
+    "pager": {
+      "type": "full",
+      "limit": 10,
+      "offset": 0
+    },
+    "fields": [
+      "id",
+      "title",
+      "author"
+    ],
+    "relationships": [],
+    "aggregation": null,
+    "emptyState": null,
+    "cache": {
+      "enabled": true,
+      "ttl": 300
+    },
+    "created": "2026-02-08T05:23:12.531Z",
+    "updated": "2026-02-08T05:23:12.531Z"
   }
 }
