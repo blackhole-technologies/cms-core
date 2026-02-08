@@ -1,0 +1,14 @@
+{
+  "id": "be1f5aac-97cc-4eda-be91-89b0dc79f2f8",
+  "label": "Assignment Test WS",
+  "machineName": "assign_test",
+  "status": "active",
+  "owner": null,
+  "created": "2026-02-08T02:55:24.549Z",
+  "updated": "2026-02-08T02:55:59.099Z",
+  "parent": null,
+  "description": "",
+  "assignees": [
+    "1769870756954-jymy1"
+  ]
+}
