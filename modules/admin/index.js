@@ -2906,14 +2906,15 @@ export function hook_cli(register, context) {
       const sortCount = view.sort?.length || 0;
       const fieldCount = view.fields?.length || 0;
       const displayMode = view.display || 'page';
-      // WHY display count = 1: Each view definition in our model has exactly
-      // one display mode. In Drupal, views can have multiple displays; here
-      // the count is always 1 per view entity.
-      const displayCount = 1;
+      // WHY: Views can have multiple displays (page, block, feed).
+      // Show actual count from the displays array if it exists,
+      // otherwise fall back to 1 for legacy views without displays array.
+      const displayCount = view.displays?.length || 1;
+      const displayTypes = view.displays?.map(d => d.type).join(', ') || displayMode;
       console.log(`  ${view.id}`);
       console.log(`    Label: ${view.name}`);
       console.log(`    Content Type: ${view.contentType}`);
-      console.log(`    Displays: ${displayCount} (${displayMode})`);
+      console.log(`    Displays: ${displayCount} (${displayTypes})`);
       console.log(`    Fields: ${fieldCount}, Filters: ${filterCount}, Sorts: ${sortCount}`);
       if (view.description) {
         console.log(`    Description: ${view.description}`);
@@ -13690,11 +13691,48 @@ export function hook_routes(register, context) {
           pagerHtml += '</div>';
         }
 
+        // WHY: Build exposed filter form HTML
+        // Exposed filters allow end users to interactively filter view results
+        // Each exposed filter renders as a form field, submits via GET to preserve URL state
+        let exposedFilterHtml = '';
+        const exposedFilters = (view.filters || []).filter(f => f.exposed === true);
+        if (exposedFilters.length > 0) {
+          const currentQuery = Object.fromEntries(new URL(req.url, 'http://localhost').searchParams);
+
+          exposedFilterHtml = '<form method="GET" action="' + routePath + '" class="exposed-filters">';
+
+          for (const filter of exposedFilters) {
+            const fieldName = filter.field;
+            const currentValue = currentQuery[fieldName] || '';
+            const labelText = fieldName.charAt(0).toUpperCase() + fieldName.slice(1);
+
+            exposedFilterHtml += '<div class="filter-field">';
+            exposedFilterHtml += '<label for="filter-' + fieldName + '">' + labelText + '</label>';
+            exposedFilterHtml += '<input type="text" id="filter-' + fieldName + '" name="' + fieldName + '" value="' + currentValue + '" />';
+            exposedFilterHtml += '</div>';
+          }
+
+          exposedFilterHtml += '<div class="filter-actions">';
+          exposedFilterHtml += '<button type="submit">Filter</button>';
+          exposedFilterHtml += '<a href="' + routePath + '" class="reset-link">Reset</a>';
+          exposedFilterHtml += '</div>';
+          exposedFilterHtml += '</form>';
+        }
+
         const pageHtml = '<!DOCTYPE html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">'
           + '<title>' + (view.name || 'View') + '</title>'
           + '<style>'
           + 'body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;margin:0;padding:2rem;color:#111827;background:#fff;max-width:1200px;margin:0 auto;}'
           + 'h1{margin:0 0 1rem;font-size:1.5rem;color:#111827;}'
+          + '.exposed-filters{background:#f9fafb;border:1px solid #e5e7eb;border-radius:8px;padding:1rem;margin-bottom:1.5rem;display:flex;align-items:flex-end;gap:1rem;flex-wrap:wrap;}'
+          + '.filter-field{display:flex;flex-direction:column;gap:0.25rem;}'
+          + '.filter-field label{font-size:0.85rem;font-weight:500;color:#374151;}'
+          + '.filter-field input{padding:0.5rem;border:1px solid #d1d5db;border-radius:4px;font-size:0.9rem;min-width:200px;}'
+          + '.filter-actions{display:flex;gap:0.5rem;align-items:center;}'
+          + '.filter-actions button{background:#2563eb;color:#fff;border:none;padding:0.5rem 1rem;border-radius:4px;font-size:0.9rem;cursor:pointer;}'
+          + '.filter-actions button:hover{background:#1d4ed8;}'
+          + '.reset-link{color:#6b7280;text-decoration:none;font-size:0.85rem;padding:0.5rem;}'
+          + '.reset-link:hover{color:#374151;text-decoration:underline;}'
           + '.view-table{width:100%;border-collapse:collapse;margin-bottom:1rem;}'
           + '.view-table th{background:#f9fafb;border:1px solid #e5e7eb;padding:0.5rem 0.75rem;text-align:left;font-size:0.85rem;text-transform:uppercase;color:#6b7280;}'
           + '.view-table td{border:1px solid #e5e7eb;padding:0.5rem 0.75rem;font-size:0.9rem;}'
@@ -13708,6 +13746,7 @@ export function hook_routes(register, context) {
           + '.view-meta{font-size:0.85rem;color:#6b7280;margin-bottom:1rem;}'
           + '</style></head><body>'
           + '<h1>' + (view.name || 'View') + '</h1>'
+          + exposedFilterHtml
           + '<div class="view-meta">' + items.length + ' of ' + (results.total || 0) + ' items</div>'
           + contentHtml
           + pagerHtml
