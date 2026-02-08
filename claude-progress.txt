@@ -1007,3 +1007,63 @@ All three features were already fully implemented in core/workspaces.js:
 - Feature #107: CLI test shows buildQuery() returns complete query structure
 - Feature #108: Clone test verifies independent configuration, no cross-contamination
 - Feature #111: Query structure test shows contextual filters applied correctly
+
+## Session 18 - 2026-02-08
+
+### Completed
+- Feature #120: Email constraint (PASSING)
+  - Email constraint already implemented in core/constraints.js (lines 471-493)
+  - Uses regex: /^[^\s@]+@[^\s@]+\.[^\s@]+$/
+  - Error message: "Invalid email address"
+  - Error code: INVALID_EMAIL
+  - Tested: "notanemail" → FAIL, "missing@tld" → FAIL
+  - Tested: "valid@example.com" → PASS, "user@domain.co.uk" → PASS
+  - Added email field to article content type with Email constraint
+
+- Feature #121: URL constraint (PASSING)
+  - URL constraint already implemented in core/constraints.js (lines 495-519)
+  - Uses Node.js built-in URL constructor for validation
+  - Supports all valid URL protocols (http, https, ftp, etc.)
+  - Error message: "Invalid URL"
+  - Error code: INVALID_URL
+  - Tested: "not a url" → FAIL, "not-a-url" → FAIL
+  - Tested: "https://example.com" → PASS, "ftp://example.com" → PASS
+  - Added website field to article content type with Url constraint
+
+- Feature #122: Range constraint (min/max number) (PASSING)
+  - Range constraint already implemented in core/constraints.js (lines 522-559)
+  - Validates numeric values within min/max range
+  - Converts value to Number with isNaN() check
+  - Error messages: "{Field} must be at least {min}" / "{Field} must be at most {max}"
+  - Error codes: TOO_LOW, TOO_HIGH
+  - Tested: rating=0 (min=1) → FAIL "must be at least 1"
+  - Tested: rating=101 (max=100) → FAIL "must be at most 100"
+  - Tested: rating=50 (within 1-100) → PASS
+  - Added rating field to article content type with Range constraint (min=1, max=100)
+
+### Changes Made
+1. **config/content-types.json**: Added three test fields to article content type:
+   - email: string field with Email constraint
+   - website: string field with Url constraint
+   - rating: integer field with Range constraint (min=1, max=100)
+
+2. **Verification documents**:
+   - feature-120-verification.md: Email constraint test results
+   - feature-121-verification.md: URL constraint test results
+   - feature-122-verification.md: Range constraint test results
+
+### Current Status
+- 140/165 features passing (84.8%)
+- Validation Constraints tier: Features 120, 121, 122 done
+- All 3 assigned features completed
+
+### Verification Method
+All features verified via CLI commands:
+- node index.js content:create article '{...}' with invalid values → constraint violations
+- node index.js content:create article '{...}' with valid values → created successfully
+- Error messages descriptive and accurate
+- All test data persists in flat-file storage
+
+### Next Steps
+- Continue validation constraints tier (Features 123-134)
+- Continue accessibility/SEO tier as needed
