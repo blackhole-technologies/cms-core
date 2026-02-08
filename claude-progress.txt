@@ -1108,3 +1108,40 @@ All features verified via CLI commands:
 - 145/165 features passing (87.9%)
 - Validation constraints tier: Features 126, 127, 128 done
 - All 3 assigned features completed
+## Session - 2026-02-08 (Features #123, #124, #125)
+
+### Completed
+- Feature #123: Unique constraint (per content type) (PASSING)
+  - Added Unique constraint to article title field via constraints: { "Unique": {} }
+  - Constraint prevents duplicate titles across all articles
+  - Error message identifies conflicting item ID
+  - Verified: duplicate creation fails with "Title must be unique (conflicts with [id])"
+  - Verified: different titles succeed
+
+- Feature #124: Entity reference constraint (valid target) (PASSING)
+  - Added EntityReference constraint plugin to core/constraints.js
+  - Validates entity reference fields point to valid, existing entities
+  - Applied to comment authorId (→ user) and parentId (→ comment) fields
+  - Verified: valid references succeed
+  - Verified: invalid references fail with "Referenced [type] does not exist"
+  - Verified: wrong type fails (e.g., article ID for user field)
+
+- Feature #125: File extension constraint (PASSING)
+  - Added FileExtension constraint plugin to core/constraints.js
+  - Validates file extensions case-insensitively
+  - Applied to media-entity filename field
+  - Allowed extensions: jpg, jpeg, png, gif, pdf, doc, docx, mp4, webm
+  - Verified: .jpg and .JPG both succeed (case-insensitive)
+  - Verified: .exe fails with list of allowed extensions
+  - Error message lists all allowed extensions
+
+### Changes Made
+1. **config/content-types.json**: Added Unique constraint to article title field
+2. **core/constraints.js**: Added EntityReference and FileExtension constraint plugins
+3. **core/comments.js**: Added EntityReference constraints to parentId and authorId
+4. **core/media-library.js**: Added FileExtension constraint to filename field
+
+### Current Status
+- 146/165 features passing (88.5%)
+- Validation constraints tier: Features 123, 124, 125 done
+- All 3 assigned features completed
