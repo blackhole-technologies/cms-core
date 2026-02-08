@@ -2,7 +2,7 @@
   "id": "1770516540322-i6zef",
   "type": "article",
   "created": "2026-02-08T02:09:00.322Z",
-  "updated": "2026-02-08T04:48:54.051Z",
+  "updated": "2026-02-08T04:48:37.015Z",
   "title": "Comprehensive Guide to Building a Zero-Dependency CMS with Node.js",
   "body": "<p>Building a content management system from scratch using only Node.js built-in modules is an ambitious but rewarding endeavor. In this comprehensive guide, we will explore the architectural decisions, design patterns, and implementation strategies that make it possible to create a production-quality CMS without relying on any npm packages.</p><h2>Why Zero Dependencies</h2><p>The decision to build without npm packages stems from several key benefits. First, it eliminates supply chain security risks that have plagued the JavaScript ecosystem. Second, it reduces the attack surface significantly. Third, it ensures long-term maintainability since you are not dependent on third-party libraries that may become abandoned or introduce breaking changes.</p><h2>Architecture Overview</h2><p>Our CMS follows a service-oriented architecture inspired by Drupal, one of the most mature content management frameworks. Each service is responsible for a specific domain: content storage, user authentication, routing, template rendering, and more. Services communicate through a hook system that allows loose coupling between components.</p><h2>Content Storage</h2><p>Rather than using a traditional database, we store content as flat JSON files on the filesystem. This approach simplifies deployment, eliminates database configuration overhead, and makes content easily portable. Each content item is stored as a separate JSON file, with revisions tracked in a subdirectory structure.</p><h2>The Module System</h2><p>Modules extend the core functionality by registering hooks, routes, and CLI commands during the boot sequence. The module system supports hot reloading in development mode, making the development experience smooth and productive. Each module exports standard lifecycle functions for initialization and registration.</p><h2>Template Engine</h2><p>The built-in template engine supports variable interpolation, conditionals, loops, and partial includes. It processes templates written in HTML with special syntax markers, converting them to rendered HTML at runtime. Template caching ensures optimal performance in production environments.</p><h2>Conclusion</h2><p>Building a zero-dependency CMS is not just an academic exercise. It produces a lean, secure, and fully controllable system that can serve as the foundation for serious content management needs. The key is careful architecture, thorough testing, and unwavering commitment to quality.</p>",
   "isDefaultRevision": true,
@@ -39,7 +39,7 @@
               "blockType": "html",
               "configuration": {
                 "title": "Welcome Section",
-                "body": "<p>This is custom inline content created directly in the layout builder. It supports rich text and is stored with the layout.</p>"
+                "body": ""
               },
               "weight": 0
             }

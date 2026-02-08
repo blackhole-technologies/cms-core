@@ -2860,4 +2860,178 @@ export function registerRoutes(router, auth) {
       return sendJson(res, 500, { error: 'Internal error', message: err.message });
     }
   }, 'Get rendered layout preview for content item');
+
+  // ============================================
+  // LAYOUT TEMPLATE API ROUTES (Feature #85)
+  // ============================================
+
+  // ------------------------------------------
+  // GET /api/layout/templates
+  // ------------------------------------------
+  // List all available layout templates.
+  router.register('GET', '/api/layout/templates', async (req, res) => {
+    try {
+      const url = new URL(req.url, `http://${req.headers.host}`);
+      const category = url.searchParams.get('category') || undefined;
+
+      const templates = listLayoutTemplates(category ? { category } : {});
+
+      // Return summary info (not full section data) for listing
+      const summaries = templates.map(t => ({
+        id: t.id,
+        name: t.name,
+        description: t.description,
+        category: t.category,
+        sectionCount: t.sectionCount,
+        componentCount: t.componentCount,
+        created: t.created,
+        updated: t.updated,
+        sourceContentType: t.sourceContentType,
+      }));
+
+      return sendJson(res, 200, {
+        templates: summaries,
+        count: summaries.length,
+      });
+    } catch (err) {
+      return sendJson(res, 500, { error: 'Internal error', message: err.message });
+    }
+  }, 'List layout templates');
+
+  // ------------------------------------------
+  // GET /api/layout/templates/:templateId
+  // ------------------------------------------
+  // Get full template details including layout data.
+  router.register('GET', '/api/layout/templates/:templateId', async (req, res, params) => {
+    try {
+      const template = getLayoutTemplate(params.templateId);
+      if (!template) {
+        return sendJson(res, 404, {
+          error: 'Template not found',
+          message: `Layout template "${params.templateId}" not found`,
+        });
+      }
+
+      return sendJson(res, 200, { template });
+    } catch (err) {
+      return sendJson(res, 500, { error: 'Internal error', message: err.message });
+    }
+  }, 'Get layout template details');
+
+  // ------------------------------------------
+  // POST /api/layout/templates
+  // ------------------------------------------
+  // Save a layout as a template.
+  // Body: { id, name, description?, category?, sections: [...] }
+  // OR:   { id, name, description?, category?, contentType, contentId }
+  router.register('POST', '/api/layout/templates', async (req, res) => {
+    try {
+      let body;
+      try {
+        body = await parseBody(req);
+      } catch (e) {
+        return sendJson(res, 400, { error: 'Invalid JSON', message: e.message });
+      }
+
+      if (!body.id) {
+        return sendJson(res, 400, { error: 'Template id is required' });
+      }
+      if (!body.name) {
+        return sendJson(res, 400, { error: 'Template name is required' });
+      }
+
+      let template;
+
+      if (body.contentType && body.contentId) {
+        // Save from existing content
+        template = saveContentAsTemplate(body.contentType, body.contentId, body.id, body.name, {
+          description: body.description,
+          category: body.category,
+        });
+      } else if (body.sections && Array.isArray(body.sections)) {
+        // Save from provided sections data
+        template = saveLayoutTemplate(body.id, body.name, { sections: body.sections }, {
+          description: body.description,
+          category: body.category,
+        });
+      } else {
+        return sendJson(res, 400, {
+          error: 'Either (contentType + contentId) or sections array is required',
+        });
+      }
+
+      return sendJson(res, 201, {
+        message: 'Template saved successfully',
+        template: {
+          id: template.id,
+          name: template.name,
+          description: template.description,
+          category: template.category,
+          sectionCount: template.sectionCount,
+          componentCount: template.componentCount,
+          created: template.created,
+          updated: template.updated,
+        },
+      });
+    } catch (err) {
+      return sendJson(res, 500, { error: 'Internal error', message: err.message });
+    }
+  }, 'Save layout as template');
+
+  // ------------------------------------------
+  // POST /api/layout/templates/:templateId/apply
+  // ------------------------------------------
+  // Apply a template to a content item.
+  // Body: { contentType, contentId }
+  router.register('POST', '/api/layout/templates/:templateId/apply', async (req, res, params) => {
+    try {
+      let body;
+      try {
+        body = await parseBody(req);
+      } catch (e) {
+        return sendJson(res, 400, { error: 'Invalid JSON', message: e.message });
+      }
+
+      if (!body.contentType || !body.contentId) {
+        return sendJson(res, 400, { error: 'contentType and contentId are required' });
+      }
+
+      const layout = await applyLayoutTemplate(params.templateId, body.contentType, body.contentId);
+
+      return sendJson(res, 200, {
+        message: 'Template applied successfully',
+        templateId: params.templateId,
+        contentType: body.contentType,
+        contentId: body.contentId,
+        layout: {
+          sections: layout.sections.length,
+          updated: layout.updated,
+        },
+      });
+    } catch (err) {
+      if (err.message.includes('not found')) {
+        return sendJson(res, 404, { error: err.message });
+      }
+      return sendJson(res, 500, { error: 'Internal error', message: err.message });
+    }
+  }, 'Apply layout template to content');
+
+  // ------------------------------------------
+  // DELETE /api/layout/templates/:templateId
+  // ------------------------------------------
+  // Delete a layout template.
+  router.register('DELETE', '/api/layout/templates/:templateId', async (req, res, params) => {
+    try {
+      deleteLayoutTemplate(params.templateId);
+      return sendJson(res, 200, {
+        message: 'Template deleted successfully',
+        deletedTemplateId: params.templateId,
+      });
+    } catch (err) {
+      if (err.message.includes('not found')) {
+        return sendJson(res, 404, { error: err.message });
+      }
+      return sendJson(res, 500, { error: 'Internal error', message: err.message });
+    }
+  }, 'Delete layout template');
 }

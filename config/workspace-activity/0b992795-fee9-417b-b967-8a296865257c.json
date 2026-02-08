@@ -1,0 +1,88 @@
+[
+  {
+    "timestamp": "2026-02-08T03:55:18.092Z",
+    "action": "workspace.schedule_publish",
+    "user": null,
+    "details": {
+      "scheduledPublishAt": "2026-02-10T12:00:00.000Z"
+    }
+  },
+  {
+    "timestamp": "2026-02-08T03:55:11.037Z",
+    "action": "workspace.cancel_scheduled_publish",
+    "user": null,
+    "details": {
+      "cancelledSchedule": "2026-02-10T12:00:00.000Z"
+    }
+  },
+  {
+    "timestamp": "2026-02-08T03:55:10.186Z",
+    "action": "workspace.schedule_publish",
+    "user": null,
+    "details": {
+      "scheduledPublishAt": "2026-02-10T12:00:00.000Z"
+    }
+  },
+  {
+    "timestamp": "2026-02-08T03:54:54.658Z",
+    "action": "workspace.scheduled_publish_executed",
+    "user": null,
+    "details": {
+      "publishedAt": "2026-02-08T03:54:54.654Z",
+      "itemCount": 0
+    }
+  },
+  {
+    "timestamp": "2026-02-08T03:54:54.658Z",
+    "action": "workspace.publish",
+    "user": null,
+    "details": {
+      "itemCount": 1,
+      "errorCount": 0
+    }
+  },
+  {
+    "timestamp": "2026-02-08T03:54:54.657Z",
+    "action": "content.remove_association",
+    "user": null,
+    "details": {
+      "contentType": "article",
+      "contentId": "1770522852271-c98vw"
+    }
+  },
+  {
+    "timestamp": "2026-02-08T03:54:54.656Z",
+    "action": "workspace.publish_content",
+    "user": null,
+    "details": {
+      "contentType": "article",
+      "contentId": "1770522852271-c98vw"
+    }
+  },
+  {
+    "timestamp": "2026-02-08T03:54:19.201Z",
+    "action": "workspace.schedule_publish",
+    "user": null,
+    "details": {
+      "scheduledPublishAt": "2026-02-08T04:00:00.000Z"
+    }
+  },
+  {
+    "timestamp": "2026-02-08T03:54:12.272Z",
+    "action": "content.create",
+    "user": null,
+    "details": {
+      "contentType": "article",
+      "contentId": "1770522852271-c98vw"
+    }
+  },
+  {
+    "timestamp": "2026-02-08T03:54:05.457Z",
+    "action": "workspace.create",
+    "user": null,
+    "details": {
+      "label": "sched_test_ws",
+      "machineName": "sched_test_ws"
+    }
+  }
+]

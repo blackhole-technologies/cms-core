@@ -1,0 +1,76 @@
+{
+  "id": "test_layout_template",
+  "name": "Test Layout Template",
+  "description": "A two-section layout with title/body in left column and inline/block in right column",
+  "category": "Landing Page",
+  "sections": [
+    {
+      "uuid": "4d2a556b4e8f7c885c86a62e5df3d4b9",
+      "layoutId": "two_column",
+      "settings": {
+        "columnWidths": "50-50"
+      },
+      "components": {
+        "first": [
+          {
+            "uuid": "17b847866a093dcaba9ef01030d3fe4c",
+            "type": "field",
+            "fieldName": "title",
+            "configuration": {},
+            "weight": 0
+          },
+          {
+            "uuid": "6ccc62aac813608c5a5a8bb8663f808e",
+            "type": "field",
+            "fieldName": "body",
+            "configuration": {},
+            "weight": 1
+          }
+        ],
+        "second": [
+          {
+            "uuid": "8d730b35113370c6ac2a852710159401",
+            "type": "inline_block",
+            "blockType": "text",
+            "configuration": {
+              "title": "Welcome Section",
+              "body": "This is custom inline content created directly in the layout builder. It supports rich text and is stored with the layout."
+            },
+            "weight": 0
+          },
+          {
+            "uuid": "0a7675406234a0d7b1eb24c4d43b0bb0",
+            "type": "block",
+            "blockId": "test_block_78",
+            "configuration": {},
+            "weight": 1
+          }
+        ]
+      },
+      "weight": 0
+    },
+    {
+      "uuid": "2120cf682e2d40e2dc592845608b7257",
+      "layoutId": "one_column",
+      "settings": {},
+      "components": {
+        "content": [
+          {
+            "uuid": "a343d263cc1071176af4d3e09a205108",
+            "type": "field",
+            "fieldName": "summary",
+            "configuration": {},
+            "weight": 0
+          }
+        ]
+      },
+      "weight": 1
+    }
+  ],
+  "created": "2026-02-08T04:47:13.030Z",
+  "updated": "2026-02-08T04:47:13.030Z",
+  "sourceContentType": "article",
+  "sourceContentId": "1770432848806-bvb33",
+  "sectionCount": 2,
+  "componentCount": 5
+}

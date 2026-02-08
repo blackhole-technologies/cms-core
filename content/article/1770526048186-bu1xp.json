@@ -1,17 +1,16 @@
 {
-  "id": "1770432848806-bvb33",
+  "id": "1770526048186-bu1xp",
   "type": "article",
-  "created": "2026-02-07T02:54:08.806Z",
-  "updated": "2026-02-08T04:08:13.267Z",
-  "title": "Updated Title for Feature 76 Verification",
+  "created": "2026-02-08T04:47:28.186Z",
+  "updated": "2026-02-08T04:47:34.064Z",
+  "title": "Template Test Article",
+  "body": "This article will use the saved template",
   "isDefaultRevision": true,
-  "status": "published",
-  "publishedAt": "2026-02-07T02:54:15.307Z",
-  "scheduledAt": null,
+  "status": "draft",
   "_layout": {
     "sections": [
       {
-        "uuid": "bec03fc2ab102bc788efde952d2b5d48",
+        "uuid": "c919a4e5a0d0704f976c299fafb15209",
         "layoutId": "two_column",
         "settings": {
           "columnWidths": "50-50"
@@ -19,14 +18,14 @@
         "components": {
           "first": [
             {
-              "uuid": "comp-field-title-001",
+              "uuid": "d4f8ac3452e5024e03235169c3c15430",
               "type": "field",
               "fieldName": "title",
               "configuration": {},
               "weight": 0
             },
             {
-              "uuid": "comp-field-body-002",
+              "uuid": "5a29babef4602bfcca4c6f5827141d97",
               "type": "field",
               "fieldName": "body",
               "configuration": {},
@@ -35,7 +34,7 @@
           ],
           "second": [
             {
-              "uuid": "comp-inline-block-003",
+              "uuid": "4b8ee656d070379ee3699a21c5b38a1b",
               "type": "inline_block",
               "blockType": "text",
               "configuration": {
@@ -45,7 +44,7 @@
               "weight": 0
             },
             {
-              "uuid": "comp-block-ref-004",
+              "uuid": "cba60b4d09dc1d3ebac33ca2c094774d",
               "type": "block",
               "blockId": "test_block_78",
               "configuration": {},
@@ -56,13 +55,13 @@
         "weight": 0
       },
       {
-        "uuid": "92f17866b5d7d5e64253231a3045a16d",
+        "uuid": "d1b540509301b02973298555eee9960b",
         "layoutId": "one_column",
         "settings": {},
         "components": {
           "content": [
             {
-              "uuid": "comp-field-summary-005",
+              "uuid": "fe61388f9b403af427309cdabf055931",
               "type": "field",
               "fieldName": "summary",
               "configuration": {},
@@ -73,8 +72,8 @@
         "weight": 1
       }
     ],
-    "updated": "2026-02-08T04:08:13.267Z"
-  },
-  "body": "This is the body content for Feature 76-78 testing. It demonstrates field block rendering in the layout builder.",
-  "summary": "Test article summary for layout builder features"
+    "updated": "2026-02-08T04:47:34.063Z",
+    "templateId": "test_layout_template",
+    "templateName": "Test Layout Template"
+  }
 }

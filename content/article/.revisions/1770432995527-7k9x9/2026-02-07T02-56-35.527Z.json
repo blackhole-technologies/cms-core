@@ -1,0 +1,10 @@
+{
+  "id": "1770432995527-7k9x9",
+  "type": "article",
+  "created": "2026-02-07T02:56:35.527Z",
+  "updated": "2026-02-07T02:56:35.527Z",
+  "title": "ALT_TEXT_TEST_152",
+  "body": "<p>Article with <img src=\"sunset.jpg\" alt=\"Beautiful sunset over the ocean\"> and <img src=\"mountains.png\" alt=\"Snow-capped mountain range\"> now with alt text.</p>",
+  "isDefaultRevision": true,
+  "status": "draft"
+}

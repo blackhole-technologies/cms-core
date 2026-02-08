@@ -762,6 +762,82 @@ export async function executeView(id, context = {}) {
 }
 
 /**
+ * Build query structure for inspection (debugging tool)
+ *
+ * WHY THIS EXISTS:
+ * Views configuration can be complex with filters, sorts, fields, contextual filters, etc.
+ * This function builds the actual query object that would be sent to content.list()
+ * without executing it, allowing developers to debug and understand how their view
+ * configuration translates into a database query.
+ *
+ * @param {string} id - View ID
+ * @param {Object} context - Execution context (optional, for contextual filters)
+ * @returns {Object} Query structure with filters, sorts, fields, pager
+ */
+export function buildQuery(id, context = {}) {
+  const view = views[id];
+  if (!view) {
+    throw new Error(`View "${id}" not found`);
+  }
+
+  // Apply contextual filters
+  let filters = applyContextualFilters(view, context);
+
+  // Handle exposed filters
+  const queryParams = context.query || {};
+  filters = filters.map(filter => {
+    if (filter.exposed) {
+      if (queryParams.hasOwnProperty(filter.field)) {
+        const queryValue = queryParams[filter.field];
+        if (queryValue === '') {
+          return null;
+        }
+        return {
+          ...filter,
+          value: queryValue,
+        };
+      } else {
+        return null;
+      }
+    }
+    return filter;
+  }).filter(f => f !== null);
+
+  // Convert filters to object format
+  const filterObj = {};
+  for (const f of filters) {
+    const op = OPERATORS[f.op] || f.op;
+    const key = op === 'eq' ? f.field : `${f.field}__${op}`;
+    filterObj[key] = f.value;
+  }
+
+  // Build query structure
+  return {
+    viewId: id,
+    viewName: view.name,
+    contentType: view.contentType,
+    query: {
+      filters: filterObj,
+      filterLogic: view.filterLogic || 'AND',
+      sortBy: view.sort[0]?.field || 'created',
+      sortOrder: view.sort[0]?.dir || 'desc',
+      page: view.pager.offset ? Math.floor(view.pager.offset / Math.min(view.pager.limit, config.maxLimit)) + 1 : 1,
+      limit: Math.min(view.pager.limit, config.maxLimit),
+    },
+    additionalSorts: view.sort.slice(1).map(s => ({
+      field: s.field,
+      direction: s.dir,
+    })),
+    fields: view.fields || [],
+    relationships: view.relationships || [],
+    aggregation: view.aggregation || null,
+    pager: view.pager,
+    contextualFilters: view.contextualFilters || [],
+    appliedFilters: filters,
+  };
+}
+
+/**
  * Render view with template
  *
  * @param {string} id - View ID

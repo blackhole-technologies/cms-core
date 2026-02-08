@@ -1,0 +1,20 @@
+{
+  "id": "test_block_78",
+  "type": "html",
+  "adminTitle": "Test Block 78",
+  "title": "Reusable Test Block",
+  "showTitle": true,
+  "regionId": null,
+  "weight": 0,
+  "config": {
+    "body": "<p>This is reusable block content for Feature #78 testing.</p>"
+  },
+  "visibility": [],
+  "enabled": true,
+  "cache": {
+    "mode": "per-page",
+    "maxAge": 3600
+  },
+  "created": "2026-02-08T15:30:00.000Z",
+  "updated": "2026-02-08T15:30:00.000Z"
+}

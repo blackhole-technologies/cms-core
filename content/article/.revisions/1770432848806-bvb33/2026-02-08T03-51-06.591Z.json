@@ -2,8 +2,8 @@
   "id": "1770432848806-bvb33",
   "type": "article",
   "created": "2026-02-07T02:54:08.806Z",
-  "updated": "2026-02-07T13:00:27.225Z",
-  "title": "Rev Test A - Third Draft",
+  "updated": "2026-02-08T03:51:06.591Z",
+  "title": "Rev Test A - Draft Edit",
   "isDefaultRevision": true,
   "status": "published",
   "publishedAt": "2026-02-07T02:54:15.307Z",
@@ -31,16 +31,7 @@
         "weight": 0
       },
       {
-        "uuid": "92f17866b5d7d5e64253231a3045a16d",
-        "layoutId": "one_column",
-        "settings": {},
-        "components": {
-          "content": []
-        },
-        "weight": 1
-      },
-      {
-        "uuid": "6c4f9f0ec5c9e0c7c5cd04a4751aedbe",
+        "uuid": "ab93d2ee7b024d0375e4277800bb2bf2",
         "layoutId": "three_column",
         "settings": {
           "columnWidths": "33-33-33"
@@ -50,24 +41,19 @@
           "second": [],
           "third": []
         },
-        "weight": 2
+        "weight": 1
       },
       {
-        "uuid": "d0059e3d05405e2e566edc8fd57537a1",
-        "layoutId": "four_column",
-        "settings": {
-          "columnWidths": "25-25-25-25"
-        },
+        "uuid": "c63c76f1d530a41da442e844d3efda3f",
+        "layoutId": "one_column",
+        "settings": {},
         "components": {
-          "first": [],
-          "second": [],
-          "third": [],
-          "fourth": []
+          "content": []
         },
-        "weight": 3
+        "weight": 2
       }
     ],
-    "updated": "2026-02-07T13:00:57.123Z"
+    "updated": "2026-02-08T03:51:39.512Z"
   },
-  "body": "Third pending draft"
+  "body": "This is a pending draft revision"
 }

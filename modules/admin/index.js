@@ -5303,6 +5303,215 @@ export function hook_cli(register, context) {
   }, 'Render layout to HTML');
 
   // ========================================
+  // LAYOUT TEMPLATE CLI COMMANDS (Feature #85)
+  // ========================================
+
+  /**
+   * layout:template:save <templateId> <name> --type=<contentType> --id=<contentId> [--category=<cat>] [--description=<desc>]
+   * Save a content item's layout as a reusable template.
+   */
+  register('layout:template:save', async (args, ctx) => {
+    const layoutBuilder = ctx.services.get('layoutBuilder');
+    if (!layoutBuilder) {
+      console.log('Layout Builder service not available');
+      return;
+    }
+
+    const templateId = args[0];
+    const templateName = args.slice(1).filter(a => !a.startsWith('--')).join(' ');
+
+    if (!templateId || !templateName) {
+      console.log('Usage: layout:template:save <templateId> <name> --type=<contentType> --id=<contentId> [--category=<cat>] [--description=<desc>]');
+      return;
+    }
+
+    let contentType = null;
+    let contentId = null;
+    let category = 'General';
+    let description = '';
+
+    for (const arg of args) {
+      if (arg.startsWith('--type=')) contentType = arg.substring(7);
+      else if (arg.startsWith('--id=')) contentId = arg.substring(5);
+      else if (arg.startsWith('--category=')) category = arg.substring(11);
+      else if (arg.startsWith('--description=')) description = arg.substring(14);
+    }
+
+    if (!contentType || !contentId) {
+      console.log('Error: --type=<contentType> and --id=<contentId> are required');
+      return;
+    }
+
+    try {
+      const template = layoutBuilder.saveContentAsTemplate(contentType, contentId, templateId, templateName, {
+        category,
+        description,
+      });
+
+      console.log(`\n✓ Template saved: ${template.name} (${template.id})`);
+      console.log(`  Category: ${template.category}`);
+      console.log(`  Sections: ${template.sectionCount}`);
+      console.log(`  Components: ${template.componentCount}`);
+      console.log(`  Source: ${contentType}/${contentId}`);
+      console.log('');
+    } catch (error) {
+      console.log(`Error: ${error.message}`);
+    }
+  }, 'Save content layout as reusable template');
+
+  /**
+   * layout:template:load <templateId> --type=<contentType> --id=<contentId>
+   * Load/apply a layout template onto a content item.
+   */
+  register('layout:template:load', async (args, ctx) => {
+    const layoutBuilder = ctx.services.get('layoutBuilder');
+    if (!layoutBuilder) {
+      console.log('Layout Builder service not available');
+      return;
+    }
+
+    const templateId = args[0];
+    if (!templateId) {
+      console.log('Usage: layout:template:load <templateId> --type=<contentType> --id=<contentId>');
+      return;
+    }
+
+    let contentType = null;
+    let contentId = null;
+
+    for (const arg of args) {
+      if (arg.startsWith('--type=')) contentType = arg.substring(7);
+      else if (arg.startsWith('--id=')) contentId = arg.substring(5);
+    }
+
+    if (!contentType || !contentId) {
+      console.log('Error: --type=<contentType> and --id=<contentId> are required');
+      return;
+    }
+
+    try {
+      const layout = await layoutBuilder.applyLayoutTemplate(templateId, contentType, contentId);
+
+      console.log(`\n✓ Template "${templateId}" applied to ${contentType}/${contentId}`);
+      console.log(`  Sections: ${layout.sections.length}`);
+      console.log(`  Updated: ${layout.updated}`);
+      console.log('');
+    } catch (error) {
+      console.log(`Error: ${error.message}`);
+    }
+  }, 'Load/apply layout template to content');
+
+  /**
+   * layout:template:list [--category=<cat>]
+   * List all available layout templates.
+   */
+  register('layout:template:list', async (args, ctx) => {
+    const layoutBuilder = ctx.services.get('layoutBuilder');
+    if (!layoutBuilder) {
+      console.log('Layout Builder service not available');
+      return;
+    }
+
+    let category = null;
+    for (const arg of args) {
+      if (arg.startsWith('--category=')) category = arg.substring(11);
+    }
+
+    const templates = layoutBuilder.listLayoutTemplates(category ? { category } : {});
+
+    console.log(`\n=== Layout Templates (${templates.length}) ===\n`);
+
+    if (templates.length === 0) {
+      console.log('  No templates saved yet.');
+      console.log('  Use layout:template:save to create a template from existing content.');
+    } else {
+      for (const t of templates) {
+        console.log(`  ${t.id}`);
+        console.log(`    Name: ${t.name}`);
+        console.log(`    Category: ${t.category}`);
+        if (t.description) console.log(`    Description: ${t.description}`);
+        console.log(`    Sections: ${t.sectionCount} | Components: ${t.componentCount}`);
+        console.log(`    Created: ${t.created}`);
+        console.log('');
+      }
+    }
+  }, 'List available layout templates');
+
+  /**
+   * layout:template:delete <templateId>
+   * Delete a layout template.
+   */
+  register('layout:template:delete', async (args, ctx) => {
+    const layoutBuilder = ctx.services.get('layoutBuilder');
+    if (!layoutBuilder) {
+      console.log('Layout Builder service not available');
+      return;
+    }
+
+    const templateId = args[0];
+    if (!templateId) {
+      console.log('Usage: layout:template:delete <templateId>');
+      return;
+    }
+
+    try {
+      layoutBuilder.deleteLayoutTemplate(templateId);
+      console.log(`\n✓ Template "${templateId}" deleted successfully.\n`);
+    } catch (error) {
+      console.log(`Error: ${error.message}`);
+    }
+  }, 'Delete a layout template');
+
+  /**
+   * layout:template:info <templateId>
+   * Show detailed information about a template.
+   */
+  register('layout:template:info', async (args, ctx) => {
+    const layoutBuilder = ctx.services.get('layoutBuilder');
+    if (!layoutBuilder) {
+      console.log('Layout Builder service not available');
+      return;
+    }
+
+    const templateId = args[0];
+    if (!templateId) {
+      console.log('Usage: layout:template:info <templateId>');
+      return;
+    }
+
+    const template = layoutBuilder.getLayoutTemplate(templateId);
+    if (!template) {
+      console.log(`Template not found: ${templateId}`);
+      return;
+    }
+
+    console.log(`\n=== Template: ${template.name} ===\n`);
+    console.log(`  ID: ${template.id}`);
+    console.log(`  Category: ${template.category}`);
+    if (template.description) console.log(`  Description: ${template.description}`);
+    console.log(`  Created: ${template.created}`);
+    console.log(`  Updated: ${template.updated}`);
+    if (template.sourceContentType) {
+      console.log(`  Source: ${template.sourceContentType}/${template.sourceContentId}`);
+    }
+    console.log(`\n  Sections (${template.sectionCount}):`);
+
+    for (let i = 0; i < template.sections.length; i++) {
+      const section = template.sections[i];
+      const layoutDef = layoutBuilder.getLayout(section.layoutId);
+      const layoutLabel = layoutDef ? layoutDef.label : section.layoutId;
+      console.log(`    ${i + 1}. ${layoutLabel} (${section.layoutId})`);
+
+      for (const [regionId, components] of Object.entries(section.components || {})) {
+        if (components.length > 0) {
+          console.log(`       ${regionId}: ${components.map(c => `${c.type}${c.fieldName ? ':' + c.fieldName : c.blockId ? ':' + c.blockId : ''}`).join(', ')}`);
+        }
+      }
+    }
+    console.log('');
+  }, 'Show layout template details');
+
+  // ========================================
   // MEDIA LIBRARY CLI COMMANDS
   // ========================================
 
@@ -14061,6 +14270,30 @@ export function hook_routes(register, context) {
 
     server.html(res, html);
   }, 'Preview view');
+
+  /**
+   * GET /api/views/:id/query - Get generated query structure
+   * WHY: Debugging tool to show how view configuration translates to actual query
+   * Returns the query object that would be passed to content.list()
+   */
+  register('GET', '/api/views/:id/query', async (req, res, params, ctx) => {
+    const viewsService = ctx.services.get('views');
+    if (!viewsService) {
+      res.writeHead(404, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ error: 'Views service not available' }));
+      return;
+    }
+
+    const { id } = params;
+    try {
+      const queryStructure = viewsService.buildQuery(id, {});
+      res.writeHead(200, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify(queryStructure, null, 2));
+    } catch (error) {
+      res.writeHead(404, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ error: error.message }));
+    }
+  }, 'Get view query structure');
 
   /**
    * Helper: Parse array-style form data like fields[0][name], filters[1][field]
