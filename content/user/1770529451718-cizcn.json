@@ -1,0 +1,11 @@
+{
+  "id": "1770529451718-cizcn",
+  "type": "user",
+  "created": "2026-02-08T05:44:11.718Z",
+  "updated": "2026-02-08T05:44:11.718Z",
+  "username": "testuser",
+  "password": "test123",
+  "role": "admin",
+  "isDefaultRevision": true,
+  "status": "draft"
+}

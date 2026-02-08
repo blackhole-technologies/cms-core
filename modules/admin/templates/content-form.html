@@ -59,7 +59,7 @@
         {{csrfField}}
 
         {{#each fields}}
-        <div class="form-group">
+        <div class="form-group{{#if error}} has-error{{/if}}">
           <label for="field-{{name}}">
             {{name}}
             {{#if required}}<span class="required">*</span>{{/if}}
@@ -72,9 +72,12 @@
             name="{{name}}"
             value="{{value}}"
             {{#if required}}required{{/if}}
-            class="form-input"
+            class="form-input{{#if error}} error{{/if}}"
             placeholder="Enter {{name}}"
           >
+          {{#if error}}
+          <div class="field-error">{{error}}</div>
+          {{/if}}
           <small class="field-hint">Type: {{type}}</small>
           {{/if}}
         </div>
@@ -152,6 +155,19 @@
           margin: 0 0 0.5rem 0;
           font-size: 1rem;
           color: #495057;
+        }
+        /* Form validation errors */
+        .form-group.has-error .form-input {
+          border-color: #dc3545;
+        }
+        .field-error {
+          color: #dc3545;
+          font-size: 0.875rem;
+          margin-top: 0.25rem;
+          display: block;
+        }
+        .form-group.has-error label {
+          color: #dc3545;
         }
       </style>
 

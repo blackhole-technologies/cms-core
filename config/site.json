@@ -184,6 +184,10 @@
     "introspection": true,
     "maxDepth": 5
   },
+  "jsonapi": {
+    "enabled": true,
+    "allowAnonymousWrite": true
+  },
   "feeds": {
     "enabled": true,
     "defaultLimit": 20

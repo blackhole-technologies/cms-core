@@ -1,0 +1,156 @@
+- generic [ref=e1]:
+  - generic [ref=e2]:
+    - link "CMS Core" [ref=e3] [cursor=pointer]:
+      - /url: /admin
+    - navigation [ref=e4]:
+      - link "Dashboard" [ref=e5] [cursor=pointer]:
+        - /url: /admin
+      - link "Content" [ref=e6] [cursor=pointer]:
+        - /url: /admin/content
+      - link "Structure" [ref=e7] [cursor=pointer]:
+        - /url: /admin/structure/types
+      - link "Appearance" [ref=e8] [cursor=pointer]:
+        - /url: /admin/appearance
+      - link "Modules" [ref=e9] [cursor=pointer]:
+        - /url: /admin/modules
+      - link "Configuration" [ref=e10] [cursor=pointer]:
+        - /url: /admin/config
+      - link "People" [ref=e11] [cursor=pointer]:
+        - /url: /admin/users
+      - link "Reports" [ref=e12] [cursor=pointer]:
+        - /url: /admin/reports/status
+    - generic [ref=e13]:
+      - button "Live ▾" [ref=e15] [cursor=pointer]:
+        - text: Live
+        - generic [ref=e17]: ▾
+      - generic [ref=e18]: admin
+      - link "View site" [ref=e19] [cursor=pointer]:
+        - /url: /
+      - link "Log out" [ref=e20] [cursor=pointer]:
+        - /url: /logout
+  - generic [ref=e22]:
+    - generic [ref=e23]:
+      - link "Dashboard" [ref=e24] [cursor=pointer]:
+        - /url: /admin
+      - text: →
+      - link "Content" [ref=e25] [cursor=pointer]:
+        - /url: /admin/content
+      - text: →
+      - link "article" [ref=e26] [cursor=pointer]:
+        - /url: /admin/content/article
+      - text: → New
+    - generic [ref=e28]:
+      - generic [ref=e29]:
+        - generic [ref=e30]:
+          - generic [ref=e31]: title *
+          - textbox "title *" [ref=e32]:
+            - /placeholder: Enter title
+            - text: Hi
+          - text: "Type: string"
+        - generic [ref=e33]:
+          - generic [ref=e34]: slug
+          - textbox "slug" [ref=e35]:
+            - /placeholder: Enter slug
+          - text: "Type: string"
+        - generic [ref=e36]:
+          - generic [ref=e37]: tags
+          - textbox "tags" [ref=e38]:
+            - /placeholder: Enter tags
+          - text: "Type: string"
+        - generic [ref=e39]:
+          - generic [ref=e40]: summary
+          - textbox "summary" [ref=e41]:
+            - /placeholder: Enter summary
+          - text: "Type: text"
+        - generic [ref=e42]:
+          - generic [ref=e43]: email
+          - textbox "email" [ref=e44]:
+            - /placeholder: Enter email
+            - text: notanemail
+          - text: "Type: string"
+        - generic [ref=e45]:
+          - generic [ref=e46]: website
+          - textbox "website" [ref=e47]:
+            - /placeholder: Enter website
+          - text: "Type: string"
+        - generic [ref=e48]:
+          - generic [ref=e49]: rating
+          - textbox "rating" [ref=e50]:
+            - /placeholder: Enter rating
+            - text: "150"
+          - text: "Type: integer"
+        - generic [ref=e51]:
+          - generic [ref=e52]: body
+          - textbox "body" [ref=e53]:
+            - /placeholder: Enter body
+          - text: "Type: richtext"
+        - generic [ref=e54]:
+          - generic [ref=e55]: created *
+          - textbox "created *" [active] [ref=e56]:
+            - /placeholder: Enter created
+          - text: "Type: datetime"
+        - generic [ref=e57]:
+          - generic [ref=e58]: updated *
+          - textbox "updated *" [ref=e59]:
+            - /placeholder: Enter updated
+          - text: "Type: datetime"
+        - generic [ref=e60]:
+          - generic [ref=e61]: status
+          - textbox "status Status" [ref=e62]:
+            - /placeholder: Enter status
+          - text: "Type: select"
+        - text: "{{#if workflowEnabled}}"
+        - separator [ref=e63]
+        - heading "Publishing" [level=3] [ref=e64]
+        - generic [ref=e65]:
+          - generic [ref=e66]: Status
+          - combobox [ref=e67]:
+            - option "Draft" [selected]
+            - option "Pending Review"
+            - option "Published"
+            - option "Archived"
+          - text: "Current: draft"
+        - text: "{{/if}}"
+        - generic [ref=e68]:
+          - button "Create article" [ref=e69] [cursor=pointer]
+          - link "Cancel" [ref=e70] [cursor=pointer]:
+            - /url: /admin/content/article
+      - text: "{{#if isEdit}}"
+      - generic [ref=e71]:
+        - paragraph [ref=e72]:
+          - strong [ref=e73]: "ID:"
+          - code
+        - paragraph [ref=e74]:
+          - strong [ref=e75]: "Created:"
+        - paragraph [ref=e76]:
+          - strong [ref=e77]: "Updated:"
+        - paragraph [ref=e78]:
+          - strong [ref=e79]: "Status:"
+          - generic [ref=e80]: draft
+      - generic [ref=e81]:
+        - heading "Layout" [level=3] [ref=e82]
+        - paragraph [ref=e83]: Customize the layout for this content item.
+        - link "Manage Layout" [ref=e84] [cursor=pointer]:
+          - /url: /admin/content/article//layout
+      - generic [ref=e85]:
+        - heading "Clone" [level=3] [ref=e86]
+        - button "Clone this article" [ref=e87] [cursor=pointer]
+      - text: "{{#if workflowEnabled}}"
+      - generic [ref=e88]:
+        - heading "Workflow Actions" [level=3] [ref=e89]
+        - generic [ref=e90]:
+          - text: "{{#if (eq currentStatus 'draft')}}"
+          - button "Publish Now" [ref=e92] [cursor=pointer]
+          - text: "{{/if}} {{#if (eq currentStatus 'published')}}"
+          - button "Unpublish" [ref=e94] [cursor=pointer]
+          - text: "{{/if}} {{#unless (eq currentStatus 'archived')}}"
+          - button "Archive" [ref=e96] [cursor=pointer]
+          - text: "{{/unless}} {{#unless (eq currentStatus 'published')}}"
+          - group [ref=e97]:
+            - generic "Schedule Publish" [ref=e98] [cursor=pointer]
+          - text: "{{/unless}}"
+      - text: "{{/if}}"
+      - generic [ref=e99]:
+        - heading "Danger Zone" [level=3] [ref=e100]
+        - button "Delete this article" [ref=e102] [cursor=pointer]
+      - text: "{{/if}}"

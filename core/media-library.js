@@ -188,9 +188,10 @@ function registerMediaContentType() {
         metadata: { type: 'object' },
         thumbnail: { type: 'string' },
         tags: { type: 'array' },
-        alt: { type: 'string' },
+        alt: { type: 'string', required: false },  // Required for images, validated in createMediaEntity
         caption: { type: 'string' },
         credit: { type: 'string' },
+        folder: { type: 'string', required: false },  // Folder path for organization (e.g., 'Photos/2024')
       }, 'core:media-library');
     } catch (err) {
       // Type may already be registered by another module
@@ -406,6 +407,13 @@ export async function createFromUpload(file, options = {}) {
     throw new Error(`File too large: ${actualMB}MB (max: ${maxMB}MB)`);
   }
 
+  // Validate alt text for images (accessibility requirement)
+  // WHY: WCAG 2.1 Level A requires alt text on all non-decorative images
+  // for screen reader accessibility. Enforcing at upload prevents inaccessible content.
+  if (mediaType === 'image' && (!options.alt || options.alt.trim() === '')) {
+    throw new Error('Alt text is required for image uploads (accessibility requirement)');
+  }
+
   // Fire before hook
   if (hooksService) {
     await hooksService.trigger('media-library:beforeCreate', { file, options, mediaType });
@@ -459,6 +467,7 @@ export async function createFromUpload(file, options = {}) {
     alt: options.alt || '',
     caption: options.caption || '',
     credit: options.credit || '',
+    folder: options.folder || '',  // Folder path for organization
     status: options.status || 'published',
   };
 
@@ -691,6 +700,10 @@ export function list(options = {}) {
     queryOptions.filters.mediaType = options.mediaType;
   }
 
+  if (options.folder !== undefined) {
+    queryOptions.filters.folder = options.folder;
+  }
+
   if (options.search) {
     queryOptions.search = options.search;
   }
@@ -704,6 +717,41 @@ export function list(options = {}) {
 // ============================================
 // USAGE TRACKING
 // ============================================
+
+/**
+ * List all folders containing media
+ * WHY: Provides folder structure for UI navigation and organization
+ *
+ * @returns {Array<{path: string, count: number}>} Array of folders with media counts
+ */
+export function listFolders() {
+  const entities = list({ limit: 10000 });
+  const folderMap = new Map();
+
+  for (const entity of entities) {
+    const folder = entity.folder || '';
+    if (!folderMap.has(folder)) {
+      folderMap.set(folder, 0);
+    }
+    folderMap.set(folder, folderMap.get(folder) + 1);
+  }
+
+  return Array.from(folderMap.entries())
+    .map(([path, count]) => ({ path, count }))
+    .sort((a, b) => a.path.localeCompare(b.path));
+}
+
+/**
+ * Move media entity to a different folder
+ * WHY: Enables reorganization of media library without re-uploading files
+ *
+ * @param {string} mediaId - Media entity ID
+ * @param {string} folder - Target folder path (e.g., 'Photos/2024')
+ * @returns {Promise<Object>} Updated media entity
+ */
+export async function moveToFolder(mediaId, folder) {
+  return await update(mediaId, { folder: folder || '' });
+}
 
 /**
  * Track where a media entity is used
@@ -1072,6 +1120,129 @@ export async function bulkDelete(ids, options = {}) {
 }
 
 // ============================================
+// REMOTE VIDEO CREATION
+// ============================================
+
+/**
+ * Create remote video media entity from URL with oEmbed integration
+ *
+ * WHY: Remote videos (YouTube, Vimeo) don't require file uploads.
+ * Instead, we fetch metadata via oEmbed and store the embed data.
+ *
+ * FLOW:
+ * 1. Fetch oEmbed metadata from provider
+ * 2. Extract title, author, thumbnail, embed code
+ * 3. Create media entity with remote_video type
+ * 4. Store oEmbed data in metadata field
+ *
+ * @param {string} url - Video URL (YouTube, Vimeo, etc.)
+ * @param {Object} options - Creation options
+ * @returns {Promise<Object>} Created media entity
+ */
+export async function createFromUrl(url, options = {}) {
+  if (!oembedService) {
+    throw new Error('oEmbed service not available');
+  }
+
+  // Fetch oEmbed data
+  const oembedData = await oembedService.fetchEmbed(url, {
+    skipCache: options.skipCache || false,
+  });
+
+  // Validate it's a video type
+  if (oembedData.type !== 'video' && oembedData.type !== 'rich') {
+    throw new Error(`Unsupported oEmbed type: ${oembedData.type}. Expected 'video' or 'rich'.`);
+  }
+
+  // Extract provider info
+  const provider = oembedData.provider_name || 'Unknown';
+  const videoId = extractVideoId(url, provider);
+
+  // Generate entity data
+  const entityData = {
+    name: options.name || oembedData.title || 'Untitled Video',
+    mediaType: 'remote_video',
+    filename: '', // No file for remote videos
+    path: '', // No file path
+    mimeType: 'application/x-remote-video', // Virtual MIME type
+    size: 0, // No file size
+    metadata: {
+      url,
+      provider,
+      videoId,
+      embedUrl: url,
+      oembed: {
+        type: oembedData.type,
+        title: oembedData.title,
+        author_name: oembedData.author_name,
+        author_url: oembedData.author_url,
+        provider_name: oembedData.provider_name,
+        provider_url: oembedData.provider_url,
+        thumbnail_url: oembedData.thumbnail_url,
+        thumbnail_url_cached: oembedData.thumbnail_url_cached,
+        thumbnail_width: oembedData.thumbnail_width,
+        thumbnail_height: oembedData.thumbnail_height,
+        html: oembedData.html,
+        width: oembedData.width,
+        height: oembedData.height,
+      },
+    },
+    // Use cached thumbnail if available, otherwise remote URL
+    thumbnail: oembedData.thumbnail_url_cached || oembedData.thumbnail_url || '',
+    credit: oembedData.author_name || '',
+    alt: `${oembedData.title} by ${oembedData.author_name || provider}`,
+  };
+
+  // Create via content service
+  const entity = await contentService.create(config.contentType, entityData);
+
+  // Fire after hook
+  if (hooksService) {
+    await hooksService.fire('mediaLibrary.afterCreate', { entity, type: 'remote_video' });
+  }
+
+  return entity;
+}
+
+/**
+ * Extract video ID from URL for common providers
+ *
+ * @param {string} url - Video URL
+ * @param {string} provider - Provider name
+ * @returns {string} Video ID or empty string
+ */
+function extractVideoId(url, provider) {
+  try {
+    const urlObj = new URL(url);
+
+    // YouTube
+    if (provider.toLowerCase().includes('youtube')) {
+      // youtu.be/ID
+      if (urlObj.hostname === 'youtu.be') {
+        return urlObj.pathname.slice(1);
+      }
+      // youtube.com/watch?v=ID
+      const v = urlObj.searchParams.get('v');
+      if (v) return v;
+      // youtube.com/embed/ID or youtube.com/shorts/ID
+      const match = urlObj.pathname.match(/\/(embed|shorts)\/([^/]+)/);
+      if (match) return match[2];
+    }
+
+    // Vimeo
+    if (provider.toLowerCase().includes('vimeo')) {
+      // vimeo.com/123456
+      const match = urlObj.pathname.match(/\/(\d+)/);
+      if (match) return match[1];
+    }
+
+    return '';
+  } catch (e) {
+    return '';
+  }
+}
+
+// ============================================
 // STATISTICS
 // ============================================
 
@@ -1129,4 +1300,47 @@ export function getConfig() {
  */
 export function isEnabled() {
   return config.enabled;
+}
+
+// ============================================
+// CLI REGISTRATION
+// ============================================
+
+/**
+ * Register CLI commands
+ *
+ * @param {Function} registerCommand - CLI command registration function
+ */
+export function register(registerCommand) {
+  registerCommand('media:folders', async () => {
+    const folders = listFolders();
+    console.log('\nMedia Folders:\n');
+    if (folders.length === 0) {
+      console.log('  No folders found.');
+      return;
+    }
+    for (const folder of folders) {
+      const path = folder.path || '(root)';
+      console.log(`  ${path} (${folder.count} items)`);
+    }
+  }, 'List all media folders');
+
+  registerCommand('media:move', async (args) => {
+    const [mediaId, folderPath] = args;
+    if (!mediaId) {
+      console.error('Usage: media:move <media-id> [folder-path]');
+      return;
+    }
+    const updated = await moveToFolder(mediaId, folderPath || '');
+    console.log(`Moved media ${mediaId} to folder: ${folderPath || '(root)'}`);
+  }, 'Move media to a folder');
+
+  registerCommand('media:list-folder', async (args) => {
+    const [folderPath] = args;
+    const items = list({ folder: folderPath || '', limit: 100 });
+    console.log(`\nMedia in folder "${folderPath || '(root)'}": ${items.length} items\n`);
+    for (const item of items) {
+      console.log(`  ${item.id} - ${item.name} (${item.mediaType})`);
+    }
+  }, 'List media in a specific folder');
 }
