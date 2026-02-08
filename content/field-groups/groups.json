@@ -58,5 +58,50 @@
     "children": [],
     "created_at": "2026-02-08T09:27:27.381Z",
     "updated_at": "2026-02-08T09:27:27.381Z"
+  },
+  {
+    "id": "node.article.default.test_regression_group",
+    "entity_type": "node",
+    "bundle": "article",
+    "mode": "default",
+    "group_name": "test_regression_group",
+    "label": "Test Regression Group",
+    "format_type": "fieldset",
+    "format_settings": {},
+    "parent_name": null,
+    "weight": 0,
+    "children": [],
+    "created_at": "2026-02-08T09:28:35.913Z",
+    "updated_at": "2026-02-08T09:28:35.914Z"
+  },
+  {
+    "id": "node.article.default.accordion_test",
+    "entity_type": "node",
+    "bundle": "article",
+    "mode": "default",
+    "group_name": "accordion_test",
+    "label": "Accordion Test Group",
+    "format_type": "fieldset",
+    "format_settings": {},
+    "parent_name": null,
+    "weight": 0,
+    "children": [],
+    "created_at": "2026-02-08T09:33:12.378Z",
+    "updated_at": "2026-02-08T09:33:12.379Z"
+  },
+  {
+    "id": "node.article.default.test_group",
+    "entity_type": "node",
+    "bundle": "article",
+    "mode": "default",
+    "group_name": "test_group",
+    "label": "Test Group",
+    "format_type": "fieldset",
+    "format_settings": {},
+    "parent_name": null,
+    "weight": 0,
+    "children": [],
+    "created_at": "2026-02-08T09:35:17.694Z",
+    "updated_at": "2026-02-08T09:35:17.694Z"
   }
 ]
