@@ -351,7 +351,7 @@ export function ttl(key) {
  * // Returns: "content:user:list:p1l20s-o-frole=admin"
  */
 export function listKey(type, options = {}) {
-  const { page = 1, limit = 20, search = null, sortBy = 'created', sortOrder = 'desc', filters = null } = options;
+  const { page = 1, limit = 20, search = null, sortBy = 'created', sortOrder = 'desc', filters = null, workspaceId = null } = options;
   // Create a compact but unique key from parameters
   const searchPart = search ? `s${search}` : 's-';
   const sortPart = `o${sortBy}${sortOrder === 'desc' ? 'd' : 'a'}`;
@@ -367,7 +367,13 @@ export function listKey(type, options = {}) {
     filterPart = `f${sortedFilters}`;
   }
 
-  return `content:${type}:list:p${page}l${limit}${searchPart}${sortPart}${filterPart}`;
+  // WHY workspaceId IN CACHE KEY:
+  // Different workspace contexts return different content sets.
+  // Without this, a live query caches results that then get served
+  // for workspace-scoped queries (or vice versa), breaking isolation.
+  const wsPart = workspaceId ? `w${workspaceId}` : 'w-';
+
+  return `content:${type}:list:p${page}l${limit}${searchPart}${sortPart}${filterPart}${wsPart}`;
 }
 
 /**
