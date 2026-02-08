@@ -1525,7 +1525,7 @@ export async function create(type, data) {
       content._workspace = activeWs.id;
       // Track the association for workspace publish/delete operations
       try {
-        workspaceProvider.associateContent(activeWs.id, type, id, 'create');
+        workspaceProvider.associateContent(activeWs.id, type, id, 'create', { revisionId: content.created || new Date().toISOString() });
       } catch { /* workspace associations are non-critical */ }
     }
   }
@@ -2062,7 +2062,7 @@ export async function update(type, id, data, options = {}) {
 
       // Track in workspace associations
       try {
-        workspaceProvider.associateContent(activeWs.id, type, id, 'edit');
+        workspaceProvider.associateContent(activeWs.id, type, id, 'edit', { revisionId: workspaceCopy.updated || new Date().toISOString() });
       } catch { /* non-critical */ }
 
       // Invalidate cache

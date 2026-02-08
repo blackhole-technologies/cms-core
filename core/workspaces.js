@@ -620,9 +620,11 @@ export function getWorkspaceContext(req = null) {
  * @param {string} contentType - Content type name
  * @param {string} contentId - Content item ID
  * @param {string} [operation='edit'] - What was done: 'create', 'edit', 'delete'
+ * @param {Object} [options={}] - Additional options
+ * @param {string} [options.revisionId] - Revision ID (timestamp) for this association
  * @returns {Object} The association entry
  */
-export function associateContent(workspaceId, contentType, contentId, operation = 'edit') {
+export function associateContent(workspaceId, contentType, contentId, operation = 'edit', options = {}) {
   if (!associationsDir) {
     throw new Error('Workspaces not initialized');
   }
@@ -637,10 +639,17 @@ export function associateContent(workspaceId, contentType, contentId, operation 
     a => a.type === contentType && a.id === contentId
   );
 
+  // WHY REVISION ID IN ASSOCIATION:
+  // Tracks which specific revision of the content is in this workspace.
+  // Essential for conflict detection and workspace publishing — need to know
+  // which version was the starting point for workspace edits.
+  const revisionId = options.revisionId || new Date().toISOString();
+
   const entry = {
     type: contentType,
     id: contentId,
     operation,
+    revisionId,
     timestamp: new Date().toISOString(),
   };
 

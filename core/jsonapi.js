@@ -901,7 +901,7 @@ async function handleCreate(req, res, params, ctx) {
     // Track workspace association
     if (workspaceId && workspaceId !== 'live' && workspacesService) {
       try {
-        workspacesService.associateContent(workspaceId, resourceConfig.contentType, created.id, 'create');
+        workspacesService.associateContent(workspaceId, resourceConfig.contentType, created.id, 'create', { revisionId: created.created || new Date().toISOString() });
       } catch { /* non-critical */ }
     }
 
@@ -985,7 +985,7 @@ async function handleUpdate(req, res, params, ctx) {
         // Track workspace association
         if (workspacesService) {
           try {
-            workspacesService.associateContent(workspaceId, resourceConfig.contentType, id, 'edit');
+            workspacesService.associateContent(workspaceId, resourceConfig.contentType, id, 'edit', { revisionId: created.updated || created.created || new Date().toISOString() });
           } catch { /* non-critical */ }
         }
 
