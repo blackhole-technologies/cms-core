@@ -1,0 +1,34 @@
+# cms-core-fields Feature Specification
+
+## Project Overview
+
+**Name:** cms-core-fields
+**Description:** Field enhancements - grouping, tokens, utilities, linking, icons, tagging
+**Path:** /Users/Alchemy/Projects/experiments/cms-core
+
+## Feature Count
+
+**feature_count: 7**
+
+---
+
+## TIER 1: FIELD GROUP (Features 0-6)
+
+These must pass before any functional features.
+
+### Features
+
+### Feature 0: Field group definition and storage service
+
+### Feature 1: Fieldset group formatter
+
+### Feature 2: Tab group formatter (horizontal/vertical)
+
+### Feature 3: Accordion group formatter
+
+### Feature 4: Details/collapsible group formatter
+
+### Feature 5: Display mode group configuration
+
+### Feature 6: Admin route: field group management per entity
+

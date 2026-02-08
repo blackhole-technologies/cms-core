@@ -50,6 +50,7 @@ import * as comments from './comments.js';
 import * as audit from './audit.js';
 import * as queue from './queue.js';
 import * as oembed from './oembed.js';
+import * as fieldGroup from './field-group.js';
 import * as fields from './fields.js';
 import * as validation from './validation.js';
 import * as constraints from './constraints.js';
@@ -463,6 +464,20 @@ export async function boot(baseDir, options = {}) {
     const fieldsConfig = context.config.site.fields || {};
     fields.init(fieldsConfig);
     services.register('fields', () => fields);
+
+    // Initialize field group system
+    // WHY AFTER FIELDS:
+    // Field groups organize fields, so fields must be initialized first.
+    const fieldGroupConfig = context.config.site.fieldGroup || {};
+    await fieldGroup.init({
+      ...fieldGroupConfig,
+      contentDir: join(baseDir, 'content'),
+    });
+    services.register('field-group', () => fieldGroup);
+    if (fieldGroup.register && typeof fieldGroup.register === 'function') {
+      fieldGroup.register(cli.register.bind(cli));
+    }
+    log('[boot] Field groups enabled');
 
     // Initialize validation system
     // WHY AFTER FIELDS:

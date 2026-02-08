@@ -33,6 +33,7 @@ import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import * as fieldsetFormatter from './formatters/field-group/fieldset.formatter.js';
+import * as tabsFormatter from './formatters/field-group/tabs.formatter.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -74,6 +75,8 @@ export async function init(configuration = {}) {
 
   // Register built-in formatters
   registerFormatter('fieldset', fieldsetFormatter.render);
+  registerFormatter('tabs_horizontal', tabsFormatter.render);
+  registerFormatter('tabs_vertical', tabsFormatter.render);
 
   initialized = true;
   console.log('[field-group] Service initialized');

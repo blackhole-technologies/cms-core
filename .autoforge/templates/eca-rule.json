@@ -1,0 +1,78 @@
+{
+  "_template": "ECA Rule Config — Event Condition Action",
+  "_description": "Rules are stored as JSON config files in config/eca/. The ECA processor loads all rules, subscribes to their events, evaluates conditions, and executes actions. Everything is plugins.",
+  "_used_by": "TIER 3 (ECA) features",
+
+  "id": "notify-on-article-publish",
+  "label": "Notify author when article is published",
+  "enabled": true,
+
+  "events": [
+    {
+      "plugin": "content:update",
+      "config": {},
+      "_context_provides": {
+        "content": "The content entity being updated",
+        "content_original": "The content before the update",
+        "user": "The user performing the update"
+      }
+    }
+  ],
+
+  "conditions": [
+    {
+      "plugin": "content_type_is",
+      "config": { "type": "article" },
+      "_evaluates": "Returns true if content.type === config.type"
+    },
+    {
+      "plugin": "field_value_is",
+      "config": { "field": "status", "value": true },
+      "_evaluates": "Returns true if content.data[field] === value"
+    },
+    {
+      "plugin": "field_value_changed",
+      "config": { "field": "status" },
+      "_evaluates": "Returns true if content.data[field] !== content_original.data[field]"
+    }
+  ],
+
+  "actions": [
+    {
+      "plugin": "send_email",
+      "config": {
+        "to": "[content:author:email]",
+        "subject": "Your article '[content:title]' has been published!",
+        "body": "Your article is now live at [content:url]."
+      },
+      "_note": "Tokens in [brackets] are replaced from the context stack"
+    },
+    {
+      "plugin": "log_message",
+      "config": {
+        "message": "Article [content:id] published by [user:name]",
+        "level": "info"
+      }
+    }
+  ],
+
+  "_implementation_notes": {
+    "event_plugin": {
+      "interface": "{ id, label, contextProvides, subscribe(callback) }",
+      "example": "Event plugins hook into existing CMS hooks — content:create maps to the content service's create event"
+    },
+    "condition_plugin": {
+      "interface": "{ id, label, evaluate(context, config) → boolean }",
+      "example": "Pure functions — receive context + config, return true/false"
+    },
+    "action_plugin": {
+      "interface": "{ id, label, execute(context, config) → void }",
+      "example": "Side-effecting — send email, create content, fire webhook"
+    },
+    "token_system": {
+      "pattern": "[entity:field] or [entity:field:subfield]",
+      "resolver": "Walk the context stack, resolve nested paths, return string"
+    },
+    "storage": "config/eca/*.json — one file per rule, loaded at boot"
+  }
+}
