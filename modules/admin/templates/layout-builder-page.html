@@ -362,6 +362,267 @@
       background: #ffebee;
       border-radius: 3px;
     }
+    .component-chip-actions .btn-configure {
+      color: #1976d2;
+    }
+    .component-chip-actions .btn-configure:hover {
+      background: #e3f2fd;
+    }
+
+    /* ========================================
+     * FIELD VALUE PREVIEW (Feature #76)
+     * ======================================== */
+    .component-field-preview {
+      margin-top: 6px;
+      padding: 8px 10px;
+      background: #f5f5f5;
+      border: 1px solid #e0e0e0;
+      border-radius: 4px;
+      font-size: 0.85em;
+      color: #333;
+      line-height: 1.5;
+      max-height: 100px;
+      overflow: hidden;
+      position: relative;
+      word-wrap: break-word;
+    }
+    .component-field-preview::after {
+      content: '';
+      position: absolute;
+      bottom: 0;
+      left: 0;
+      right: 0;
+      height: 20px;
+      background: linear-gradient(transparent, #f5f5f5);
+    }
+    .component-field-preview .field-label {
+      font-weight: 600;
+      color: #1565c0;
+      font-size: 0.9em;
+      margin-bottom: 3px;
+    }
+    .component-field-preview .field-value {
+      color: #424242;
+    }
+    .component-field-preview .field-empty {
+      color: #9e9e9e;
+      font-style: italic;
+    }
+    .component-field-preview .field-type-badge {
+      display: inline-block;
+      background: #e3f2fd;
+      color: #1565c0;
+      padding: 1px 6px;
+      border-radius: 3px;
+      font-size: 0.8em;
+      margin-left: 6px;
+    }
+
+    /* Inline block preview (Feature #77) */
+    .component-inline-preview {
+      margin-top: 6px;
+      padding: 8px 10px;
+      background: #fff3e0;
+      border: 1px solid #ffcc80;
+      border-radius: 4px;
+      font-size: 0.85em;
+      color: #333;
+      line-height: 1.5;
+      max-height: 100px;
+      overflow: hidden;
+      position: relative;
+    }
+    .component-inline-preview::after {
+      content: '';
+      position: absolute;
+      bottom: 0;
+      left: 0;
+      right: 0;
+      height: 20px;
+      background: linear-gradient(transparent, #fff3e0);
+    }
+    .component-inline-preview .inline-title {
+      font-weight: 600;
+      color: #e65100;
+      margin-bottom: 3px;
+    }
+    .component-inline-preview .inline-body {
+      color: #424242;
+    }
+
+    /* Block reference preview (Feature #78) */
+    .component-block-preview {
+      margin-top: 6px;
+      padding: 8px 10px;
+      background: #e8f5e9;
+      border: 1px solid #a5d6a7;
+      border-radius: 4px;
+      font-size: 0.85em;
+      color: #333;
+      line-height: 1.5;
+      max-height: 100px;
+      overflow: hidden;
+      position: relative;
+    }
+    .component-block-preview::after {
+      content: '';
+      position: absolute;
+      bottom: 0;
+      left: 0;
+      right: 0;
+      height: 20px;
+      background: linear-gradient(transparent, #e8f5e9);
+    }
+    .component-block-preview .block-title {
+      font-weight: 600;
+      color: #2e7d32;
+      margin-bottom: 3px;
+    }
+    .component-block-preview .block-type {
+      display: inline-block;
+      background: #c8e6c9;
+      color: #2e7d32;
+      padding: 1px 6px;
+      border-radius: 3px;
+      font-size: 0.8em;
+      margin-left: 6px;
+    }
+    .component-block-preview .block-not-found {
+      color: #f44336;
+      font-style: italic;
+    }
+
+    /* Expand/collapse toggle for previews */
+    .component-chip-with-preview {
+      flex-wrap: wrap;
+    }
+    .component-chip-with-preview .component-preview-wrapper {
+      width: 100%;
+      flex-basis: 100%;
+    }
+
+    /* ========================================
+     * COMPONENT CONFIGURATION MODAL (Feature #75)
+     * ======================================== */
+    .component-config-overlay {
+      display: none;
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      background: rgba(0,0,0,0.4);
+      z-index: 1001;
+      align-items: center;
+      justify-content: center;
+    }
+    .component-config-overlay.active {
+      display: flex;
+    }
+    .component-config-dialog {
+      background: white;
+      border-radius: 12px;
+      box-shadow: 0 8px 32px rgba(0,0,0,0.2);
+      width: 90%;
+      max-width: 550px;
+      max-height: 80vh;
+      overflow-y: auto;
+    }
+    .component-config-dialog-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 16px 20px;
+      border-bottom: 1px solid #eee;
+      background: #1976d2;
+      color: white;
+      border-radius: 12px 12px 0 0;
+    }
+    .component-config-dialog-header h3 {
+      margin: 0;
+      font-size: 1.1em;
+    }
+    .component-config-dialog-close {
+      background: none;
+      border: none;
+      font-size: 1.5em;
+      cursor: pointer;
+      color: white;
+      padding: 0 4px;
+    }
+    .component-config-dialog-close:hover {
+      opacity: 0.8;
+    }
+    .component-config-dialog-body {
+      padding: 20px;
+    }
+    .config-field {
+      margin-bottom: 16px;
+    }
+    .config-field label {
+      display: block;
+      font-weight: 600;
+      font-size: 0.9em;
+      margin-bottom: 4px;
+      color: #333;
+    }
+    .config-field input,
+    .config-field select,
+    .config-field textarea {
+      width: 100%;
+      padding: 8px 10px;
+      border: 1px solid #ddd;
+      border-radius: 4px;
+      font-size: 0.95em;
+      box-sizing: border-box;
+      font-family: inherit;
+    }
+    .config-field textarea {
+      min-height: 80px;
+      resize: vertical;
+    }
+    .config-field input:focus,
+    .config-field select:focus,
+    .config-field textarea:focus {
+      border-color: #1976d2;
+      outline: none;
+      box-shadow: 0 0 0 2px rgba(25,118,210,0.2);
+    }
+    .config-field .field-hint {
+      font-size: 0.8em;
+      color: #999;
+      margin-top: 3px;
+    }
+    .component-config-dialog-footer {
+      display: flex;
+      gap: 10px;
+      justify-content: flex-end;
+      padding: 12px 20px;
+      border-top: 1px solid #eee;
+      background: #fafafa;
+      border-radius: 0 0 12px 12px;
+    }
+    .component-config-dialog-footer button {
+      padding: 8px 20px;
+      border-radius: 4px;
+      border: none;
+      cursor: pointer;
+      font-size: 0.9em;
+    }
+    .config-save-btn {
+      background: #1976d2;
+      color: white;
+    }
+    .config-save-btn:hover {
+      background: #1565c0;
+    }
+    .config-cancel-btn {
+      background: #eee;
+      color: #333;
+    }
+    .config-cancel-btn:hover {
+      background: #ddd;
+    }
 
     /* Empty region state */
     .region-empty {
@@ -671,10 +932,11 @@
       </div>
       <div class="toolbar-right">
         <a href="/admin/content/{{contentType}}/{{contentId}}/edit" class="toolbar-btn toolbar-btn-back">← Edit</a>
-        <a href="/admin/layout/preview/{{contentType}}?id={{contentId}}" class="toolbar-btn toolbar-btn-preview" target="_blank">Preview</a>
+        <a href="/node/{{contentId}}/layout/preview" class="toolbar-btn toolbar-btn-preview" target="_blank">👁️ Preview</a>
         <button class="toolbar-btn toolbar-btn-save" id="save-layout-btn" onclick="saveLayout()">💾 Save Layout</button>
         <button class="toolbar-btn toolbar-btn-discard" id="discard-layout-btn" onclick="discardChanges()">↩ Discard Changes</button>
         <button class="toolbar-btn" style="background:#7b1fa2;color:white;" id="revisions-btn" onclick="toggleRevisions()">📋 Revisions</button>
+        <button class="toolbar-btn" style="background:#00897b;color:white;" onclick="openCopyLayoutModal()">📋 Copy Layout</button>
         {{#if hasOverride}}
         <form action="/node/{{contentId}}/layout/revert" method="POST" style="display:inline;">
           <button type="submit" class="toolbar-btn" style="background:#795548;color:white;" onclick="return confirm('Revert to default layout? This removes ALL custom sections.')">🔄 Revert to Default</button>
@@ -826,6 +1088,50 @@
     </div>
   </div>
 
+  <!-- Component Configuration Modal (Feature #75) -->
+  <div class="component-config-overlay" id="component-config-modal">
+    <div class="component-config-dialog">
+      <div class="component-config-dialog-header">
+        <h3 id="config-modal-title">Configure Component</h3>
+        <button class="component-config-dialog-close" onclick="closeConfigModal()">&times;</button>
+      </div>
+      <div class="component-config-dialog-body" id="config-modal-body">
+        <!-- Dynamic form fields injected here -->
+      </div>
+      <div class="component-config-dialog-footer">
+        <button class="config-cancel-btn" onclick="closeConfigModal()">Cancel</button>
+        <button class="config-save-btn" onclick="saveComponentConfig()">Save Configuration</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Copy Layout Modal (Feature #84) -->
+  <div class="component-config-overlay" id="copy-layout-modal">
+    <div class="component-config-dialog" style="max-width:500px;">
+      <div class="component-config-dialog-header" style="background:#00897b;">
+        <h3>📋 Copy Layout from Another Content</h3>
+        <button class="component-config-dialog-close" onclick="closeCopyLayoutModal()">&times;</button>
+      </div>
+      <div class="component-config-dialog-body">
+        <p style="color:#666; font-size:0.9em; margin-top:0;">
+          Enter the ID of the content item whose layout you want to copy. This will replace the current layout.
+        </p>
+        <div class="config-field">
+          <label for="copy-source-id">Source Content ID</label>
+          <input type="text" id="copy-source-id" placeholder="e.g., 1770432848806-bvb33">
+          <div class="field-hint">The ID of the content item to copy the layout from</div>
+        </div>
+        <div style="background:#fff3e0; border:1px solid #ffcc80; border-radius:4px; padding:10px; font-size:0.85em; color:#e65100;">
+          ⚠️ This will replace the current layout. The source layout will not be modified.
+        </div>
+      </div>
+      <div class="component-config-dialog-footer">
+        <button class="config-cancel-btn" onclick="closeCopyLayoutModal()">Cancel</button>
+        <button class="config-save-btn" style="background:#00897b;" onclick="submitCopyLayout()">Copy Layout</button>
+      </div>
+    </div>
+  </div>
+
   <!-- Layout Builder Scripts (Features #67, #68, #70) -->
   <script>
     // Helper: Add a section via form submission
@@ -834,19 +1140,22 @@
       document.getElementById('add-section-form').submit();
     }
 
-    // Helper: Delete a section via API
+    // Helper: Delete a section via form POST (session auth)
     function deleteSection(contentType, contentId, sectionUuid) {
-      fetch('/api/layout/' + contentType + '/' + contentId + '/sections/' + sectionUuid, {
-        method: 'DELETE'
-      }).then(function(resp) {
-        if (resp.ok) {
-          window.location.reload();
-        } else {
-          alert('Failed to delete section');
-        }
-      }).catch(function(err) {
-        alert('Error: ' + err.message);
-      });
+      var form = document.createElement('form');
+      form.method = 'POST';
+      form.action = '/node/' + contentId + '/layout/delete-section';
+      function addHidden(name, value) {
+        var input = document.createElement('input');
+        input.type = 'hidden';
+        input.name = name;
+        input.value = value;
+        form.appendChild(input);
+      }
+      addHidden('contentType', contentType);
+      addHidden('sectionUuid', sectionUuid);
+      document.body.appendChild(form);
+      form.submit();
     }
 
     // Component Chooser Modal state
@@ -901,12 +1210,24 @@
       }
     }
 
-    // Submit the component via API
+    // Submit the component via form POST (session-based auth)
     function submitComponent(type) {
-      var body = {
-        region: chooserState.regionId,
-        type: type
-      };
+      var form = document.createElement('form');
+      form.method = 'POST';
+      form.action = '/node/' + chooserState.contentId + '/layout/add-component';
+
+      function addHidden(name, value) {
+        var input = document.createElement('input');
+        input.type = 'hidden';
+        input.name = name;
+        input.value = value;
+        form.appendChild(input);
+      }
+
+      addHidden('contentType', chooserState.contentType);
+      addHidden('sectionUuid', chooserState.sectionUuid);
+      addHidden('region', chooserState.regionId);
+      addHidden('type', type);
 
       if (type === 'field') {
         var fieldName = document.getElementById('field-name-select').value;
@@ -914,42 +1235,26 @@
           alert('Please select a field');
           return;
         }
-        body.fieldName = fieldName;
+        addHidden('fieldName', fieldName);
       } else if (type === 'block') {
         var blockId = document.getElementById('block-id-input').value;
         if (!blockId) {
           alert('Please enter a block ID');
           return;
         }
-        body.blockId = blockId;
+        addHidden('blockId', blockId);
       } else if (type === 'inline_block') {
         var blockType = document.getElementById('inline-block-type').value;
         if (!blockType) {
           alert('Please enter a block type');
           return;
         }
-        body.blockType = blockType;
-        body.configuration = {
-          title: document.getElementById('inline-block-title').value || ''
-        };
+        addHidden('blockType', blockType);
+        addHidden('inlineTitle', document.getElementById('inline-block-title').value || '');
       }
 
-      fetch('/api/layout/' + chooserState.contentType + '/' + chooserState.contentId + '/sections/' + chooserState.sectionUuid + '/components', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(body)
-      }).then(function(resp) {
-        if (resp.ok) {
-          closeComponentChooser();
-          window.location.reload();
-        } else {
-          resp.json().then(function(data) {
-            alert('Error: ' + (data.message || 'Failed to add component'));
-          });
-        }
-      }).catch(function(err) {
-        alert('Error: ' + err.message);
-      });
+      document.body.appendChild(form);
+      form.submit();
     }
 
     // Close on overlay click
@@ -958,6 +1263,188 @@
         closeComponentChooser();
       }
     });
+
+    // ========================================
+    // COMPONENT CONFIGURATION MODAL (Feature #75)
+    // ========================================
+    var configState = {
+      contentType: '',
+      contentId: '',
+      sectionUuid: '',
+      componentUuid: '',
+      componentType: '',
+      componentData: {}
+    };
+
+    // Open the config modal for a component
+    function openConfigModal(contentType, contentId, sectionUuid, componentUuid, componentType, componentData) {
+      configState.contentType = contentType;
+      configState.contentId = contentId;
+      configState.sectionUuid = sectionUuid;
+      configState.componentUuid = componentUuid;
+      configState.componentType = componentType;
+      configState.componentData = componentData || {};
+
+      var title = 'Configure ' + (componentType === 'field' ? 'Field' : componentType === 'block' ? 'Block' : 'Inline Block');
+      document.getElementById('config-modal-title').textContent = title;
+
+      // Build form fields based on component type
+      var body = document.getElementById('config-modal-body');
+      var html = '';
+
+      // Common: Label/title configuration
+      html += '<div class="config-field">';
+      html += '<label for="config-label">Display Label</label>';
+      html += '<input type="text" id="config-label" value="' + escapeAttr(componentData.configuration && componentData.configuration.label || '') + '" placeholder="Optional display label">';
+      html += '<div class="field-hint">Custom label shown above the component</div>';
+      html += '</div>';
+
+      if (componentType === 'field') {
+        html += '<div class="config-field">';
+        html += '<label for="config-field-name">Field Name</label>';
+        html += '<input type="text" id="config-field-name" value="' + escapeAttr(componentData.fieldName || '') + '">';
+        html += '<div class="field-hint">The entity field to render</div>';
+        html += '</div>';
+
+        html += '<div class="config-field">';
+        html += '<label for="config-formatter">Formatter</label>';
+        html += '<select id="config-formatter">';
+        var formatters = ['default', 'plain', 'trimmed', 'full', 'summary', 'raw'];
+        for (var f = 0; f < formatters.length; f++) {
+          var sel = (componentData.configuration && componentData.configuration.formatter === formatters[f]) ? ' selected' : '';
+          if (!componentData.configuration || !componentData.configuration.formatter) {
+            sel = formatters[f] === 'default' ? ' selected' : '';
+          }
+          html += '<option value="' + formatters[f] + '"' + sel + '>' + formatters[f] + '</option>';
+        }
+        html += '</select>';
+        html += '<div class="field-hint">How the field value should be formatted</div>';
+        html += '</div>';
+
+        html += '<div class="config-field">';
+        html += '<label for="config-hide-label">';
+        html += '<input type="checkbox" id="config-hide-label"' + (componentData.configuration && componentData.configuration.hideLabel ? ' checked' : '') + '> ';
+        html += 'Hide field label</label>';
+        html += '</div>';
+
+      } else if (componentType === 'block') {
+        html += '<div class="config-field">';
+        html += '<label for="config-block-id">Block ID</label>';
+        html += '<input type="text" id="config-block-id" value="' + escapeAttr(componentData.blockId || '') + '">';
+        html += '<div class="field-hint">The block identifier to reference</div>';
+        html += '</div>';
+
+      } else if (componentType === 'inline_block') {
+        html += '<div class="config-field">';
+        html += '<label for="config-block-type">Block Type</label>';
+        html += '<input type="text" id="config-block-type" value="' + escapeAttr(componentData.blockType || '') + '">';
+        html += '<div class="field-hint">Type of inline block (e.g., text, html, list)</div>';
+        html += '</div>';
+
+        html += '<div class="config-field">';
+        html += '<label for="config-block-title">Block Title</label>';
+        html += '<input type="text" id="config-block-title" value="' + escapeAttr(componentData.configuration && componentData.configuration.title || '') + '">';
+        html += '</div>';
+
+        html += '<div class="config-field">';
+        html += '<label for="config-block-body">Block Content</label>';
+        html += '<textarea id="config-block-body">' + escapeHtml(componentData.configuration && componentData.configuration.body || '') + '</textarea>';
+        html += '</div>';
+      }
+
+      // Common: CSS class
+      html += '<div class="config-field">';
+      html += '<label for="config-css-class">CSS Classes</label>';
+      html += '<input type="text" id="config-css-class" value="' + escapeAttr(componentData.configuration && componentData.configuration.cssClass || '') + '" placeholder="e.g., highlighted, full-width">';
+      html += '<div class="field-hint">Additional CSS classes for styling</div>';
+      html += '</div>';
+
+      body.innerHTML = html;
+
+      // Show modal
+      document.getElementById('component-config-modal').classList.add('active');
+    }
+
+    // Close the config modal
+    function closeConfigModal() {
+      document.getElementById('component-config-modal').classList.remove('active');
+    }
+
+    // Save component configuration via PUT API
+    function saveComponentConfig() {
+      var configuration = {};
+
+      // Common fields
+      var label = document.getElementById('config-label');
+      if (label) configuration.label = label.value;
+
+      var cssClass = document.getElementById('config-css-class');
+      if (cssClass) configuration.cssClass = cssClass.value;
+
+      var updateBody = { configuration: configuration };
+
+      if (configState.componentType === 'field') {
+        var fieldName = document.getElementById('config-field-name');
+        if (fieldName) updateBody.fieldName = fieldName.value;
+
+        var formatter = document.getElementById('config-formatter');
+        if (formatter) configuration.formatter = formatter.value;
+
+        var hideLabel = document.getElementById('config-hide-label');
+        if (hideLabel) configuration.hideLabel = hideLabel.checked;
+
+      } else if (configState.componentType === 'block') {
+        var blockId = document.getElementById('config-block-id');
+        if (blockId) updateBody.blockId = blockId.value;
+
+      } else if (configState.componentType === 'inline_block') {
+        var blockType = document.getElementById('config-block-type');
+        if (blockType) updateBody.blockType = blockType.value;
+
+        var blockTitle = document.getElementById('config-block-title');
+        if (blockTitle) configuration.title = blockTitle.value;
+
+        var blockBody = document.getElementById('config-block-body');
+        if (blockBody) configuration.body = blockBody.value;
+      }
+
+      var url = '/api/layout/' + configState.contentType + '/' + configState.contentId +
+                '/sections/' + configState.sectionUuid + '/components/' + configState.componentUuid;
+
+      fetch(url, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(updateBody)
+      }).then(function(resp) {
+        if (resp.ok) {
+          closeConfigModal();
+          showToast('✅ Component configuration saved!', 'success');
+          // Reload to reflect changes
+          setTimeout(function() { window.location.reload(); }, 500);
+        } else {
+          resp.json().then(function(data) {
+            alert('Error: ' + (data.message || 'Failed to save configuration'));
+          });
+        }
+      }).catch(function(err) {
+        alert('Error: ' + err.message);
+      });
+    }
+
+    // Close config modal on overlay click
+    document.getElementById('component-config-modal').addEventListener('click', function(e) {
+      if (e.target === this) {
+        closeConfigModal();
+      }
+    });
+
+    // Escape helpers
+    function escapeAttr(str) {
+      return String(str || '').replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/'/g, '&#39;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+    }
+    function escapeHtml(str) {
+      return String(str || '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+    }
 
     // Helper: Remove a component via API
     function removeComponent(contentType, contentId, sectionUuid, componentUuid) {
@@ -973,6 +1460,49 @@
         alert('Error: ' + err.message);
       });
     }
+  </script>
+
+  <!-- Copy Layout Scripts (Feature #84) -->
+  <script>
+    function openCopyLayoutModal() {
+      document.getElementById('copy-layout-modal').classList.add('active');
+      document.getElementById('copy-source-id').value = '';
+      document.getElementById('copy-source-id').focus();
+    }
+
+    function closeCopyLayoutModal() {
+      document.getElementById('copy-layout-modal').classList.remove('active');
+    }
+
+    function submitCopyLayout() {
+      var sourceId = document.getElementById('copy-source-id').value.trim();
+      if (!sourceId) {
+        alert('Please enter a source content ID');
+        return;
+      }
+
+      if (!confirm('Copy layout from "' + sourceId + '"? This will replace the current layout.')) {
+        return;
+      }
+
+      // Submit via hidden form
+      var form = document.createElement('form');
+      form.method = 'POST';
+      form.action = '/node/{{contentId}}/layout/copy-from';
+      form.style.display = 'none';
+      var input = document.createElement('input');
+      input.type = 'hidden';
+      input.name = 'sourceId';
+      input.value = sourceId;
+      form.appendChild(input);
+      document.body.appendChild(form);
+      form.submit();
+    }
+
+    // Close modal on overlay click
+    document.getElementById('copy-layout-modal').addEventListener('click', function(e) {
+      if (e.target === this) closeCopyLayoutModal();
+    });
   </script>
 
   <!-- Save Layout, Discard Changes, Revision History Scripts (Features #79, #80, #83) -->
