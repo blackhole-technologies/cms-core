@@ -112,6 +112,22 @@ const renderCache = new Map();
  */
 let layoutRevisionsDir = null;
 
+/**
+ * Layout templates directory
+ * WHY: Enables saving layouts as reusable templates that can be loaded
+ * onto any content item. Follows Drupal's layout_library pattern.
+ * Templates store a named snapshot of a layout (sections + components)
+ * that can be applied to new content, saving editors time when
+ * creating similar page layouts across the site.
+ */
+let layoutTemplatesDir = null;
+
+/**
+ * In-memory layout templates cache
+ * Structure: { templateId: LayoutTemplate }
+ */
+const layoutTemplates = {};
+
 // ============================================
 // TYPE DEFINITIONS (JSDoc)
 // ============================================
@@ -194,6 +210,12 @@ export function init(directory, contentSvc, blocksSvc, cfg = {}) {
     mkdirSync(layoutRevisionsDir, { recursive: true });
   }
 
+  // Layout templates directory for reusable layout templates (Feature #85)
+  layoutTemplatesDir = join(baseDir, 'config', 'layout-templates');
+  if (!existsSync(layoutTemplatesDir)) {
+    mkdirSync(layoutTemplatesDir, { recursive: true });
+  }
+
   // Register built-in layouts
   registerBuiltinLayouts();
 
@@ -202,6 +224,9 @@ export function init(directory, contentSvc, blocksSvc, cfg = {}) {
 
   // Load content type defaults
   loadDefaultLayouts();
+
+  // Load saved layout templates (Feature #85)
+  loadLayoutTemplates();
 }
 
 /**
@@ -1612,6 +1637,288 @@ function countComponents(layout) {
     }
   }
   return count;
+}
+
+// ============================================
+// LAYOUT TEMPLATES (Feature #85)
+// ============================================
+
+/**
+ * @typedef {Object} LayoutTemplate
+ * @property {string} id - Unique template ID (machine name)
+ * @property {string} name - Human-readable template name
+ * @property {string} [description] - Optional description
+ * @property {string} [category] - Template category (e.g., 'Landing Page', 'Blog')
+ * @property {Section[]} sections - The layout sections (deep copy)
+ * @property {string} created - ISO timestamp of creation
+ * @property {string} updated - ISO timestamp of last update
+ * @property {string} [sourceContentType] - Content type this was saved from (informational)
+ * @property {string} [sourceContentId] - Content ID this was saved from (informational)
+ */
+
+/**
+ * Load all layout templates from disk into memory cache
+ *
+ * WHY: Templates are loaded once at init for fast access.
+ * Each template is a single JSON file in config/layout-templates/.
+ */
+function loadLayoutTemplates() {
+  if (!layoutTemplatesDir || !existsSync(layoutTemplatesDir)) {
+    return;
+  }
+
+  const files = readdirSync(layoutTemplatesDir);
+  for (const file of files) {
+    if (!file.endsWith('.json')) continue;
+
+    const filePath = join(layoutTemplatesDir, file);
+    try {
+      const data = JSON.parse(readFileSync(filePath, 'utf-8'));
+      if (data.id) {
+        layoutTemplates[data.id] = data;
+      }
+    } catch (err) {
+      console.error(`[layout-builder] Failed to load template ${file}:`, err.message);
+    }
+  }
+}
+
+/**
+ * Save a layout as a reusable template
+ *
+ * WHY: Editors create complex layouts and want to reuse them across
+ * multiple content items. Templates capture the full layout structure
+ * (sections, regions, components) so it can be applied elsewhere.
+ *
+ * @param {string} templateId - Machine-readable template ID
+ * @param {string} name - Human-readable name
+ * @param {LayoutStorage} layout - The layout to save as template
+ * @param {Object} options - Additional options
+ * @param {string} [options.description] - Template description
+ * @param {string} [options.category] - Template category
+ * @param {string} [options.sourceContentType] - Source content type
+ * @param {string} [options.sourceContentId] - Source content ID
+ * @returns {LayoutTemplate} The saved template
+ */
+export function saveLayoutTemplate(templateId, name, layout, options = {}) {
+  if (!layoutTemplatesDir) {
+    throw new Error('Layout templates directory not initialized');
+  }
+
+  if (!templateId || typeof templateId !== 'string') {
+    throw new Error('Template ID is required');
+  }
+
+  if (!name || typeof name !== 'string') {
+    throw new Error('Template name is required');
+  }
+
+  if (!layout || !layout.sections || !Array.isArray(layout.sections)) {
+    throw new Error('Layout with sections array is required');
+  }
+
+  // Sanitize templateId to be filesystem-safe
+  const safeId = templateId.replace(/[^a-zA-Z0-9_-]/g, '_').toLowerCase();
+
+  // Deep-clone sections so template is independent of source
+  // Also regenerate UUIDs so applying template creates fresh instances
+  const templateSections = JSON.parse(JSON.stringify(layout.sections)).map(section => {
+    section.uuid = generateUuid();
+    // Regenerate component UUIDs too
+    for (const regionId of Object.keys(section.components || {})) {
+      for (const comp of section.components[regionId] || []) {
+        comp.uuid = generateUuid();
+      }
+    }
+    return section;
+  });
+
+  const now = new Date().toISOString();
+  const existing = layoutTemplates[safeId];
+
+  const template = {
+    id: safeId,
+    name,
+    description: options.description || '',
+    category: options.category || 'General',
+    sections: templateSections,
+    created: existing ? existing.created : now,
+    updated: now,
+    sourceContentType: options.sourceContentType || null,
+    sourceContentId: options.sourceContentId || null,
+    sectionCount: templateSections.length,
+    componentCount: countComponents({ sections: templateSections }),
+  };
+
+  // Persist to disk
+  const filePath = join(layoutTemplatesDir, `${safeId}.json`);
+  writeFileSync(filePath, JSON.stringify(template, null, 2), 'utf-8');
+
+  // Update in-memory cache
+  layoutTemplates[safeId] = template;
+
+  // Fire hook
+  if (hooksService) {
+    hooksService.invoke('layout:template:save', { template });
+  }
+
+  return template;
+}
+
+/**
+ * Get a layout template by ID
+ *
+ * @param {string} templateId - Template ID
+ * @returns {LayoutTemplate|null}
+ */
+export function getLayoutTemplate(templateId) {
+  return layoutTemplates[templateId] || null;
+}
+
+/**
+ * List all layout templates
+ *
+ * @param {Object} options - Filter options
+ * @param {string} [options.category] - Filter by category
+ * @returns {LayoutTemplate[]}
+ */
+export function listLayoutTemplates(options = {}) {
+  let templates = Object.values(layoutTemplates);
+
+  if (options.category) {
+    templates = templates.filter(t => t.category === options.category);
+  }
+
+  return templates.sort((a, b) => {
+    // Sort by name
+    return a.name.localeCompare(b.name);
+  });
+}
+
+/**
+ * Delete a layout template
+ *
+ * @param {string} templateId - Template ID to delete
+ * @returns {boolean} True if deleted
+ */
+export function deleteLayoutTemplate(templateId) {
+  if (!layoutTemplates[templateId]) {
+    throw new Error(`Template not found: ${templateId}`);
+  }
+
+  // Remove from disk
+  const filePath = join(layoutTemplatesDir, `${templateId}.json`);
+  if (existsSync(filePath)) {
+    unlinkSync(filePath);
+  }
+
+  // Remove from cache
+  const deleted = layoutTemplates[templateId];
+  delete layoutTemplates[templateId];
+
+  // Fire hook
+  if (hooksService) {
+    hooksService.invoke('layout:template:delete', { template: deleted });
+  }
+
+  return true;
+}
+
+/**
+ * Apply a layout template to a content item
+ *
+ * WHY: Loading a template onto content replaces its layout with
+ * a fresh copy of the template's sections. Each applied instance
+ * gets new UUIDs so it's fully independent of the template and
+ * other content that used the same template.
+ *
+ * @param {string} templateId - Template to apply
+ * @param {string} contentType - Target content type
+ * @param {string} contentId - Target content ID
+ * @returns {Promise<LayoutStorage>} The applied layout
+ */
+export async function applyLayoutTemplate(templateId, contentType, contentId) {
+  const template = getLayoutTemplate(templateId);
+  if (!template) {
+    throw new Error(`Template not found: ${templateId}`);
+  }
+
+  if (!contentService) {
+    throw new Error('Content service not initialized');
+  }
+
+  const item = contentService.read(contentType, contentId);
+  if (!item) {
+    throw new Error(`Content not found: ${contentType}/${contentId}`);
+  }
+
+  // Deep-clone template sections and regenerate UUIDs for this instance
+  const appliedSections = JSON.parse(JSON.stringify(template.sections)).map(section => {
+    section.uuid = generateUuid();
+    for (const regionId of Object.keys(section.components || {})) {
+      for (const comp of section.components[regionId] || []) {
+        comp.uuid = generateUuid();
+      }
+    }
+    return section;
+  });
+
+  const layout = {
+    sections: appliedSections,
+    updated: new Date().toISOString(),
+    templateId: template.id,
+    templateName: template.name,
+  };
+
+  // Save as content layout override
+  await setContentLayout(contentType, contentId, layout);
+
+  // Fire hook
+  if (hooksService) {
+    await hooksService.invoke('layout:template:apply', {
+      templateId,
+      contentType,
+      contentId,
+      layout,
+    });
+  }
+
+  return layout;
+}
+
+/**
+ * Save a content item's current layout as a template
+ *
+ * Convenience function that reads the effective layout from a
+ * content item and saves it as a named template.
+ *
+ * @param {string} contentType - Source content type
+ * @param {string} contentId - Source content ID
+ * @param {string} templateId - Template machine name
+ * @param {string} templateName - Template display name
+ * @param {Object} options - Additional template options
+ * @returns {LayoutTemplate} The saved template
+ */
+export function saveContentAsTemplate(contentType, contentId, templateId, templateName, options = {}) {
+  if (!contentService) {
+    throw new Error('Content service not initialized');
+  }
+
+  const item = contentService.read(contentType, contentId);
+  if (!item) {
+    throw new Error(`Content not found: ${contentType}/${contentId}`);
+  }
+
+  const layout = getEffectiveLayout(contentType, contentId, item);
+  if (!layout || !layout.sections || layout.sections.length === 0) {
+    throw new Error(`Content ${contentType}/${contentId} has no layout to save as template`);
+  }
+
+  return saveLayoutTemplate(templateId, templateName, layout, {
+    ...options,
+    sourceContentType: contentType,
+    sourceContentId: contentId,
+  });
 }
 
 // ============================================
