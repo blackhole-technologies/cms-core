@@ -33,7 +33,7 @@
       {{#if isEdit}}
       <div class="display-tabs">
         {{#each displays}}
-        <div class="display-tab {{tabClass}}" data-display="{{type}}" onclick="switchDisplay('{{type}}')">
+        <div class="display-tab {{tabClass}}" data-display-id="{{id}}" data-display-type="{{type}}" onclick="switchDisplay('{{id}}')">
           <span class="tab-label">{{label}}</span>
           <span class="tab-type">{{type}}</span>
         </div>
@@ -80,11 +80,51 @@
         </div>
       </div>
 
+      <!-- Display Settings Section (per-display panels) -->
+      {{#if isEdit}}
+      <div class="form-section" id="display-settings-section">
+        <div class="section-header-row">
+          <h2>Display Settings</h2>
+        </div>
+        <p class="section-description">Configure settings for each display. Click display tabs above to switch.</p>
+        {{displaySettingsHtml}}
+      </div>
+      {{/if}}
+
+      <!-- Legacy Display Settings (for create form only) -->
+      {{#if isCreate}}
+      <div class="form-section" id="display-settings-section">
+        <h2>Display Settings</h2>
+        <div class="form-group">
+          <label for="display_type">Display Type</label>
+          <select id="display_type" name="display_type">
+            <option value="page" {{#if displayPage}}selected{{/if}}>Page</option>
+            <option value="block" {{#if displayBlock}}selected{{/if}}>Block</option>
+            <option value="feed" {{#if displayFeed}}selected{{/if}}>Feed (RSS/JSON)</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label for="display_mode">Format</label>
+          <select id="display_mode" name="display_mode">
+            <option value="table" {{#if formatTable}}selected{{/if}}>Table</option>
+            <option value="grid" {{#if formatGrid}}selected{{/if}}>Grid</option>
+            <option value="list" {{#if formatList}}selected{{/if}}>Unformatted List</option>
+            <option value="custom" {{#if formatCustom}}selected{{/if}}>Custom Template</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label for="path">URL Path (for page displays)</label>
+          <input type="text" id="path" name="path" value="{{viewPath}}" placeholder="e.g., /blog/recent">
+          <small>Make this view accessible at a specific URL.</small>
+        </div>
+      </div>
+      {{/if}}
+
       <!-- Fields Configuration Section -->
       <div class="form-section" id="fields-section">
         <div class="section-header-row">
           <h2>Fields</h2>
-          <button type="button" class="btn btn-sm btn-secondary" onclick="addField()">Add Field</button>
+          <button type="button" class="btn btn-sm btn-secondary" onclick="showAddFieldModal()">Add Field</button>
         </div>
         <p class="section-description">Configure which fields are displayed and their order.</p>
         <div id="fields-container">
@@ -147,37 +187,19 @@
         </div>
       </div>
 
-      <!-- Display Settings Section -->
-      <div class="form-section" id="display-settings-section">
-        <h2>Display Settings</h2>
+      <!-- Header & Footer Areas -->
+      <div class="form-section" id="header-footer-section">
+        <h2>Header & Footer</h2>
+        <p class="section-description">Add custom text above and below the view results.</p>
         <div class="form-group">
-          <label for="display_type">Display Type</label>
-          <select id="display_type" name="display_type">
-            <option value="page" {{#if displayPage}}selected{{/if}}>Page</option>
-            <option value="block" {{#if displayBlock}}selected{{/if}}>Block</option>
-            <option value="feed" {{#if displayFeed}}selected{{/if}}>Feed (RSS/JSON)</option>
-            <option value="embed" {{#if displayEmbed}}selected{{/if}}>Embed</option>
-            <option value="attachment" {{#if displayAttachment}}selected{{/if}}>Attachment</option>
-          </select>
+          <label for="view_header">Header</label>
+          <textarea id="view_header" name="header" rows="3" placeholder="Text or HTML to display above results">{{viewHeader}}</textarea>
+          <small>Displayed above the view results. Supports HTML.</small>
         </div>
         <div class="form-group">
-          <label for="display_mode">Format</label>
-          <select id="display_mode" name="display_mode">
-            <option value="table" {{#if formatTable}}selected{{/if}}>Table</option>
-            <option value="grid" {{#if formatGrid}}selected{{/if}}>Grid</option>
-            <option value="list" {{#if formatList}}selected{{/if}}>Unformatted List</option>
-            <option value="custom" {{#if formatCustom}}selected{{/if}}>Custom Template</option>
-          </select>
-        </div>
-        <div class="form-group">
-          <label for="path">URL Path (for page displays)</label>
-          <input type="text" id="path" name="path" value="{{viewPath}}" placeholder="e.g., /blog/recent">
-          <small>Make this view accessible at a specific URL.</small>
-        </div>
-        <div class="form-group">
-          <label for="template">Custom Template (optional)</label>
-          <input type="text" id="template" name="template" value="{{viewTemplate}}" placeholder="e.g., views/custom-article-list">
-          <small>Template file path relative to theme directory.</small>
+          <label for="view_footer">Footer</label>
+          <textarea id="view_footer" name="footer" rows="3" placeholder="Text or HTML to display below results">{{viewFooter}}</textarea>
+          <small>Displayed below the view results. Supports HTML.</small>
         </div>
       </div>
 
@@ -218,6 +240,26 @@
             <span class="display-type-desc">RSS or JSON feed output</span>
           </button>
         </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Remove Display Confirmation Form (hidden) -->
+  <form id="remove-display-form" method="POST" action="" style="display:none;">
+    {{csrfField}}
+  </form>
+
+  <!-- Add Field Modal - Categorized Field Chooser -->
+  <div id="add-field-modal" class="modal-overlay" style="display: none;">
+    <div class="modal-content" style="max-width: 600px;">
+      <div class="modal-header">
+        <h3>Add Field</h3>
+        <button type="button" class="modal-close" onclick="hideAddFieldModal()">&times;</button>
+      </div>
+      <div class="modal-body">
+        <p style="margin-bottom: 1rem; color: #6b7280; font-size: 0.9rem;">Select a field to add to the view output. Fields are grouped by category.</p>
+        <input type="text" id="field-search-input" placeholder="Search fields..." style="width: 100%; padding: 0.5rem; border: 1px solid #d1d5db; border-radius: 4px; margin-bottom: 1rem; font-size: 0.9rem;" oninput="filterFieldChooser(this.value)">
+        <div id="field-categories-container"></div>
       </div>
     </div>
   </div>
@@ -536,6 +578,101 @@
     }
     .breadcrumb a { color: #2563eb; text-decoration: none; }
     .breadcrumb a:hover { text-decoration: underline; }
+    /* Display settings panels */
+    .display-settings-panel {
+      padding: 1rem;
+      background: white;
+      border: 1px solid #e5e7eb;
+      border-radius: 6px;
+      margin-bottom: 0.75rem;
+    }
+    .display-settings-panel h3 {
+      margin: 0 0 1rem 0;
+      font-size: 1rem;
+      color: #111827;
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+    }
+    .display-type-badge {
+      font-size: 0.7rem;
+      background: #e5e7eb;
+      color: #374151;
+      padding: 0.15rem 0.5rem;
+      border-radius: 10px;
+      text-transform: uppercase;
+      font-weight: 500;
+    }
+    /* Add Field Modal - Categorized Field Chooser */
+    .field-category {
+      margin-bottom: 1rem;
+    }
+    .field-category-header {
+      font-size: 0.8rem;
+      font-weight: 600;
+      color: #6b7280;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      padding-bottom: 0.35rem;
+      border-bottom: 1px solid #e5e7eb;
+      margin-bottom: 0.5rem;
+    }
+    .field-category-items {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 0.35rem;
+    }
+    .field-chooser-item {
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+      padding: 0.45rem 0.65rem;
+      border: 1px solid #e5e7eb;
+      border-radius: 4px;
+      background: white;
+      cursor: pointer;
+      font-size: 0.85rem;
+      color: #374151;
+      transition: all 0.1s;
+      width: 100%;
+      text-align: left;
+    }
+    .field-chooser-item:hover {
+      border-color: #93c5fd;
+      background: #eff6ff;
+      color: #1d4ed8;
+    }
+    .field-chooser-item.already-added {
+      opacity: 0.5;
+      cursor: not-allowed;
+      background: #f3f4f6;
+    }
+    .field-chooser-item.already-added:hover {
+      border-color: #e5e7eb;
+      background: #f3f4f6;
+      color: #374151;
+    }
+    .field-chooser-icon {
+      font-size: 0.75rem;
+      color: #9ca3af;
+    }
+    .field-chooser-badge {
+      font-size: 0.65rem;
+      background: #dbeafe;
+      color: #1e40af;
+      padding: 0.1rem 0.35rem;
+      border-radius: 3px;
+      margin-left: auto;
+    }
+    .field-chooser-badge.added-badge {
+      background: #dcfce7;
+      color: #166534;
+    }
+    #field-search-input:focus {
+      outline: none;
+      border-color: #93c5fd;
+      box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.15);
+    }
   </style>
 
   <script>
@@ -547,43 +684,150 @@
     // Available fields JSON for dynamic row creation
     const availableFieldsJSON = {{availableFieldsJSON}};
 
+    // Categorized fields for the add-field modal chooser
+    const categorizedFieldsJSON = {{categorizedFieldsJSON}};
+
+    // View ID for display management
+    const viewId = '{{viewId}}';
+
     function buildFieldOptions(selectedValue) {
       return availableFieldsJSON.map(f =>
         '<option value="' + f.value + '"' + (f.value === selectedValue ? ' selected' : '') + '>' + f.label + '</option>'
       ).join('');
     }
 
-    // ---- Fields ----
-    function addField() {
-      const container = document.getElementById('fields-container');
-      const empty = container.querySelector('.empty-message');
+    // ---- Add Field Modal (Categorized Field Chooser) ----
+
+    /**
+     * Get list of currently configured field names
+     * WHY: To show which fields are already added in the modal
+     */
+    function getCurrentFieldNames() {
+      var selects = document.querySelectorAll('#fields-container .field-select');
+      var names = [];
+      selects.forEach(function(s) { if (s.value) names.push(s.value); });
+      return names;
+    }
+
+    /**
+     * Build and show the categorized field chooser modal
+     * WHY: Drupal Views uses a categorized field chooser modal rather than
+     * a plain dropdown. This helps users discover fields organized by type.
+     */
+    function showAddFieldModal() {
+      var container = document.getElementById('field-categories-container');
+      var currentFields = getCurrentFieldNames();
+      var html = '';
+
+      for (var category in categorizedFieldsJSON) {
+        var fields = categorizedFieldsJSON[category];
+        if (!fields || fields.length === 0) continue;
+
+        html += '<div class="field-category" data-category="' + category + '">';
+        html += '<div class="field-category-header">' + category + '</div>';
+        html += '<div class="field-category-items">';
+
+        for (var i = 0; i < fields.length; i++) {
+          var f = fields[i];
+          var isAdded = currentFields.indexOf(f.value) !== -1;
+          var cls = 'field-chooser-item' + (isAdded ? ' already-added' : '');
+          var badge = isAdded
+            ? '<span class="field-chooser-badge added-badge">Added</span>'
+            : '<span class="field-chooser-badge">+ Add</span>';
+
+          html += '<button type="button" class="' + cls + '" data-field="' + f.value + '" data-label="' + f.label + '"' +
+            (isAdded ? ' disabled' : ' onclick="addFieldFromChooser(\'' + f.value + '\', \'' + f.label.replace(/'/g, "\\'") + '\')"') + '>' +
+            '<span class="field-chooser-icon">&#9632;</span> ' +
+            '<span>' + f.label + '</span>' +
+            badge +
+            '</button>';
+        }
+        html += '</div></div>';
+      }
+
+      container.innerHTML = html;
+      document.getElementById('add-field-modal').style.display = 'flex';
+      // Focus search input
+      var searchInput = document.getElementById('field-search-input');
+      searchInput.value = '';
+      setTimeout(function() { searchInput.focus(); }, 100);
+    }
+
+    function hideAddFieldModal() {
+      document.getElementById('add-field-modal').style.display = 'none';
+    }
+
+    /**
+     * Filter fields in the chooser by search text
+     * WHY: With many fields, searching is faster than scanning categories
+     */
+    function filterFieldChooser(query) {
+      var items = document.querySelectorAll('.field-chooser-item');
+      var categories = document.querySelectorAll('.field-category');
+      var q = query.toLowerCase().trim();
+
+      categories.forEach(function(cat) {
+        var hasVisible = false;
+        var catItems = cat.querySelectorAll('.field-chooser-item');
+        catItems.forEach(function(item) {
+          var fieldName = (item.getAttribute('data-field') || '').toLowerCase();
+          var fieldLabel = (item.getAttribute('data-label') || '').toLowerCase();
+          var matches = !q || fieldName.indexOf(q) !== -1 || fieldLabel.indexOf(q) !== -1;
+          item.style.display = matches ? '' : 'none';
+          if (matches) hasVisible = true;
+        });
+        cat.style.display = hasVisible ? '' : 'none';
+      });
+    }
+
+    /**
+     * Add a field from the chooser modal and close
+     * WHY: Selecting a field in the modal adds it directly with the correct
+     * name pre-selected, rather than requiring manual dropdown selection.
+     */
+    function addFieldFromChooser(fieldValue, fieldLabel) {
+      // Add the field row with pre-selected value
+      addFieldWithValue(fieldValue);
+      hideAddFieldModal();
+    }
+
+    /**
+     * Add a field row with a specific pre-selected value
+     */
+    function addFieldWithValue(preselectedValue) {
+      var container = document.getElementById('fields-container');
+      var empty = container.querySelector('.empty-message');
       if (empty) empty.remove();
 
-      const row = document.createElement('div');
+      var row = document.createElement('div');
       row.className = 'field-row';
       row.draggable = true;
-      row.innerHTML = `
-        <span class="drag-handle" title="Drag to reorder">&#9776;</span>
-        <select name="fields[${fieldIndex}][name]" class="field-select" required>
-          <option value="">-- Select Field --</option>
-          ${buildFieldOptions('')}
-        </select>
-        <input type="text" name="fields[${fieldIndex}][label]" placeholder="Custom label (optional)" class="field-label-input">
-        <select name="fields[${fieldIndex}][formatter]" class="field-formatter">
-          <option value="default">Default</option>
-          <option value="trimmed">Trimmed</option>
-          <option value="raw">Raw</option>
-          <option value="date">Date</option>
-          <option value="link">Link</option>
-        </select>
-        <button type="button" class="btn btn-sm btn-danger" onclick="removeField(this)">Remove</button>
-      `;
+      row.innerHTML =
+        '<span class="drag-handle" title="Drag to reorder">&#9776;</span>' +
+        '<select name="fields[' + fieldIndex + '][name]" class="field-select" required>' +
+          '<option value="">-- Select Field --</option>' +
+          buildFieldOptions(preselectedValue || '') +
+        '</select>' +
+        '<input type="text" name="fields[' + fieldIndex + '][label]" placeholder="Custom label (optional)" class="field-label-input">' +
+        '<select name="fields[' + fieldIndex + '][formatter]" class="field-formatter">' +
+          '<option value="default">Default</option>' +
+          '<option value="trimmed">Trimmed</option>' +
+          '<option value="raw">Raw</option>' +
+          '<option value="date">Date</option>' +
+          '<option value="link">Link</option>' +
+        '</select>' +
+        '<button type="button" class="btn btn-sm btn-danger" onclick="removeField(this)">Remove</button>';
       container.appendChild(row);
       fieldIndex++;
     }
 
+    // Keep legacy addField for backward compat (opens modal)
+    function addField() {
+      showAddFieldModal();
+    }
+
     function removeField(btn) {
-      const container = document.getElementById('fields-container');
+      var container = document.getElementById('fields-container');
       btn.closest('.field-row').remove();
       if (!container.querySelector('.field-row')) {
         container.innerHTML = '<p class="empty-message">No fields configured. Add fields to control what data is displayed.</p>';
@@ -592,39 +836,38 @@
 
     // ---- Filters ----
     function addFilter() {
-      const container = document.getElementById('filters-container');
-      const empty = container.querySelector('.empty-message');
+      var container = document.getElementById('filters-container');
+      var empty = container.querySelector('.empty-message');
       if (empty) empty.remove();
 
-      const row = document.createElement('div');
+      var row = document.createElement('div');
       row.className = 'filter-row';
-      row.innerHTML = `
-        <select name="filters[${filterIndex}][field]" class="filter-field" required>
-          <option value="">-- Select Field --</option>
-          ${buildFieldOptions('')}
-        </select>
-        <select name="filters[${filterIndex}][operator]" class="filter-operator" required>
-          <option value="=">Equals</option>
-          <option value="!=">Not Equals</option>
-          <option value="contains">Contains</option>
-          <option value=">">Greater Than</option>
-          <option value="<">Less Than</option>
-          <option value=">=">Greater or Equal</option>
-          <option value="<=">Less or Equal</option>
-        </select>
-        <input type="text" name="filters[${filterIndex}][value]" placeholder="Value" required>
-        <label class="checkbox-label checkbox-sm" title="Expose this filter to end users">
-          <input type="checkbox" name="filters[${filterIndex}][exposed]" value="true">
-          Exposed
-        </label>
-        <button type="button" class="btn btn-sm btn-danger" onclick="removeFilter(this)">Remove</button>
-      `;
+      row.innerHTML =
+        '<select name="filters[' + filterIndex + '][field]" class="filter-field" required>' +
+          '<option value="">-- Select Field --</option>' +
+          buildFieldOptions('') +
+        '</select>' +
+        '<select name="filters[' + filterIndex + '][operator]" class="filter-operator" required>' +
+          '<option value="=">Equals</option>' +
+          '<option value="!=">Not Equals</option>' +
+          '<option value="contains">Contains</option>' +
+          '<option value="&gt;">Greater Than</option>' +
+          '<option value="&lt;">Less Than</option>' +
+          '<option value="&gt;=">Greater or Equal</option>' +
+          '<option value="&lt;=">Less or Equal</option>' +
+        '</select>' +
+        '<input type="text" name="filters[' + filterIndex + '][value]" placeholder="Value" required>' +
+        '<label class="checkbox-label checkbox-sm" title="Expose this filter to end users">' +
+          '<input type="checkbox" name="filters[' + filterIndex + '][exposed]" value="true">' +
+          ' Exposed' +
+        '</label>' +
+        '<button type="button" class="btn btn-sm btn-danger" onclick="removeFilter(this)">Remove</button>';
       container.appendChild(row);
       filterIndex++;
     }
 
     function removeFilter(btn) {
-      const container = document.getElementById('filters-container');
+      var container = document.getElementById('filters-container');
       btn.closest('.filter-row').remove();
       if (!container.querySelector('.filter-row')) {
         container.innerHTML = '<p class="empty-message">No filters defined. Add filters to restrict which content is displayed.</p>';
@@ -633,29 +876,28 @@
 
     // ---- Sorts ----
     function addSort() {
-      const container = document.getElementById('sort-container');
-      const empty = container.querySelector('.empty-message');
+      var container = document.getElementById('sort-container');
+      var empty = container.querySelector('.empty-message');
       if (empty) empty.remove();
 
-      const row = document.createElement('div');
+      var row = document.createElement('div');
       row.className = 'sort-row';
-      row.innerHTML = `
-        <select name="sort[${sortIndex}][field]" class="sort-field" required>
-          <option value="">-- Select Field --</option>
-          ${buildFieldOptions('')}
-        </select>
-        <select name="sort[${sortIndex}][direction]" class="sort-direction" required>
-          <option value="ASC">Ascending</option>
-          <option value="DESC">Descending</option>
-        </select>
-        <button type="button" class="btn btn-sm btn-danger" onclick="removeSort(this)">Remove</button>
-      `;
+      row.innerHTML =
+        '<select name="sort[' + sortIndex + '][field]" class="sort-field" required>' +
+          '<option value="">-- Select Field --</option>' +
+          buildFieldOptions('') +
+        '</select>' +
+        '<select name="sort[' + sortIndex + '][direction]" class="sort-direction" required>' +
+          '<option value="ASC">Ascending</option>' +
+          '<option value="DESC">Descending</option>' +
+        '</select>' +
+        '<button type="button" class="btn btn-sm btn-danger" onclick="removeSort(this)">Remove</button>';
       container.appendChild(row);
       sortIndex++;
     }
 
     function removeSort(btn) {
-      const container = document.getElementById('sort-container');
+      var container = document.getElementById('sort-container');
       btn.closest('.sort-row').remove();
       if (!container.querySelector('.sort-row')) {
         container.innerHTML = '<p class="empty-message">No sorting defined. Add sort fields to control result order.</p>';
@@ -663,13 +905,14 @@
     }
 
     // ---- Display Tabs ----
-    function switchDisplay(type) {
-      // Update display type select
-      const sel = document.getElementById('display_type');
-      if (sel) sel.value = type;
+    function switchDisplay(displayId) {
       // Update tab active state
-      document.querySelectorAll('.display-tab').forEach(tab => {
-        tab.classList.toggle('active', tab.dataset.display === type);
+      document.querySelectorAll('.display-tab[data-display-id]').forEach(function(tab) {
+        tab.classList.toggle('active', tab.getAttribute('data-display-id') === displayId);
+      });
+      // Show/hide display settings panels
+      document.querySelectorAll('.display-settings-panel').forEach(function(panel) {
+        panel.style.display = panel.getAttribute('data-display-id') === displayId ? 'block' : 'none';
       });
     }
 
@@ -683,22 +926,82 @@
 
     function addDisplay(type) {
       hideAddDisplay();
-      // Set display type
-      const sel = document.getElementById('display_type');
-      if (sel) sel.value = type;
-      // Auto-set sensible defaults
-      if (type === 'feed') {
-        const mode = document.getElementById('display_mode');
-        if (mode) mode.value = 'list';
-      }
-      // Alert user
-      alert('Display type set to: ' + type + '. Configure settings below and save.');
+      // WHY FETCH: Dynamic form.submit() can lose session cookies in some browser
+      // contexts. Using fetch with credentials ensures reliable CSRF + auth handling.
+      var csrfInput = document.querySelector('input[name="_csrf"]');
+      var token = csrfInput ? csrfInput.value : '';
+      fetch('/admin/views/' + viewId + '/display/add', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+        body: '_csrf=' + encodeURIComponent(token) + '&display_type=' + encodeURIComponent(type),
+        credentials: 'same-origin',
+        redirect: 'follow'
+      }).then(function() {
+        // Reload page to show updated displays
+        window.location.href = '/admin/views/' + viewId + '/edit';
+      }).catch(function(err) {
+        alert('Error adding display: ' + err.message);
+      });
+    }
+
+    function removeDisplay(displayId) {
+      if (!confirm('Remove display "' + displayId + '"? This cannot be undone.')) return;
+      // WHY FETCH: Same reliability improvement as addDisplay - ensures session cookies
+      var csrfInput = document.querySelector('input[name="_csrf"]');
+      var token = csrfInput ? csrfInput.value : '';
+      fetch('/admin/views/' + viewId + '/display/' + displayId + '/remove', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+        body: '_csrf=' + encodeURIComponent(token),
+        credentials: 'same-origin',
+        redirect: 'follow'
+      }).then(function() {
+        window.location.href = '/admin/views/' + viewId + '/edit';
+      }).catch(function(err) {
+        alert('Error removing display: ' + err.message);
+      });
     }
 
     // Close modal on backdrop click
-    document.getElementById('add-display-modal')?.addEventListener('click', function(e) {
-      if (e.target === this) hideAddDisplay();
-    });
+    var modal = document.getElementById('add-display-modal');
+    if (modal) {
+      modal.addEventListener('click', function(e) {
+        if (e.target === this) hideAddDisplay();
+      });
+    }
+
+    // Close add-field modal on backdrop click
+    var fieldModal = document.getElementById('add-field-modal');
+    if (fieldModal) {
+      fieldModal.addEventListener('click', function(e) {
+        if (e.target === this) hideAddFieldModal();
+      });
+    }
+
+    // WHY FETCH SUBMIT: Traditional form.submit() can fail in some browser contexts
+    // (e.g., Playwright, iframes) due to cookie handling. Using fetch ensures reliable
+    // CSRF token and session cookie transmission for the Save View form.
+    var viewEditForm = document.getElementById('view-edit-form');
+    if (viewEditForm) {
+      viewEditForm.addEventListener('submit', function(e) {
+        e.preventDefault();
+        var formData = new FormData(viewEditForm);
+        var urlEncoded = new URLSearchParams(formData).toString();
+        var action = viewEditForm.action;
+        fetch(action, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+          body: urlEncoded,
+          credentials: 'same-origin',
+          redirect: 'follow'
+        }).then(function(resp) {
+          // Redirect to the response URL (which includes success/error params)
+          window.location.href = resp.url;
+        }).catch(function(err) {
+          alert('Error saving view: ' + err.message);
+        });
+      });
+    }
   </script>
   <script src="/public/js/shortcuts.js"></script>
   <script>Shortcuts.init({ context: 'global' });</script>

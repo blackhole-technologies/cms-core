@@ -6098,6 +6098,120 @@ export function hook_routes(register, context) {
     }
   }, 'Switch workspace');
 
+  /**
+   * GET /workspace/:id/preview - Preview workspace content
+   *
+   * WHY PREVIEW URL:
+   * Provides a standalone URL to view all content staged in a workspace
+   * without switching the active workspace. Useful for reviewing changes,
+   * sharing workspace state with stakeholders, or auditing content before
+   * publishing.
+   *
+   * WORKSPACE ID RESOLUTION:
+   * The :id parameter can be either the workspace UUID or machine name.
+   * This mirrors Drupal's flexible entity loading patterns.
+   */
+  register('GET', '/workspace/:id/preview', async (req, res, params, ctx) => {
+    try {
+      const workspacesService = ctx.services.get('workspaces');
+      const workspaceId = params.id;
+
+      // Resolve workspace by UUID or machine name
+      let workspace = workspacesService.get(workspaceId);
+      if (!workspace) {
+        workspace = workspacesService.getByMachineName(workspaceId);
+      }
+
+      if (!workspace) {
+        const html = renderAdmin('workspace-preview.html', {
+          pageTitle: 'Workspace Preview',
+          error: 'Workspace not found',
+        }, ctx, req);
+        return server.html(res, html);
+      }
+
+      // Get all content associations for this workspace
+      const associations = workspacesService.getAssociations(workspace.id);
+      const contentItems = [];
+
+      // WHY SKIP WORKSPACE FLAG:
+      // We're reading workspace copies directly, not relying on active workspace
+      // context. The content.read() function normally checks for workspace copies
+      // based on the active workspace, but we want to explicitly read the workspace
+      // version here regardless of what workspace is currently active.
+      //
+      // For "edit" operations: read ws-{first8chars}-{originalId}
+      // For "create" operations: read {id} directly (created in workspace)
+      for (const assoc of associations.items || []) {
+        try {
+          let actualId;
+          let displayId = assoc.id;
+
+          if (assoc.operation === 'edit') {
+            // Workspace copy ID pattern: ws-{first8chars}-{originalId}
+            actualId = `ws-${workspace.id.substring(0, 8)}-${assoc.id}`;
+          } else {
+            // Created directly in workspace
+            actualId = assoc.id;
+          }
+
+          // Read the content item (skip workspace resolution to get exact copy)
+          const item = content.read(assoc.type, actualId, { skipWorkspace: true });
+
+          if (item) {
+            // Generate a preview (first 100 chars of JSON or title field)
+            let preview = '';
+            if (item.title) {
+              preview = item.title;
+            } else if (item.name) {
+              preview = item.name;
+            } else {
+              const json = JSON.stringify(item, null, 2);
+              preview = json.substring(0, 100) + (json.length > 100 ? '...' : '');
+            }
+
+            contentItems.push({
+              type: assoc.type,
+              actualId, // The actual ID to use for links (workspace copy ID)
+              displayId, // The original ID for display
+              preview,
+              operation: assoc.operation,
+              timestamp: assoc.timestamp,
+              timestampFormatted: new Date(assoc.timestamp).toLocaleString(),
+            });
+          }
+        } catch (err) {
+          // WHY SKIP ERRORS:
+          // If a workspace copy is missing or corrupt, we still want to show
+          // other items. Log the error but continue processing.
+          console.error(`[workspace-preview] Failed to load ${assoc.type}:${assoc.id}:`, err.message);
+        }
+      }
+
+      // Format workspace timestamps
+      const workspaceData = {
+        ...workspace,
+        createdFormatted: new Date(workspace.created).toLocaleString(),
+        updatedFormatted: new Date(workspace.updated).toLocaleString(),
+      };
+
+      const html = renderAdmin('workspace-preview.html', {
+        pageTitle: `Workspace Preview: ${workspace.label}`,
+        workspace: workspaceData,
+        contentItems,
+        hasContent: contentItems.length > 0,
+      }, ctx, req);
+
+      server.html(res, html);
+    } catch (err) {
+      const html = renderAdmin('workspace-preview.html', {
+        pageTitle: 'Workspace Preview',
+        error: `Error loading workspace preview: ${err.message}`,
+      }, ctx, req);
+      server.html(res, html);
+    }
+  }, 'Workspace preview');
+
   // ==========================================
   // Content Management
   // ==========================================
@@ -12632,23 +12746,41 @@ export function hook_routes(register, context) {
       selected: view ? t.type === view.contentType : false,
     }));
 
-    // Build available fields list (common content fields + type-specific if possible)
-    const commonFields = [
-      { value: 'title', label: 'Title' },
-      { value: 'body', label: 'Body' },
-      { value: 'status', label: 'Status' },
-      { value: 'published', label: 'Published' },
-      { value: 'author', label: 'Author' },
-      { value: 'created', label: 'Created Date' },
-      { value: 'updated', label: 'Updated Date' },
-      { value: 'id', label: 'ID' },
-      { value: 'type', label: 'Content Type' },
-      { value: 'slug', label: 'Slug' },
-      { value: 'summary', label: 'Summary' },
-      { value: 'tags', label: 'Tags' },
-      { value: 'category', label: 'Category' },
-      { value: 'image', label: 'Image' },
-    ];
+    // WHY CATEGORIZED FIELDS: Drupal Views organizes fields by category
+    // (Content, System, Meta, Relationships) so users can quickly find the
+    // field they need. We mirror this pattern for usability.
+    const fieldCategories = {
+      'Content': [
+        { value: 'title', label: 'Title' },
+        { value: 'body', label: 'Body' },
+        { value: 'summary', label: 'Summary' },
+        { value: 'image', label: 'Image' },
+      ],
+      'Taxonomy': [
+        { value: 'tags', label: 'Tags' },
+        { value: 'category', label: 'Category' },
+      ],
+      'Meta': [
+        { value: 'status', label: 'Status' },
+        { value: 'published', label: 'Published' },
+        { value: 'author', label: 'Author' },
+        { value: 'slug', label: 'Slug' },
+      ],
+      'System': [
+        { value: 'id', label: 'ID' },
+        { value: 'type', label: 'Content Type' },
+        { value: 'created', label: 'Created Date' },
+        { value: 'updated', label: 'Updated Date' },
+      ],
+    };
+
+    // Build flat available fields list from all categories
+    const commonFields = [];
+    for (const cat of Object.keys(fieldCategories)) {
+      for (const f of fieldCategories[cat]) {
+        commonFields.push({ ...f, category: cat });
+      }
+    }
 
     // If view has a content type, try to get schema fields
     let availableFields = [...commonFields];
@@ -12661,20 +12793,58 @@ export function hook_routes(register, context) {
             availableFields.push({
               value: fname,
               label: fname.charAt(0).toUpperCase() + fname.slice(1).replace(/[_-]/g, ' '),
+              category: 'Type Fields',
             });
+          }
+        }
+        // Add 'Type Fields' category if new fields were added
+        if (schemaFieldNames.some(fn => !commonFields.find(f => f.value === fn))) {
+          if (!fieldCategories['Type Fields']) {
+            fieldCategories['Type Fields'] = availableFields.filter(f => f.category === 'Type Fields');
           }
         }
       }
     }
 
-    // Build display tabs
+    // Build categorized fields JSON for the add-field modal
+    // WHY: The template renders a categorized field chooser modal where
+    // fields are grouped under headings (Content, Meta, System, etc.)
+    const categorizedFieldsJSON = JSON.stringify(fieldCategories);
+
+    // Build display tabs from actual displays array
+    // WHY: Each view can have multiple displays (page, block, feed).
+    // The tabs let users switch between displays to configure each one independently.
     const displays = [];
-    const displayType = view ? (view.display || 'page') : 'page';
-    displays.push({
-      type: displayType,
-      label: displayType.charAt(0).toUpperCase() + displayType.slice(1),
-      tabClass: 'active',
-    });
+    const activeDisplayId = null; // first display is active by default
+    if (view && view.displays && Array.isArray(view.displays) && view.displays.length > 0) {
+      view.displays.forEach((d, idx) => {
+        displays.push({
+          id: d.id,
+          type: d.type,
+          label: d.label || d.type.charAt(0).toUpperCase() + d.type.slice(1),
+          tabClass: idx === 0 ? 'active' : '',
+          path: d.path || '',
+          displayMode: d.displayMode || 'table',
+          pagerType: d.pager?.type || 'full',
+          pagerLimit: d.pager?.limit || 10,
+        });
+      });
+    } else {
+      // Legacy: single display from top-level display field
+      const displayType = view ? (view.display || 'page') : 'page';
+      displays.push({
+        id: 'default',
+        type: displayType,
+        label: displayType.charAt(0).toUpperCase() + displayType.slice(1),
+        tabClass: 'active',
+        path: view ? (view.path || '') : '',
+        displayMode: view ? (view.displayMode || view.format || 'table') : 'table',
+        pagerType: view ? (view.pager?.type || 'full') : 'full',
+        pagerLimit: view ? (view.pager?.limit || 10) : 10,
+      });
+    }
+    const hasMultipleDisplays = displays.length > 1;
+    const displaysJSON = JSON.stringify(displays);
 
     // Build fields array with pre-computed flags
     // WHY PRE-RENDER: Template engine doesn't support nested {{#each ../parent}}
@@ -12805,11 +12975,68 @@ export function hook_routes(register, context) {
     const dt = view ? (view.display || 'page') : 'page';
     const displayMode = view ? (view.displayMode || view.format || 'table') : 'table';
 
+    // WHY: Pre-render display settings panel HTML for the active display.
+    // Each display has its own title, format, path, and pager settings.
+    const activeDisplay = displays[0] || {};
+    let displaySettingsHtml = '';
+    displays.forEach((d, idx) => {
+      const isActive = idx === 0;
+      const isPage = d.type === 'page';
+      const isFeed = d.type === 'feed';
+      displaySettingsHtml += `
+        <div class="display-settings-panel" data-display-id="${d.id}" style="display: ${isActive ? 'block' : 'none'};">
+          <h3>Display: ${d.label} <span class="display-type-badge">${d.type}</span></h3>
+          <div class="form-row">
+            <div class="form-group">
+              <label for="display_label_${d.id}">Display Title</label>
+              <input type="text" id="display_label_${d.id}" name="display_settings[${d.id}][label]" value="${d.label}" placeholder="Display title">
+            </div>
+            <div class="form-group">
+              <label for="display_format_${d.id}">Format</label>
+              <select id="display_format_${d.id}" name="display_settings[${d.id}][displayMode]">
+                <option value="table"${d.displayMode === 'table' ? ' selected' : ''}>Table</option>
+                <option value="grid"${d.displayMode === 'grid' ? ' selected' : ''}>Grid</option>
+                <option value="list"${d.displayMode === 'list' ? ' selected' : ''}>Unformatted List</option>
+                <option value="custom"${d.displayMode === 'custom' ? ' selected' : ''}>Custom Template</option>
+              </select>
+            </div>
+          </div>
+          <div class="form-row">
+            <div class="form-group">
+              <label for="display_pager_type_${d.id}">Pager Type</label>
+              <select id="display_pager_type_${d.id}" name="display_settings[${d.id}][pager_type]">
+                <option value="full"${d.pagerType === 'full' ? ' selected' : ''}>Full Pager</option>
+                <option value="mini"${d.pagerType === 'mini' ? ' selected' : ''}>Mini Pager</option>
+                <option value="none"${d.pagerType === 'none' ? ' selected' : ''}>No Pager</option>
+              </select>
+            </div>
+            <div class="form-group">
+              <label for="display_pager_limit_${d.id}">Items Per Page</label>
+              <input type="number" id="display_pager_limit_${d.id}" name="display_settings[${d.id}][pager_limit]" value="${d.pagerLimit}" min="1" max="100">
+            </div>
+          </div>
+          ${isPage ? `
+          <div class="form-group">
+            <label for="display_path_${d.id}">URL Path</label>
+            <input type="text" id="display_path_${d.id}" name="display_settings[${d.id}][path]" value="${d.path}" placeholder="e.g., /articles">
+            <small>Make this display accessible at a specific URL path.</small>
+          </div>` : ''}
+          ${isFeed ? `
+          <div class="form-group">
+            <label for="display_path_${d.id}">Feed URL Path</label>
+            <input type="text" id="display_path_${d.id}" name="display_settings[${d.id}][path]" value="${d.path}" placeholder="e.g., /articles/feed">
+            <small>URL path for the RSS/JSON feed.</small>
+          </div>` : ''}
+          <button type="button" class="btn btn-sm btn-danger" onclick="removeDisplay('${d.id}')" ${displays.length <= 1 ? 'disabled title="Cannot remove the only display"' : ''}>Remove Display</button>
+        </div>`;
+    });
+
     return {
       pageTitle: isEdit ? 'Edit View: ' + view.name : 'Create View',
       breadcrumbLabel: isEdit ? 'Edit: ' + view.name : 'Create View',
       formAction: isEdit ? '/admin/views/' + view.id : '/admin/views/create',
       isEdit,
+      isCreate: !isEdit,
       viewId: view ? view.id : '',
       viewName: view ? view.name : '',
       viewMachineName: view ? view.id : '',
@@ -12817,11 +13044,17 @@ export function hook_routes(register, context) {
       viewEnabled: view ? true : true,
       viewPath: view ? (view.path || '') : '',
       viewTemplate: view ? (view.template || '') : '',
+      viewHeader: view ? (view.header || '') : '',
+      viewFooter: view ? (view.footer || '') : '',
       viewItemsPerPage: itemsPerPage,
       contentTypes,
       availableFields: availableFields.map(f => ({ ...f, selected: false })),
       availableFieldsJSON: JSON.stringify(availableFields),
+      categorizedFieldsJSON: categorizedFieldsJSON,
+      displaysJSON: displaysJSON,
       displays,
+      hasMultipleDisplays,
+      displaySettingsHtml,
       // Fields - pre-rendered HTML for rows (avoids nested template issues)
       viewFields,
       hasFields: viewFields.length > 0,
@@ -12982,6 +13215,9 @@ export function hook_routes(register, context) {
 
       // Parse fields from form
       const fields = parseViewArrayFormData(formData, 'fields', ['name', 'label', 'formatter']);
+      // DEBUG: Log parsed fields to diagnose persistence issue
+      console.log('[views-debug] Parsed fields:', JSON.stringify(fields));
+      console.log('[views-debug] formData keys with fields:', Object.keys(formData).filter(k => k.startsWith('fields')));
       // Parse filters from form
       const filters = parseViewArrayFormData(formData, 'filters', ['field', 'operator', 'value', 'exposed']).map(f => ({
         field: f.field,
@@ -13003,6 +13239,8 @@ export function hook_routes(register, context) {
         displayMode: formData.display_mode || 'table',
         path: (formData.path || '').trim() || null,
         template: (formData.template || '').trim() || null,
+        header: (formData.header || '').trim() || null,
+        footer: (formData.footer || '').trim() || null,
         fields: fields.map(f => f.label ? { name: f.name, label: f.label, formatter: f.formatter || 'default' } : f.name),
         filters,
         sort: sorts,
@@ -13013,11 +13251,122 @@ export function hook_routes(register, context) {
       };
 
       await viewsService.updateView(id, updates);
+
+      // WHY: Also update per-display settings if provided.
+      // Display settings are submitted as display_settings[display_id][field] = value.
+      // Each display has its own label, format, pager, and path.
+      const displaySettingsKeys = Object.keys(formData).filter(k => k.startsWith('display_settings['));
+      if (displaySettingsKeys.length > 0) {
+        // Parse display_settings[display_id][field] pattern
+        const displayUpdates = {};
+        for (const key of displaySettingsKeys) {
+          const match = key.match(/display_settings\[([^\]]+)\]\[([^\]]+)\]/);
+          if (match) {
+            const [, dispId, field] = match;
+            if (!displayUpdates[dispId]) displayUpdates[dispId] = {};
+            displayUpdates[dispId][field] = formData[key];
+          }
+        }
+
+        // Apply updates to each display
+        for (const [dispId, dispUpdate] of Object.entries(displayUpdates)) {
+          try {
+            const updateObj = {};
+            if (dispUpdate.label) updateObj.label = dispUpdate.label;
+            if (dispUpdate.displayMode) updateObj.displayMode = dispUpdate.displayMode;
+            if (dispUpdate.path !== undefined) updateObj.path = dispUpdate.path.trim() || null;
+            if (dispUpdate.pager_type || dispUpdate.pager_limit) {
+              updateObj.pager = {};
+              if (dispUpdate.pager_type) updateObj.pager.type = dispUpdate.pager_type;
+              if (dispUpdate.pager_limit) updateObj.pager.limit = parseInt(dispUpdate.pager_limit) || 10;
+            }
+            await viewsService.updateDisplay(id, dispId, updateObj);
+          } catch (e) {
+            // Display might not exist yet (new view) - skip silently
+          }
+        }
+      }
+
       redirect(res, '/admin/views/' + id + '/edit?success=' + encodeURIComponent('View saved successfully'));
     } catch (error) {
       redirect(res, '/admin/views/' + id + '/edit?error=' + encodeURIComponent(error.message));
     }
   }, 'Update view');
+
+  /**
+   * POST /admin/views/:id/display/add - Add a display to a view
+   * WHY: Drupal Views support multiple displays (page, block, feed).
+   * This route adds a new display to an existing view.
+   */
+  register('POST', '/admin/views/:id/display/add', async (req, res, params, ctx) => {
+    const viewsService = ctx.services.get('views');
+    if (!viewsService) {
+      res.writeHead(404, { 'Content-Type': 'text/plain' });
+      res.end('Views service not available');
+      return;
+    }
+
+    const { id } = params;
+    try {
+      const formData = ctx._parsedBody || await parseFormBody(req);
+      const displayType = (formData.display_type || 'page').trim();
+
+      if (!['page', 'block', 'feed'].includes(displayType)) {
+        redirect(res, '/admin/views/' + id + '/edit?error=' + encodeURIComponent('Invalid display type: ' + displayType));
+        return;
+      }
+
+      // WHY: Ensure the view has a displays array before adding.
+      // Legacy views may not have one - initialize it.
+      const view = viewsService.getViewConfig(id);
+      if (!view) {
+        redirect(res, '/admin/views?error=' + encodeURIComponent('View not found: ' + id));
+        return;
+      }
+
+      if (!view.displays || !Array.isArray(view.displays)) {
+        // Initialize displays array with current display config
+        const defaultDisplay = {
+          type: view.display || 'page',
+          label: (view.display || 'page').charAt(0).toUpperCase() + (view.display || 'page').slice(1),
+          path: view.path || null,
+          displayMode: view.displayMode || 'table',
+        };
+        await viewsService.addDisplay(id, defaultDisplay);
+      }
+
+      // Add the new display
+      const display = await viewsService.addDisplay(id, {
+        type: displayType,
+        label: displayType.charAt(0).toUpperCase() + displayType.slice(1),
+      });
+
+      redirect(res, '/admin/views/' + id + '/edit?success=' + encodeURIComponent('Added ' + displayType + ' display: ' + display.id));
+    } catch (error) {
+      redirect(res, '/admin/views/' + id + '/edit?error=' + encodeURIComponent(error.message));
+    }
+  }, 'Add display to view');
+
+  /**
+   * POST /admin/views/:id/display/:displayId/remove - Remove a display
+   * WHY: Users may want to remove a display they no longer need.
+   */
+  register('POST', '/admin/views/:id/display/:displayId/remove', async (req, res, params, ctx) => {
+    const viewsService = ctx.services.get('views');
+    if (!viewsService) {
+      res.writeHead(404, { 'Content-Type': 'text/plain' });
+      res.end('Views service not available');
+      return;
+    }
+
+    const { id, displayId } = params;
+    try {
+      await viewsService.removeDisplay(id, displayId);
+      redirect(res, '/admin/views/' + id + '/edit?success=' + encodeURIComponent('Removed display: ' + displayId));
+    } catch (error) {
+      redirect(res, '/admin/views/' + id + '/edit?error=' + encodeURIComponent(error.message));
+    }
+  }, 'Remove display from view');
 
   /**
    * GET /admin/views/:id/preview - Preview view results
@@ -13047,19 +13396,126 @@ export function hook_routes(register, context) {
       queryError = error.message;
     }
 
+    // WHY PRE-RENDER: Template engine can't handle nested {{#each ../view.fields}}
+    // Pre-render the results table HTML server-side
+    const items = results ? results.items : [];
+    const viewFields = view.fields || [];
+    // Normalize fields - can be strings or objects with name/label/formatter
+    const fieldNames = viewFields.map(f => typeof f === 'string' ? f : (f.name || f));
+    // WHY: Custom labels override field names in table headers.
+    // Drupal Views allows each field to have a custom "Administrative title" that
+    // shows in the table header instead of the raw field name.
+    const fieldLabels = viewFields.map(f => {
+      if (typeof f === 'object' && f.label) return f.label;
+      const name = typeof f === 'string' ? f : (f.name || f);
+      return name.charAt(0).toUpperCase() + name.slice(1).replace(/[_-]/g, ' ');
+    });
+    // WHY: Formatters control how field values are displayed (e.g., trimmed, date, link, raw).
+    const fieldFormatters = viewFields.map(f => typeof f === 'object' ? (f.formatter || 'default') : 'default');
+
+    // Build table header HTML using custom labels
+    let tableHeaderHtml = '';
+    if (fieldNames.length > 0) {
+      tableHeaderHtml = fieldLabels.map(label => `<th>${label}</th>`).join('\n            ');
+    } else {
+      tableHeaderHtml = '<th>ID</th>\n            <th>Title</th>\n            <th>Status</th>\n            <th>Author</th>\n            <th>Created</th>';
+    }
+
+    /**
+     * Format a field value according to its formatter setting
+     * WHY: Different formatters present the same data differently:
+     * - default: as-is with HTML escaping
+     * - trimmed: first 200 characters with ellipsis
+     * - raw: unprocessed value
+     * - date: formatted date string
+     * - link: clickable link
+     */
+    function formatFieldValue(val, formatter) {
+      if (val === undefined || val === null) return '';
+      const str = String(val);
+      switch (formatter) {
+        case 'trimmed':
+          return str.length > 200 ? str.slice(0, 200) + '...' : str;
+        case 'date':
+          try {
+            return new Date(str).toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' });
+          } catch { return str; }
+        case 'link':
+          return `<a href="${str}" target="_blank">${str}</a>`;
+        case 'raw':
+          return str;
+        default:
+          return str;
+      }
+    }
+
+    // Build table body HTML with formatter support
+    let tableBodyHtml = '';
+    for (const item of items) {
+      let rowHtml = '<tr>';
+      if (fieldNames.length > 0) {
+        for (let fi = 0; fi < fieldNames.length; fi++) {
+          const val = item[fieldNames[fi]];
+          const formatted = formatFieldValue(val, fieldFormatters[fi]);
+          rowHtml += `<td>${formatted}</td>`;
+        }
+      } else {
+        const pubBadge = item.published
+          ? '<span class="status-badge status-published">Published</span>'
+          : '<span class="status-badge status-draft">Draft</span>';
+        rowHtml += `<td>${item.id || ''}</td>`;
+        rowHtml += `<td><strong>${item.title || ''}</strong></td>`;
+        rowHtml += `<td>${pubBadge}</td>`;
+        rowHtml += `<td>${item.author || ''}</td>`;
+        rowHtml += `<td>${item.created || ''}</td>`;
+      }
+      rowHtml += '</tr>';
+      tableBodyHtml += rowHtml + '\n          ';
+    }
+
+    // Build filters HTML
+    let filtersHtml = '';
+    if (view.filters && view.filters.length > 0) {
+      filtersHtml = view.filters.map(f =>
+        `<li><code>${f.field}</code> ${f.op || f.operator || '='} <strong>${f.value !== undefined ? f.value : ''}</strong></li>`
+      ).join('\n            ');
+    }
+
+    // Build sorts HTML
+    let sortsHtml = '';
+    if (view.sort && view.sort.length > 0) {
+      sortsHtml = view.sort.map(s =>
+        `<li><code>${s.field}</code> ${(s.dir || s.direction || 'desc').toUpperCase()}</li>`
+      ).join('\n            ');
+    }
+
     const html = renderAdmin('views-preview.html', {
       pageTitle: 'Preview: ' + view.name,
-      view,
       viewId: view.id,
       viewName: view.name,
-      results,
-      hasResults: results && results.items && results.items.length > 0,
-      resultCount: results ? results.items.length : 0,
+      viewDescription: view.description || '',
+      hasDescription: !!(view.description),
+      viewContentType: view.contentType,
+      viewDisplayMode: view.displayMode || view.display || 'table',
+      viewPath: view.path || '',
+      hasPath: !!(view.path),
+      viewHeader: view.header || '',
+      viewFooter: view.footer || '',
+      hasHeader: !!(view.header),
+      hasFooter: !!(view.footer),
+      resultCount: items.length,
       totalCount: results ? results.total : 0,
-      resultItems: results ? results.items : [],
+      hasResults: items.length > 0,
+      tableHeaderHtml,
+      tableBodyHtml,
+      hasFilters: !!(view.filters && view.filters.length > 0),
+      filtersHtml,
+      hasSorts: !!(view.sort && view.sort.length > 0),
+      sortsHtml,
+      viewItemsPerPage: view.pager ? view.pager.limit : 10,
+      hasItemsPerPage: !!(view.pager),
       queryError,
       hasError: !!queryError,
-      resultJSON: results ? JSON.stringify(results, null, 2) : '{}',
     }, ctx, req);
 
     server.html(res, html);
@@ -13071,20 +13527,20 @@ export function hook_routes(register, context) {
    */
   function parseViewArrayFormData(formData, prefix, keys) {
     const items = [];
+    // WHY: Track consecutive misses to handle sparse indices from add/remove cycles.
+    // When a user removes a field row and adds another, indices may have gaps
+    // (e.g., 0, 1, 3 with 2 removed). We skip gaps up to 10 consecutive misses.
+    let consecutiveMisses = 0;
     let i = 0;
-    while (i < 100) {
+    while (i < 200 && consecutiveMisses < 10) {
       const hasKey = keys.some(k => formData[prefix + '[' + i + '][' + k + ']'] !== undefined);
       if (!hasKey) {
-        // Also check for simple array like fields[]
-        if (formData[prefix + '[]'] !== undefined) {
-          const values = Array.isArray(formData[prefix + '[]'])
-            ? formData[prefix + '[]']
-            : [formData[prefix + '[]']];
-          return values.map(v => ({ name: v }));
-        }
-        break;
+        consecutiveMisses++;
+        i++;
+        continue;
       }
 
+      consecutiveMisses = 0;
       const item = {};
       for (const k of keys) {
         item[k] = formData[prefix + '[' + i + '][' + k + ']'] || '';
@@ -13092,6 +13548,15 @@ export function hook_routes(register, context) {
       items.push(item);
       i++;
     }
+
+    // Fallback: Also check for simple array like fields[]
+    if (items.length === 0 && formData[prefix + '[]'] !== undefined) {
+      const values = Array.isArray(formData[prefix + '[]'])
+        ? formData[prefix + '[]']
+        : [formData[prefix + '[]']];
+      return values.map(v => ({ name: v }));
+    }
+
     return items;
   }
 
@@ -13115,6 +13580,138 @@ export function hook_routes(register, context) {
       redirect(res, '/admin/views?error=' + encodeURIComponent(error.message));
     }
   }, 'Delete view');
+
+  /**
+   * Register view page display routes
+   * WHY: Views with page displays and configured paths need to be served as actual
+   * URL routes. We register a handler for each path that renders the view results.
+   */
+  (function registerViewPageRoutes() {
+    const viewsService = context.services?.get('views');
+    if (!viewsService || !viewsService.getPageDisplayRoutes) return;
+
+    const pageRoutes = viewsService.getPageDisplayRoutes();
+    for (const route of pageRoutes) {
+      if (!route.path) continue;
+
+      const routePath = route.path.startsWith('/') ? route.path : '/' + route.path;
+
+      register('GET', routePath, async (req, res, params, ctx) => {
+        const vs = ctx.services.get('views');
+        if (!vs) {
+          res.writeHead(404, { 'Content-Type': 'text/plain' });
+          res.end('Views service not available');
+          return;
+        }
+
+        const view = vs.getViewConfig(route.viewId);
+        if (!view) {
+          res.writeHead(404, { 'Content-Type': 'text/plain' });
+          res.end('View not found');
+          return;
+        }
+
+        let results;
+        try {
+          results = await vs.executeView(route.viewId, {
+            params,
+            query: Object.fromEntries(new URL(req.url, 'http://localhost').searchParams),
+          });
+        } catch (error) {
+          res.writeHead(500, { 'Content-Type': 'text/html' });
+          res.end('<h1>View Error</h1><p>' + error.message + '</p>');
+          return;
+        }
+
+        const display = route.display || {};
+        const displayMode = display.displayMode || 'table';
+        const items = results.items || [];
+        const viewFields = view.fields || [];
+        const fieldNames = viewFields.map(function(f) { return typeof f === 'string' ? f : (f.name || f); });
+
+        let contentHtml = '';
+
+        if (displayMode === 'table') {
+          let headerHtml = '';
+          if (fieldNames.length > 0) {
+            headerHtml = fieldNames.map(function(f) { return '<th>' + f + '</th>'; }).join('');
+          } else {
+            headerHtml = '<th>Title</th><th>Status</th><th>Created</th>';
+          }
+
+          let rowsHtml = '';
+          for (const item of items) {
+            rowsHtml += '<tr>';
+            if (fieldNames.length > 0) {
+              for (const fname of fieldNames) {
+                const val = item[fname];
+                rowsHtml += '<td>' + (val !== undefined && val !== null ? String(val) : '') + '</td>';
+              }
+            } else {
+              rowsHtml += '<td>' + (item.title || '') + '</td>';
+              rowsHtml += '<td>' + (item.published ? 'Published' : 'Draft') + '</td>';
+              rowsHtml += '<td>' + (item.created || '') + '</td>';
+            }
+            rowsHtml += '</tr>';
+          }
+
+          contentHtml = '<table class="view-table"><thead><tr>' + headerHtml + '</tr></thead><tbody>' + rowsHtml + '</tbody></table>';
+        } else if (displayMode === 'list') {
+          contentHtml = '<ul class="view-list">';
+          for (const item of items) {
+            contentHtml += '<li>' + (item.title || item.id || JSON.stringify(item)) + '</li>';
+          }
+          contentHtml += '</ul>';
+        } else if (displayMode === 'grid') {
+          contentHtml = '<div class="view-grid">';
+          for (const item of items) {
+            contentHtml += '<div class="view-grid-item"><h3>' + (item.title || '') + '</h3>';
+            if (item.summary) contentHtml += '<p>' + item.summary + '</p>';
+            contentHtml += '</div>';
+          }
+          contentHtml += '</div>';
+        }
+
+        let pagerHtml = '';
+        if (results.pager && results.pager.totalPages > 1) {
+          pagerHtml = '<div class="view-pager">';
+          if (results.pager.hasPrev) {
+            pagerHtml += '<a href="' + routePath + '?page=' + (results.pager.currentPage - 1) + '">&laquo; Previous</a> ';
+          }
+          pagerHtml += '<span>Page ' + (results.pager.currentPage + 1) + ' of ' + results.pager.totalPages + '</span>';
+          if (results.pager.hasNext) {
+            pagerHtml += ' <a href="' + routePath + '?page=' + (results.pager.currentPage + 1) + '">Next &raquo;</a>';
+          }
+          pagerHtml += '</div>';
+        }
+
+        const pageHtml = '<!DOCTYPE html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">'
+          + '<title>' + (view.name || 'View') + '</title>'
+          + '<style>'
+          + 'body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;margin:0;padding:2rem;color:#111827;background:#fff;max-width:1200px;margin:0 auto;}'
+          + 'h1{margin:0 0 1rem;font-size:1.5rem;color:#111827;}'
+          + '.view-table{width:100%;border-collapse:collapse;margin-bottom:1rem;}'
+          + '.view-table th{background:#f9fafb;border:1px solid #e5e7eb;padding:0.5rem 0.75rem;text-align:left;font-size:0.85rem;text-transform:uppercase;color:#6b7280;}'
+          + '.view-table td{border:1px solid #e5e7eb;padding:0.5rem 0.75rem;font-size:0.9rem;}'
+          + '.view-table tr:hover{background:#f9fafb;}'
+          + '.view-list{list-style:none;padding:0;}'
+          + '.view-list li{padding:0.5rem 0;border-bottom:1px solid #e5e7eb;}'
+          + '.view-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(250px,1fr));gap:1rem;}'
+          + '.view-grid-item{background:#f9fafb;border:1px solid #e5e7eb;border-radius:8px;padding:1rem;}'
+          + '.view-pager{margin-top:1rem;display:flex;align-items:center;gap:1rem;font-size:0.9rem;}'
+          + '.view-pager a{color:#2563eb;text-decoration:none;}'
+          + '.view-meta{font-size:0.85rem;color:#6b7280;margin-bottom:1rem;}'
+          + '</style></head><body>'
+          + '<h1>' + (view.name || 'View') + '</h1>'
+          + '<div class="view-meta">' + items.length + ' of ' + (results.total || 0) + ' items</div>'
+          + contentHtml
+          + pagerHtml
+          + '</body></html>';
+
+        server.html(res, pageHtml);
+      }, 'View page display: ' + route.viewId + ' at ' + route.path);
+    }
+  })();
 
   // ==========================================
   // Block Management
