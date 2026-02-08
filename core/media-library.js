@@ -175,7 +175,13 @@ function registerMediaContentType() {
       registerFn(config.contentType, {
         name: { type: 'string', required: true },
         mediaType: { type: 'string', required: true },
-        filename: { type: 'string', required: true },
+        filename: {
+          type: 'string',
+          required: true,
+          constraints: {
+            FileExtension: ['jpg', 'jpeg', 'png', 'gif', 'pdf', 'doc', 'docx', 'mp4', 'webm']
+          }
+        },
         path: { type: 'string', required: true },
         mimeType: { type: 'string' },
         size: { type: 'number' },
