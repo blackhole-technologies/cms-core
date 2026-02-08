@@ -1188,6 +1188,9 @@ export async function boot(baseDir, options = {}) {
         config: mediaLibraryConfig,
       });
       services.register('mediaLibrary', () => mediaLibrary);
+      if (mediaLibrary.register && typeof mediaLibrary.register === 'function') {
+        mediaLibrary.register(cli.register.bind(cli));
+      }
       log('[boot] Media Library enabled');
     }
 

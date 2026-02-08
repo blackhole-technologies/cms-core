@@ -2,7 +2,7 @@
   "id": "1770529521696-4g1f8",
   "type": "media-entity",
   "created": "2026-02-08T05:45:21.696Z",
-  "updated": "2026-02-08T06:13:12.468Z",
+  "updated": "2026-02-08T05:45:21.696Z",
   "name": "exposed-filter-test1",
   "mediaType": "image",
   "filename": "1770529521695-exposed-filter-test1.png",
@@ -20,6 +20,5 @@
   },
   "status": "published",
   "isDefaultRevision": true,
-  "publishedAt": "2026-02-08T05:45:21.696Z",
-  "folder": "Screenshots/2026"
+  "publishedAt": "2026-02-08T05:45:21.696Z"
 }
