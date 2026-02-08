@@ -282,6 +282,7 @@ export async function create(data, user = null) {
     parent: data.parent || null,
     description: data.description || '',
     assignees: data.assignees || [],
+    expiresAt: data.expiresAt || null,
   };
 
   // Persist to disk
@@ -389,7 +390,7 @@ export async function update(id, updates, user = null) {
   }
 
   // Only allow updating specific fields
-  const allowedFields = ['label', 'status', 'description', 'parent'];
+  const allowedFields = ['label', 'status', 'description', 'parent', 'expiresAt'];
   for (const field of allowedFields) {
     if (updates[field] !== undefined) {
       workspace[field] = updates[field];
@@ -668,6 +669,9 @@ export function associateContent(workspaceId, contentType, contentId, operation 
   if (!workspace) {
     throw new Error(`Workspace not found: ${workspaceId}`);
   }
+
+  // Enforce expiration — expired workspaces are read-only
+  enforceNotExpired(workspaceId);
 
   const associations = getAssociations(workspaceId);
   const existing = associations.items.findIndex(
@@ -1050,6 +1054,322 @@ export function getAssignedWorkspaces(userId) {
 }
 
 // ============================================================================
+// Nested Workspace Hierarchy
+// ============================================================================
+
+/**
+ * Get direct children of a workspace.
+ *
+ * WHY CHILDREN:
+ * Nested workspaces form a hierarchy: parent → child → grandchild.
+ * Children inherit content from their parent and publish UP the chain
+ * (child → parent → live) rather than directly to live.
+ *
+ * @param {string} workspaceId - Workspace UUID or machine name
+ * @returns {Object[]} Array of child workspace entities
+ */
+export function getChildren(workspaceId) {
+  const workspace = resolveWorkspace(workspaceId);
+  if (!workspace) return [];
+
+  const children = [];
+  for (const ws of workspaceCache.values()) {
+    if (ws.parent === workspace.id) {
+      children.push(ws);
+    }
+  }
+  return children;
+}
+
+/**
+ * Get the full hierarchy chain from a workspace up to root (live).
+ *
+ * WHY HIERARCHY:
+ * Knowing the full ancestor chain is needed for content inheritance
+ * (content flows down: live → parent → child) and for publish operations
+ * (changes flow up: child → parent → live).
+ *
+ * @param {string} workspaceId - Workspace UUID or machine name
+ * @returns {Object[]} Array from root to leaf, empty if workspace not found
+ */
+export function getHierarchy(workspaceId) {
+  const workspace = resolveWorkspace(workspaceId);
+  if (!workspace) return [];
+
+  const chain = [workspace];
+  let current = workspace;
+  const visited = new Set([current.id]);
+
+  // Walk up the parent chain
+  while (current.parent) {
+    const parent = workspaceCache.get(current.parent);
+    if (!parent || visited.has(parent.id)) break; // Prevent circular
+    visited.add(parent.id);
+    chain.unshift(parent); // Add at beginning (root first)
+    current = parent;
+  }
+
+  return chain;
+}
+
+/**
+ * Publish a workspace's content to its parent workspace (not to live).
+ *
+ * WHY PUBLISH TO PARENT:
+ * In a nested workspace hierarchy, publishing moves content UP one level.
+ * A child workspace publishes to its parent, and the parent can then
+ * publish to live (or to its own parent). This creates a staged review
+ * pipeline: dev → staging → live.
+ *
+ * FLOW:
+ * 1. Get all associations from the child workspace
+ * 2. For each content item: associate it with the parent workspace
+ * 3. Copy workspace content to parent's workspace copy format
+ * 4. Remove associations from child workspace
+ *
+ * @param {string} childId - Child workspace UUID or machine name
+ * @param {Object} [options] - Options
+ * @param {Object} [user] - User performing the action
+ * @returns {Object} Result with published items
+ */
+export async function publishToParent(childId, options = {}, user = null) {
+  const child = resolveWorkspace(childId);
+  if (!child) {
+    throw new Error(`Workspace not found: ${childId}`);
+  }
+
+  if (!child.parent) {
+    throw new Error(`Workspace "${child.label}" has no parent. Use workspace:publish to publish directly to live.`);
+  }
+
+  const parent = workspaceCache.get(child.parent);
+  if (!parent) {
+    throw new Error(`Parent workspace not found: ${child.parent}`);
+  }
+
+  const associations = getAssociations(child.id);
+  if (!associations.items || associations.items.length === 0) {
+    return {
+      published: true,
+      childId: child.id,
+      childLabel: child.label,
+      parentId: parent.id,
+      parentLabel: parent.label,
+      itemCount: 0,
+      items: [],
+      message: 'Child workspace has no content to publish to parent',
+    };
+  }
+
+  const childPrefix = child.id.substring(0, 8);
+  const parentPrefix = parent.id.substring(0, 8);
+  const contentDir = join(baseDir, 'content');
+  const results = [];
+  const errors = [];
+
+  for (const association of [...associations.items]) {
+    try {
+      const { type: contentType, id: contentId, operation } = association;
+
+      if (operation === 'create') {
+        // Content created in child — re-associate with parent
+        const contentPath = join(contentDir, contentType, `${contentId}.json`);
+        if (existsSync(contentPath)) {
+          const item = JSON.parse(readFileSync(contentPath, 'utf-8'));
+          // Update workspace reference to parent
+          item._workspace = parent.id;
+          writeFileSync(contentPath, JSON.stringify(item, null, 2) + '\n');
+        }
+        associateContent(parent.id, contentType, contentId, 'create');
+      } else if (operation === 'edit') {
+        // Content edited in child — move workspace copy to parent's format
+        const childCopyId = `ws-${childPrefix}-${contentId}`;
+        const parentCopyId = `ws-${parentPrefix}-${contentId}`;
+
+        const childCopyPath = join(contentDir, contentType, `${childCopyId}.json`);
+        if (existsSync(childCopyPath)) {
+          const childCopy = JSON.parse(readFileSync(childCopyPath, 'utf-8'));
+
+          // Update workspace references
+          childCopy._workspace = parent.id;
+          childCopy.id = parentCopyId;
+
+          // Write parent's workspace copy
+          const parentCopyPath = join(contentDir, contentType, `${parentCopyId}.json`);
+          writeFileSync(parentCopyPath, JSON.stringify(childCopy, null, 2) + '\n');
+
+          // Remove child's workspace copy
+          unlinkSync(childCopyPath);
+        }
+        associateContent(parent.id, contentType, contentId, 'edit');
+      }
+
+      // Remove from child's associations
+      removeContentAssociation(child.id, contentType, contentId);
+
+      results.push({
+        contentType,
+        contentId,
+        operation,
+        from: child.label,
+        to: parent.label,
+      });
+    } catch (err) {
+      errors.push({
+        contentId: association.id,
+        contentType: association.type,
+        error: err.message,
+      });
+    }
+  }
+
+  // Audit log
+  if (auditModule && typeof auditModule.log === 'function') {
+    auditModule.log('workspace.publishToParent', {
+      childId: child.id,
+      childLabel: child.label,
+      parentId: parent.id,
+      parentLabel: parent.label,
+      itemCount: results.length,
+      userId: user?.id,
+    });
+  }
+
+  return {
+    published: true,
+    childId: child.id,
+    childLabel: child.label,
+    parentId: parent.id,
+    parentLabel: parent.label,
+    itemCount: results.length,
+    items: results,
+    errors: errors.length > 0 ? errors : undefined,
+    message: errors.length > 0
+      ? `Published ${results.length} items from "${child.label}" to "${parent.label}" with ${errors.length} error(s)`
+      : `Successfully published ${results.length} item(s) from "${child.label}" to "${parent.label}"`,
+  };
+}
+
+// ============================================================================
+// Workspace Expiration
+// ============================================================================
+
+/**
+ * Check if a workspace has expired.
+ *
+ * WHY EXPIRATION:
+ * Workspaces may have a limited lifespan (e.g., a sprint, a campaign launch).
+ * After the expiration date, the workspace becomes read-only to prevent stale
+ * changes from being published. This follows the principle of "don't publish
+ * forgotten workspace changes months later."
+ *
+ * @param {string} workspaceId - Workspace UUID or machine name
+ * @returns {boolean} True if workspace has expired
+ */
+export function isExpired(workspaceId) {
+  const workspace = resolveWorkspace(workspaceId);
+  if (!workspace) return false;
+
+  if (!workspace.expiresAt) return false;
+
+  const expirationDate = new Date(workspace.expiresAt);
+  return expirationDate <= new Date();
+}
+
+/**
+ * Get expiration status details for a workspace.
+ *
+ * @param {string} workspaceId - Workspace UUID or machine name
+ * @returns {Object} Expiration status: { expired, expiresAt, remainingMs, remainingHuman }
+ */
+export function getExpirationStatus(workspaceId) {
+  const workspace = resolveWorkspace(workspaceId);
+  if (!workspace) return { expired: false, expiresAt: null };
+
+  if (!workspace.expiresAt) {
+    return { expired: false, expiresAt: null, remainingMs: null, remainingHuman: 'No expiration set' };
+  }
+
+  const expirationDate = new Date(workspace.expiresAt);
+  const now = new Date();
+  const remainingMs = expirationDate.getTime() - now.getTime();
+  const expired = remainingMs <= 0;
+
+  let remainingHuman;
+  if (expired) {
+    const agoMs = Math.abs(remainingMs);
+    const hours = Math.floor(agoMs / 3600000);
+    const days = Math.floor(hours / 24);
+    remainingHuman = days > 0 ? `Expired ${days} day(s) ago` : `Expired ${hours} hour(s) ago`;
+  } else {
+    const hours = Math.floor(remainingMs / 3600000);
+    const days = Math.floor(hours / 24);
+    remainingHuman = days > 0 ? `${days} day(s) remaining` : `${hours} hour(s) remaining`;
+  }
+
+  return {
+    expired,
+    expiresAt: workspace.expiresAt,
+    remainingMs,
+    remainingHuman,
+  };
+}
+
+/**
+ * Enforce that a workspace is not expired before allowing write operations.
+ *
+ * @param {string} workspaceId - Workspace UUID or machine name
+ * @throws {Error} If workspace is expired (code: WORKSPACE_EXPIRED, status: 403)
+ */
+function enforceNotExpired(workspaceId) {
+  if (isExpired(workspaceId)) {
+    const workspace = resolveWorkspace(workspaceId);
+    const label = workspace ? workspace.label : workspaceId;
+    const err = new Error(`Workspace "${label}" has expired and is read-only. Expiration: ${workspace.expiresAt}`);
+    err.code = 'WORKSPACE_EXPIRED';
+    err.status = 403;
+    throw err;
+  }
+}
+
+/**
+ * Set an expiration date on a workspace.
+ *
+ * @param {string} workspaceId - Workspace UUID or machine name
+ * @param {string|null} expiresAt - ISO date string, or null to remove expiration
+ * @param {Object} [user] - User performing the action
+ * @returns {Object} Updated workspace
+ */
+export async function setExpiration(workspaceId, expiresAt, user = null) {
+  const workspace = resolveWorkspace(workspaceId);
+  if (!workspace) {
+    throw new Error(`Workspace not found: ${workspaceId}`);
+  }
+
+  // Validate date if provided
+  if (expiresAt !== null) {
+    const date = new Date(expiresAt);
+    if (isNaN(date.getTime())) {
+      throw new Error(`Invalid date: ${expiresAt}`);
+    }
+    workspace.expiresAt = date.toISOString();
+  } else {
+    workspace.expiresAt = null;
+  }
+
+  workspace.updated = new Date().toISOString();
+  saveWorkspace(workspace);
+  workspaceCache.set(workspace.id, workspace);
+
+  // Activity log
+  logActivity(workspace.id, 'workspace.set_expiration', {
+    expiresAt: workspace.expiresAt,
+  }, user);
+
+  return workspace;
+}
+
+// ============================================================================
 // Helpers
 // ============================================================================
 
@@ -1142,16 +1462,47 @@ export function registerCli(register) {
     }
 
     try {
+      // Resolve parent workspace if --parent flag provided
+      let parentId = null;
+      if (options.parent) {
+        const parentWs = resolveWorkspace(options.parent);
+        if (!parentWs) {
+          console.error(`\u2717 Parent workspace not found: ${options.parent}`);
+          return false;
+        }
+        parentId = parentWs.id;
+      }
+
+      // Parse expiration date if --expires flag provided
+      let expiresAt = null;
+      if (options.expires) {
+        const date = new Date(options.expires);
+        if (isNaN(date.getTime())) {
+          console.error(`\u2717 Invalid expiration date: ${options.expires}`);
+          return false;
+        }
+        expiresAt = date.toISOString();
+      }
+
       const workspace = await create({
         label: label || machineName,
         machineName: machineName || undefined,
         description: options.description || options.d || '',
+        parent: parentId,
+        expiresAt,
       });
 
       console.log(`\u2713 Workspace created: ${workspace.label}`);
       console.log(`  ID: ${workspace.id}`);
       console.log(`  Machine name: ${workspace.machineName}`);
       console.log(`  Status: ${workspace.status}`);
+      if (workspace.parent) {
+        const parentWs = get(workspace.parent);
+        console.log(`  Parent: ${parentWs ? parentWs.label : workspace.parent}`);
+      }
+      if (workspace.expiresAt) {
+        console.log(`  Expires: ${workspace.expiresAt}`);
+      }
       return true;
     } catch (err) {
       console.error(`\u2717 Failed to create workspace: ${err.message}`);
@@ -1175,12 +1526,17 @@ export function registerCli(register) {
 
     for (const ws of results) {
       const statusBadge = ws.status === 'active' ? '[active]' : '[archived]';
-      console.log(`  ${ws.machineName} ${statusBadge}`);
+      const expiredBadge = isExpired(ws.id) ? ' [EXPIRED]' : '';
+      console.log(`  ${ws.machineName} ${statusBadge}${expiredBadge}`);
       console.log(`    Label: ${ws.label}`);
       console.log(`    ID: ${ws.id}`);
       console.log(`    Created: ${ws.created}`);
       if (ws.description) {
         console.log(`    Description: ${ws.description}`);
+      }
+      if (ws.expiresAt) {
+        const expStatus = getExpirationStatus(ws.id);
+        console.log(`    Expires: ${ws.expiresAt} (${expStatus.remainingHuman})`);
       }
       console.log('');
     }
@@ -1498,6 +1854,102 @@ export function registerCli(register) {
     return true;
   }, 'Check if a user can access a workspace');
 
+  // workspace:children <workspaceId|machineName> - List child workspaces
+  register('workspace:children', async (args) => {
+    const { positional } = parseCliArgs(args);
+    const identifier = positional[0];
+
+    if (!identifier) {
+      console.log('Usage: workspace:children <workspaceId|machineName>');
+      console.log('Show direct child workspaces of a parent workspace.');
+      return false;
+    }
+
+    const workspace = resolveWorkspace(identifier);
+    if (!workspace) {
+      console.error(`\u2717 Workspace not found: ${identifier}`);
+      return false;
+    }
+
+    const children = getChildren(workspace.id);
+    if (children.length === 0) {
+      console.log(`Workspace "${workspace.label}" has no child workspaces.`);
+      return true;
+    }
+
+    console.log(`Children of "${workspace.label}" (${children.length}):`);
+    console.log('\u2500'.repeat(60));
+    for (const child of children) {
+      const assoc = getAssociations(child.id);
+      const count = assoc.items ? assoc.items.length : 0;
+      console.log(`  ${child.machineName} — ${child.label}`);
+      console.log(`    ID: ${child.id}  Status: ${child.status}  Items: ${count}`);
+    }
+    return true;
+  }, 'List child workspaces of a parent');
+
+  // workspace:hierarchy <workspaceId|machineName> - Show workspace ancestor chain
+  register('workspace:hierarchy', async (args) => {
+    const { positional } = parseCliArgs(args);
+    const identifier = positional[0];
+
+    if (!identifier) {
+      console.log('Usage: workspace:hierarchy <workspaceId|machineName>');
+      console.log('Show the full parent chain from root (live) to the given workspace.');
+      return false;
+    }
+
+    const workspace = resolveWorkspace(identifier);
+    if (!workspace) {
+      console.error(`\u2717 Workspace not found: ${identifier}`);
+      return false;
+    }
+
+    const chain = getHierarchy(workspace.id);
+
+    console.log('Workspace hierarchy:');
+    console.log('  [live]');
+    for (let i = 0; i < chain.length; i++) {
+      const indent = '  '.repeat(i + 2);
+      const ws = chain[i];
+      const marker = ws.id === workspace.id ? '\u25B6' : '\u2502';
+      console.log(`${indent}${marker} ${ws.machineName} (${ws.label})`);
+    }
+    // Show children of current workspace
+    const children = getChildren(workspace.id);
+    if (children.length > 0) {
+      const childIndent = '  '.repeat(chain.length + 2);
+      for (const child of children) {
+        console.log(`${childIndent}\u2514 ${child.machineName} (${child.label})`);
+      }
+    }
+    return true;
+  }, 'Show workspace ancestor chain');
+
+  // workspace:publish-to-parent <childWorkspace> - Publish child workspace content to parent
+  register('workspace:publish-to-parent', async (args) => {
+    const { positional } = parseCliArgs(args);
+    const identifier = positional[0];
+
+    if (!identifier) {
+      console.log('Usage: workspace:publish-to-parent <workspaceId|machineName>');
+      console.log('Publish workspace content to its parent workspace (not to live).');
+      return false;
+    }
+
+    try {
+      const result = await publishToParent(identifier);
+      console.log(`\u2713 ${result.message}`);
+      for (const item of result.items) {
+        console.log(`  \u2713 ${item.contentType}/${item.contentId} [${item.operation}] → ${item.to}`);
+      }
+      return true;
+    } catch (err) {
+      console.error(`\u2717 Failed: ${err.message}`);
+      return false;
+    }
+  }, 'Publish workspace content to parent workspace');
+
   // workspace:publish-content <workspaceId|machineName> <contentId>
   register('workspace:publish-content', async (args) => {
     const { positional } = parseCliArgs(args);
@@ -1796,6 +2248,159 @@ export function registerCli(register) {
       return false;
     }
   }, 'View workspace activity log');
+
+  // workspace:analytics <workspace> - Show workspace analytics (changes, age, breakdown)
+  register('workspace:analytics', async (args) => {
+    const { positional } = parseCliArgs(args);
+    const workspaceRef = positional[0];
+
+    if (!workspaceRef) {
+      console.log('Usage: workspace:analytics <workspace-id-or-machine-name>');
+      console.log('Shows workspace statistics: change count, age, content type breakdown.');
+      return false;
+    }
+
+    try {
+      const analytics = getWorkspaceAnalytics(workspaceRef);
+
+      console.log(`\nWorkspace Analytics: ${analytics.workspace.label} (${analytics.workspace.machineName})`);
+      console.log('═'.repeat(60));
+
+      // Overview
+      console.log(`\n  Status:       ${analytics.workspace.status}`);
+      console.log(`  Age:          ${analytics.age.display}`);
+      console.log(`  Created:      ${new Date(analytics.age.created).toLocaleString()}`);
+      console.log(`  Changes:      ${analytics.changeCount} content item(s)`);
+      console.log(`  Activities:   ${analytics.activity.totalActions} logged action(s)`);
+      console.log(`  Children:     ${analytics.childrenCount} child workspace(s)`);
+      if (analytics.workspace.parent) {
+        console.log(`  Parent:       ${analytics.workspace.parent}`);
+      }
+      // Show expiration status if set
+      if (analytics.workspace.expiresAt) {
+        const expStatus = getExpirationStatus(analytics.workspace.id);
+        console.log(`  Expires:      ${analytics.workspace.expiresAt} (${expStatus.remainingHuman})`);
+        if (expStatus.expired) {
+          console.log(`  \u26A0 EXPIRED — workspace is read-only`);
+        }
+      }
+
+      // Staleness
+      if (analytics.staleness.isStale) {
+        console.log(`\n  ⚠ STALE: No activity for ${analytics.staleness.daysSinceLastActivity} day(s)`);
+      } else if (analytics.staleness.daysSinceLastActivity !== null) {
+        console.log(`  Last active:  ${analytics.staleness.daysSinceLastActivity} day(s) ago`);
+      }
+
+      // Content type breakdown
+      if (analytics.contentTypeBreakdown.length > 0) {
+        console.log(`\n  Content Type Breakdown:`);
+        console.log('  ' + '─'.repeat(50));
+        for (const t of analytics.contentTypeBreakdown) {
+          const ops = Object.entries(t.operations)
+            .filter(([, v]) => v > 0)
+            .map(([k, v]) => `${v} ${k}`)
+            .join(', ');
+          console.log(`    ${t.type}: ${t.count} change(s) (${ops})`);
+          if (t.latestChange) {
+            console.log(`      Latest: ${new Date(t.latestChange).toLocaleString()}`);
+          }
+        }
+      } else {
+        console.log(`\n  No content changes in this workspace.`);
+      }
+
+      // Activity breakdown
+      if (Object.keys(analytics.activity.actionBreakdown).length > 0) {
+        console.log(`\n  Activity Breakdown:`);
+        console.log('  ' + '─'.repeat(50));
+        const sorted = Object.entries(analytics.activity.actionBreakdown)
+          .sort((a, b) => b[1] - a[1]);
+        for (const [action, count] of sorted) {
+          console.log(`    ${action}: ${count}`);
+        }
+      }
+
+      // Children
+      if (analytics.children.length > 0) {
+        console.log(`\n  Child Workspaces:`);
+        console.log('  ' + '─'.repeat(50));
+        for (const child of analytics.children) {
+          console.log(`    ${child.label} (${child.machineName})`);
+        }
+      }
+
+      console.log('');
+      return true;
+    } catch (err) {
+      console.error(`✗ ${err.message}`);
+      return false;
+    }
+  }, 'Show workspace analytics (changes, age, content type breakdown)');
+
+  // workspace:set-expiration <workspace> <date|"none"> - Set or remove expiration date
+  register('workspace:set-expiration', async (args) => {
+    const { positional } = parseCliArgs(args);
+    const identifier = positional[0];
+    const dateStr = positional[1];
+
+    if (!identifier || !dateStr) {
+      console.log('Usage: workspace:set-expiration <workspaceId|machineName> <ISO-date|"none">');
+      console.log('Examples:');
+      console.log('  workspace:set-expiration staging 2026-03-01T00:00:00Z');
+      console.log('  workspace:set-expiration staging none    # remove expiration');
+      return false;
+    }
+
+    try {
+      const expiresAt = dateStr === 'none' ? null : dateStr;
+      const workspace = await setExpiration(identifier, expiresAt);
+
+      if (workspace.expiresAt) {
+        const status = getExpirationStatus(workspace.id);
+        console.log(`\u2713 Expiration set for workspace "${workspace.label}"`);
+        console.log(`  Expires: ${workspace.expiresAt}`);
+        console.log(`  Status: ${status.remainingHuman}`);
+      } else {
+        console.log(`\u2713 Expiration removed for workspace "${workspace.label}"`);
+      }
+      return true;
+    } catch (err) {
+      console.error(`\u2717 Failed: ${err.message}`);
+      return false;
+    }
+  }, 'Set or remove workspace expiration date');
+
+  // workspace:expiration <workspace> - Check expiration status
+  register('workspace:expiration', async (args) => {
+    const { positional } = parseCliArgs(args);
+    const identifier = positional[0];
+
+    if (!identifier) {
+      console.log('Usage: workspace:expiration <workspaceId|machineName>');
+      return false;
+    }
+
+    const workspace = resolveWorkspace(identifier);
+    if (!workspace) {
+      console.error(`\u2717 Workspace not found: ${identifier}`);
+      return false;
+    }
+
+    const status = getExpirationStatus(workspace.id);
+
+    console.log(`Workspace: ${workspace.label} (${workspace.machineName})`);
+    if (!workspace.expiresAt) {
+      console.log('  No expiration date set');
+    } else {
+      console.log(`  Expires: ${workspace.expiresAt}`);
+      console.log(`  Status: ${status.remainingHuman}`);
+      if (status.expired) {
+        console.log('  \u26A0 This workspace is READ-ONLY (expired)');
+      }
+    }
+    return true;
+  }, 'Check workspace expiration status');
 }
 
 /**
@@ -2713,6 +3318,19 @@ export function registerRoutes(router, auth) {
       res.end(JSON.stringify({ error: err.message }));
     }
   });
+
+  // GET /api/workspaces/:id/analytics - Workspace analytics
+  router.register('GET', '/api/workspaces/:id/analytics', async (req, res) => {
+    try {
+      const analytics = getWorkspaceAnalytics(req.params.id);
+      res.writeHead(200, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ data: analytics }));
+    } catch (err) {
+      const status = err.message.includes('not found') ? 404 : 400;
+      res.writeHead(status, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ error: err.message }));
+    }
+  });
 }
 
 /**
@@ -2843,6 +3461,164 @@ export function getStats() {
   }
 
   return { active, archived, total: workspaceCache.size };
+}
+
+/**
+ * Get detailed analytics for a specific workspace.
+ *
+ * WHY ANALYTICS:
+ * Provides stakeholders with insights into workspace activity:
+ * - How many changes have been staged
+ * - How old the workspace is (helps identify stale workspaces)
+ * - Which content types are affected (impact assessment)
+ * - Activity frequency (is the workspace actively used?)
+ *
+ * Follows Drupal's workspace analytics pattern for monitoring
+ * staging environments before publication.
+ *
+ * @param {string} workspaceId - Workspace UUID or machine name
+ * @returns {Object} Analytics data including change count, age, content type breakdown
+ * @throws {Error} If workspace not found
+ */
+export function getWorkspaceAnalytics(workspaceId) {
+  const workspace = resolveWorkspace(workspaceId);
+  if (!workspace) {
+    throw new Error(`Workspace not found: ${workspaceId}`);
+  }
+
+  // --- Change count ---
+  const associations = getAssociations(workspace.id);
+  const items = associations.items || [];
+  const changeCount = items.length;
+
+  // --- Workspace age ---
+  const created = new Date(workspace.created);
+  const now = new Date();
+  const ageMs = now - created;
+  const ageDays = Math.floor(ageMs / (1000 * 60 * 60 * 24));
+  const ageHours = Math.floor(ageMs / (1000 * 60 * 60));
+  const ageMinutes = Math.floor(ageMs / (1000 * 60));
+
+  // Human-readable age string
+  let ageDisplay;
+  if (ageDays > 0) {
+    ageDisplay = `${ageDays} day${ageDays !== 1 ? 's' : ''}`;
+  } else if (ageHours > 0) {
+    ageDisplay = `${ageHours} hour${ageHours !== 1 ? 's' : ''}`;
+  } else {
+    ageDisplay = `${ageMinutes} minute${ageMinutes !== 1 ? 's' : ''}`;
+  }
+
+  // --- Content type breakdown ---
+  // Group associations by content type with operation counts
+  const typeBreakdown = {};
+  for (const item of items) {
+    const type = item.type || 'unknown';
+    if (!typeBreakdown[type]) {
+      typeBreakdown[type] = {
+        type,
+        count: 0,
+        operations: { create: 0, edit: 0 },
+        latestChange: null,
+      };
+    }
+    typeBreakdown[type].count++;
+    const op = item.operation || 'edit';
+    if (typeBreakdown[type].operations[op] !== undefined) {
+      typeBreakdown[type].operations[op]++;
+    } else {
+      typeBreakdown[type].operations[op] = 1;
+    }
+    // Track latest change timestamp per type
+    if (item.timestamp) {
+      if (!typeBreakdown[type].latestChange || item.timestamp > typeBreakdown[type].latestChange) {
+        typeBreakdown[type].latestChange = item.timestamp;
+      }
+    }
+  }
+
+  // Convert to sorted array (most changes first)
+  const contentTypeBreakdown = Object.values(typeBreakdown)
+    .sort((a, b) => b.count - a.count);
+
+  // --- Activity summary from log ---
+  let activityCount = 0;
+  let latestActivity = null;
+  let oldestActivity = null;
+  const activityTypes = {};
+
+  try {
+    const log = getActivityLog(workspace.id, { limit: 1000 });
+    activityCount = log.length;
+
+    if (log.length > 0) {
+      latestActivity = log[0].timestamp;
+      oldestActivity = log[log.length - 1].timestamp;
+
+      // Count activity types
+      for (const entry of log) {
+        const action = entry.action || 'unknown';
+        activityTypes[action] = (activityTypes[action] || 0) + 1;
+      }
+    }
+  } catch {
+    // Activity log may not exist yet
+  }
+
+  // --- Staleness indicator ---
+  // A workspace is considered stale if it has no activity for 7+ days
+  let isStale = false;
+  let daysSinceLastActivity = null;
+  if (latestActivity) {
+    const lastActivityDate = new Date(latestActivity);
+    daysSinceLastActivity = Math.floor((now - lastActivityDate) / (1000 * 60 * 60 * 24));
+    isStale = daysSinceLastActivity >= 7;
+  } else {
+    // No activity recorded, use creation date
+    daysSinceLastActivity = ageDays;
+    isStale = ageDays >= 7;
+  }
+
+  // --- Children workspaces ---
+  const children = getChildren(workspace.id);
+
+  return {
+    workspace: {
+      id: workspace.id,
+      label: workspace.label,
+      machineName: workspace.machineName,
+      status: workspace.status,
+      created: workspace.created,
+      updated: workspace.updated,
+      parent: workspace.parent || null,
+      description: workspace.description || '',
+    },
+    changeCount,
+    age: {
+      days: ageDays,
+      hours: ageHours,
+      minutes: ageMinutes,
+      display: ageDisplay,
+      created: workspace.created,
+    },
+    contentTypeBreakdown,
+    activity: {
+      totalActions: activityCount,
+      latestActivity,
+      oldestActivity,
+      actionBreakdown: activityTypes,
+    },
+    staleness: {
+      isStale,
+      daysSinceLastActivity,
+    },
+    children: children.map(c => ({
+      id: c.id,
+      label: c.label,
+      machineName: c.machineName,
+    })),
+    childrenCount: children.length,
+  };
 }
 
 /**

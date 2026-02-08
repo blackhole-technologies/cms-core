@@ -6389,6 +6389,198 @@ export function hook_routes(register, context) {
     res.end(html);
   }, 'Workspace activity log');
 
+  // GET /workspace/:id/analytics - Workspace analytics page
+  register('GET', '/workspace/:id/analytics', async (req, res, params, ctx) => {
+    const workspacesService = ctx.services.get('workspaces');
+    if (!workspacesService) {
+      res.writeHead(500, { 'Content-Type': 'text/plain' });
+      res.end('Workspaces service not available');
+      return;
+    }
+
+    // Resolve workspace by UUID or machine name
+    let workspace = workspacesService.get(params.id);
+    if (!workspace) {
+      workspace = workspacesService.getByMachineName(params.id);
+    }
+
+    if (!workspace) {
+      res.writeHead(404, { 'Content-Type': 'text/html' });
+      res.end('<h1>Workspace not found</h1>');
+      return;
+    }
+
+    let analytics;
+    try {
+      analytics = workspacesService.getWorkspaceAnalytics(workspace.id);
+    } catch (err) {
+      res.writeHead(500, { 'Content-Type': 'text/html' });
+      res.end(`<h1>Error loading analytics: ${err.message}</h1>`);
+      return;
+    }
+
+    // Build content type breakdown rows
+    const typeRows = analytics.contentTypeBreakdown.map(t => {
+      const ops = Object.entries(t.operations)
+        .filter(([, v]) => v > 0)
+        .map(([k, v]) => `<span class="badge badge-${k === 'create' ? 'success' : 'info'}">${v} ${k}</span>`)
+        .join(' ');
+      const latest = t.latestChange ? new Date(t.latestChange).toLocaleString() : '—';
+      return `<tr>
+        <td><strong>${t.type}</strong></td>
+        <td>${t.count}</td>
+        <td>${ops}</td>
+        <td>${latest}</td>
+      </tr>`;
+    }).join('\n');
+
+    // Build activity breakdown rows
+    const activityRows = Object.entries(analytics.activity.actionBreakdown)
+      .sort((a, b) => b[1] - a[1])
+      .map(([action, count]) => `<tr>
+        <td><code>${action}</code></td>
+        <td>${count}</td>
+      </tr>`)
+      .join('\n');
+
+    // Build children list
+    const childrenList = analytics.children.map(c =>
+      `<li><a href="/workspace/${c.machineName}/analytics">${c.label}</a> (${c.machineName})</li>`
+    ).join('\n');
+
+    // Staleness badge
+    const staleBadge = analytics.staleness.isStale
+      ? `<span class="badge badge-warning">⚠ Stale (${analytics.staleness.daysSinceLastActivity} days inactive)</span>`
+      : analytics.staleness.daysSinceLastActivity !== null
+        ? `<span class="badge badge-success">Active (${analytics.staleness.daysSinceLastActivity}d since last activity)</span>`
+        : '<span class="badge">No activity recorded</span>';
+
+    const html = `<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Workspace Analytics: ${analytics.workspace.label}</title>
+  <style>
+    body { font-family: -apple-system, BlinkMacSystemFont, sans-serif; margin: 0; padding: 20px; background: #f5f5f5; color: #333; }
+    .container { max-width: 1100px; margin: 0 auto; }
+    h1 { color: #0073aa; margin-bottom: 5px; }
+    h2 { color: #333; margin-top: 30px; border-bottom: 2px solid #0073aa; padding-bottom: 8px; }
+    .subtitle { color: #666; margin-bottom: 20px; font-size: 0.95em; }
+    .stats-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 16px; margin: 20px 0; }
+    .stat-card { background: white; border-radius: 8px; padding: 20px; box-shadow: 0 1px 3px rgba(0,0,0,0.1); text-align: center; }
+    .stat-card .value { font-size: 2em; font-weight: bold; color: #0073aa; }
+    .stat-card .label { color: #666; margin-top: 4px; font-size: 0.9em; }
+    table { width: 100%; border-collapse: collapse; background: white; border-radius: 4px; box-shadow: 0 1px 3px rgba(0,0,0,0.1); margin: 10px 0 20px; }
+    th, td { padding: 10px 14px; text-align: left; border-bottom: 1px solid #eee; }
+    th { background: #f9f9f9; font-weight: 600; border-bottom: 2px solid #ddd; }
+    code { background: #f0f0f0; padding: 2px 6px; border-radius: 3px; font-size: 0.9em; }
+    .badge { display: inline-block; padding: 3px 10px; border-radius: 12px; font-size: 0.85em; font-weight: 500; }
+    .badge-success { background: #d4edda; color: #155724; }
+    .badge-info { background: #d1ecf1; color: #0c5460; }
+    .badge-warning { background: #fff3cd; color: #856404; }
+    .empty { text-align: center; padding: 30px; color: #999; background: white; border-radius: 4px; }
+    a { color: #0073aa; text-decoration: none; }
+    a:hover { text-decoration: underline; }
+    .nav { margin-bottom: 20px; }
+    .meta-row { display: flex; gap: 20px; flex-wrap: wrap; margin: 10px 0; color: #555; }
+    .meta-row strong { color: #333; }
+    ul { padding-left: 20px; }
+    li { margin: 4px 0; }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <div class="nav">
+      <a href="/admin">&larr; Admin</a> |
+      <a href="/workspace/${analytics.workspace.machineName}/preview">Preview</a> |
+      <a href="/workspace/${analytics.workspace.machineName}/activity">Activity Log</a>
+    </div>
+
+    <h1>Workspace Analytics: ${analytics.workspace.label}</h1>
+    <div class="subtitle">
+      Machine name: <code>${analytics.workspace.machineName}</code> &nbsp;|&nbsp;
+      Status: <strong>${analytics.workspace.status}</strong> &nbsp;|&nbsp;
+      ${staleBadge}
+    </div>
+
+    <div class="stats-grid">
+      <div class="stat-card">
+        <div class="value">${analytics.changeCount}</div>
+        <div class="label">Content Changes</div>
+      </div>
+      <div class="stat-card">
+        <div class="value">${analytics.age.display}</div>
+        <div class="label">Workspace Age</div>
+      </div>
+      <div class="stat-card">
+        <div class="value">${analytics.activity.totalActions}</div>
+        <div class="label">Total Activities</div>
+      </div>
+      <div class="stat-card">
+        <div class="value">${analytics.childrenCount}</div>
+        <div class="label">Child Workspaces</div>
+      </div>
+    </div>
+
+    <div class="meta-row">
+      <span><strong>Created:</strong> ${new Date(analytics.workspace.created).toLocaleString()}</span>
+      <span><strong>Updated:</strong> ${new Date(analytics.workspace.updated).toLocaleString()}</span>
+      ${analytics.workspace.parent ? `<span><strong>Parent:</strong> ${analytics.workspace.parent}</span>` : ''}
+      ${analytics.workspace.description ? `<span><strong>Description:</strong> ${analytics.workspace.description}</span>` : ''}
+    </div>
+
+    <h2>Content Type Breakdown</h2>
+    ${analytics.contentTypeBreakdown.length === 0
+      ? '<div class="empty">No content changes in this workspace.</div>'
+      : `<table>
+        <thead>
+          <tr>
+            <th>Content Type</th>
+            <th>Changes</th>
+            <th>Operations</th>
+            <th>Latest Change</th>
+          </tr>
+        </thead>
+        <tbody>
+          ${typeRows}
+        </tbody>
+      </table>`
+    }
+
+    <h2>Activity Breakdown</h2>
+    ${Object.keys(analytics.activity.actionBreakdown).length === 0
+      ? '<div class="empty">No activity recorded for this workspace.</div>'
+      : `<table>
+        <thead>
+          <tr>
+            <th>Action Type</th>
+            <th>Count</th>
+          </tr>
+        </thead>
+        <tbody>
+          ${activityRows}
+        </tbody>
+      </table>
+      <div class="meta-row">
+        ${analytics.activity.latestActivity ? `<span><strong>Latest Activity:</strong> ${new Date(analytics.activity.latestActivity).toLocaleString()}</span>` : ''}
+        ${analytics.activity.oldestActivity ? `<span><strong>Oldest Activity:</strong> ${new Date(analytics.activity.oldestActivity).toLocaleString()}</span>` : ''}
+      </div>`
+    }
+
+    ${analytics.children.length > 0 ? `
+    <h2>Child Workspaces</h2>
+    <ul>
+      ${childrenList}
+    </ul>` : ''}
+  </div>
+</body>
+</html>`;
+
+    res.writeHead(200, { 'Content-Type': 'text/html' });
+    res.end(html);
+  }, 'Workspace analytics');
+
   // ==========================================
   // Content Management
   // ==========================================
