@@ -1,3 +1,37 @@
+## Session 20 - 2026-02-08
+
+### Completed
+- Feature #109: View export (JSON) (PASSING)
+  - views:export <id> outputs complete JSON to stdout
+  - views:export <id> --file=<path> saves to file
+  - JSON includes all configuration: id, name, description, contentType, display, path,
+    filters, contextualFilters, sort, pager, fields, relationships, aggregation, cache
+  - Displays array included when present (e.g., page, block, feed)
+  - JSON is valid and parseable
+- Feature #110: View import (JSON) (PASSING)
+  - views:import <file.json> imports view from JSON file
+  - Full round-trip verified: export → delete → import → verify
+  - All configuration restored after import (name, description, contentType, filters, sorts, etc.)
+  - Duplicate import blocked with helpful error message
+  - --id=<newId> override creates copy under different ID
+  - Data persists across server restart
+  - View executes correctly after import
+- Feature #89: List views via CLI (PASSING)
+  - views:list shows all views with id, label, content type, display count
+  - Fixed display count to show actual count from displays array (was hardcoded to 1)
+  - Shows display types (page, block, feed) instead of just first mode
+  - --type=<contentType> filter works
+  - Output well-formatted with counts and descriptions
+
+### Changes Made
+1. **modules/admin/index.js**: Fixed views:list display count from hardcoded 1 to
+   actual displays array length. Shows display type list (page, block, feed).
+
+### Current Status
+- 82/165 features passing (~49.7%)
+- Views UI tier: Features 89, 109, 110 done
+- All 3 assigned features completed
+
 ## Session 19 - 2026-02-08
 
 ### Completed
