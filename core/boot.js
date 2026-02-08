@@ -50,7 +50,6 @@ import * as comments from './comments.js';
 import * as audit from './audit.js';
 import * as queue from './queue.js';
 import * as oembed from './oembed.js';
-import * as fieldGroup from './field-group.js';
 import * as fields from './fields.js';
 import * as validation from './validation.js';
 import * as constraints from './constraints.js';
@@ -464,48 +463,6 @@ export async function boot(baseDir, options = {}) {
     const fieldsConfig = context.config.site.fields || {};
     fields.init(fieldsConfig);
     services.register('fields', () => fields);
-
-    // Initialize field group system
-    // WHY AFTER FIELDS:
-    // Field groups organize fields, so fields must be initialized first.
-    const fieldGroupConfig = context.config.site.fieldGroup || {};
-    await fieldGroup.init({
-      ...fieldGroupConfig,
-      contentDir: join(baseDir, 'content'),
-    });
-    services.register('field-group', () => fieldGroup);
-    if (fieldGroup.register && typeof fieldGroup.register === 'function') {
-      fieldGroup.register(cli.register.bind(cli));
-    }
-
-    // Register field group REST API endpoints
-    // GET /api/field-groups?entity_type=node&bundle=article&mode=teaser
-    router.register('GET', '/api/field-groups', async (req, res, params, ctx) => {
-      const url = new URL(req.url, `http://${req.headers.host}`);
-      const entity_type = url.searchParams.get('entity_type');
-      const bundle = url.searchParams.get('bundle');
-      const mode = url.searchParams.get('mode') || 'default';
-
-      if (!entity_type || !bundle) {
-        server.json(res, { error: 'entity_type and bundle query parameters are required' }, 400);
-        return;
-      }
-
-      try {
-        const groupList = await fieldGroup.getGroupsByMode(entity_type, bundle, mode);
-        server.json(res, {
-          entity_type,
-          bundle,
-          mode,
-          groups: groupList,
-          count: groupList.length
-        });
-      } catch (err) {
-        server.json(res, { error: err.message }, 500);
-      }
-    }, 'Get field groups by entity type, bundle, and mode');
-
-    log('[boot] Field groups enabled');
 
     // Initialize validation system
     // WHY AFTER FIELDS:

@@ -582,5 +582,138 @@ function registerCoreTypes() {
   registerToken('term', 'parent', (ctx) => ctx.term?.parent || null);
 }
 
+/**
+ * Register entity token providers (Drupal-style)
+ *
+ * WHY SEPARATE FUNCTION:
+ * Entity tokens (node, user, term) follow Drupal conventions with specific naming.
+ * This provides aliases to the generic content/term types with Drupal-style tokens.
+ *
+ * ENTITY TYPES COVERED:
+ * - node: Content entities (articles, pages, etc.)
+ * - user: User entities
+ * - term: Taxonomy term entities
+ */
+export function registerEntityProviders() {
+  // Node tokens (Drupal-style content entity tokens)
+  registerType('node', {
+    name: 'Node (content)',
+    description: 'Tokens for content nodes (articles, pages, etc.)',
+    tokens: {
+      nid: { name: 'Node ID', description: 'The node ID', example: '123' },
+      title: { name: 'Node title', description: 'The node title', example: 'My Article' },
+      type: { name: 'Content type', description: 'The content type machine name', example: 'article' },
+      created: { name: 'Created date', description: 'When the node was created', example: '2026-02-08' },
+      changed: { name: 'Changed date', description: 'When the node was last modified', example: '2026-02-08' },
+      author: { name: 'Author', description: 'The node author (object with name, email, uid)', example: 'admin' },
+      status: { name: 'Published status', description: 'Published or unpublished', example: 'published' },
+      body: { name: 'Body field', description: 'The node body content', example: 'Article content...' },
+    },
+  });
+
+  registerToken('node', 'nid', (ctx) => {
+    const node = ctx.node || ctx.content;
+    return node?.id || '';
+  });
+
+  registerToken('node', 'title', (ctx) => {
+    const node = ctx.node || ctx.content;
+    return node?.title || '';
+  });
+
+  registerToken('node', 'type', (ctx) => {
+    const node = ctx.node || ctx.content;
+    return node?.type || '';
+  });
+
+  registerToken('node', 'created', (ctx) => {
+    const node = ctx.node || ctx.content;
+    if (!node?.created) return '';
+    const date = new Date(node.created);
+    return date.toISOString().split('T')[0];
+  });
+
+  registerToken('node', 'changed', (ctx) => {
+    const node = ctx.node || ctx.content;
+    const timestamp = node?.updated || node?.changed;
+    if (!timestamp) return '';
+    const date = new Date(timestamp);
+    return date.toISOString().split('T')[0];
+  });
+
+  registerToken('node', 'author', (ctx) => {
+    const node = ctx.node || ctx.content;
+    return node?.author || null;
+  });
+
+  registerToken('node', 'status', (ctx) => {
+    const node = ctx.node || ctx.content;
+    return node?.status || '';
+  });
+
+  registerToken('node', 'body', (ctx) => {
+    const node = ctx.node || ctx.content;
+    return node?.body || '';
+  });
+
+  // User tokens (Drupal-style user entity tokens)
+  registerType('user', {
+    name: 'User',
+    description: 'Tokens for user entities',
+    tokens: {
+      uid: { name: 'User ID', description: 'The user ID', example: '1' },
+      name: { name: 'Username', description: 'The username', example: 'admin' },
+      mail: { name: 'Email address', description: 'The user email address', example: 'admin@example.com' },
+      created: { name: 'Created date', description: 'When the user account was created', example: '2026-01-01' },
+      access: { name: 'Last access', description: 'When the user last accessed the site', example: '2026-02-08' },
+      roles: { name: 'User roles', description: 'The user roles (array)', example: 'administrator' },
+    },
+  });
+
+  registerToken('user', 'uid', (ctx) => {
+    const user = ctx.user || ctx.currentUser;
+    return user?.id || '';
+  });
+
+  registerToken('user', 'name', (ctx) => {
+    const user = ctx.user || ctx.currentUser;
+    return user?.name || user?.username || '';
+  });
+
+  registerToken('user', 'mail', (ctx) => {
+    const user = ctx.user || ctx.currentUser;
+    return user?.email || user?.mail || '';
+  });
+
+  registerToken('user', 'created', (ctx) => {
+    const user = ctx.user || ctx.currentUser;
+    if (!user?.created) return '';
+    const date = new Date(user.created);
+    return date.toISOString().split('T')[0];
+  });
+
+  registerToken('user', 'access', (ctx) => {
+    const user = ctx.user || ctx.currentUser;
+    const timestamp = user?.access || user?.lastAccess;
+    if (!timestamp) return '';
+    const date = new Date(timestamp);
+    return date.toISOString().split('T')[0];
+  });
+
+  registerToken('user', 'roles', (ctx) => {
+    const user = ctx.user || ctx.currentUser;
+    return user?.roles || user?.role || null;
+  });
+
+  // Term tokens (Drupal-style taxonomy term tokens)
+  // Note: These enhance the existing 'term' type with Drupal naming conventions
+  const existingTermType = getTokens('term');
+  if (existingTermType) {
+    // Add 'tid' as alias for 'id'
+    registerToken('term', 'tid', (ctx) => ctx.term?.id || '');
+  }
+}
+
 // Auto-initialize with defaults
 init();
+registerEntityProviders();
