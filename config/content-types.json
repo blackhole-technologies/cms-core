@@ -8,6 +8,7 @@
       "title": {
         "type": "string",
         "required": true,
+        "minLength": 5,
         "maxLength": 255,
         "weight": 0,
         "label": "Title"
@@ -23,7 +24,28 @@
         "required": false,
         "weight": 5,
         "label": "Summary",
+        "minLength": 1,
         "maxLength": 500
+      },
+      "slug": {
+        "type": "string",
+        "required": false,
+        "weight": 3,
+        "label": "URL Slug",
+        "pattern": "^[a-z0-9]+(?:-[a-z0-9]+)*$",
+        "patternMessage": "URL Slug must contain only lowercase letters, numbers, and hyphens (e.g., my-article-title)"
+      },
+      "tags": {
+        "type": "string",
+        "required": false,
+        "weight": 4,
+        "label": "Tags",
+        "constraints": {
+          "Regex": {
+            "pattern": "^[a-zA-Z0-9, ]+$",
+            "message": "Tags must contain only letters, numbers, commas, and spaces"
+          }
+        }
       },
       "created": {
         "type": "datetime",
