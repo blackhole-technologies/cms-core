@@ -6369,6 +6369,10 @@ export function hook_routes(register, context) {
       }
     }
 
+    // Flush audit buffer so revision changes are persisted immediately
+    const auditService = ctx.services.get('audit');
+    if (auditService?.flush) auditService.flush();
+
     if (failed > 0) {
       redirect(res, `/admin/moderation?error=${encodeURIComponent(`Published ${published} item(s), ${failed} failed: ${errors.join('; ')}`)}`);
     } else {
@@ -16714,15 +16718,8 @@ export function hook_routes(register, context) {
     const server = ctx.services.get('server');
 
     try {
-      // WHY: Read JSON body instead of multipart form data for simple API
-      const body = await new Promise((resolve, reject) => {
-        let data = '';
-        req.on('data', chunk => data += chunk);
-        req.on('end', () => {
-          try { resolve(JSON.parse(data)); } catch(e) { reject(e); }
-        });
-        req.on('error', reject);
-      });
+      // WHY: Use ctx._parsedBody from CSRF middleware (body already consumed)
+      const body = ctx._parsedBody || {};
 
       const { contentType, contentId, field } = body;
 
@@ -16747,15 +16744,8 @@ export function hook_routes(register, context) {
     const server = ctx.services.get('server');
 
     try {
-      // WHY: Read JSON body for consistency with track-usage endpoint
-      const body = await new Promise((resolve, reject) => {
-        let data = '';
-        req.on('data', chunk => data += chunk);
-        req.on('end', () => {
-          try { resolve(JSON.parse(data)); } catch(e) { reject(e); }
-        });
-        req.on('error', reject);
-      });
+      // WHY: Use ctx._parsedBody from CSRF middleware (body already consumed)
+      const body = ctx._parsedBody || {};
 
       const { contentType, contentId } = body;
 

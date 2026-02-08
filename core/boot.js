@@ -577,6 +577,64 @@ export async function boot(baseDir, options = {}) {
       log(`[boot] Audit logging enabled (retention: ${auditConfig.retention || 90} days, level: ${auditConfig.logLevel || 'info'})`);
     }
 
+    // ========================================
+    // Audit logging for default revision changes (Feature #25)
+    // WHY HERE: Must be registered after audit.init() so logging works,
+    // and before any content operations that could trigger these hooks.
+    // ========================================
+
+    // Track when a default revision changes via setDefaultRevision() (manual change)
+    hooks.register('content:defaultRevisionChanged', (data) => {
+      const { type, id, newDefault, previousDefault, revisionTimestamp } = data;
+      audit.log('content.default_revision_changed', {
+        type,
+        id,
+        trigger: 'manual',
+        previousTitle: previousDefault?.title || previousDefault?.name || id,
+        newTitle: newDefault?.title || newDefault?.name || id,
+        previousStatus: previousDefault?.status || 'unknown',
+        newStatus: newDefault?.status || 'unknown',
+        revisionTimestamp,
+        description: `Default revision changed for ${type}/${id} via manual set-default`,
+      }, { result: 'success' });
+    }, 20, 'audit:revision-tracking');
+
+    // Track when a pending revision is published (workflow-triggered change)
+    // WHY SEPARATE: publishPendingRevision fires content:afterStatusChange,
+    // which is a more general hook. We detect "pending → published" transitions
+    // specifically to log default revision changes.
+    hooks.register('content:afterStatusChange', (data) => {
+      const { type, id, from, to, item } = data;
+      // Only log when a draft becomes published (pending revision promoted)
+      if (from === 'draft' && to === 'published') {
+        audit.log('content.pending_revision_published', {
+          type,
+          id,
+          trigger: 'workflow',
+          title: item?.title || item?.name || id,
+          fromStatus: from,
+          toStatus: to,
+          isDefaultRevision: item?.isDefaultRevision,
+          description: `Pending revision published for ${type}/${id} (draft → published)`,
+        }, { result: 'success' });
+      }
+    }, 20, 'audit:revision-tracking');
+
+    // Track bulk publish operations
+    hooks.register('content:published', (data) => {
+      const { type, item } = data;
+      if (item?.isDefaultRevision === true) {
+        audit.log('content.revision_became_default', {
+          type,
+          id: item?.id,
+          trigger: 'publish',
+          title: item?.title || item?.name || item?.id,
+          status: item?.status,
+          description: `Content ${type}/${item?.id} became default revision via publish`,
+        }, { result: 'success' });
+      }
+    }, 20, 'audit:revision-tracking');
+
     // Register media as a service
     // WHY A SERVICE:
     // Modules need access to file uploads and media management.
@@ -1690,6 +1748,37 @@ export async function boot(baseDir, options = {}) {
         items: pendingItems,
       });
     }, 'List all content items with pending revisions (moderation dashboard)');
+
+    // REST API: GET /api/audit/revision-changes - Get audit log for default revision changes
+    // WHY: Feature #25 - provides API access to revision change audit trail.
+    // Used by moderation dashboards and external integrations.
+    router.register('GET', '/api/audit/revision-changes', async (req, res, params, ctx) => {
+      const url = new URL(req.url, `http://${req.headers.host}`);
+      const days = parseInt(url.searchParams.get('days') || '30');
+      const limit = parseInt(url.searchParams.get('limit') || '100');
+
+      const revisionActions = [
+        'content.default_revision_changed',
+        'content.pending_revision_published',
+        'content.revision_became_default',
+      ];
+
+      const allEntries = [];
+
+      for (const action of revisionActions) {
+        const result = audit.query({ action, days }, { limit: 1000, sortOrder: 'desc' });
+        allEntries.push(...result.entries);
+      }
+
+      // Sort by timestamp descending
+      allEntries.sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp));
+
+      server.json(res, {
+        total: allEntries.length,
+        entries: allEntries.slice(0, limit),
+        days,
+      });
+    }, 'Get audit log for default revision changes');
 
     // REST API: POST /api/content/bulk-publish-pending - Bulk publish all pending revisions
     // WHY: Powers the "Publish All" action on the moderation dashboard.
@@ -2953,6 +3042,8 @@ export async function boot(baseDir, options = {}) {
         console.log(`  New default:      ${newDefault.updated} (from revision ${revisionTimestamp})`);
         console.log(`  isDefaultRevision: ${newDefault.isDefaultRevision}`);
         console.log(`  title: ${newDefault.title || '(no title)'}`);
+        // Flush audit buffer so revision change is persisted
+        audit.flush();
       } catch (error) {
         console.error(`Error: ${error.message}`);
         throw error;
@@ -3236,6 +3327,8 @@ export async function boot(baseDir, options = {}) {
       }
 
       console.log(`\nResults: ${published} published, ${failed} failed\n`);
+      // Flush audit buffer so revision changes are persisted
+      audit.flush();
     }, 'Bulk publish all pending revisions (use --confirm to execute, --type=<type> to filter)');
 
     // content:publish-pending <type> <id> [timestamp] - Publish a pending revision
@@ -3261,6 +3354,8 @@ export async function boot(baseDir, options = {}) {
       if (published.title) {
         console.log(`  Title: ${published.title}`);
       }
+      // Flush audit buffer so revision change is persisted
+      audit.flush();
     }, 'Publish a pending revision (make it the new default)');
 
     // content:discard-pending <type> <id> [timestamp] - Discard pending revision(s)
@@ -3888,6 +3983,67 @@ export async function boot(baseDir, options = {}) {
 
       console.log('');
     }, 'Show audit statistics');
+
+    // audit:revision-changes [--days=N] - Show audit log for default revision changes
+    // WHY: Feature #25 requires tracking all changes to default revision status.
+    // This command filters audit entries to show only revision-related events,
+    // including manual set-default, workflow-triggered publishes, and bulk operations.
+    cli.register('audit:revision-changes', async (args, ctx) => {
+      let days = 30;
+
+      for (const arg of args) {
+        if (arg.startsWith('--days=')) {
+          days = parseInt(arg.slice(7));
+        }
+      }
+
+      // Query for revision-related audit actions
+      const revisionActions = [
+        'content.default_revision_changed',
+        'content.pending_revision_published',
+        'content.revision_became_default',
+      ];
+
+      const allEntries = [];
+
+      for (const action of revisionActions) {
+        const result = audit.query({ action, days }, { limit: 1000, sortOrder: 'desc' });
+        allEntries.push(...result.entries);
+      }
+
+      // Sort by timestamp descending
+      allEntries.sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp));
+
+      console.log(`\nAudit Log: Default Revision Changes (last ${days} days)`);
+      console.log('='.repeat(60));
+
+      if (allEntries.length === 0) {
+        console.log('  No revision change events found.');
+      } else {
+        for (const entry of allEntries) {
+          const time = entry.timestamp.replace('T', ' ').slice(0, 19);
+          const user = entry.username || 'system';
+          const trigger = entry.details?.trigger || 'unknown';
+          const type = entry.details?.type || '';
+          const id = entry.details?.id || '';
+          const title = entry.details?.title || entry.details?.newTitle || id;
+          const desc = entry.details?.description || entry.action;
+
+          // Distinguish manual from workflow-triggered
+          const triggerLabel = trigger === 'manual' ? '[MANUAL]' :
+                               trigger === 'workflow' ? '[WORKFLOW]' :
+                               trigger === 'publish' ? '[PUBLISH]' : `[${trigger.toUpperCase()}]`;
+
+          console.log(`  ${time} ${triggerLabel} ${entry.action}`);
+          console.log(`    Who: ${user}`);
+          console.log(`    What: ${type}/${id} - ${title}`);
+          console.log(`    Detail: ${desc}`);
+          console.log('');
+        }
+      }
+
+      console.log(`Total: ${allEntries.length} revision change events\n`);
+    }, 'Show audit log for default revision changes (manual and workflow-triggered)');
 
     // audit:export - Export audit logs
     cli.register('audit:export', async (args, ctx) => {

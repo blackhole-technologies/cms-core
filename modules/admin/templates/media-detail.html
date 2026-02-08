@@ -138,6 +138,7 @@
 
 <script>
 var mediaId = '{{item.id}}';
+var csrfToken = '{{csrfToken}}';
 
 async function addUsage() {
   var ct = document.getElementById('usageContentType').value.trim();
@@ -151,10 +152,11 @@ async function addUsage() {
   }
 
   try {
+    var body = '_csrf=' + encodeURIComponent(csrfToken) + '&contentType=' + encodeURIComponent(ct) + '&contentId=' + encodeURIComponent(ci) + '&field=' + encodeURIComponent(f);
     var resp = await fetch('/admin/media/library/' + mediaId + '/track-usage', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ contentType: ct, contentId: ci, field: f })
+      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+      body: body
     });
     var data = await resp.json();
     if (data.success) {
@@ -172,10 +174,11 @@ async function removeUsage(ct, ci) {
   if (!confirm('Remove this usage reference?')) return;
 
   try {
+    var body = '_csrf=' + encodeURIComponent(csrfToken) + '&contentType=' + encodeURIComponent(ct) + '&contentId=' + encodeURIComponent(ci);
     var resp = await fetch('/admin/media/library/' + mediaId + '/remove-usage', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ contentType: ct, contentId: ci })
+      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+      body: body
     });
     var data = await resp.json();
     if (data.success) {
