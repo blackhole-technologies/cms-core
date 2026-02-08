@@ -1,0 +1,6 @@
+{
+  "id": "MinAge",
+  "label": "Minimum Age",
+  "description": "Validates that age is at least 18",
+  "validate": "function(value, options, context) { const violations = []; if (value !== null && value !== undefined && value !== '') { const age = Number(value); if (!isNaN(age) && age < 18) { violations.push({ constraint: 'MinAge', field: context.fieldName, message: 'Must be at least 18 years old', value: value, code: 'TOO_YOUNG' }); } } return violations; }"
+}
