@@ -663,6 +663,59 @@ function registerBuiltinConstraints() {
       return violations;
     }
   });
+
+  // FileExtension — validates file has allowed extension
+  register('FileExtension', {
+    label: 'File Extension',
+    description: 'Validates uploaded file has allowed extension',
+    source: 'core',
+    validate(value, options, context) {
+      const violations = [];
+      if (value === null || value === undefined || value === '') return violations;
+
+      // options can be: { extensions: ['jpg', 'png'] } or ['jpg', 'png']
+      const allowedExtensions = Array.isArray(options)
+        ? options
+        : (options?.extensions || []);
+
+      if (allowedExtensions.length === 0) {
+        // No restrictions, allow anything
+        return violations;
+      }
+
+      // Extract filename from value (could be object with filename property or string)
+      const filename = typeof value === 'object'
+        ? (value.filename || value.name || value.path || '')
+        : String(value);
+
+      if (!filename) {
+        // Can't determine filename, skip validation
+        return violations;
+      }
+
+      // Extract extension (lowercase)
+      const ext = filename.split('.').pop()?.toLowerCase() || '';
+
+      // Normalize allowed extensions (remove leading dots, lowercase)
+      const normalizedExtensions = allowedExtensions.map(e =>
+        String(e).replace(/^\./, '').toLowerCase()
+      );
+
+      if (!normalizedExtensions.includes(ext)) {
+        violations.push(
+          createViolation(
+            'FileExtension',
+            context.fieldName,
+            `File extension must be one of: ${normalizedExtensions.join(', ')}`,
+            value,
+            'INVALID_EXTENSION'
+          )
+        );
+      }
+
+      return violations;
+    }
+  });
 }
 
 // ============================================

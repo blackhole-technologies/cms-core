@@ -844,6 +844,38 @@ function registerBuiltinValidators() {
 
     return true;
   }, { description: 'Image dimensions within min/max width/height', source: 'core' });
+
+  // Date range - validate date within min/max range
+  registerValidator('dateRange', (value, options) => {
+    if (value === null || value === undefined || value === '') return true;
+
+    const date = new Date(value);
+    if (isNaN(date.getTime())) return 'Invalid date';
+
+    const { minDate, maxDate } = options || {};
+
+    // Check minimum date
+    if (minDate !== undefined) {
+      const min = new Date(minDate);
+      if (isNaN(min.getTime())) return 'Invalid minimum date configuration';
+
+      if (date < min) {
+        return `Date ${date.toISOString().split('T')[0]} is before minimum ${min.toISOString().split('T')[0]}`;
+      }
+    }
+
+    // Check maximum date
+    if (maxDate !== undefined) {
+      const max = new Date(maxDate);
+      if (isNaN(max.getTime())) return 'Invalid maximum date configuration';
+
+      if (date > max) {
+        return `Date ${date.toISOString().split('T')[0]} is after maximum ${max.toISOString().split('T')[0]}`;
+      }
+    }
+
+    return true;
+  }, { description: 'Date within min/max range', source: 'core' });
 }
 
 // ============================================

@@ -489,6 +489,92 @@ export async function boot(baseDir, options = {}) {
     // Register constraint CLI commands
     constraints.registerCLI(cli);
 
+    // Register constraint REST API endpoints
+    // POST /api/constraints/register - Register a custom constraint at runtime
+    router.register('POST', '/api/constraints/register', async (req, res, params, ctx) => {
+      // Parse request body
+      const body = await new Promise((resolve, reject) => {
+        if (req.body) { resolve(req.body); return; }
+        let data = '';
+        req.on('data', chunk => { data += chunk; });
+        req.on('end', () => {
+          try { resolve(data ? JSON.parse(data) : {}); }
+          catch (e) { reject(new Error('Invalid JSON body')); }
+        });
+        req.on('error', reject);
+      });
+
+      // Validate required fields
+      if (!body.id || typeof body.id !== 'string') {
+        server.json(res, { error: 'Constraint ID is required (string)' }, 400);
+        return;
+      }
+
+      if (!body.validate || typeof body.validate !== 'string') {
+        server.json(res, { error: 'Constraint validate function is required (string)' }, 400);
+        return;
+      }
+
+      try {
+        // Create validate function from string
+        // WHY EVAL: Custom constraints need runtime-defined validation logic.
+        // Security: Only admin users should have access to this endpoint.
+        const validateFn = eval(`(${body.validate})`);
+
+        if (typeof validateFn !== 'function') {
+          server.json(res, { error: 'validate must be a function' }, 400);
+          return;
+        }
+
+        // Register the constraint
+        constraints.register(body.id, {
+          label: body.label || body.id,
+          description: body.description || '',
+          source: 'api',
+          validate: validateFn
+        });
+
+        server.json(res, {
+          success: true,
+          constraint: {
+            id: body.id,
+            label: body.label || body.id,
+            description: body.description || '',
+            source: 'api'
+          }
+        }, 201);
+      } catch (err) {
+        server.json(res, { error: err.message }, 400);
+      }
+    }, 'Register a custom constraint plugin');
+
+    // GET /api/constraints - List all registered constraints
+    router.register('GET', '/api/constraints', async (req, res, params, ctx) => {
+      const all = constraints.list();
+      server.json(res, {
+        constraints: all,
+        count: all.length
+      });
+    }, 'List all registered constraint plugins');
+
+    // GET /api/constraints/:id - Get a specific constraint by ID
+    router.register('GET', '/api/constraints/:id', async (req, res, params, ctx) => {
+      const { id } = params;
+      const constraint = constraints.get(id);
+
+      if (!constraint) {
+        server.json(res, { error: `Constraint "${id}" not found` }, 404);
+        return;
+      }
+
+      server.json(res, {
+        id: constraint.id,
+        label: constraint.label,
+        description: constraint.description,
+        source: constraint.source
+      });
+    }, 'Get a specific constraint by ID');
+
     // Initialize preview system
     // WHY AFTER VALIDATION:
     // Preview needs content service to fetch draft content.
