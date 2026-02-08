@@ -2492,6 +2492,11 @@ export async function boot(baseDir, options = {}) {
         }
       }
 
+      // --include-revisions flag includes all revisions in listing
+      if (args.includes('--include-revisions')) {
+        options.includeAllRevisions = true;
+      }
+
       // Convert empty filters object to null
       if (Object.keys(options.filters).length === 0) {
         options.filters = null;
@@ -2530,7 +2535,13 @@ export async function boot(baseDir, options = {}) {
         const pendingCount = hasPending ? content.countPendingRevisions(type, item.id) : 0;
         const pendingIndicator = hasPending ? ` [PENDING: ${pendingCount} draft(s)]` : '';
 
-        console.log(`  ID: ${item.id}${pendingIndicator}`);
+        // Show revision metadata if this is a historical revision
+        const revisionTag = item._isHistoricalRevision
+          ? ` [REVISION: ${item._revisionTimestamp}]`
+          : '';
+        const defaultTag = item.isDefaultRevision === false ? ' [non-default]' : '';
+
+        console.log(`  ID: ${item.id}${pendingIndicator}${revisionTag}${defaultTag}`);
         console.log(`  Created: ${item.created}`);
 
         // Show user fields (exclude system fields)
@@ -3013,6 +3024,112 @@ export async function boot(baseDir, options = {}) {
         console.log(`  Title: ${published.title}`);
       }
     }, 'Publish a pending revision (make it the new default)');
+
+    // content:discard-pending <type> <id> [timestamp] - Discard pending revision(s)
+    cli.register('content:discard-pending', async (args, ctx) => {
+      if (args.length < 2) {
+        console.error('Usage: content:discard-pending <type> <id> [timestamp]');
+        console.error('If no timestamp, discards ALL pending revisions');
+        throw new Error('Type and ID required');
+      }
+
+      const [type, id, timestamp] = args;
+
+      if (!content.hasType(type)) {
+        console.error(`Unknown content type: "${type}"`);
+        throw new Error('Unknown content type');
+      }
+
+      const result = content.discardPendingRevision(type, id, timestamp || null);
+
+      console.log(`\nDiscard pending revision(s) for ${type}/${id}`);
+      console.log(`  Discarded: ${result.discarded}`);
+      console.log(`  Remaining pending: ${result.remaining}`);
+
+      // Verify published version unchanged
+      const current = content.read(type, id);
+      console.log(`  Published version unchanged: ${current.isDefaultRevision === true ? 'yes' : 'no'}`);
+      if (current.title) {
+        console.log(`  Published title: ${current.title}`);
+      }
+      console.log('');
+    }, 'Discard pending (non-default) revision(s)');
+
+    // content:compare-pending <type> <id> [timestamp] - Compare pending to published
+    cli.register('content:compare-pending', async (args, ctx) => {
+      if (args.length < 2) {
+        console.error('Usage: content:compare-pending <type> <id> [timestamp]');
+        console.error('If no timestamp, compares the most recent pending revision');
+        throw new Error('Type and ID required');
+      }
+
+      const [type, id, timestamp] = args;
+
+      if (!content.hasType(type)) {
+        console.error(`Unknown content type: "${type}"`);
+        throw new Error('Unknown content type');
+      }
+
+      const comparison = content.comparePendingToPublished(type, id, timestamp || null);
+
+      console.log(`\nCompare pending to published: ${type}/${id}`);
+      console.log(`  Published status: ${comparison.published.status}`);
+      console.log(`  Pending status: ${comparison.pending.status}`);
+      console.log('');
+
+      if (comparison.changes.length === 0) {
+        console.log('  No changes detected.');
+      } else {
+        console.log(`  Changed fields (${comparison.changes.length}):`);
+        for (const change of comparison.changes) {
+          const pubStr = JSON.stringify(change.published);
+          const pendStr = JSON.stringify(change.pending);
+
+          if (change.type === 'added') {
+            console.log(`  + ${change.field}: ${pendStr}`);
+          } else if (change.type === 'removed') {
+            console.log(`  - ${change.field}: ${pubStr}`);
+          } else {
+            console.log(`  ~ ${change.field}:`);
+            console.log(`      published: ${pubStr}`);
+            console.log(`      pending:   ${pendStr}`);
+          }
+        }
+      }
+
+      console.log('');
+      console.log(`  Unchanged fields (${comparison.unchangedFields.length}): ${comparison.unchangedFields.join(', ')}`);
+      console.log('');
+    }, 'Compare pending revision to published version');
+
+    // content:workflow-state <type> <id> - Show workflow state including pending status
+    cli.register('content:workflow-state', async (args, ctx) => {
+      if (args.length < 2) {
+        console.error('Usage: content:workflow-state <type> <id>');
+        throw new Error('Type and ID required');
+      }
+
+      const [type, id] = args;
+
+      if (!content.hasType(type)) {
+        console.error(`Unknown content type: "${type}"`);
+        throw new Error('Unknown content type');
+      }
+
+      const state = content.getWorkflowState(type, id);
+
+      console.log(`\nWorkflow state: ${type}/${id}`);
+      console.log(`  Status: ${state.status}`);
+      console.log(`  Summary: ${state.workflowSummary}`);
+      console.log(`  Is Default Revision: ${state.isDefaultRevision}`);
+      console.log(`  Has Pending Revisions: ${state.hasPending}`);
+      if (state.hasPending) {
+        console.log(`  Pending Count: ${state.pendingCount}`);
+        console.log(`  Pending Status: ${state.pendingStatus}`);
+      }
+      console.log(`  Available Transitions: ${state.availableTransitions.join(', ')}`);
+      console.log('');
+    }, 'Show workflow state including pending revision status');
 
     // ==================================================
     // Workflow CLI Commands

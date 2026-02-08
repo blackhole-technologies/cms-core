@@ -330,17 +330,30 @@ async function parseBody(req) {
  * @param {string[]} fields - Fields to include (sparse fieldset)
  * @returns {Object}
  */
-function toResource(item, type, fields = null) {
+function toResource(item, type, fields = null, includeRevisionMeta = false) {
   const resourceConfig = getResourceConfig(type);
 
   // Build attributes
   const attributes = {};
   const schema = contentService?.getSchema?.(resourceConfig?.contentType || type) || {};
 
+  // Revision metadata fields to expose when includeRevisionMeta is true
+  // WHY: Normally _ prefixed fields are internal, but for allRevisions mode
+  // callers need _revisionTimestamp, _isHistoricalRevision, _revisions, _revisionCount
+  const revisionMetaFields = ['_revisionTimestamp', '_isHistoricalRevision', '_revisions', '_revisionCount'];
+
   for (const [key, value] of Object.entries(item)) {
     // Skip system fields and relationships
     if (['id', 'type', 'created', 'updated', '_id'].includes(key)) continue;
-    if (key.startsWith('_')) continue;
+
+    // Allow revision metadata through when requested
+    if (key.startsWith('_')) {
+      if (includeRevisionMeta && revisionMetaFields.includes(key)) {
+        // Include revision metadata as meta attribute
+      } else {
+        continue;
+      }
+    }
 
     // Apply sparse fieldset
     if (fields && !fields.includes(key)) continue;
@@ -380,6 +393,47 @@ function toResource(item, type, fields = null) {
   resource.links = {
     self: `${config.basePath}/${type}/${item.id}`,
   };
+
+  // Add revision metadata to resource meta when includeRevisionMeta is true
+  // WHY IN META: JSON:API spec uses meta for non-attribute data. Revision
+  // metadata is about the resource's versioning, not its content fields.
+  if (includeRevisionMeta) {
+    resource.meta = resource.meta || {};
+
+    if (item._revisionTimestamp) {
+      resource.meta.revisionTimestamp = item._revisionTimestamp;
+    }
+    if (item._isHistoricalRevision !== undefined) {
+      resource.meta.isHistoricalRevision = item._isHistoricalRevision;
+    }
+    if (item._revisionCount !== undefined) {
+      resource.meta.revisionCount = item._revisionCount;
+    }
+    // Convert _revisions array to JSON:API format
+    if (item._revisions && Array.isArray(item._revisions)) {
+      resource.meta.revisions = item._revisions.map(rev => ({
+        type,
+        id: rev.id,
+        attributes: Object.fromEntries(
+          Object.entries(rev).filter(([k]) =>
+            !['id', 'type', 'created', 'updated', '_id'].includes(k) &&
+            !k.startsWith('_')
+          )
+        ),
+        meta: {
+          revisionTimestamp: rev._revisionTimestamp,
+          isHistoricalRevision: rev._isHistoricalRevision,
+          isDefaultRevision: rev.isDefaultRevision,
+        },
+      }));
+    }
+
+    // Remove _ prefixed fields from attributes (already in meta)
+    delete attributes._revisionTimestamp;
+    delete attributes._isHistoricalRevision;
+    delete attributes._revisions;
+    delete attributes._revisionCount;
+  }
 
   return resource;
 }
@@ -618,6 +672,12 @@ async function handleCollection(req, res, params, ctx) {
     // With header: returns workspace + live content (workspace overlays live).
     const workspaceId = resolveWorkspaceFromRequest(req);
 
+    // Check for allRevisions include parameter
+    // WHY: JSON:API spec uses ?include= for compound documents.
+    // We extend this pattern to support allRevisions as a special keyword
+    // that triggers returning all revision data inline.
+    const includeAllRevisions = queryParams.include.includes('allRevisions');
+
     // Build content query options
     const queryOptions = {
       offset: queryParams.page.offset,
@@ -626,6 +686,7 @@ async function handleCollection(req, res, params, ctx) {
       order: queryParams.sort[0]?.order || 'desc',
       filters: [],
       workspaceId,
+      includeAllRevisions,
     };
 
     // Convert filters
@@ -642,13 +703,14 @@ async function handleCollection(req, res, params, ctx) {
 
     // Convert to JSON:API resources
     const fields = queryParams.fields[type] || null;
-    const data = result.items.map(item => toResource(item, type, fields));
+    const data = result.items.map(item => toResource(item, type, fields, includeAllRevisions));
 
-    // Handle includes
+    // Handle includes (filter out allRevisions from normal include resolution)
     const included = [];
-    if (queryParams.include.length > 0) {
+    const normalIncludes = queryParams.include.filter(i => i !== 'allRevisions');
+    if (normalIncludes.length > 0) {
       for (const item of result.items) {
-        await resolveIncludes(item, type, queryParams.include, included, queryParams.fields, 0);
+        await resolveIncludes(item, type, normalIncludes, included, queryParams.fields, 0);
       }
     }
 
@@ -732,9 +794,17 @@ async function handleRead(req, res, params, ctx) {
       }
     }
 
+    // Parse query params early so we can use allRevisions in read()
+    const url = new URL(req.url, 'http://localhost');
+    const queryParams = parseQueryParams(url);
+    const includeAllRevisions = queryParams.include.includes('allRevisions');
+
     // Fall back to reading the original item
     if (!item) {
-      item = contentService.read(resourceConfig.contentType, id, { skipWorkspace: true });
+      item = contentService.read(resourceConfig.contentType, id, {
+        skipWorkspace: true,
+        includeAllRevisions,
+      });
     }
 
     if (!item) {
@@ -748,11 +818,8 @@ async function handleRead(req, res, params, ctx) {
       return;
     }
 
-    const url = new URL(req.url, 'http://localhost');
-    const queryParams = parseQueryParams(url);
-
     const fields = queryParams.fields[type] || null;
-    const data = toResource(item, type, fields);
+    const data = toResource(item, type, fields, includeAllRevisions);
 
     // Add workspace metadata to response
     if (workspaceId && workspaceId !== 'live') {
@@ -766,10 +833,11 @@ async function handleRead(req, res, params, ctx) {
       }
     }
 
-    // Handle includes
+    // Handle includes (filter out allRevisions from normal include resolution)
     const included = [];
-    if (queryParams.include.length > 0) {
-      await resolveIncludes(item, type, queryParams.include, included, queryParams.fields, 0);
+    const normalIncludes = queryParams.include.filter(i => i !== 'allRevisions');
+    if (normalIncludes.length > 0) {
+      await resolveIncludes(item, type, normalIncludes, included, queryParams.fields, 0);
     }
 
     const document = {

@@ -867,6 +867,261 @@ export async function publishPendingRevision(type, id, revisionTimestamp = null)
 }
 
 /**
+ * Discard a pending (non-default) revision
+ *
+ * WHY: When a pending draft is no longer needed, it should be removed
+ * from the revision list. The published/default version remains unchanged.
+ *
+ * @param {string} type - Content type
+ * @param {string} id - Content ID
+ * @param {string|null} revisionTimestamp - ISO timestamp of the specific pending revision to discard.
+ *   If null, discards ALL pending revisions.
+ * @returns {{ discarded: number, remaining: number }} - How many were discarded and how many remain
+ */
+export function discardPendingRevision(type, id, revisionTimestamp = null) {
+  const existing = read(type, id);
+  if (!existing) {
+    throw new Error(`Content not found: ${type}/${id}`);
+  }
+
+  const revisionsDir = getRevisionsDir(type, id);
+  if (!existsSync(revisionsDir)) {
+    return { discarded: 0, remaining: 0 };
+  }
+
+  let discardedCount = 0;
+
+  if (revisionTimestamp) {
+    // Discard a specific pending revision
+    const safeTs = revisionTimestamp.replace(/:/g, '-');
+    const revPath = join(revisionsDir, `${safeTs}.json`);
+
+    if (existsSync(revPath)) {
+      // Verify it's actually a pending (non-default) revision
+      try {
+        const raw = readFileSync(revPath, 'utf-8');
+        const revision = JSON.parse(raw);
+        if (revision.isDefaultRevision === false) {
+          unlinkSync(revPath);
+          discardedCount = 1;
+        } else {
+          throw new Error(`Revision at ${revisionTimestamp} is not a pending revision (isDefaultRevision: true)`);
+        }
+      } catch (e) {
+        if (e.message.includes('not a pending revision')) throw e;
+        throw new Error(`Could not read revision at ${revisionTimestamp}`);
+      }
+    } else {
+      throw new Error(`No revision found at timestamp: ${revisionTimestamp}`);
+    }
+  } else {
+    // Discard ALL pending revisions
+    const files = readdirSync(revisionsDir).filter(f => f.endsWith('.json'));
+
+    for (const file of files) {
+      const filePath = join(revisionsDir, file);
+      try {
+        const raw = readFileSync(filePath, 'utf-8');
+        const revision = JSON.parse(raw);
+        if (revision.isDefaultRevision === false) {
+          unlinkSync(filePath);
+          discardedCount++;
+        }
+      } catch (e) {
+        // Skip unreadable files
+      }
+    }
+  }
+
+  // Invalidate cache after discarding
+  if (cacheEnabled) {
+    cache.delete(cache.itemKey(type, id));
+    cache.clear(`content:${type}:list:*`);
+  }
+
+  const remaining = countPendingRevisions(type, id);
+  return { discarded: discardedCount, remaining };
+}
+
+/**
+ * Compare a pending revision to the published/default version
+ *
+ * WHY: Before publishing or discarding a pending draft, users need to see
+ * exactly what changed compared to the live version. This provides a
+ * field-level diff between the current default and the pending draft.
+ *
+ * @param {string} type - Content type
+ * @param {string} id - Content ID
+ * @param {string|null} revisionTimestamp - Specific pending revision timestamp.
+ *   If null, compares the most recent pending revision.
+ * @returns {{ published: Object, pending: Object, changes: Array, unchangedFields: Array }}
+ */
+export function comparePendingToPublished(type, id, revisionTimestamp = null) {
+  const published = read(type, id);
+  if (!published) {
+    throw new Error(`Content not found: ${type}/${id}`);
+  }
+
+  // Find the pending revision to compare
+  let pendingDraft;
+  if (revisionTimestamp) {
+    pendingDraft = getRevision(type, id, revisionTimestamp);
+    if (!pendingDraft || pendingDraft.isDefaultRevision !== false) {
+      throw new Error(`No pending revision found at timestamp: ${revisionTimestamp}`);
+    }
+  } else {
+    const pending = getPendingRevisions(type, id);
+    if (pending.length === 0) {
+      throw new Error(`No pending revisions found for ${type}/${id}`);
+    }
+    pendingDraft = pending[0]; // Most recent
+  }
+
+  // Compute field-level diff
+  const changes = [];
+  const unchangedFields = [];
+
+  // System fields to skip in comparison (always differ between revisions)
+  const skipFields = ['updated', 'isDefaultRevision'];
+
+  const allKeys = new Set([...Object.keys(published), ...Object.keys(pendingDraft)]);
+
+  for (const key of allKeys) {
+    if (skipFields.includes(key)) continue;
+
+    const pubVal = published[key];
+    const pendVal = pendingDraft[key];
+
+    const pubStr = JSON.stringify(pubVal);
+    const pendStr = JSON.stringify(pendVal);
+
+    if (pubStr === pendStr) {
+      unchangedFields.push(key);
+      continue;
+    }
+
+    let changeType;
+    if (pubVal === undefined) {
+      changeType = 'added';
+    } else if (pendVal === undefined) {
+      changeType = 'removed';
+    } else {
+      changeType = 'modified';
+    }
+
+    changes.push({
+      field: key,
+      published: pubVal,
+      pending: pendVal,
+      type: changeType,
+    });
+  }
+
+  return {
+    published,
+    pending: pendingDraft,
+    changes,
+    unchangedFields,
+  };
+}
+
+/**
+ * Get the workflow state for a content item, reflecting pending revision status
+ *
+ * WHY: The workflow system needs to accurately represent content that has
+ * pending revisions. A published article with a pending draft has a
+ * compound state: "published" for the live version but also "has pending changes".
+ * This function provides that complete picture.
+ *
+ * @param {string} type - Content type
+ * @param {string} id - Content ID
+ * @returns {{ status: string, hasPending: boolean, pendingCount: number,
+ *   isDefaultRevision: boolean, availableTransitions: string[],
+ *   pendingStatus: string|null, workflowSummary: string }}
+ */
+export function getWorkflowState(type, id) {
+  const item = read(type, id);
+  if (!item) {
+    throw new Error(`Content not found: ${type}/${id}`);
+  }
+
+  const hasPending = hasPendingRevisions(type, id);
+  const pendingCount = hasPending ? countPendingRevisions(type, id) : 0;
+  const pendingRevisions = hasPending ? getPendingRevisions(type, id) : [];
+
+  // Get the status of the most recent pending revision
+  const pendingStatus = pendingRevisions.length > 0 ? pendingRevisions[0].status : null;
+
+  // Determine available transitions based on current state + pending status
+  const currentStatus = item.status || 'draft';
+  const availableTransitions = [];
+
+  // Standard transitions
+  const typeInfo = contentTypes[type];
+  const workflowOptions = typeInfo?.schema?._workflow;
+
+  if (workflowOptions?.allowedTransitions) {
+    const allowed = workflowOptions.allowedTransitions[currentStatus] || [];
+    availableTransitions.push(...allowed);
+  } else {
+    // Default transitions when no explicit workflow defined
+    switch (currentStatus) {
+      case 'draft':
+        availableTransitions.push('published', 'pending', 'archived');
+        break;
+      case 'published':
+        availableTransitions.push('draft', 'archived');
+        break;
+      case 'pending':
+        availableTransitions.push('draft', 'published', 'archived');
+        break;
+      case 'archived':
+        availableTransitions.push('draft');
+        break;
+    }
+  }
+
+  // If there are pending revisions on published content, add publish-pending
+  // as an available action (not a status transition, but a workflow action)
+  if (hasPending && currentStatus === 'published') {
+    if (!availableTransitions.includes('publish-pending')) {
+      availableTransitions.push('publish-pending');
+    }
+    if (!availableTransitions.includes('discard-pending')) {
+      availableTransitions.push('discard-pending');
+    }
+  }
+
+  // Build human-readable workflow summary
+  let workflowSummary;
+  if (currentStatus === 'published' && hasPending) {
+    workflowSummary = `Published with ${pendingCount} pending draft${pendingCount > 1 ? 's' : ''}`;
+  } else if (currentStatus === 'published') {
+    workflowSummary = 'Published (live)';
+  } else if (currentStatus === 'draft' && item.isDefaultRevision === false) {
+    workflowSummary = 'Pending draft (not live)';
+  } else if (currentStatus === 'draft') {
+    workflowSummary = 'Draft (not published)';
+  } else if (currentStatus === 'pending') {
+    workflowSummary = 'Pending review';
+  } else if (currentStatus === 'archived') {
+    workflowSummary = 'Archived';
+  } else {
+    workflowSummary = currentStatus;
+  }
+
+  return {
+    status: currentStatus,
+    hasPending,
+    pendingCount,
+    isDefaultRevision: item.isDefaultRevision !== false,
+    availableTransitions,
+    pendingStatus,
+    workflowSummary,
+  };
+}
+
+/**
  * Internal prune function (doesn't check revisionsEnabled)
  *
  * @param {string} type - Content type
@@ -2340,6 +2595,7 @@ export function list(type, options = {}) {
     computed = true,
     computedFields: requestedComputedFields = null,
     workspaceId = null,
+    includeAllRevisions = false,
   } = options;
 
   // Check cache first if enabled
@@ -2379,6 +2635,33 @@ export function list(type, options = {}) {
     if (item) {
       items.push(item);
     }
+  }
+
+  // INCLUDE ALL REVISIONS:
+  // When includeAllRevisions is true, add historical revisions from .revisions/
+  // directories as additional items in the listing. Each revision gets metadata
+  // flags (_isHistoricalRevision, _revisionTimestamp) so callers can distinguish
+  // them from current items.
+  //
+  // WHY: Enables admin UIs and APIs to show a complete timeline of all content
+  // versions, including pending drafts (non-default revisions). This mirrors
+  // Drupal's content_moderation overview where you can see all revisions inline.
+  if (includeAllRevisions) {
+    const revisionItems = [];
+    for (const item of items) {
+      const revs = getRevisions(type, item.id);
+      for (const rev of revs) {
+        const revContent = getRevision(type, item.id, rev.timestamp);
+        if (revContent) {
+          revisionItems.push({
+            ...revContent,
+            _revisionTimestamp: rev.timestamp,
+            _isHistoricalRevision: true,
+          });
+        }
+      }
+    }
+    items = [...items, ...revisionItems];
   }
 
   // Apply workspace isolation filter
