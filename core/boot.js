@@ -823,6 +823,7 @@ export async function boot(baseDir, options = {}) {
         permissions,
         audit,
         content,
+        scheduler,
       });
       workspaces.registerCli(cli.createModuleRegister('workspace'));
       if (typeof workspaces.registerRoutes === 'function') {

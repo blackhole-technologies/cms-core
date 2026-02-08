@@ -295,6 +295,7 @@ export async function create(data, user = null) {
     description: data.description || '',
     assignees: data.assignees || [],
     expiresAt: data.expiresAt || null,
+    scheduledPublishAt: data.scheduledPublishAt || null,
   };
 
   // Persist to disk
@@ -402,7 +403,7 @@ export async function update(id, updates, user = null) {
   }
 
   // Only allow updating specific fields
-  const allowedFields = ['label', 'status', 'description', 'parent', 'expiresAt'];
+  const allowedFields = ['label', 'status', 'description', 'parent', 'expiresAt', 'scheduledPublishAt'];
   for (const field of allowedFields) {
     if (updates[field] !== undefined) {
       workspace[field] = updates[field];
@@ -1395,6 +1396,202 @@ export async function setExpiration(workspaceId, expiresAt, user = null) {
 }
 
 // ============================================================================
+// Scheduled Workspace Publish
+// ============================================================================
+
+/**
+ * Schedule a workspace to be published at a future date/time.
+ *
+ * WHY SCHEDULED PUBLISH:
+ * Content teams often prepare changes in a workspace days/weeks ahead of a launch.
+ * Scheduled publish automates the go-live, ensuring changes deploy at the exact
+ * planned time without manual intervention (e.g., midnight launches, coordinated
+ * releases across time zones).
+ *
+ * @param {string} workspaceId - Workspace UUID or machine name
+ * @param {string} publishAt - ISO date string for the scheduled publish time
+ * @param {Object} [user] - User performing the action
+ * @returns {Object} Updated workspace with scheduledPublishAt set
+ * @throws {Error} If date is in the past, workspace not found, or invalid date
+ */
+export async function schedulePublish(workspaceId, publishAt, user = null) {
+  const workspace = resolveWorkspace(workspaceId);
+  if (!workspace) {
+    throw new Error(`Workspace not found: ${workspaceId}`);
+  }
+
+  const publishDate = new Date(publishAt);
+  if (isNaN(publishDate.getTime())) {
+    throw new Error(`Invalid date: ${publishAt}`);
+  }
+
+  if (publishDate <= new Date()) {
+    throw new Error(`Scheduled publish time must be in the future. Got: ${publishAt}`);
+  }
+
+  workspace.scheduledPublishAt = publishDate.toISOString();
+  workspace.updated = new Date().toISOString();
+  saveWorkspace(workspace);
+  workspaceCache.set(workspace.id, workspace);
+
+  // Activity log
+  logActivity(workspace.id, 'workspace.schedule_publish', {
+    scheduledPublishAt: workspace.scheduledPublishAt,
+  }, user);
+
+  // Audit log
+  if (auditModule && typeof auditModule.log === 'function') {
+    auditModule.log('workspace.schedulePublish', {
+      workspaceId: workspace.id,
+      workspaceLabel: workspace.label,
+      scheduledPublishAt: workspace.scheduledPublishAt,
+      userId: user?.id,
+    });
+  }
+
+  return workspace;
+}
+
+/**
+ * Cancel a scheduled workspace publish.
+ *
+ * @param {string} workspaceId - Workspace UUID or machine name
+ * @param {Object} [user] - User performing the action
+ * @returns {Object} Updated workspace with scheduledPublishAt cleared
+ */
+export async function cancelScheduledPublish(workspaceId, user = null) {
+  const workspace = resolveWorkspace(workspaceId);
+  if (!workspace) {
+    throw new Error(`Workspace not found: ${workspaceId}`);
+  }
+
+  const previousSchedule = workspace.scheduledPublishAt;
+  workspace.scheduledPublishAt = null;
+  workspace.updated = new Date().toISOString();
+  saveWorkspace(workspace);
+  workspaceCache.set(workspace.id, workspace);
+
+  // Activity log
+  logActivity(workspace.id, 'workspace.cancel_scheduled_publish', {
+    cancelledSchedule: previousSchedule,
+  }, user);
+
+  return workspace;
+}
+
+/**
+ * Get the schedule status for a workspace.
+ *
+ * @param {string} workspaceId - Workspace UUID or machine name
+ * @returns {Object} Schedule status: { scheduled, scheduledPublishAt, remainingMs, remainingHuman }
+ */
+export function getScheduleStatus(workspaceId) {
+  const workspace = resolveWorkspace(workspaceId);
+  if (!workspace) return { scheduled: false, scheduledPublishAt: null };
+
+  if (!workspace.scheduledPublishAt) {
+    return { scheduled: false, scheduledPublishAt: null, remainingHuman: 'Not scheduled' };
+  }
+
+  const publishDate = new Date(workspace.scheduledPublishAt);
+  const now = new Date();
+  const remainingMs = publishDate.getTime() - now.getTime();
+  const isPast = remainingMs <= 0;
+
+  let remainingHuman;
+  if (isPast) {
+    remainingHuman = 'Overdue — will publish on next scheduler run';
+  } else {
+    const hours = Math.floor(remainingMs / 3600000);
+    const minutes = Math.floor((remainingMs % 3600000) / 60000);
+    const days = Math.floor(hours / 24);
+    if (days > 0) {
+      remainingHuman = `Publishes in ${days} day(s), ${hours % 24} hour(s)`;
+    } else if (hours > 0) {
+      remainingHuman = `Publishes in ${hours} hour(s), ${minutes} minute(s)`;
+    } else {
+      remainingHuman = `Publishes in ${minutes} minute(s)`;
+    }
+  }
+
+  return {
+    scheduled: true,
+    scheduledPublishAt: workspace.scheduledPublishAt,
+    remainingMs,
+    remainingHuman,
+  };
+}
+
+/**
+ * Process all scheduled workspace publishes.
+ *
+ * WHY PROCESS FUNCTION:
+ * Called by the scheduler every minute. Iterates all workspaces, finds those
+ * with a scheduledPublishAt in the past, and auto-publishes them. After
+ * publishing, the schedule is cleared. Failed publishes are logged but don't
+ * block other workspaces.
+ *
+ * This mirrors Drupal's hook_cron pattern where scheduled actions are processed
+ * in a background sweep.
+ */
+export async function processScheduledPublishes() {
+  const now = new Date();
+  const results = [];
+
+  for (const workspace of workspaceCache.values()) {
+    if (!workspace.scheduledPublishAt) continue;
+
+    const publishDate = new Date(workspace.scheduledPublishAt);
+    if (publishDate > now) continue; // Not yet due
+
+    // Time to publish this workspace
+    console.log(`[workspaces] Auto-publishing workspace "${workspace.label}" (scheduled: ${workspace.scheduledPublishAt})`);
+
+    try {
+      const result = await publishWorkspace(workspace.id, { force: false });
+
+      // Clear the schedule after successful publish
+      workspace.scheduledPublishAt = null;
+      workspace.updated = now.toISOString();
+      saveWorkspace(workspace);
+      workspaceCache.set(workspace.id, workspace);
+
+      // Activity log
+      logActivity(workspace.id, 'workspace.scheduled_publish_executed', {
+        publishedAt: now.toISOString(),
+        itemCount: result.publishedItems ? result.publishedItems.length : 0,
+      }, null);
+
+      console.log(`[workspaces] ✓ Auto-published "${workspace.label}" — ${result.publishedItems ? result.publishedItems.length : 0} item(s)`);
+
+      results.push({
+        workspaceId: workspace.id,
+        label: workspace.label,
+        success: true,
+        itemCount: result.publishedItems ? result.publishedItems.length : 0,
+      });
+    } catch (err) {
+      console.error(`[workspaces] ✗ Failed to auto-publish "${workspace.label}": ${err.message}`);
+
+      // Log the failure but don't clear the schedule — retry next minute
+      logActivity(workspace.id, 'workspace.scheduled_publish_failed', {
+        error: err.message,
+        scheduledPublishAt: workspace.scheduledPublishAt,
+      }, null);
+
+      results.push({
+        workspaceId: workspace.id,
+        label: workspace.label,
+        success: false,
+        error: err.message,
+      });
+    }
+  }
+
+  return results;
+}
+
+// ============================================================================
 // Helpers
 // ============================================================================
 
@@ -1552,7 +1749,8 @@ export function registerCli(register) {
     for (const ws of results) {
       const statusBadge = ws.status === 'active' ? '[active]' : '[archived]';
       const expiredBadge = isExpired(ws.id) ? ' [EXPIRED]' : '';
-      console.log(`  ${ws.machineName} ${statusBadge}${expiredBadge}`);
+      const scheduledBadge = ws.scheduledPublishAt ? ' [SCHEDULED]' : '';
+      console.log(`  ${ws.machineName} ${statusBadge}${expiredBadge}${scheduledBadge}`);
       console.log(`    Label: ${ws.label}`);
       console.log(`    ID: ${ws.id}`);
       console.log(`    Created: ${ws.created}`);
@@ -1562,6 +1760,10 @@ export function registerCli(register) {
       if (ws.expiresAt) {
         const expStatus = getExpirationStatus(ws.id);
         console.log(`    Expires: ${ws.expiresAt} (${expStatus.remainingHuman})`);
+      }
+      if (ws.scheduledPublishAt) {
+        const schedStatus = getScheduleStatus(ws.id);
+        console.log(`    Scheduled publish: ${ws.scheduledPublishAt} (${schedStatus.remainingHuman})`);
       }
       console.log('');
     }
@@ -2426,6 +2628,99 @@ export function registerCli(register) {
     }
     return true;
   }, 'Check workspace expiration status');
+
+  // workspace:schedule-publish <workspace> <ISO-date> - Schedule workspace publish
+  register('workspace:schedule-publish', async (args) => {
+    const { positional } = parseCliArgs(args);
+    const identifier = positional[0];
+    const dateStr = positional[1];
+
+    if (!identifier || !dateStr) {
+      console.log('Usage: workspace:schedule-publish <workspaceId|machineName> <ISO-date>');
+      console.log('Examples:');
+      console.log('  workspace:schedule-publish staging 2026-03-01T09:00:00Z');
+      console.log('  workspace:schedule-publish staging "2026-03-01T09:00:00Z"');
+      return false;
+    }
+
+    try {
+      const workspace = await schedulePublish(identifier, dateStr);
+      const status = getScheduleStatus(workspace.id);
+      console.log(`\u2713 Scheduled publish for workspace "${workspace.label}"`);
+      console.log(`  Publish at: ${workspace.scheduledPublishAt}`);
+      console.log(`  Status: ${status.remainingHuman}`);
+      return true;
+    } catch (err) {
+      console.error(`\u2717 Failed: ${err.message}`);
+      return false;
+    }
+  }, 'Schedule workspace for future publish');
+
+  // workspace:cancel-schedule <workspace> - Cancel scheduled publish
+  register('workspace:cancel-schedule', async (args) => {
+    const { positional } = parseCliArgs(args);
+    const identifier = positional[0];
+
+    if (!identifier) {
+      console.log('Usage: workspace:cancel-schedule <workspaceId|machineName>');
+      return false;
+    }
+
+    try {
+      const workspace = await cancelScheduledPublish(identifier);
+      console.log(`\u2713 Cancelled scheduled publish for workspace "${workspace.label}"`);
+      return true;
+    } catch (err) {
+      console.error(`\u2717 Failed: ${err.message}`);
+      return false;
+    }
+  }, 'Cancel a scheduled workspace publish');
+
+  // workspace:schedule-status <workspace> - Check scheduled publish status
+  register('workspace:schedule-status', async (args) => {
+    const { positional } = parseCliArgs(args);
+    const identifier = positional[0];
+
+    if (!identifier) {
+      console.log('Usage: workspace:schedule-status <workspaceId|machineName>');
+      return false;
+    }
+
+    const workspace = resolveWorkspace(identifier);
+    if (!workspace) {
+      console.error(`\u2717 Workspace not found: ${identifier}`);
+      return false;
+    }
+
+    const status = getScheduleStatus(workspace.id);
+
+    console.log(`Workspace: ${workspace.label} (${workspace.machineName})`);
+    if (!status.scheduled) {
+      console.log('  No scheduled publish');
+    } else {
+      console.log(`  Scheduled: ${workspace.scheduledPublishAt}`);
+      console.log(`  Status: ${status.remainingHuman}`);
+    }
+    return true;
+  }, 'Check workspace scheduled publish status');
+
+  // workspace:process-schedules - Manually trigger scheduled publish processing
+  register('workspace:process-schedules', async () => {
+    console.log('Processing scheduled workspace publishes...');
+    const results = await processScheduledPublishes();
+    if (results.length === 0) {
+      console.log('No workspaces due for scheduled publish.');
+    } else {
+      for (const r of results) {
+        if (r.success) {
+          console.log(`  \u2713 Published "${r.label}" (${r.itemCount} items)`);
+        } else {
+          console.log(`  \u2717 Failed "${r.label}": ${r.error}`);
+        }
+      }
+    }
+    return true;
+  }, 'Manually process scheduled workspace publishes');
 }
 
 /**
