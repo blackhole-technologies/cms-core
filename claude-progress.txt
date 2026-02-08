@@ -1067,3 +1067,44 @@ All features verified via CLI commands:
 ### Next Steps
 - Continue validation constraints tier (Features 123-134)
 - Continue accessibility/SEO tier as needed
+## Session (Current) - 2026-02-08 (Features #126, #127, #128)
+
+### Completed
+- Feature #126: File size constraint (PASSING)
+  - fileSize validator already existed in validation.js
+  - Enhanced media-library.js error message to show human-readable MB format
+  - Validates files against configured maxFileSize limit
+  - Error shows actual size vs limit: "File too large: 11.00MB (max: 5.0MB)"
+  - Tested with 1MB (pass), 11MB (fail), exactly at limit (pass), just over limit (fail)
+
+- Feature #127: Image dimension constraint (PASSING)
+  - Added imageDimensions validator to validation.js
+  - Validates min/max width and height independently
+  - Supports options: { minWidth, maxWidth, minHeight, maxHeight }
+  - Error messages show actual vs required dimensions
+  - Tested with various scenarios: within bounds, too small, too large, edge cases
+  - Example error: "Image width 3000px exceeds maximum 2000px"
+
+- Feature #128: Date range constraint (PASSING)
+  - Added dateRange validator to validation.js
+  - Validates date within min/max date range
+  - Supports options: { minDate, maxDate }
+  - Error messages show actual date vs allowed range in YYYY-MM-DD format
+  - Handles ISO datetime formats correctly
+  - Empty values pass (optional field support)
+  - Example error: "Date 2031-01-01 is after maximum 2030-12-31"
+
+### Changes Made
+1. **core/media-library.js**:
+   - Enhanced file size error message to show MB instead of bytes
+   - Changed from "File too large: 11534336 bytes" to "File too large: 11.00MB (max: 10.0MB)"
+
+2. **core/validation.js**:
+   - Added imageDimensions validator (40 lines)
+   - Added dateRange validator (35 lines)
+   - Both validators follow existing patterns and handle edge cases
+
+### Current Status
+- 145/165 features passing (87.9%)
+- Validation constraints tier: Features 126, 127, 128 done
+- All 3 assigned features completed
