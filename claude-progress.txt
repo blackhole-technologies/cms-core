@@ -1429,3 +1429,33 @@ Feature 165: SEO score per content (PASSING)
 - All 6 verification steps passed
 
 ALL 165 FEATURES COMPLETE
+
+
+## Session (Current) - 2026-02-08 (Features #6, #7)
+
+### Completed
+- Feature #6: Display mode group configuration (PASSING)
+  - Extended field-group service with getGroupsByMode() alias
+  - Updated field-group:list CLI to support --mode flag
+  - Added REST API endpoint: GET /api/field-groups?entity_type=node&bundle=article&mode=teaser
+  - Verified groups isolated per mode (default, teaser, search_result, full)
+  - Created groups in different modes to test isolation
+  - Tested: changing teaser groups does not affect default groups
+  - Verified via CLI: field-group:list node article teaser returns only teaser groups
+  - All verification steps passed
+
+- Feature #7: Admin route for field group management (PASSING)
+  - Created field groups management UI at /admin/structure/entity/:type/:bundle/field-groups/:mode
+  - Implemented modal-based create/edit group interface
+  - Added drag-and-drop reordering with automatic weight updates
+  - Display mode switcher for managing different modes
+  - Added REST API endpoints for CRUD operations
+  - Form supports: group_name, label, format_type, parent_name, weight
+  - Format type dropdown: fieldset, tabs_horizontal, tabs_vertical, accordion, details
+  - All verification steps passed
+
+### Current Status
+- 7/7 features passing (100%)
+- Field groups feature set complete
+- Both assigned features completed successfully
+
