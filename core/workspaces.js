@@ -574,6 +574,19 @@ export function getActiveWorkspace() {
       unlinkSync(activeWorkspaceFile);
       return null;
     }
+
+    // WHY CHECK EXPIRATION HERE:
+    // An expired workspace is read-only. If it's still set as the active
+    // workspace (e.g., left over from a previous session), content.create()
+    // will throw WORKSPACE_EXPIRED and crash the server. Auto-clearing
+    // prevents stale expired workspaces from blocking server startup and
+    // normal operations.
+    if (workspace.expiresAt && new Date(workspace.expiresAt) <= new Date()) {
+      console.warn(`[workspaces] Active workspace "${workspace.label}" has expired (${workspace.expiresAt}). Clearing active workspace.`);
+      unlinkSync(activeWorkspaceFile);
+      return null;
+    }
+
     return workspace;
   } catch {
     return null;
