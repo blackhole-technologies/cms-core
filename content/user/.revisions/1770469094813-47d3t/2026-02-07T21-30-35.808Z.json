@@ -1,0 +1,14 @@
+{
+  "id": "1770469094813-47d3t",
+  "type": "user",
+  "created": "2026-02-07T12:58:14.813Z",
+  "updated": "2026-02-07T21:30:35.808Z",
+  "username": "admin",
+  "password": "09886954938fe66e971e39fa7efa1efc:94d323516f6a37e7b1cc684d8a3826c41616230ee54db729f13f0a25f80a6bf3",
+  "role": "admin",
+  "email": "",
+  "lastLogin": "2026-02-07T21:30:35.807Z",
+  "isDefaultRevision": true,
+  "status": "draft",
+  "_workspace": "27255dc4-d596-42df-be94-ff79db7e9930"
+}

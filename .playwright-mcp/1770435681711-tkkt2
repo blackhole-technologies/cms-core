@@ -1,0 +1,26 @@
+{
+  "jsonapi": {
+    "version": "1.1"
+  },
+  "data": {
+    "type": "article",
+    "id": "1770435681711-tkkt2",
+    "attributes": {
+      "title": "FEATURE_11_12_13_TEST - UPDATED DRAFT",
+      "body": {
+        "value": "<p>Test body</p>",
+        "format": "basic_html"
+      },
+      "isDefaultRevision": true,
+      "status": "published",
+      "publishedAt": "2026-02-07T03:41:27.924Z",
+      "scheduledAt": null
+    },
+    "links": {
+      "self": "/jsonapi/article/1770435681711-tkkt2"
+    }
+  },
+  "links": {
+    "self": "/jsonapi/article/1770435681711-tkkt2"
+  }
+}

@@ -143,6 +143,11 @@
     .section-drag-handle:active {
       cursor: grabbing;
     }
+    .section-drag-handle:focus {
+      outline: 2px solid #1976d2;
+      outline-offset: 2px;
+      opacity: 1;
+    }
     .section-drag-handle .drag-dots {
       width: 14px;
       height: 3px;
@@ -261,6 +266,12 @@
     .region-slot-content {
       padding: 8px;
       min-height: 40px;
+      transition: background 0.2s, border-color 0.2s;
+    }
+    .region-slot-content.region-drag-over {
+      background: #e8f5e9;
+      border: 2px dashed #4caf50;
+      border-radius: 4px;
     }
 
     /* Component items in regions */
@@ -271,18 +282,62 @@
       padding: 8px 12px;
       margin: 4px 0;
       display: flex;
-      justify-content: space-between;
       align-items: center;
       font-size: 0.85em;
-      cursor: move;
+      cursor: default;
+      transition: border-color 0.2s, box-shadow 0.2s, opacity 0.2s;
+      position: relative;
     }
     .component-chip:hover {
       background: #bbdefb;
     }
+    .component-chip.dragging {
+      opacity: 0.4;
+      border-color: #1976d2;
+      box-shadow: 0 2px 8px rgba(25, 118, 210, 0.3);
+    }
+    .component-chip.drag-over-component {
+      border-color: #4caf50;
+      border-style: dashed;
+      box-shadow: 0 2px 8px rgba(76, 175, 80, 0.3);
+    }
+
+    /* Component drag handle (Feature #72) */
+    .component-drag-handle {
+      cursor: grab;
+      padding: 2px 6px 2px 2px;
+      margin-right: 6px;
+      color: #90caf9;
+      font-size: 1em;
+      line-height: 1;
+      user-select: none;
+      border-radius: 3px;
+      transition: color 0.2s, background 0.2s;
+      display: flex;
+      align-items: center;
+    }
+    .component-drag-handle:hover {
+      color: #1976d2;
+      background: rgba(25, 118, 210, 0.1);
+    }
+    .component-drag-handle:active {
+      cursor: grabbing;
+    }
+    .component-drag-handle:focus {
+      outline: 2px solid #1976d2;
+      outline-offset: 1px;
+      border-radius: 3px;
+    }
+    .component-drag-handle .drag-grip {
+      font-size: 1.1em;
+      letter-spacing: -1px;
+    }
+
     .component-chip-info {
       display: flex;
       align-items: center;
       gap: 8px;
+      flex: 1;
     }
     .component-chip-type {
       color: #1565c0;
@@ -291,6 +346,9 @@
     .component-chip-detail {
       color: #666;
       font-size: 0.9em;
+    }
+    .component-chip-actions {
+      margin-left: auto;
     }
     .component-chip-actions button {
       background: transparent;
@@ -921,36 +979,24 @@
   <script>
     // Feature #79: Save Layout Button
     // Persists current layout state and creates a revision snapshot
+    // Uses form submission to the admin route which has session auth
     function saveLayout() {
       var btn = document.getElementById('save-layout-btn');
       btn.disabled = true;
       btn.textContent = '⏳ Saving...';
 
-      fetch('/api/layout/{{contentType}}/{{contentId}}/save', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ message: 'Manual save from layout builder' })
-      }).then(function(resp) {
-        return resp.json().then(function(data) {
-          if (resp.ok) {
-            showToast('✅ Layout saved successfully!', 'success');
-            btn.textContent = '💾 Save Layout';
-            btn.disabled = false;
-          } else {
-            showToast('❌ Save failed: ' + (data.error || data.message || 'Unknown error'), 'error');
-            btn.textContent = '💾 Save Layout';
-            btn.disabled = false;
-          }
-        });
-      }).catch(function(err) {
-        showToast('❌ Save failed: ' + err.message, 'error');
-        btn.textContent = '💾 Save Layout';
-        btn.disabled = false;
-      });
+      // Submit via hidden form to the admin route (session-authenticated)
+      var form = document.createElement('form');
+      form.method = 'POST';
+      form.action = '/node/{{contentId}}/layout/save';
+      form.style.display = 'none';
+      document.body.appendChild(form);
+      form.submit();
     }
 
     // Feature #80: Discard Changes Button
     // Reverts to the last saved revision with confirmation dialog
+    // Uses form submission to the admin route which has session auth
     function discardChanges() {
       if (!confirm('Discard all unsaved layout changes? This will revert to the last saved state.')) {
         return;
@@ -960,25 +1006,13 @@
       btn.disabled = true;
       btn.textContent = '⏳ Reverting...';
 
-      fetch('/api/layout/{{contentType}}/{{contentId}}/discard', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' }
-      }).then(function(resp) {
-        return resp.json().then(function(data) {
-          if (resp.ok) {
-            showToast('✅ Changes discarded! Reloading...', 'success');
-            setTimeout(function() { window.location.reload(); }, 800);
-          } else {
-            showToast('❌ Discard failed: ' + (data.error || data.message), 'error');
-            btn.textContent = '↩ Discard Changes';
-            btn.disabled = false;
-          }
-        });
-      }).catch(function(err) {
-        showToast('❌ Discard failed: ' + err.message, 'error');
-        btn.textContent = '↩ Discard Changes';
-        btn.disabled = false;
-      });
+      // Submit via hidden form to the admin route (session-authenticated)
+      var form = document.createElement('form');
+      form.method = 'POST';
+      form.action = '/node/{{contentId}}/layout/discard';
+      form.style.display = 'none';
+      document.body.appendChild(form);
+      form.submit();
     }
 
     // Feature #83: Toggle Revision History Panel
@@ -992,12 +1026,12 @@
       }
     }
 
-    // Feature #83: Load Revision History from API
+    // Feature #83: Load Revision History from admin route
     function loadRevisions() {
       var listEl = document.getElementById('revisions-list');
       listEl.innerHTML = '<div style="text-align:center; color:#999; padding:20px;">Loading revisions...</div>';
 
-      fetch('/api/layout/{{contentType}}/{{contentId}}/revisions')
+      fetch('/node/{{contentId}}/layout/revisions?format=json')
         .then(function(resp) { return resp.json(); })
         .then(function(data) {
           if (!data.revisions || data.revisions.length === 0) {
@@ -1027,7 +1061,9 @@
             html += '<td style="text-align:center; padding:8px;">' + (rev.componentCount || 0) + '</td>';
             html += '<td style="text-align:center; padding:8px;">';
             if (i > 0) {
-              html += '<button onclick="revertToRevision(\'' + rev.id + '\')" style="background:#ff9800; color:white; border:none; padding:4px 10px; border-radius:4px; cursor:pointer; font-size:0.85em;">Revert</button>';
+              html += '<form action="/node/{{contentId}}/layout/revisions/' + rev.id + '/revert" method="POST" style="display:inline;">';
+              html += '<button type="submit" onclick="return confirm(\'Revert to this revision? Current layout will be replaced.\')" style="background:#ff9800; color:white; border:none; padding:4px 10px; border-radius:4px; cursor:pointer; font-size:0.85em;">Revert</button>';
+              html += '</form>';
             } else {
               html += '<span style="color:#999; font-size:0.85em;">Latest</span>';
             }
@@ -1043,27 +1079,7 @@
     }
 
     // Feature #83: Revert to a specific revision
-    function revertToRevision(revisionId) {
-      if (!confirm('Revert to this revision? Current layout will be replaced.')) {
-        return;
-      }
-
-      fetch('/api/layout/{{contentType}}/{{contentId}}/revisions/' + revisionId + '/revert', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' }
-      }).then(function(resp) {
-        return resp.json().then(function(data) {
-          if (resp.ok) {
-            showToast('✅ Layout reverted! Reloading...', 'success');
-            setTimeout(function() { window.location.reload(); }, 800);
-          } else {
-            showToast('❌ Revert failed: ' + (data.error || data.message), 'error');
-          }
-        });
-      }).catch(function(err) {
-        showToast('❌ Revert failed: ' + err.message, 'error');
-      });
-    }
+    // Now handled via form submission in loadRevisions()
 
     // Toast notification helper
     function showToast(message, type) {
@@ -1082,150 +1098,395 @@
     }
   </script>
 
-  <!-- Drag & Drop Script for Sections (Feature #70) -->
+  <!-- Drag & Drop Script for Sections (Feature #71, #73) and Components (Feature #72) -->
   <script>
     (function() {
+      // ========================================
+      // SECTION DRAG & DROP (Features #71 & #73)
+      // ========================================
       let draggedSection = null;
-      let placeholder = null;
-
-      // Find all section wrappers
-      function getSections() {
-        return document.querySelectorAll('.section-wrapper[draggable="true"]');
-      }
+      let sectionPlaceholder = null;
 
       // Create a placeholder element for drop position indication
-      function createPlaceholder() {
-        const el = document.createElement('div');
-        el.className = 'section-wrapper drag-over';
-        el.style.height = '4px';
-        el.style.background = '#1976d2';
-        el.style.borderRadius = '2px';
-        el.style.margin = '8px 0';
-        el.style.transition = 'height 0.2s';
+      function createSectionPlaceholder() {
+        var el = document.createElement('div');
+        el.className = 'section-placeholder';
+        el.style.cssText = 'height:4px; background:#1976d2; border-radius:2px; margin:8px 0; transition:height 0.2s;';
+        el.setAttribute('data-placeholder', 'section');
         return el;
       }
 
       document.addEventListener('dragstart', function(e) {
-        const section = e.target.closest('.section-wrapper[draggable="true"]');
-        if (!section) return;
-
-        // Only initiate drag if the drag handle was used
-        if (!e.target.closest('.section-drag-handle')) {
-          e.preventDefault();
+        // === SECTION DRAG ===
+        var section = e.target.closest('.section-wrapper[draggable="true"]');
+        if (section && e.target.closest('.section-drag-handle')) {
+          draggedSection = section;
+          section.classList.add('dragging');
+          e.dataTransfer.effectAllowed = 'move';
+          e.dataTransfer.setData('text/section-uuid', section.dataset.sectionUuid);
+          sectionPlaceholder = createSectionPlaceholder();
           return;
         }
 
-        draggedSection = section;
-        section.classList.add('dragging');
-        e.dataTransfer.effectAllowed = 'move';
-        e.dataTransfer.setData('text/plain', section.dataset.sectionUuid);
+        // === COMPONENT DRAG ===
+        var component = e.target.closest('.component-chip[draggable="true"]');
+        if (component && e.target.closest('.component-drag-handle')) {
+          draggedComponent = component;
+          component.classList.add('dragging');
+          e.dataTransfer.effectAllowed = 'move';
+          e.dataTransfer.setData('text/component-uuid', component.dataset.componentUuid);
+          e.dataTransfer.setData('text/source-section', component.dataset.sectionUuid);
+          e.dataTransfer.setData('text/source-region', component.dataset.region);
+          componentPlaceholder = createComponentPlaceholder();
+          return;
+        }
 
-        placeholder = createPlaceholder();
+        // If neither handle was used, prevent drag
+        if (e.target.closest('.section-wrapper[draggable="true"]') || e.target.closest('.component-chip[draggable="true"]')) {
+          e.preventDefault();
+        }
       });
 
       document.addEventListener('dragover', function(e) {
-        if (!draggedSection) return;
-        e.preventDefault();
-        e.dataTransfer.dropEffect = 'move';
+        // === SECTION DRAGOVER ===
+        if (draggedSection) {
+          e.preventDefault();
+          e.dataTransfer.dropEffect = 'move';
 
-        const canvas = document.getElementById('layout-canvas');
-        if (!canvas) return;
+          var canvas = document.getElementById('layout-canvas');
+          if (!canvas) return;
 
-        // Remove existing placeholder
-        if (placeholder && placeholder.parentNode) {
-          placeholder.parentNode.removeChild(placeholder);
-        }
-
-        // Find the closest section to the mouse position
-        const sections = [...canvas.querySelectorAll('.section-wrapper:not(.dragging)')];
-        let closestSection = null;
-        let insertBefore = true;
-
-        for (const section of sections) {
-          const rect = section.getBoundingClientRect();
-          const midY = rect.top + rect.height / 2;
-
-          if (e.clientY < midY) {
-            closestSection = section;
-            insertBefore = true;
-            break;
+          // Remove existing placeholder
+          if (sectionPlaceholder && sectionPlaceholder.parentNode) {
+            sectionPlaceholder.parentNode.removeChild(sectionPlaceholder);
           }
-          closestSection = section;
-          insertBefore = false;
-        }
 
-        if (closestSection) {
-          if (insertBefore) {
-            canvas.insertBefore(placeholder, closestSection);
+          // Find the closest section to the mouse position
+          var sections = [];
+          var allSections = canvas.querySelectorAll('.section-wrapper:not(.dragging)');
+          for (var i = 0; i < allSections.length; i++) {
+            sections.push(allSections[i]);
+          }
+
+          var closestSection = null;
+          var insertBefore = true;
+
+          for (var j = 0; j < sections.length; j++) {
+            var rect = sections[j].getBoundingClientRect();
+            var midY = rect.top + rect.height / 2;
+
+            if (e.clientY < midY) {
+              closestSection = sections[j];
+              insertBefore = true;
+              break;
+            }
+            closestSection = sections[j];
+            insertBefore = false;
+          }
+
+          if (closestSection) {
+            if (insertBefore) {
+              canvas.insertBefore(sectionPlaceholder, closestSection);
+            } else {
+              canvas.insertBefore(sectionPlaceholder, closestSection.nextSibling);
+            }
           } else {
-            canvas.insertBefore(placeholder, closestSection.nextSibling);
+            canvas.appendChild(sectionPlaceholder);
           }
-        } else {
-          canvas.appendChild(placeholder);
+          return;
+        }
+
+        // === COMPONENT DRAGOVER ===
+        if (draggedComponent) {
+          e.preventDefault();
+          e.dataTransfer.dropEffect = 'move';
+
+          // Remove existing placeholder
+          if (componentPlaceholder && componentPlaceholder.parentNode) {
+            componentPlaceholder.parentNode.removeChild(componentPlaceholder);
+          }
+
+          // Clear all drag-over highlights
+          var allRegions = document.querySelectorAll('.region-slot-content');
+          for (var r = 0; r < allRegions.length; r++) {
+            allRegions[r].classList.remove('region-drag-over');
+          }
+
+          // Find the target region-slot-content
+          var targetContent = e.target.closest('.region-slot-content');
+          if (!targetContent) return;
+
+          targetContent.classList.add('region-drag-over');
+
+          // Find closest component chip for insertion position
+          var chips = [];
+          var allChips = targetContent.querySelectorAll('.component-chip:not(.dragging)');
+          for (var c = 0; c < allChips.length; c++) {
+            chips.push(allChips[c]);
+          }
+
+          var closestChip = null;
+          var insertChipBefore = true;
+
+          for (var k = 0; k < chips.length; k++) {
+            var chipRect = chips[k].getBoundingClientRect();
+            var chipMid = chipRect.top + chipRect.height / 2;
+
+            if (e.clientY < chipMid) {
+              closestChip = chips[k];
+              insertChipBefore = true;
+              break;
+            }
+            closestChip = chips[k];
+            insertChipBefore = false;
+          }
+
+          if (closestChip) {
+            if (insertChipBefore) {
+              targetContent.insertBefore(componentPlaceholder, closestChip);
+            } else {
+              targetContent.insertBefore(componentPlaceholder, closestChip.nextSibling);
+            }
+          } else {
+            targetContent.appendChild(componentPlaceholder);
+          }
         }
       });
 
       document.addEventListener('dragend', function(e) {
-        if (!draggedSection) return;
-
-        draggedSection.classList.remove('dragging');
-
-        // Remove placeholder
-        if (placeholder && placeholder.parentNode) {
-          placeholder.parentNode.removeChild(placeholder);
+        // Cleanup section drag
+        if (draggedSection) {
+          draggedSection.classList.remove('dragging');
+          if (sectionPlaceholder && sectionPlaceholder.parentNode) {
+            sectionPlaceholder.parentNode.removeChild(sectionPlaceholder);
+          }
+          draggedSection = null;
+          sectionPlaceholder = null;
         }
 
-        draggedSection = null;
-        placeholder = null;
+        // Cleanup component drag
+        if (draggedComponent) {
+          draggedComponent.classList.remove('dragging');
+          if (componentPlaceholder && componentPlaceholder.parentNode) {
+            componentPlaceholder.parentNode.removeChild(componentPlaceholder);
+          }
+          // Clear region highlights
+          var allRegions = document.querySelectorAll('.region-slot-content');
+          for (var r = 0; r < allRegions.length; r++) {
+            allRegions[r].classList.remove('region-drag-over');
+          }
+          draggedComponent = null;
+          componentPlaceholder = null;
+        }
       });
 
       document.addEventListener('drop', function(e) {
-        if (!draggedSection) return;
-        e.preventDefault();
+        // === SECTION DROP (Feature #73) ===
+        if (draggedSection) {
+          e.preventDefault();
+          var canvas = document.getElementById('layout-canvas');
+          if (!canvas) return;
 
-        const canvas = document.getElementById('layout-canvas');
-        if (!canvas) return;
-
-        // Calculate new position based on placeholder location
-        if (placeholder && placeholder.parentNode === canvas) {
-          canvas.insertBefore(draggedSection, placeholder);
-        }
-
-        // Remove placeholder
-        if (placeholder && placeholder.parentNode) {
-          placeholder.parentNode.removeChild(placeholder);
-        }
-
-        // Gather new order and submit via API
-        const sectionElements = canvas.querySelectorAll('.section-wrapper[data-section-uuid]');
-        const newOrder = [...sectionElements].map(el => el.dataset.sectionUuid);
-
-        // Submit reorder via API
-        const contentType = '{{contentType}}';
-        const contentId = '{{contentId}}';
-
-        fetch('/api/layout/' + contentType + '/' + contentId + '/sections/reorder', {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({ order: newOrder })
-        }).then(function(resp) {
-          if (resp.ok) {
-            // Visual feedback
-            draggedSection.style.borderColor = '#4caf50';
-            setTimeout(function() {
-              draggedSection.style.borderColor = '';
-            }, 1000);
+          // Move section to placeholder position
+          if (sectionPlaceholder && sectionPlaceholder.parentNode === canvas) {
+            canvas.insertBefore(draggedSection, sectionPlaceholder);
           }
-        }).catch(function(err) {
-          console.error('Reorder failed:', err);
-          window.location.reload();
-        });
 
-        draggedSection.classList.remove('dragging');
-        draggedSection = null;
-        placeholder = null;
+          // Remove placeholder
+          if (sectionPlaceholder && sectionPlaceholder.parentNode) {
+            sectionPlaceholder.parentNode.removeChild(sectionPlaceholder);
+          }
+
+          // Gather new order and submit via API
+          var sectionElements = canvas.querySelectorAll('.section-wrapper[data-section-uuid]');
+          var newOrder = [];
+          for (var s = 0; s < sectionElements.length; s++) {
+            newOrder.push(sectionElements[s].dataset.sectionUuid);
+          }
+
+          var contentType = '{{contentType}}';
+          var contentId = '{{contentId}}';
+
+          fetch('/api/layout/' + contentType + '/' + contentId + '/sections/reorder', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ order: newOrder })
+          }).then(function(resp) {
+            if (resp.ok) {
+              showToast('✅ Sections reordered!', 'success');
+              // Green flash on moved section
+              draggedSection.style.borderColor = '#4caf50';
+              setTimeout(function() {
+                if (draggedSection) draggedSection.style.borderColor = '';
+              }, 1500);
+            } else {
+              showToast('❌ Reorder failed', 'error');
+            }
+          }).catch(function(err) {
+            console.error('Section reorder failed:', err);
+            window.location.reload();
+          });
+
+          draggedSection.classList.remove('dragging');
+          draggedSection = null;
+          sectionPlaceholder = null;
+          return;
+        }
+
+        // === COMPONENT DROP (Feature #72) ===
+        if (draggedComponent) {
+          e.preventDefault();
+
+          var targetContent = e.target.closest('.region-slot-content');
+          if (!targetContent) {
+            // Drop outside valid region — cancel
+            if (componentPlaceholder && componentPlaceholder.parentNode) {
+              componentPlaceholder.parentNode.removeChild(componentPlaceholder);
+            }
+            draggedComponent.classList.remove('dragging');
+            draggedComponent = null;
+            componentPlaceholder = null;
+            return;
+          }
+
+          // Move the component chip DOM element
+          if (componentPlaceholder && componentPlaceholder.parentNode === targetContent) {
+            targetContent.insertBefore(draggedComponent, componentPlaceholder);
+          } else {
+            targetContent.appendChild(draggedComponent);
+          }
+
+          // Remove placeholder and highlights
+          if (componentPlaceholder && componentPlaceholder.parentNode) {
+            componentPlaceholder.parentNode.removeChild(componentPlaceholder);
+          }
+          var allRegions = document.querySelectorAll('.region-slot-content');
+          for (var r = 0; r < allRegions.length; r++) {
+            allRegions[r].classList.remove('region-drag-over');
+          }
+
+          // Remove empty region placeholder text if present
+          var emptyDiv = targetContent.querySelector('.region-empty');
+          if (emptyDiv) emptyDiv.remove();
+
+          // Determine new target section and region from DOM context
+          var regionSlot = targetContent.closest('.region-slot');
+          var targetRegion = regionSlot ? regionSlot.dataset.region : '';
+          var targetSectionEl = targetContent.closest('.section-wrapper');
+          var targetSectionUuid = targetSectionEl ? targetSectionEl.dataset.sectionUuid : '';
+
+          // Build component order for the target region
+          var chips = targetContent.querySelectorAll('.component-chip[data-component-uuid]');
+          var componentOrder = [];
+          for (var c = 0; c < chips.length; c++) {
+            componentOrder.push(chips[c].dataset.componentUuid);
+          }
+
+          // Update the dragged component's data attributes
+          var sourceSectionUuid = draggedComponent.dataset.sectionUuid;
+          var sourceRegion = draggedComponent.dataset.region;
+          var componentUuid = draggedComponent.dataset.componentUuid;
+          draggedComponent.dataset.sectionUuid = targetSectionUuid;
+          draggedComponent.dataset.region = targetRegion;
+
+          var contentType = '{{contentType}}';
+          var contentId = '{{contentId}}';
+
+          // API call to persist component move
+          fetch('/api/layout/' + contentType + '/' + contentId + '/components/move', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              componentUuid: componentUuid,
+              sourceSectionUuid: sourceSectionUuid,
+              sourceRegion: sourceRegion,
+              targetSectionUuid: targetSectionUuid,
+              targetRegion: targetRegion,
+              componentOrder: componentOrder
+            })
+          }).then(function(resp) {
+            if (resp.ok) {
+              showToast('✅ Component moved!', 'success');
+              draggedComponent.style.borderColor = '#4caf50';
+              setTimeout(function() {
+                if (draggedComponent) draggedComponent.style.borderColor = '';
+              }, 1500);
+            } else {
+              showToast('❌ Move failed — reloading...', 'error');
+              setTimeout(function() { window.location.reload(); }, 1000);
+            }
+          }).catch(function(err) {
+            console.error('Component move failed:', err);
+            window.location.reload();
+          });
+
+          draggedComponent.classList.remove('dragging');
+          draggedComponent = null;
+          componentPlaceholder = null;
+        }
+      });
+
+      // ========================================
+      // COMPONENT DRAG & DROP (Feature #72)
+      // ========================================
+      var draggedComponent = null;
+      var componentPlaceholder = null;
+
+      function createComponentPlaceholder() {
+        var el = document.createElement('div');
+        el.className = 'component-placeholder';
+        el.style.cssText = 'height:3px; background:#4caf50; border-radius:2px; margin:3px 0; transition:height 0.2s;';
+        el.setAttribute('data-placeholder', 'component');
+        return el;
+      }
+
+      // ========================================
+      // Keyboard accessibility for drag handles
+      // ========================================
+      document.addEventListener('keydown', function(e) {
+        // Section drag handles: arrow up/down to reorder
+        if (e.target.classList.contains('section-drag-handle')) {
+          var section = e.target.closest('.section-wrapper');
+          if (!section) return;
+          var canvas = document.getElementById('layout-canvas');
+          if (!canvas) return;
+
+          if (e.key === 'ArrowUp' || e.key === 'ArrowDown') {
+            e.preventDefault();
+            var siblings = [];
+            var allWrappers = canvas.querySelectorAll('.section-wrapper[data-section-uuid]');
+            for (var i = 0; i < allWrappers.length; i++) siblings.push(allWrappers[i]);
+
+            var idx = siblings.indexOf(section);
+            if (idx === -1) return;
+
+            if (e.key === 'ArrowUp' && idx > 0) {
+              canvas.insertBefore(section, siblings[idx - 1]);
+            } else if (e.key === 'ArrowDown' && idx < siblings.length - 1) {
+              canvas.insertBefore(section, siblings[idx + 1].nextSibling);
+            } else {
+              return; // No move possible
+            }
+
+            // Persist the new order
+            var sectionElements = canvas.querySelectorAll('.section-wrapper[data-section-uuid]');
+            var newOrder = [];
+            for (var j = 0; j < sectionElements.length; j++) {
+              newOrder.push(sectionElements[j].dataset.sectionUuid);
+            }
+
+            fetch('/api/layout/{{contentType}}/{{contentId}}/sections/reorder', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ order: newOrder })
+            }).then(function(resp) {
+              if (resp.ok) showToast('✅ Section moved!', 'success');
+            });
+
+            // Keep focus on handle
+            section.querySelector('.section-drag-handle').focus();
+          }
+        }
       });
     })();
   </script>

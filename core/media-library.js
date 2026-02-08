@@ -671,17 +671,16 @@ export function list(options = {}) {
   const queryOptions = {
     page: options.page || 1,
     limit: options.limit || 20,
-    sort: options.sort || 'created',
-    order: options.order || 'desc',
-    filters: [],
+    sortBy: options.sort || 'created',
+    sortOrder: options.order || 'desc',
+    filters: {},
   };
 
+  // WHY OBJECT FORMAT:
+  // content.list() expects filters as { field: value } or { 'field__op': value }
+  // Array format was incorrectly used before and silently failed
   if (options.mediaType) {
-    queryOptions.filters.push({
-      field: 'mediaType',
-      op: 'eq',
-      value: options.mediaType,
-    });
+    queryOptions.filters.mediaType = options.mediaType;
   }
 
   if (options.search) {

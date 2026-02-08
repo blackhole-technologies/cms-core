@@ -74,7 +74,7 @@
               <a href="/admin/views/{{id}}/edit" class="btn btn-sm btn-secondary">Edit</a>
               <a href="/admin/views/{{id}}/preview" class="btn btn-sm btn-secondary">Test Query</a>
               <form method="POST" action="/admin/views/{{id}}/delete" style="display: inline;">
-                {{../csrfField}}
+                {{csrfField}}
                 <button type="submit" class="btn btn-sm btn-danger" onclick="return confirm('Delete this view?')">Delete</button>
               </form>
             </div>

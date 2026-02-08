@@ -165,8 +165,8 @@ export function start(port, context) {
       }
     });
 
-    // Start listening
-    server.listen(port, () => {
+    // Start listening on localhost only (sandbox-compatible)
+    server.listen(port, '127.0.0.1', () => {
       resolve();
     });
   });

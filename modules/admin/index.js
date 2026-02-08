@@ -42,6 +42,18 @@ function loadTemplate(name) {
 }
 
 /**
+ * Format bytes to human-readable size string
+ * @param {number} bytes - Size in bytes
+ * @returns {string} - e.g. "1.5 MB"
+ */
+function formatMediaSize(bytes) {
+  if (!bytes || bytes === 0) return '0 B';
+  const units = ['B', 'KB', 'MB', 'GB'];
+  const i = Math.floor(Math.log(bytes) / Math.log(1024));
+  return (bytes / Math.pow(1024, i)).toFixed(i > 0 ? 1 : 0) + ' ' + units[i];
+}
+
+/**
  * Parse URL-encoded form data from request body
  *
  * @param {http.IncomingMessage} req
@@ -13375,6 +13387,57 @@ export function hook_routes(register, context) {
   }, 'Remove display from view');
 
   /**
+   * GET /admin/views/:id/preview.json - JSON preview results for inline preview
+   * WHY: The edit page needs to fetch preview data via AJAX to display results
+   * inline without a full page navigation. Returns structured JSON for client rendering.
+   */
+  register('GET', '/admin/views/:id/preview.json', async (req, res, params, ctx) => {
+    const viewsService = ctx.services.get('views');
+    if (!viewsService) {
+      res.writeHead(404, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ error: 'Views service not available' }));
+      return;
+    }
+
+    const { id } = params;
+    const view = viewsService.getViewConfig(id);
+    if (!view) {
+      res.writeHead(404, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ error: 'View not found: ' + id }));
+      return;
+    }
+
+    let results = null;
+    let queryError = null;
+    try {
+      results = await viewsService.executeView(id, {});
+    } catch (error) {
+      queryError = error.message;
+    }
+
+    const items = results ? results.items : [];
+    const viewFields = view.fields || [];
+    const fieldNames = viewFields.map(f => typeof f === 'string' ? f : (f.name || f));
+    const fieldLabels = viewFields.map(f => {
+      if (typeof f === 'object' && f.label) return f.label;
+      const name = typeof f === 'string' ? f : (f.name || f);
+      return name.charAt(0).toUpperCase() + name.slice(1).replace(/[_-]/g, ' ');
+    });
+
+    res.writeHead(200, { 'Content-Type': 'application/json' });
+    res.end(JSON.stringify({
+      viewName: view.name,
+      contentType: view.contentType,
+      items: items,
+      total: results ? results.total : 0,
+      count: items.length,
+      fieldNames: fieldNames,
+      fieldLabels: fieldLabels,
+      error: queryError,
+    }));
+  }, 'View preview JSON API');
+
+  /**
    * GET /admin/views/:id/preview - Preview view results
    * WHY: Show live query results for a view
    */
@@ -16255,27 +16318,103 @@ export function hook_routes(register, context) {
 
     const url = new URL(req.url, 'http://localhost');
     const mediaType = url.searchParams.get('type') || null;
+    const searchQuery = url.searchParams.get('search') || '';
+    const viewMode = url.searchParams.get('view') || 'grid';
     const page = parseInt(url.searchParams.get('page')) || 1;
     const limit = 24;
 
-    const result = mediaLibrary.list({ mediaType, page, limit });
+    const listOptions = { mediaType, page, limit };
+    if (searchQuery) {
+      listOptions.search = searchQuery;
+    }
+
+    const result = mediaLibrary.list(listOptions);
     const types = mediaLibrary.listMediaTypes();
     const stats = mediaLibrary.getStats();
 
-    const html = template.renderWithLayout('admin/media-library.html', {
+    // Pre-compute media icon and type flags for template (template engine is simple)
+    const mediaIcons = { video: '🎬', audio: '🎵', document: '📄', remote_video: '🔗' };
+    const items = (result.items || []).map(item => ({
+      ...item,
+      _isImage: item.mediaType === 'image',
+      _icon: mediaIcons[item.mediaType] || '📁',
+      _sizeFormatted: item.size ? formatMediaSize(item.size) : '-',
+      _createdFormatted: item.created ? new Date(item.created).toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' }) : '-',
+    }));
+
+    // Pre-compute filter tabs with href and active class
+    const searchSuffix = searchQuery ? '&search=' + encodeURIComponent(searchQuery) : '';
+    const filterTabs = [
+      { label: 'All', href: '/admin/media/library' + (searchQuery ? '?search=' + encodeURIComponent(searchQuery) : ''), activeClass: !mediaType ? 'active' : '' },
+      ...types.map(t => ({
+        label: t.label || t.id,
+        href: '/admin/media/library?type=' + t.id + searchSuffix,
+        activeClass: mediaType === t.id ? 'active' : '',
+      })),
+    ];
+
+    // Pre-compute pagination URLs
+    const hasNext = page * limit < result.total;
+    const hasPrev = page > 1;
+    const baseParams = (mediaType ? '&type=' + mediaType : '') + (searchQuery ? '&search=' + encodeURIComponent(searchQuery) : '');
+    const prevUrl = '/admin/media/library?page=' + (page - 1) + baseParams;
+    const nextUrl = '/admin/media/library?page=' + (page + 1) + baseParams;
+
+    const html = renderAdmin('media-library.html', {
+      items,
+      total: result.total,
+      hasItems: items.length > 0,
+      page,
+      limit,
+      filterTabs,
+      stats,
+      currentType: mediaType,
+      searchQuery,
+      viewMode,
+      typeQueryParam: mediaType ? '?type=' + mediaType : '',
+      hasNext,
+      hasPrev,
+      showPagination: hasNext || hasPrev,
+      prevUrl,
+      nextUrl,
+      pageTitle: 'Media Library',
+    }, ctx, req);
+
+    server.html(res, html);
+  }, 'Media library browser with search, grid/list view toggle');
+
+  /**
+   * GET /admin/media/library/browse/search - Search endpoint for media browser modal
+   * Returns JSON for dynamic filtering in the modal
+   */
+  register('GET', '/admin/media/library/browse/search', async (req, res, params, ctx) => {
+    const mediaLibrary = ctx.services.get('mediaLibrary');
+    const server = ctx.services.get('server');
+
+    if (!mediaLibrary) {
+      server.json(res, { error: 'Media Library not enabled' }, 404);
+      return;
+    }
+
+    const url = new URL(req.url, 'http://localhost');
+    const search = url.searchParams.get('search') || '';
+    const mediaType = url.searchParams.get('type') || null;
+    const limit = parseInt(url.searchParams.get('limit')) || 50;
+    const page = parseInt(url.searchParams.get('page')) || 1;
+
+    const listOptions = { page, limit };
+    if (mediaType) listOptions.mediaType = mediaType;
+    if (search) listOptions.search = search;
+
+    const result = mediaLibrary.list(listOptions);
+
+    server.json(res, {
       items: result.items,
       total: result.total,
       page,
       limit,
-      types,
-      stats,
-      currentType: mediaType,
-      hasNext: page * limit < result.total,
-      hasPrev: page > 1,
     });
-
-    server.html(res, html);
-  }, 'Media library browser');
+  }, 'Media browser search endpoint for modal filtering');
 
   /**
    * GET /admin/media/library/browse - Media browser modal (for WYSIWYG)
@@ -16321,12 +16460,13 @@ export function hook_routes(register, context) {
     const url = mediaLibrary.getUrl(item);
     const thumbnailUrl = mediaLibrary.getThumbnailUrl(item);
 
-    const html = template.renderWithLayout('admin/media-detail.html', {
+    const html = renderAdmin('media-detail.html', {
       item,
       usage,
       url,
       thumbnailUrl,
-    });
+      pageTitle: 'Media: ' + (item.name || item.id),
+    }, ctx, req);
 
     server.html(res, html);
   }, 'View media item details');

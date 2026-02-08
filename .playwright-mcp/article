@@ -5,81 +5,265 @@
   "data": [
     {
       "type": "article",
-      "id": "1770433084130-5s0rt",
+      "id": "1770513382790-iqevi",
       "attributes": {
-        "title": "A11y Test",
-        "summary": "test summary",
-        "body": {
-          "value": "<img src=\"test.jpg\"><a href=\"/page\">click here</a><h3>Skip heading</h3>",
-          "format": "basic_html"
-        },
-        "isDefaultRevision": true,
-        "status": "draft"
-      },
-      "links": {
-        "self": "/jsonapi/article/1770433084130-5s0rt"
-      }
-    },
-    {
-      "type": "article",
-      "id": "1770433053484-iwosu",
-      "attributes": {
-        "title": "Default Rev Test Regression",
-        "isDefaultRevision": true,
-        "status": "draft"
-      },
-      "links": {
-        "self": "/jsonapi/article/1770433053484-iwosu"
-      }
-    },
-    {
-      "type": "article",
-      "id": "1770433021822-7irwh",
-      "attributes": {
-        "title": "Feature7 Multi Rev",
-        "isDefaultRevision": true,
+        "title": "WORKSPACE_TEST_48",
+        "body": "This article was created in workspace for feature 48 verification",
         "status": "draft",
-        "publishedAt": "2026-02-07T02:57:07.720Z",
-        "scheduledAt": null
+        "isDefaultRevision": true
       },
       "links": {
-        "self": "/jsonapi/article/1770433021822-7irwh"
+        "self": "/jsonapi/article/1770513382790-iqevi"
       }
     },
     {
       "type": "article",
-      "id": "1770432995527-7k9x9",
+      "id": "1770513264037-75d54",
       "attributes": {
-        "title": "ALT_TEXT_TEST_152",
-        "body": "<p>Article with <img src=\"sunset.jpg\"> and <img src=\"mountains.png\"> missing alt text.</p>",
+        "title": "RESTART_TEST_12345",
         "isDefaultRevision": true,
         "status": "draft"
       },
       "links": {
-        "self": "/jsonapi/article/1770432995527-7k9x9"
+        "self": "/jsonapi/article/1770513264037-75d54"
       }
     },
     {
       "type": "article",
-      "id": "1770432848806-bvb33",
+      "id": "1770512182781-tawac",
       "attributes": {
-        "title": "Rev Test A",
+        "title": "PERSIST_TEST_98765",
         "isDefaultRevision": true,
-        "status": "published",
-        "publishedAt": "2026-02-07T02:54:15.307Z",
-        "scheduledAt": null
+        "status": "draft"
       },
       "links": {
-        "self": "/jsonapi/article/1770432848806-bvb33"
+        "self": "/jsonapi/article/1770512182781-tawac"
+      }
+    },
+    {
+      "type": "article",
+      "id": "1770511812966-e074e",
+      "attributes": {
+        "title": "PERSIST_CHECK_99999",
+        "isDefaultRevision": true,
+        "status": "draft"
+      },
+      "links": {
+        "self": "/jsonapi/article/1770511812966-e074e"
+      }
+    },
+    {
+      "type": "article",
+      "id": "1770511480472-xs0op",
+      "attributes": {
+        "title": "RESTART_TEST_98765",
+        "isDefaultRevision": true,
+        "status": "draft"
+      },
+      "links": {
+        "self": "/jsonapi/article/1770511480472-xs0op"
+      }
+    },
+    {
+      "type": "article",
+      "id": "1770511275010-jba5j",
+      "attributes": {
+        "title": "NO_CONFLICT_TEST_43",
+        "body": "Content that will NOT conflict",
+        "isDefaultRevision": true,
+        "status": "draft"
+      },
+      "links": {
+        "self": "/jsonapi/article/1770511275010-jba5j"
+      }
+    },
+    {
+      "type": "article",
+      "id": "1770511274110-13p3p",
+      "attributes": {
+        "title": "RESTART_TEST_12345",
+        "isDefaultRevision": true,
+        "status": "draft"
+      },
+      "links": {
+        "self": "/jsonapi/article/1770511274110-13p3p"
+      }
+    },
+    {
+      "type": "article",
+      "id": "1770511120285-09jpw",
+      "attributes": {
+        "title": "CONFLICT_TEST_42_LIVE_EDIT",
+        "body": "Modified in live AFTER workspace copy",
+        "isDefaultRevision": true,
+        "status": "draft"
+      },
+      "links": {
+        "self": "/jsonapi/article/1770511120285-09jpw"
+      }
+    },
+    {
+      "type": "article",
+      "id": "1770510979050-j97j5",
+      "attributes": {
+        "title": "WS41_ARTICLE_2",
+        "body": "Second article in workspace 41",
+        "isDefaultRevision": true,
+        "status": "draft"
+      },
+      "links": {
+        "self": "/jsonapi/article/1770510979050-j97j5"
+      }
+    },
+    {
+      "type": "article",
+      "id": "1770510972701-uh4tv",
+      "attributes": {
+        "title": "WS41_ARTICLE_1",
+        "body": "First article in workspace 41",
+        "isDefaultRevision": true,
+        "status": "draft"
+      },
+      "links": {
+        "self": "/jsonapi/article/1770510972701-uh4tv"
+      }
+    },
+    {
+      "type": "article",
+      "id": "1770510841212-97nmv",
+      "attributes": {
+        "title": "PERSIST_TEST_99999",
+        "isDefaultRevision": true,
+        "status": "draft"
+      },
+      "links": {
+        "self": "/jsonapi/article/1770510841212-97nmv"
+      }
+    },
+    {
+      "type": "article",
+      "id": "1770510613444-t5ix7",
+      "attributes": {
+        "title": "PERSISTENCE_TEST_98765",
+        "isDefaultRevision": true,
+        "status": "draft"
+      },
+      "links": {
+        "self": "/jsonapi/article/1770510613444-t5ix7"
+      }
+    },
+    {
+      "type": "article",
+      "id": "1770510605908-o36p0",
+      "attributes": {
+        "title": "WS_PUBLISH_TEST_B",
+        "body": "Article B for workspace publish-all test",
+        "isDefaultRevision": true,
+        "status": "draft"
+      },
+      "links": {
+        "self": "/jsonapi/article/1770510605908-o36p0"
+      }
+    },
+    {
+      "type": "article",
+      "id": "1770510600206-z6h9a",
+      "attributes": {
+        "title": "WS_PUBLISH_TEST_A",
+        "body": "Article A for workspace publish-all test",
+        "isDefaultRevision": true,
+        "status": "draft"
+      },
+      "links": {
+        "self": "/jsonapi/article/1770510600206-z6h9a"
+      }
+    },
+    {
+      "type": "article",
+      "id": "1770510532440-46nqh",
+      "attributes": {
+        "title": "PUBLISH_ALL_TEST_2",
+        "body": "Second article for workspace publish test",
+        "isDefaultRevision": true,
+        "status": "draft"
+      },
+      "links": {
+        "self": "/jsonapi/article/1770510532440-46nqh"
+      }
+    },
+    {
+      "type": "article",
+      "id": "1770510527307-mxwpc",
+      "attributes": {
+        "title": "PUBLISH_ALL_TEST_1",
+        "body": "First article for workspace publish test",
+        "isDefaultRevision": true,
+        "status": "draft"
+      },
+      "links": {
+        "self": "/jsonapi/article/1770510527307-mxwpc"
+      }
+    },
+    {
+      "type": "article",
+      "id": "1770510395144-0m1hw",
+      "attributes": {
+        "title": "WS_PUBLISH_TEST_2",
+        "body": "Second article in workspace",
+        "isDefaultRevision": true,
+        "status": "draft"
+      },
+      "links": {
+        "self": "/jsonapi/article/1770510395144-0m1hw"
+      }
+    },
+    {
+      "type": "article",
+      "id": "1770510390267-7zo8a",
+      "attributes": {
+        "title": "WS_PUBLISH_TEST_1",
+        "body": "First article in workspace",
+        "isDefaultRevision": true,
+        "status": "draft"
+      },
+      "links": {
+        "self": "/jsonapi/article/1770510390267-7zo8a"
+      }
+    },
+    {
+      "type": "article",
+      "id": "1770504546468-zamgu",
+      "attributes": {
+        "title": "EDITED IN STAGING",
+        "body": "Modified in workspace",
+        "isDefaultRevision": true,
+        "status": "draft"
+      },
+      "links": {
+        "self": "/jsonapi/article/1770504546468-zamgu"
+      }
+    },
+    {
+      "type": "article",
+      "id": "1770504502258-02uwf",
+      "attributes": {
+        "title": "PUBLISH_TEST_40",
+        "body": "This content was created in staging workspace for publish test",
+        "isDefaultRevision": true,
+        "status": "draft"
+      },
+      "links": {
+        "self": "/jsonapi/article/1770504502258-02uwf"
       }
     }
   ],
   "meta": {
-    "total": 5,
+    "total": 45,
     "offset": 0,
     "limit": 20
   },
   "links": {
-    "self": "/jsonapi/article"
+    "self": "/jsonapi/article",
+    "next": "/jsonapi/article?page[offset]=20&page[limit]=20"
   }
 }

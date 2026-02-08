@@ -635,19 +635,60 @@ export async function executeView(id, context = {}) {
   await hooksService.trigger('views:beforeQuery', { view, context });
 
   // Apply contextual filters
-  const filters = applyContextualFilters(view, context);
+  let filters = applyContextualFilters(view, context);
+
+  // WHY: Handle exposed filters - override from query params or remove if not provided
+  // Exposed filters allow end users to dynamically filter results via form inputs.
+  // When exposed=true:
+  //   - If query param present with value → use that value
+  //   - If query param present but empty → remove filter (show all)
+  //   - If query param not present → remove filter (default for exposed is "show all")
+  // This differs from non-exposed filters which always use their configured value.
+  const queryParams = context.query || {};
+  filters = filters.map(filter => {
+    if (filter.exposed) {
+      // Exposed filter behavior
+      if (queryParams.hasOwnProperty(filter.field)) {
+        const queryValue = queryParams[filter.field];
+
+        // Empty query param = remove this filter (show all)
+        if (queryValue === '') {
+          return null;
+        }
+
+        // Override filter value with query param
+        return {
+          ...filter,
+          value: queryValue,
+        };
+      } else {
+        // WHY: No query param for exposed filter = don't filter (show all)
+        // This allows the "Reset" link to work by removing all query params
+        return null;
+      }
+    }
+    return filter;
+  }).filter(f => f !== null); // Remove null entries (empty/missing exposed filters)
+
+  // WHY: Convert array-format filters to object-format for content.list()
+  // content.list() expects filters as { "field": value, "field__op": value }
+  // e.g. { "status": "published", "title__contains": "test" }
+  // Views stores filters as array of { field, op, value } objects
+  const filterObj = {};
+  for (const f of filters) {
+    const op = OPERATORS[f.op] || f.op;
+    // 'eq' operator uses plain field name; others use field__op suffix
+    const key = op === 'eq' ? f.field : `${f.field}__${op}`;
+    filterObj[key] = f.value;
+  }
 
   // Build query options
   const queryOptions = {
-    filters: filters.map(f => ({
-      field: f.field,
-      op: OPERATORS[f.op] || f.op,
-      value: f.value,
-    })),
+    filters: filterObj,
     filterLogic: view.filterLogic || 'AND',
-    sort: view.sort[0]?.field || 'created',
-    order: view.sort[0]?.dir || 'desc',
-    offset: view.pager.offset,
+    sortBy: view.sort[0]?.field || 'created',
+    sortOrder: view.sort[0]?.dir || 'desc',
+    page: view.pager.offset ? Math.floor(view.pager.offset / Math.min(view.pager.limit, config.maxLimit)) + 1 : 1,
     limit: Math.min(view.pager.limit, config.maxLimit),
   };
 

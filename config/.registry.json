@@ -118,6 +118,13 @@
       "schema": null,
       "locked": false,
       "registeredAt": "2026-02-06T16:42:44.170Z"
+    },
+    "workspace-active": {
+      "name": "workspace-active",
+      "file": "workspace-active.json",
+      "schema": null,
+      "locked": false,
+      "registeredAt": "2026-02-07T04:01:05.959Z"
     }
   },
   "environments": {
