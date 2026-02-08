@@ -32,10 +32,10 @@
 import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
-import * as fieldsetFormatter from './formatters/field-group/fieldset.formatter.js';
-import * as tabsFormatter from './formatters/field-group/tabs.formatter.js';
-import * as accordionFormatter from './formatters/field-group/accordion.formatter.js';
-import * as detailsFormatter from './formatters/field-group/details.formatter.js';
+import * as fieldsetFormatter from './formatters/fieldset.formatter.js';
+import * as tabsFormatter from './formatters/tabs.formatter.js';
+import * as accordionFormatter from './formatters/accordion.formatter.js';
+import * as detailsFormatter from './formatters/details.formatter.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -57,6 +57,22 @@ const groups = new Map();
  * Services need configuration (storage path, settings) before use.
  * Separating init from module load allows testing with different configs.
  */
+/**
+ * Boot hook — called by CMS-Core module loader.
+ * Initializes the field group service and registers it so other modules
+ * (e.g. admin) can access it via ctx.services.get('field-group').
+ */
+export async function hook_boot(context) {
+  const contentDir = context.config?.contentDir || './content';
+  await init({ contentDir });
+
+  // Register as a service so admin and other modules can use us
+  if (context.services && typeof context.services.register === 'function') {
+    const self = await import(new URL(import.meta.url).pathname);
+    context.services.register('field-group', () => self);
+  }
+}
+
 export async function init(configuration = {}) {
   config = {
     contentDir: './content',
