@@ -555,3 +555,39 @@
 - 43/165 features passing (~26.1%)
 - Layout Builder UI tier: Features 67, 68, 70 done
 - All 3 assigned features completed
+
+## Session 16 - 2026-02-08
+
+### Completed
+- Feature #41: Publish entire workspace to live (PASSING)
+  - Created workspace with multiple content items
+  - workspace:publish publishes all items to live in one operation
+  - All workspace content now in live (no _workspace field)
+  - Workspace associations cleared after publish (workspace empty)
+  - Workspace entity still exists but can be reused or deleted
+  - Data persists across server restart (flat-file storage)
+- Feature #42: Workspace publish validation - no conflicts (PASSING)
+  - Created workspace, edited content, then modified same content in live
+  - workspace:publish blocked with "1 conflict(s) detected" error
+  - Error message identifies content item and conflicting fields
+  - Suggests workspace:conflicts for details or --force to override
+  - --force flag allows publishing despite conflicts
+- Feature #43: Workspace conflict detection (PASSING)
+  - detectConflicts() compares workspace copies against live versions
+  - Timestamps compared: if live modified AFTER workspace copy created → conflict
+  - Field-level diff shows which fields conflict (title, body, etc.)
+  - Non-conflicting workspace edits correctly NOT flagged
+  - workspace:conflicts CLI shows detailed per-field comparison
+  - API endpoint GET /api/workspaces/:id/conflicts available
+
+### No Code Changes Required
+All three features were already fully implemented in core/workspaces.js:
+- publishWorkspace() handles bulk publish with conflict validation
+- detectConflicts() with findConflictingFields() for field-level diffs
+- CLI commands: workspace:publish, workspace:conflicts
+- REST API endpoints for publish and conflict detection
+
+### Current Status
+- 63/165 features passing (~38.2%)
+- Workspace tier: Features 41, 42, 43 done
+- All 3 assigned features completed
