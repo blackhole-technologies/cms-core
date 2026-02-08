@@ -693,6 +693,13 @@ function registerBuiltinConstraints() {
         return violations;
       }
 
+      // Skip validation for URLs (remote media like YouTube, Vimeo)
+      // WHY: Remote video media entities store the full URL in the filename field.
+      // URLs don't have file extensions, so we skip this constraint for them.
+      if (filename.startsWith('http://') || filename.startsWith('https://')) {
+        return violations;
+      }
+
       // Extract extension (lowercase)
       const ext = filename.split('.').pop()?.toLowerCase() || '';
 

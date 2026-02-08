@@ -599,22 +599,58 @@ function registerBuiltinChecks() {
       for (const [fieldName, field] of Object.entries(fields)) {
         if (field.type !== 'html') continue;
 
-        // Check for inline color styles that might cause contrast issues
-        const styleColorRegex = /style\s*=\s*"[^"]*(?:color\s*:\s*([^;"]*))[^"]*"/gi;
-        let cMatch;
+        // Check for inline color/background-color styles that might cause contrast issues
+        // Match entire style attribute to extract both color and background-color
+        const styleRegex = /<[^>]+style\s*=\s*"([^"]*)"/gi;
+        let sMatch;
 
-        while ((cMatch = styleColorRegex.exec(field.value)) !== null) {
-          const colorValue = cMatch[1]?.trim();
-          if (colorValue) {
-            // Light colors on potentially light backgrounds
-            if (isLightColor(colorValue)) {
-              issues.push({
-                message: `Inline style uses a light color (${colorValue}) that may have poor contrast`,
-                field: fieldName,
-                element: cMatch[0].substring(0, 100),
-                severity: SEVERITY.WARNING,
-                suggestion: 'Verify color contrast meets WCAG AA minimum (4.5:1 for text, 3:1 for large text). Consider using CSS classes instead of inline styles',
-              });
+        while ((sMatch = styleRegex.exec(field.value)) !== null) {
+          const styleContent = sMatch[1];
+
+          // Extract color and background-color from style
+          const colorMatch = /(?:^|;)\s*color\s*:\s*([^;]+)/i.exec(styleContent);
+          const bgColorMatch = /(?:^|;)\s*background-color\s*:\s*([^;]+)/i.exec(styleContent);
+
+          const foreground = colorMatch ? colorMatch[1].trim() : null;
+          const background = bgColorMatch ? bgColorMatch[1].trim() : null;
+
+          // If we have both foreground and background, calculate contrast ratio
+          if (foreground && background) {
+            const contrastRatio = calculateContrastRatio(foreground, background);
+
+            if (contrastRatio !== null) {
+              // WCAG AA requires 4.5:1 for normal text, 3:1 for large text
+              // WCAG AAA requires 7:1 for normal text, 4.5:1 for large text
+              if (contrastRatio < 4.5) {
+                const severity = contrastRatio < 3 ? SEVERITY.ERROR : SEVERITY.WARNING;
+                issues.push({
+                  message: `Low color contrast: ${contrastRatio.toFixed(2)}:1 (foreground: ${foreground}, background: ${background})`,
+                  field: fieldName,
+                  element: sMatch[0].substring(0, 150),
+                  severity,
+                  suggestion: `Increase contrast to meet WCAG AA minimum (4.5:1 for normal text, 3:1 for large text). Current: ${contrastRatio.toFixed(2)}:1`,
+                });
+              }
+            }
+          } else if (foreground) {
+            // Only foreground color specified - check against likely backgrounds
+            const likelyBgLight = parseColor('#ffffff'); // Assume white background
+            const likelyBgDark = parseColor('#000000'); // Could also be dark
+
+            const fgColor = parseColor(foreground);
+            if (fgColor) {
+              // Check contrast against white background (most common)
+              const contrastLight = getContrastRatio(fgColor, likelyBgLight);
+
+              if (contrastLight < 4.5) {
+                issues.push({
+                  message: `Foreground color may have poor contrast: ${contrastLight.toFixed(2)}:1 against white background (color: ${foreground})`,
+                  field: fieldName,
+                  element: sMatch[0].substring(0, 150),
+                  severity: SEVERITY.WARNING,
+                  suggestion: `Verify color contrast meets WCAG AA minimum (4.5:1 for text, 3:1 for large text). Contrast ratio: ${contrastLight.toFixed(2)}:1. Consider specifying background-color for more accurate checking.`,
+                });
+              }
             }
           }
         }
@@ -644,6 +680,129 @@ function extractAttr(attrString, attrName) {
   const match = regex.exec(attrString);
   if (!match) return null;
   return match[1] || match[2] || match[3] || '';
+}
+
+/**
+ * Parse CSS color value to RGB object
+ *
+ * WHY COMPREHENSIVE PARSING:
+ * CSS supports multiple color formats (hex, rgb, rgba, named colors).
+ * We need to normalize all formats to RGB for contrast calculation.
+ *
+ * @param {string} colorStr - CSS color value
+ * @returns {object|null} - {r, g, b} object or null if invalid
+ */
+function parseColor(colorStr) {
+  const c = colorStr.toLowerCase().trim();
+
+  // Named colors (subset of most common)
+  const namedColors = {
+    'white': [255, 255, 255], 'black': [0, 0, 0], 'red': [255, 0, 0],
+    'green': [0, 128, 0], 'blue': [0, 0, 255], 'yellow': [255, 255, 0],
+    'cyan': [0, 255, 255], 'magenta': [255, 0, 255], 'gray': [128, 128, 128],
+    'grey': [128, 128, 128], 'silver': [192, 192, 192], 'maroon': [128, 0, 0],
+    'olive': [128, 128, 0], 'lime': [0, 255, 0], 'aqua': [0, 255, 255],
+    'teal': [0, 128, 128], 'navy': [0, 0, 128], 'fuchsia': [255, 0, 255],
+    'purple': [128, 0, 128], 'orange': [255, 165, 0],
+  };
+
+  if (namedColors[c]) {
+    const [r, g, b] = namedColors[c];
+    return { r, g, b };
+  }
+
+  // Hex colors (#rgb, #rrggbb, #rrggbbaa)
+  const hexMatch = /^#([0-9a-f]{3,8})$/i.exec(c);
+  if (hexMatch) {
+    let hex = hexMatch[1];
+
+    // Expand 3-char hex to 6-char
+    if (hex.length === 3) {
+      hex = hex[0] + hex[0] + hex[1] + hex[1] + hex[2] + hex[2];
+    }
+
+    if (hex.length >= 6) {
+      const r = parseInt(hex.substring(0, 2), 16);
+      const g = parseInt(hex.substring(2, 4), 16);
+      const b = parseInt(hex.substring(4, 6), 16);
+      return { r, g, b };
+    }
+  }
+
+  // RGB/RGBA notation: rgb(255, 0, 0) or rgba(255, 0, 0, 0.5)
+  const rgbMatch = /rgba?\s*\(\s*(\d+)\s*,\s*(\d+)\s*,\s*(\d+)(?:\s*,\s*[\d.]+)?\s*\)/i.exec(c);
+  if (rgbMatch) {
+    return {
+      r: parseInt(rgbMatch[1]),
+      g: parseInt(rgbMatch[2]),
+      b: parseInt(rgbMatch[3]),
+    };
+  }
+
+  return null;
+}
+
+/**
+ * Calculate relative luminance using WCAG 2.1 formula
+ *
+ * WHY GAMMA CORRECTION:
+ * sRGB colors are gamma-encoded. We need to convert to linear RGB
+ * before calculating luminance per WCAG spec.
+ *
+ * @param {object} rgb - {r, g, b} object with values 0-255
+ * @returns {number} - Relative luminance (0-1)
+ */
+function getRelativeLuminance(rgb) {
+  // Convert 0-255 to 0-1
+  let r = rgb.r / 255;
+  let g = rgb.g / 255;
+  let b = rgb.b / 255;
+
+  // Apply gamma correction (sRGB to linear RGB)
+  r = r <= 0.03928 ? r / 12.92 : Math.pow((r + 0.055) / 1.055, 2.4);
+  g = g <= 0.03928 ? g / 12.92 : Math.pow((g + 0.055) / 1.055, 2.4);
+  b = b <= 0.03928 ? b / 12.92 : Math.pow((b + 0.055) / 1.055, 2.4);
+
+  // ITU-R BT.709 coefficients
+  return 0.2126 * r + 0.7152 * g + 0.0722 * b;
+}
+
+/**
+ * Calculate contrast ratio between two RGB colors
+ *
+ * WHY WCAG FORMULA:
+ * WCAG 2.1 defines contrast ratio as (L1 + 0.05) / (L2 + 0.05)
+ * where L1 is lighter color luminance, L2 is darker.
+ *
+ * @param {object} rgb1 - First color {r, g, b}
+ * @param {object} rgb2 - Second color {r, g, b}
+ * @returns {number} - Contrast ratio (1-21)
+ */
+function getContrastRatio(rgb1, rgb2) {
+  const l1 = getRelativeLuminance(rgb1);
+  const l2 = getRelativeLuminance(rgb2);
+
+  // Ensure L1 is the lighter color
+  const lighter = Math.max(l1, l2);
+  const darker = Math.min(l1, l2);
+
+  return (lighter + 0.05) / (darker + 0.05);
+}
+
+/**
+ * Calculate contrast ratio from CSS color strings
+ *
+ * @param {string} foreground - Foreground CSS color
+ * @param {string} background - Background CSS color
+ * @returns {number|null} - Contrast ratio or null if invalid colors
+ */
+function calculateContrastRatio(foreground, background) {
+  const fg = parseColor(foreground);
+  const bg = parseColor(background);
+
+  if (!fg || !bg) return null;
+
+  return getContrastRatio(fg, bg);
 }
 
 /**

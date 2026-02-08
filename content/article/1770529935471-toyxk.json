@@ -1,0 +1,12 @@
+{
+  "id": "1770529935471-toyxk",
+  "type": "article",
+  "created": "2026-02-08T05:52:15.471Z",
+  "updated": "2026-02-08T05:52:15.471Z",
+  "title": "Color Contrast Test Article",
+  "slug": "color-contrast-test",
+  "body": "<div style=\"color: #cccccc; background-color: #ffffff\">This is light gray text on white background - very low contrast (1.6:1)</div><div style=\"color: #ffff00; background-color: #ffffff\">This is yellow text on white background - low contrast (1.1:1)</div><div style=\"color: #000000; background-color: #ffffff\">This is black text on white background - high contrast (21:1)</div><div style=\"color: #767676\">This has only foreground color, no background specified</div>",
+  "status": "published",
+  "isDefaultRevision": true,
+  "publishedAt": "2026-02-08T05:52:15.471Z"
+}

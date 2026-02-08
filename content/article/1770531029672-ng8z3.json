@@ -1,0 +1,12 @@
+{
+  "id": "1770531029672-ng8z3",
+  "type": "article",
+  "created": "2026-02-08T06:10:29.672Z",
+  "updated": "2026-02-08T06:10:29.672Z",
+  "title": "Accessibility Score Test - Few Issues",
+  "slug": "score-test-few-issues",
+  "body": "<div><img src=\"test.jpg\" alt=\"Test image\"><button>Click Me</button><input type=\"text\" aria-label=\"Name\"><h1>Title</h1><h2>Subtitle</h2><a href=\"/about\">Learn about our services</a></div>",
+  "status": "published",
+  "isDefaultRevision": true,
+  "publishedAt": "2026-02-08T06:10:29.672Z"
+}

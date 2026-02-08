@@ -1,0 +1,12 @@
+{
+  "id": "1770531029151-15l1u",
+  "type": "article",
+  "created": "2026-02-08T06:10:29.151Z",
+  "updated": "2026-02-08T06:10:29.151Z",
+  "title": "Accessibility Score Test - Many Issues",
+  "slug": "score-test-many-issues",
+  "body": "<div style=\"color: #cccccc; background-color: #ffffff\">Low contrast text</div><img src=\"test.jpg\"><button></button><input type=\"text\"><h1>Title</h1><h3>Skipped level</h3><a href=\"/\">click here</a>",
+  "status": "published",
+  "isDefaultRevision": true,
+  "publishedAt": "2026-02-08T06:10:29.151Z"
+}

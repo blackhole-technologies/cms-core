@@ -1,0 +1,6 @@
+{
+  "title": "Accessibility Score Test - Perfect",
+  "slug": "score-test-perfect",
+  "body": "<div><p>This is a simple paragraph with good semantic HTML.</p><h1>Main Heading</h1><h2>Subheading</h2><p>More accessible content here.</p></div>",
+  "status": "published"
+}

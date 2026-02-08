@@ -1,0 +1,12 @@
+{
+  "id": "1770531030197-7qnzg",
+  "type": "article",
+  "created": "2026-02-08T06:10:30.197Z",
+  "updated": "2026-02-08T06:10:30.197Z",
+  "title": "Accessibility Score Test - Perfect",
+  "slug": "score-test-perfect",
+  "body": "<div><p>This is a simple paragraph with good semantic HTML.</p><h1>Main Heading</h1><h2>Subheading</h2><p>More accessible content here.</p></div>",
+  "status": "published",
+  "isDefaultRevision": true,
+  "publishedAt": "2026-02-08T06:10:30.197Z"
+}
