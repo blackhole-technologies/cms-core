@@ -1297,3 +1297,45 @@ All features tested via CLI commands:
 ### Next Steps
 - Only 4 features remaining (97.6% → 100%)
 - Project nearing completion
+
+
+## Session 20 - 2026-02-08 (Features #155, #156, #157)
+
+### Completed
+- Feature #155: Color contrast warnings (PASSING)
+  - Added missing color contrast calculation functions to core/accessibility.js
+  - Implemented parseColor() for CSS color parsing (hex, rgb, rgba, named colors)
+  - Implemented getRelativeLuminance() using WCAG 2.1 formula with gamma correction
+  - Implemented getContrastRatio() for calculating contrast between two colors
+  - Implemented calculateContrastRatio() helper for CSS color strings
+  - Formula: (L1 + 0.05) / (L2 + 0.05) where L1 is lighter luminance
+  - Verified: #cccccc on #ffffff = 1.61:1 (flagged as ERROR)
+  - Verified: #ffff00 on #ffffff = 1.07:1 (flagged as ERROR)
+  - Verified: #000000 on #ffffff = 21:1 (not flagged - excellent contrast)
+  - WCAG AA thresholds: 4.5:1 for normal text, 3:1 for large text
+
+- Feature #156: ARIA label suggestions (PASSING)
+  - ARIA label check already fully implemented in core/accessibility.js
+  - Detects buttons without accessible text (ERROR severity)
+  - Detects form inputs without labels (INFO severity)
+  - Context-aware suggestions based on element state
+  - Different messages for inputs with/without placeholder
+  - Correctly ignores inputs with aria-label or aria-labelledby
+  - Tested with buttons, text inputs, email inputs, password inputs
+  - All suggestions are actionable and WCAG-compliant
+
+- Feature #157: Accessibility score per content (PASSING)
+  - Accessibility scoring already fully implemented in core/accessibility.js
+  - Weighted scoring: errors -15, warnings -5, info -1
+  - Score range: 0-100 (capped at 0, never negative)
+  - Perfect content with no issues: 100/100
+  - Content with 3 errors, 2 warnings, 1 info: 44/100
+  - Calculation: 100 - (3x15 + 2x5 + 1x1) = 100 - 56 = 44
+  - Score automatically included in every accessibility check
+  - Demonstrated score relationship to issue count
+
+### Current Status
+- 162/165 features passing (98.2%)
+- All 3 assigned features completed
+- Only 3 features remaining in entire project
+
