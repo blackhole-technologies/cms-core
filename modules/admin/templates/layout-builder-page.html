@@ -1448,17 +1448,21 @@
 
     // Helper: Remove a component via API
     function removeComponent(contentType, contentId, sectionUuid, componentUuid) {
-      fetch('/api/layout/' + contentType + '/' + contentId + '/sections/' + sectionUuid + '/components/' + componentUuid, {
-        method: 'DELETE'
-      }).then(function(resp) {
-        if (resp.ok) {
-          window.location.reload();
-        } else {
-          alert('Failed to remove component');
-        }
-      }).catch(function(err) {
-        alert('Error: ' + err.message);
-      });
+      var form = document.createElement('form');
+      form.method = 'POST';
+      form.action = '/node/' + contentId + '/layout/remove-component';
+      function addHidden(name, value) {
+        var input = document.createElement('input');
+        input.type = 'hidden';
+        input.name = name;
+        input.value = value;
+        form.appendChild(input);
+      }
+      addHidden('contentType', contentType);
+      addHidden('sectionUuid', sectionUuid);
+      addHidden('componentUuid', componentUuid);
+      document.body.appendChild(form);
+      form.submit();
     }
   </script>
 
