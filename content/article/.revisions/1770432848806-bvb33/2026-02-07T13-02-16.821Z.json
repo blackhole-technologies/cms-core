@@ -2,8 +2,8 @@
   "id": "1770432848806-bvb33",
   "type": "article",
   "created": "2026-02-07T02:54:08.806Z",
-  "updated": "2026-02-08T02:35:38.956Z",
-  "title": "Rev Test A - Draft Edit",
+  "updated": "2026-02-07T13:02:16.821Z",
+  "title": "Rev Test A - Third Draft",
   "isDefaultRevision": true,
   "status": "published",
   "publishedAt": "2026-02-07T02:54:15.307Z",
@@ -31,20 +31,16 @@
         "weight": 0
       },
       {
-        "uuid": "ab93d2ee7b024d0375e4277800bb2bf2",
-        "layoutId": "three_column",
-        "settings": {
-          "columnWidths": "33-33-33"
-        },
+        "uuid": "92f17866b5d7d5e64253231a3045a16d",
+        "layoutId": "one_column",
+        "settings": {},
         "components": {
-          "first": [],
-          "second": [],
-          "third": []
+          "content": []
         },
         "weight": 1
       }
     ],
-    "updated": "2026-02-07T03:47:35.272Z"
+    "updated": "2026-02-07T13:02:16.821Z"
   },
-  "body": "This is a pending draft revision"
+  "body": "Third pending draft"
 }

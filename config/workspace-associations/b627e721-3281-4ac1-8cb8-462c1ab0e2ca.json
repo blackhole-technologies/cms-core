@@ -1,0 +1,18 @@
+{
+  "items": [
+    {
+      "type": "article",
+      "id": "1770518121890-4ykzw",
+      "operation": "create",
+      "revisionId": "2026-02-08T02:35:21.890Z",
+      "timestamp": "2026-02-08T02:35:21.891Z"
+    },
+    {
+      "type": "user",
+      "id": "1769870756954-jymy1",
+      "operation": "edit",
+      "revisionId": "2026-02-08T02:35:25.299Z",
+      "timestamp": "2026-02-08T02:35:25.299Z"
+    }
+  ]
+}

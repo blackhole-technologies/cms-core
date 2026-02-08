@@ -5,265 +5,82 @@
   "data": [
     {
       "type": "article",
-      "id": "1770513382790-iqevi",
+      "id": "1770517121814-0sccl",
       "attributes": {
-        "title": "WORKSPACE_TEST_48",
-        "body": "This article was created in workspace for feature 48 verification",
-        "status": "draft",
-        "isDefaultRevision": true
-      },
-      "links": {
-        "self": "/jsonapi/article/1770513382790-iqevi"
-      }
-    },
-    {
-      "type": "article",
-      "id": "1770513264037-75d54",
-      "attributes": {
-        "title": "RESTART_TEST_12345",
+        "title": "DISCARD_TEST_20",
+        "body": "Original published body",
         "isDefaultRevision": true,
         "status": "draft"
       },
       "links": {
-        "self": "/jsonapi/article/1770513264037-75d54"
-      }
+        "self": "/jsonapi/article/1770517121814-0sccl"
+      },
+      "meta": {}
     },
     {
       "type": "article",
-      "id": "1770512182781-tawac",
+      "id": "1770517121814-0sccl",
       "attributes": {
-        "title": "PERSIST_TEST_98765",
+        "title": "DISCARD_TEST_20",
+        "body": "Original published body",
         "isDefaultRevision": true,
         "status": "draft"
       },
       "links": {
-        "self": "/jsonapi/article/1770512182781-tawac"
+        "self": "/jsonapi/article/1770517121814-0sccl"
+      },
+      "meta": {
+        "revisionTimestamp": "2026-02-08T02:18:41.814Z",
+        "isHistoricalRevision": true
       }
     },
     {
       "type": "article",
-      "id": "1770511812966-e074e",
+      "id": "1770517029835-fn6se",
       "attributes": {
-        "title": "PERSIST_CHECK_99999",
+        "title": "RESTART_TEST_REGRESSION_99999",
         "isDefaultRevision": true,
         "status": "draft"
       },
       "links": {
-        "self": "/jsonapi/article/1770511812966-e074e"
-      }
+        "self": "/jsonapi/article/1770517029835-fn6se"
+      },
+      "meta": {}
     },
     {
       "type": "article",
-      "id": "1770511480472-xs0op",
+      "id": "1770516908229-vnpfn",
       "attributes": {
-        "title": "RESTART_TEST_98765",
+        "title": "PERSISTENCE_TEST_99999",
         "isDefaultRevision": true,
         "status": "draft"
       },
       "links": {
-        "self": "/jsonapi/article/1770511480472-xs0op"
-      }
+        "self": "/jsonapi/article/1770516908229-vnpfn"
+      },
+      "meta": {}
     },
     {
       "type": "article",
-      "id": "1770511275010-jba5j",
+      "id": "1770516776566-21u6g",
       "attributes": {
-        "title": "NO_CONFLICT_TEST_43",
-        "body": "Content that will NOT conflict",
+        "title": "PERSIST_REGTEST_77777",
         "isDefaultRevision": true,
         "status": "draft"
       },
       "links": {
-        "self": "/jsonapi/article/1770511275010-jba5j"
-      }
-    },
-    {
-      "type": "article",
-      "id": "1770511274110-13p3p",
-      "attributes": {
-        "title": "RESTART_TEST_12345",
-        "isDefaultRevision": true,
-        "status": "draft"
+        "self": "/jsonapi/article/1770516776566-21u6g"
       },
-      "links": {
-        "self": "/jsonapi/article/1770511274110-13p3p"
-      }
-    },
-    {
-      "type": "article",
-      "id": "1770511120285-09jpw",
-      "attributes": {
-        "title": "CONFLICT_TEST_42_LIVE_EDIT",
-        "body": "Modified in live AFTER workspace copy",
-        "isDefaultRevision": true,
-        "status": "draft"
-      },
-      "links": {
-        "self": "/jsonapi/article/1770511120285-09jpw"
-      }
-    },
-    {
-      "type": "article",
-      "id": "1770510979050-j97j5",
-      "attributes": {
-        "title": "WS41_ARTICLE_2",
-        "body": "Second article in workspace 41",
-        "isDefaultRevision": true,
-        "status": "draft"
-      },
-      "links": {
-        "self": "/jsonapi/article/1770510979050-j97j5"
-      }
-    },
-    {
-      "type": "article",
-      "id": "1770510972701-uh4tv",
-      "attributes": {
-        "title": "WS41_ARTICLE_1",
-        "body": "First article in workspace 41",
-        "isDefaultRevision": true,
-        "status": "draft"
-      },
-      "links": {
-        "self": "/jsonapi/article/1770510972701-uh4tv"
-      }
-    },
-    {
-      "type": "article",
-      "id": "1770510841212-97nmv",
-      "attributes": {
-        "title": "PERSIST_TEST_99999",
-        "isDefaultRevision": true,
-        "status": "draft"
-      },
-      "links": {
-        "self": "/jsonapi/article/1770510841212-97nmv"
-      }
-    },
-    {
-      "type": "article",
-      "id": "1770510613444-t5ix7",
-      "attributes": {
-        "title": "PERSISTENCE_TEST_98765",
-        "isDefaultRevision": true,
-        "status": "draft"
-      },
-      "links": {
-        "self": "/jsonapi/article/1770510613444-t5ix7"
-      }
-    },
-    {
-      "type": "article",
-      "id": "1770510605908-o36p0",
-      "attributes": {
-        "title": "WS_PUBLISH_TEST_B",
-        "body": "Article B for workspace publish-all test",
-        "isDefaultRevision": true,
-        "status": "draft"
-      },
-      "links": {
-        "self": "/jsonapi/article/1770510605908-o36p0"
-      }
-    },
-    {
-      "type": "article",
-      "id": "1770510600206-z6h9a",
-      "attributes": {
-        "title": "WS_PUBLISH_TEST_A",
-        "body": "Article A for workspace publish-all test",
-        "isDefaultRevision": true,
-        "status": "draft"
-      },
-      "links": {
-        "self": "/jsonapi/article/1770510600206-z6h9a"
-      }
-    },
-    {
-      "type": "article",
-      "id": "1770510532440-46nqh",
-      "attributes": {
-        "title": "PUBLISH_ALL_TEST_2",
-        "body": "Second article for workspace publish test",
-        "isDefaultRevision": true,
-        "status": "draft"
-      },
-      "links": {
-        "self": "/jsonapi/article/1770510532440-46nqh"
-      }
-    },
-    {
-      "type": "article",
-      "id": "1770510527307-mxwpc",
-      "attributes": {
-        "title": "PUBLISH_ALL_TEST_1",
-        "body": "First article for workspace publish test",
-        "isDefaultRevision": true,
-        "status": "draft"
-      },
-      "links": {
-        "self": "/jsonapi/article/1770510527307-mxwpc"
-      }
-    },
-    {
-      "type": "article",
-      "id": "1770510395144-0m1hw",
-      "attributes": {
-        "title": "WS_PUBLISH_TEST_2",
-        "body": "Second article in workspace",
-        "isDefaultRevision": true,
-        "status": "draft"
-      },
-      "links": {
-        "self": "/jsonapi/article/1770510395144-0m1hw"
-      }
-    },
-    {
-      "type": "article",
-      "id": "1770510390267-7zo8a",
-      "attributes": {
-        "title": "WS_PUBLISH_TEST_1",
-        "body": "First article in workspace",
-        "isDefaultRevision": true,
-        "status": "draft"
-      },
-      "links": {
-        "self": "/jsonapi/article/1770510390267-7zo8a"
-      }
-    },
-    {
-      "type": "article",
-      "id": "1770504546468-zamgu",
-      "attributes": {
-        "title": "EDITED IN STAGING",
-        "body": "Modified in workspace",
-        "isDefaultRevision": true,
-        "status": "draft"
-      },
-      "links": {
-        "self": "/jsonapi/article/1770504546468-zamgu"
-      }
-    },
-    {
-      "type": "article",
-      "id": "1770504502258-02uwf",
-      "attributes": {
-        "title": "PUBLISH_TEST_40",
-        "body": "This content was created in staging workspace for publish test",
-        "isDefaultRevision": true,
-        "status": "draft"
-      },
-      "links": {
-        "self": "/jsonapi/article/1770504502258-02uwf"
-      }
+      "meta": {}
     }
   ],
   "meta": {
-    "total": 45,
+    "total": 110,
     "offset": 0,
-    "limit": 20
+    "limit": 5
   },
   "links": {
     "self": "/jsonapi/article",
-    "next": "/jsonapi/article?page[offset]=20&page[limit]=20"
+    "next": "/jsonapi/article?page[offset]=5&page[limit]=5"
   }
 }

@@ -1,0 +1,14 @@
+{
+  "id": "ws-b627e721-1769870756954-jymy1",
+  "type": "user",
+  "created": "2026-01-31T14:45:56.954Z",
+  "updated": "2026-02-08T02:35:25.299Z",
+  "username": "admin",
+  "password": "dc7751472b066e4d3908d63ae5a2c8a5:30975591dde2da162998f2282c36e15a38e5220bc97b43ea6bff50fdb6b1a5b4",
+  "role": "admin",
+  "lastLogin": "2026-02-08T02:35:25.298Z",
+  "isDefaultRevision": true,
+  "_workspace": "b627e721-3281-4ac1-8cb8-462c1ab0e2ca",
+  "_originalId": "1769870756954-jymy1",
+  "_originalType": "user"
+}

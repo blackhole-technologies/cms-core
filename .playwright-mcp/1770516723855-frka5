@@ -1,0 +1,75 @@
+{
+  "jsonapi": {
+    "version": "1.1"
+  },
+  "data": {
+    "type": "article",
+    "id": "1770516723855-frka5",
+    "attributes": {
+      "title": "F8_TEST_REVISIONS",
+      "body": "Version 3 - final body",
+      "status": "published",
+      "isDefaultRevision": true,
+      "publishedAt": "2026-02-08T02:12:03.855Z"
+    },
+    "links": {
+      "self": "/jsonapi/article/1770516723855-frka5"
+    },
+    "meta": {
+      "revisionCount": 4,
+      "revisions": [
+        {
+          "type": "article",
+          "id": "1770516723855-frka5",
+          "attributes": {
+            "title": "F8_TEST_REVISIONS",
+            "body": "Version 1 of the article",
+            "status": "published",
+            "isDefaultRevision": true,
+            "publishedAt": "2026-02-08T02:12:03.855Z"
+          },
+          "meta": {
+            "revisionTimestamp": "2026-02-08T02:12:03.855Z",
+            "isHistoricalRevision": true,
+            "isDefaultRevision": true
+          }
+        },
+        {
+          "type": "article",
+          "id": "1770516723855-frka5",
+          "attributes": {
+            "title": "F8_TEST_REVISIONS",
+            "body": "Version 2 - updated body",
+            "status": "published",
+            "isDefaultRevision": true,
+            "publishedAt": "2026-02-08T02:12:03.855Z"
+          },
+          "meta": {
+            "revisionTimestamp": "2026-02-08T02:12:15.895Z",
+            "isHistoricalRevision": true,
+            "isDefaultRevision": true
+          }
+        },
+        {
+          "type": "article",
+          "id": "1770516723855-frka5",
+          "attributes": {
+            "title": "F8_TEST_REVISIONS",
+            "body": "Version 4 - pending draft body",
+            "status": "draft",
+            "isDefaultRevision": false,
+            "publishedAt": "2026-02-08T02:12:03.855Z"
+          },
+          "meta": {
+            "revisionTimestamp": "2026-02-08T02:12:27.659Z",
+            "isHistoricalRevision": true,
+            "isDefaultRevision": false
+          }
+        }
+      ]
+    }
+  },
+  "links": {
+    "self": "/jsonapi/article/1770516723855-frka5"
+  }
+}
