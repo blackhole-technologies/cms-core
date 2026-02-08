@@ -5911,7 +5911,7 @@ export function hook_routes(register, context) {
     // Determine active nav item from request path
     const path = req?.url?.split('?')[0] || '/admin';
     const navDashboard = path === '/admin';
-    const navContent = path.startsWith('/admin/content') || path.startsWith('/admin/comments') || path.startsWith('/admin/trash');
+    const navContent = path.startsWith('/admin/content') || path.startsWith('/admin/comments') || path.startsWith('/admin/trash') || path.startsWith('/admin/moderation');
     const navStructure = path.startsWith('/admin/structure') || path.startsWith('/admin/views') || path.startsWith('/admin/menus') || path.startsWith('/admin/taxonomy') || path.startsWith('/admin/blocks') || path.startsWith('/admin/blueprints');
     const navAppearance = path.startsWith('/admin/appearance') || path.startsWith('/admin/themes');
     const navModules = path === '/admin/modules' || path.startsWith('/admin/modules/');
@@ -6264,6 +6264,117 @@ export function hook_routes(register, context) {
 
     server.html(res, html);
   }, 'List content types');
+
+  /**
+   * GET /admin/moderation - Content moderation dashboard
+   * Shows all content items with pending revisions
+   */
+  register('GET', '/admin/moderation', async (req, res, params, ctx) => {
+    const types = content.listTypes();
+    const pendingItems = [];
+    let totalPending = 0;
+
+    // Internal content types to exclude
+    const internalTypes = new Set([
+      'user', 'apitoken', 'webhook', 'media', 'taskrun',
+      'comment', 'term', 'menu', 'menu-item', 'greeting',
+    ]);
+
+    for (const { type } of types) {
+      if (internalTypes.has(type)) continue;
+
+      const result = content.list(type, { limit: 1000 });
+      for (const item of result.items) {
+        if (content.hasPendingRevisions(type, item.id)) {
+          const count = content.countPendingRevisions(type, item.id);
+          const pending = content.getPendingRevisions(type, item.id);
+          const oldest = pending[pending.length - 1];
+          const newest = pending[0];
+
+          // Calculate age of oldest pending revision
+          const oldestDate = new Date(oldest?.updated || oldest?.created || Date.now());
+          const ageMs = Date.now() - oldestDate.getTime();
+          const ageDays = Math.floor(ageMs / (1000 * 60 * 60 * 24));
+          const ageHours = Math.floor(ageMs / (1000 * 60 * 60));
+          const ageDisplay = ageDays > 0 ? `${ageDays} day(s)` : `${ageHours} hour(s)`;
+
+          totalPending += count;
+          pendingItems.push({
+            type,
+            id: item.id,
+            title: item.title || item.name || item.id,
+            status: item.status || 'draft',
+            pendingCount: count,
+            oldestPending: oldest?.updated || oldest?.created || '',
+            newestPending: newest?.updated || newest?.created || '',
+            ageDisplay,
+            editUrl: `/admin/content/${type}/${item.id}/edit`,
+            revisionsUrl: `/admin/content/${type}/${item.id}/revisions`,
+          });
+        }
+      }
+    }
+
+    // Sort: most pending first, then by age (oldest first)
+    pendingItems.sort((a, b) => b.pendingCount - a.pendingCount ||
+      new Date(a.oldestPending) - new Date(b.oldestPending));
+
+    const flash = getFlashMessage(req.url);
+
+    const html = renderAdmin('moderation-dashboard.html', {
+      pageTitle: 'Content Moderation',
+      pendingItems,
+      hasPendingItems: pendingItems.length > 0,
+      totalItems: pendingItems.length,
+      totalPending,
+      hasFlash: !!flash,
+      flash,
+    }, ctx, req);
+
+    res.writeHead(200, { 'Content-Type': 'text/html' });
+    res.end(html);
+  }, 'Content moderation dashboard - pending items');
+
+  /**
+   * POST /admin/moderation/bulk-publish - Bulk publish all pending revisions
+   * WHY: Enables editors to approve and publish all pending drafts in one click.
+   * Iterates all content types, finds items with pending revisions, and publishes
+   * the most recent pending revision for each item.
+   */
+  register('POST', '/admin/moderation/bulk-publish', async (req, res, params, ctx) => {
+    const types = content.listTypes();
+    const internalTypes = new Set([
+      'user', 'apitoken', 'webhook', 'media', 'taskrun',
+      'comment', 'term', 'menu', 'menu-item', 'greeting',
+    ]);
+
+    let published = 0;
+    let failed = 0;
+    const errors = [];
+
+    for (const { type } of types) {
+      if (internalTypes.has(type)) continue;
+
+      const result = content.list(type, { limit: 1000 });
+      for (const item of result.items) {
+        if (content.hasPendingRevisions(type, item.id)) {
+          try {
+            await content.publishPendingRevision(type, item.id);
+            published++;
+          } catch (err) {
+            failed++;
+            errors.push(`${type}/${item.id}: ${err.message}`);
+          }
+        }
+      }
+    }
+
+    if (failed > 0) {
+      redirect(res, `/admin/moderation?error=${encodeURIComponent(`Published ${published} item(s), ${failed} failed: ${errors.join('; ')}`)}`);
+    } else {
+      redirect(res, `/admin/moderation?success=${encodeURIComponent(`Successfully published ${published} pending revision(s).`)}`);
+    }
+  }, 'Bulk publish all pending revisions');
 
   /**
    * GET /admin/content/:type - List content items with filters
@@ -16549,16 +16660,116 @@ export function hook_routes(register, context) {
     const url = mediaLibrary.getUrl(item);
     const thumbnailUrl = mediaLibrary.getThumbnailUrl(item);
 
+    // WHY: Pre-compute flags since template engine doesn't support (eq ...) helper
+    const isImage = item.mediaType === 'image';
+    const isRemoteVideo = item.mediaType === 'remote_video';
+    const isVideo = item.mediaType === 'video';
+    const isAudio = item.mediaType === 'audio';
+    const isDocument = item.mediaType === 'document';
+
+    // WHY: Format date for display since template engine doesn't have formatDate helper
+    function formatDate(dateStr) {
+      if (!dateStr) return '';
+      const d = new Date(dateStr);
+      return d.toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' });
+    }
+
+    // WHY: Enrich usage entries with edit URLs and labels for template
+    const usageList = usage.map(u => ({
+      ...u,
+      editUrl: '/admin/content/' + u.contentType + '/' + u.contentId + '/edit',
+      label: u.contentType + '/' + u.contentId,
+    }));
+
     const html = renderAdmin('media-detail.html', {
       item,
-      usage,
+      usage: usageList,
+      hasUsage: usageList.length > 0,
+      noUsage: usageList.length === 0,
+      usageCount: usageList.length,
       url,
       thumbnailUrl,
+      isImage,
+      isRemoteVideo,
+      isVideo,
+      isAudio,
+      isDocument,
+      sizeFormatted: formatMediaSize(item.size),
+      createdFormatted: formatDate(item.created),
+      updatedFormatted: formatDate(item.updated),
+      tagsFormatted: item.tags && item.tags.length ? item.tags.join(', ') : '',
+      hasTags: item.tags && item.tags.length > 0,
       pageTitle: 'Media: ' + (item.name || item.id),
     }, ctx, req);
 
     server.html(res, html);
   }, 'View media item details');
+
+  /**
+   * POST /admin/media/library/:id/track-usage - Track media usage
+   * WHY: Allows manual tracking of where media is used (for testing and manual workflows)
+   */
+  register('POST', '/admin/media/library/:id/track-usage', async (req, res, params, ctx) => {
+    const mediaLibrary = ctx.services.get('mediaLibrary');
+    const server = ctx.services.get('server');
+
+    try {
+      // WHY: Read JSON body instead of multipart form data for simple API
+      const body = await new Promise((resolve, reject) => {
+        let data = '';
+        req.on('data', chunk => data += chunk);
+        req.on('end', () => {
+          try { resolve(JSON.parse(data)); } catch(e) { reject(e); }
+        });
+        req.on('error', reject);
+      });
+
+      const { contentType, contentId, field } = body;
+
+      if (!contentType || !contentId || !field) {
+        server.json(res, { error: 'Missing required fields: contentType, contentId, field' }, 400);
+        return;
+      }
+
+      await mediaLibrary.trackUsage(params.id, contentType, contentId, field);
+      server.json(res, { success: true, mediaId: params.id, contentType, contentId, field });
+    } catch (err) {
+      server.json(res, { error: err.message }, 500);
+    }
+  }, 'Track media usage');
+
+  /**
+   * POST /admin/media/library/:id/remove-usage - Remove media usage tracking
+   * WHY: Allows manual removal of usage references (for cleanup and testing)
+   */
+  register('POST', '/admin/media/library/:id/remove-usage', async (req, res, params, ctx) => {
+    const mediaLibrary = ctx.services.get('mediaLibrary');
+    const server = ctx.services.get('server');
+
+    try {
+      // WHY: Read JSON body for consistency with track-usage endpoint
+      const body = await new Promise((resolve, reject) => {
+        let data = '';
+        req.on('data', chunk => data += chunk);
+        req.on('end', () => {
+          try { resolve(JSON.parse(data)); } catch(e) { reject(e); }
+        });
+        req.on('error', reject);
+      });
+
+      const { contentType, contentId } = body;
+
+      if (!contentType || !contentId) {
+        server.json(res, { error: 'Missing required fields: contentType, contentId' }, 400);
+        return;
+      }
+
+      await mediaLibrary.removeUsage(params.id, contentType, contentId);
+      server.json(res, { success: true, mediaId: params.id, contentType, contentId });
+    } catch (err) {
+      server.json(res, { error: err.message }, 500);
+    }
+  }, 'Remove media usage');
 
   // ========================================
   // EDITOR ROUTES

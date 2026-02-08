@@ -1656,6 +1656,117 @@ export async function boot(baseDir, options = {}) {
       });
     }, 'Get pending revision count and metadata for content item');
 
+    // REST API: GET /api/content/moderation - List all content items with pending revisions
+    // WHY: Powers the content moderation dashboard in admin UI and external integrations.
+    // Returns all content items across all types that have pending (unpublished) revisions
+    // awaiting editorial review and approval.
+    router.register('GET', '/api/content/moderation', async (req, res, params, ctx) => {
+      const types = content.listTypes();
+      const pendingItems = [];
+
+      for (const { type } of types) {
+        const result = content.list(type, { limit: 1000 });
+        for (const item of result.items) {
+          if (content.hasPendingRevisions(type, item.id)) {
+            const count = content.countPendingRevisions(type, item.id);
+            const pending = content.getPendingRevisions(type, item.id);
+            const oldest = pending[pending.length - 1];
+            const newest = pending[0];
+            pendingItems.push({
+              type,
+              id: item.id,
+              title: item.title || item.name || item.id,
+              status: item.status || 'unknown',
+              pendingCount: count,
+              oldestPending: oldest?.updated || oldest?.created || null,
+              newestPending: newest?.updated || newest?.created || null,
+            });
+          }
+        }
+      }
+
+      server.json(res, {
+        total: pendingItems.length,
+        items: pendingItems,
+      });
+    }, 'List all content items with pending revisions (moderation dashboard)');
+
+    // REST API: POST /api/content/bulk-publish-pending - Bulk publish all pending revisions
+    // WHY: Powers the "Publish All" action on the moderation dashboard.
+    // Publishes the most recent pending revision for each item that has one.
+    // Accepts optional type filter and list of specific item IDs.
+    router.register('POST', '/api/content/bulk-publish-pending', async (req, res, params, ctx) => {
+      // Parse request body for optional filters
+      const body = await new Promise((resolve) => {
+        if (req.body) { resolve(req.body); return; }
+        let data = '';
+        req.on('data', chunk => { data += chunk; });
+        req.on('end', () => {
+          try { resolve(JSON.parse(data)); }
+          catch { resolve({}); }
+        });
+      });
+
+      const typeFilter = body.type || null;
+      const itemIds = body.items || null; // Array of {type, id} to publish specific items
+
+      const types = content.listTypes();
+      const pendingItems = [];
+
+      if (itemIds && Array.isArray(itemIds)) {
+        // Publish specific items
+        for (const { type, id } of itemIds) {
+          if (content.hasType(type) && content.hasPendingRevisions(type, id)) {
+            pendingItems.push({ type, id });
+          }
+        }
+      } else {
+        // Find all items with pending revisions
+        for (const { type } of types) {
+          if (typeFilter && type !== typeFilter) continue;
+          const result = content.list(type, { limit: 1000 });
+          for (const item of result.items) {
+            if (content.hasPendingRevisions(type, item.id)) {
+              pendingItems.push({ type, id: item.id });
+            }
+          }
+        }
+      }
+
+      const results = [];
+      let published = 0;
+      let failed = 0;
+
+      for (const item of pendingItems) {
+        try {
+          const result = await content.publishPendingRevision(item.type, item.id);
+          published++;
+          results.push({
+            type: item.type,
+            id: item.id,
+            title: result.title || result.name || item.id,
+            success: true,
+            status: result.status,
+          });
+        } catch (err) {
+          failed++;
+          results.push({
+            type: item.type,
+            id: item.id,
+            success: false,
+            error: err.message,
+          });
+        }
+      }
+
+      server.json(res, {
+        total: pendingItems.length,
+        published,
+        failed,
+        results,
+      });
+    }, 'Bulk publish all pending revisions');
+
     // REST API: POST /api/content/:type/:id/draft - Create a pending draft revision
     router.register('POST', '/api/content/:type/:id/draft', async (req, res, params, ctx) => {
       const { type, id } = params;
@@ -2999,6 +3110,133 @@ export async function boot(baseDir, options = {}) {
       }
       console.log('');
     }, 'Show pending (non-default) revisions for content');
+
+    // content:moderation - Show all content items with pending revisions
+    cli.register('content:moderation', async (args, ctx) => {
+      const types = content.listTypes();
+      const pendingItems = [];
+
+      for (const { type } of types) {
+        const result = content.list(type, { limit: 1000 });
+        for (const item of result.items) {
+          if (content.hasPendingRevisions(type, item.id)) {
+            const count = content.countPendingRevisions(type, item.id);
+            const pending = content.getPendingRevisions(type, item.id);
+            const oldest = pending[pending.length - 1];
+            const newest = pending[0];
+            pendingItems.push({
+              type,
+              id: item.id,
+              title: item.title || item.name || item.id,
+              status: item.status || 'unknown',
+              pendingCount: count,
+              oldestPending: oldest?.updated || oldest?.created || 'unknown',
+              newestPending: newest?.updated || newest?.created || 'unknown',
+            });
+          }
+        }
+      }
+
+      console.log(`\nContent Moderation Dashboard`);
+      console.log(`===========================`);
+      console.log(`Items with pending revisions: ${pendingItems.length}\n`);
+
+      if (pendingItems.length === 0) {
+        console.log('  No content items have pending revisions.\n');
+        return;
+      }
+
+      for (const item of pendingItems) {
+        console.log(`  ${item.type}/${item.id}`);
+        console.log(`    Title: ${item.title}`);
+        console.log(`    Status: ${item.status}`);
+        console.log(`    Pending drafts: ${item.pendingCount}`);
+        console.log(`    Oldest pending: ${item.oldestPending}`);
+        console.log(`    Newest pending: ${item.newestPending}`);
+        console.log('');
+      }
+    }, 'Show all content items with pending revisions (moderation dashboard)');
+
+    // content:bulk-publish-pending [--type=<type>] [--confirm] - Bulk publish all pending revisions
+    // WHY: Allows editors to approve and publish all pending drafts at once,
+    // rather than publishing one-by-one. Useful for batch editorial workflows.
+    cli.register('content:bulk-publish-pending', async (args, ctx) => {
+      const typeFilter = args.find(a => a.startsWith('--type='))?.split('=')[1] || null;
+      const confirm = args.includes('--confirm');
+
+      // Find all items with pending revisions
+      const types = content.listTypes();
+      const pendingItems = [];
+
+      for (const { type } of types) {
+        if (typeFilter && type !== typeFilter) continue;
+
+        const result = content.list(type, { limit: 1000 });
+        for (const item of result.items) {
+          if (content.hasPendingRevisions(type, item.id)) {
+            pendingItems.push({
+              type,
+              id: item.id,
+              title: item.title || item.name || item.id,
+              status: item.status || 'unknown',
+              pendingCount: content.countPendingRevisions(type, item.id),
+            });
+          }
+        }
+      }
+
+      if (pendingItems.length === 0) {
+        console.log('\nNo content items with pending revisions found.\n');
+        return;
+      }
+
+      console.log(`\nBulk Publish Pending Revisions`);
+      console.log(`==============================`);
+      console.log(`Found ${pendingItems.length} item(s) with pending revisions:\n`);
+
+      for (const item of pendingItems) {
+        console.log(`  ${item.type}/${item.id} - ${item.title} (${item.pendingCount} pending)`);
+      }
+      console.log('');
+
+      if (!confirm) {
+        console.log('Run with --confirm to publish all pending revisions.');
+        console.log('Use --type=<type> to filter by content type.\n');
+        return;
+      }
+
+      // Publish most recent pending revision for each item
+      let published = 0;
+      let failed = 0;
+      const results = [];
+
+      for (const item of pendingItems) {
+        try {
+          const result = await content.publishPendingRevision(item.type, item.id);
+          published++;
+          results.push({
+            type: item.type,
+            id: item.id,
+            title: item.title,
+            success: true,
+            newStatus: result.status,
+          });
+          console.log(`  ✓ Published: ${item.type}/${item.id} (${item.title})`);
+        } catch (err) {
+          failed++;
+          results.push({
+            type: item.type,
+            id: item.id,
+            title: item.title,
+            success: false,
+            error: err.message,
+          });
+          console.log(`  ✗ Failed: ${item.type}/${item.id} - ${err.message}`);
+        }
+      }
+
+      console.log(`\nResults: ${published} published, ${failed} failed\n`);
+    }, 'Bulk publish all pending revisions (use --confirm to execute, --type=<type> to filter)');
 
     // content:publish-pending <type> <id> [timestamp] - Publish a pending revision
     cli.register('content:publish-pending', async (args, ctx) => {
