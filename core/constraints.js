@@ -615,6 +615,54 @@ function registerBuiltinConstraints() {
       return violations;
     }
   });
+
+  // EntityReference — validates referenced entity exists
+  register('EntityReference', {
+    label: 'Entity Reference',
+    description: 'Validates entity reference field points to a valid, existing entity',
+    source: 'core',
+    async validate(value, options, context) {
+      const violations = [];
+      if (value === null || value === undefined || value === '') return violations;
+      if (!context.content) return violations;
+
+      // options can be: { type: 'user' } or just 'user'
+      const targetType = typeof options === 'object' ? options.type : options;
+      if (!targetType) {
+        // No target type specified, skip validation
+        return violations;
+      }
+
+      // Check if referenced entity exists
+      try {
+        const entity = context.content.read(targetType, value);
+        if (!entity) {
+          violations.push(
+            createViolation(
+              'EntityReference',
+              context.fieldName,
+              `Referenced ${targetType} "${value}" does not exist`,
+              value,
+              'INVALID_REFERENCE'
+            )
+          );
+        }
+      } catch (err) {
+        // Entity type doesn't exist or other error
+        violations.push(
+          createViolation(
+            'EntityReference',
+            context.fieldName,
+            `Invalid reference: ${err.message}`,
+            value,
+            'INVALID_REFERENCE'
+          )
+        );
+      }
+
+      return violations;
+    }
+  });
 }
 
 // ============================================

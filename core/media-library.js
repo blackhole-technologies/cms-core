@@ -395,7 +395,9 @@ export async function createFromUpload(file, options = {}) {
 
   // Validate file size
   if (file.size > config.maxFileSize) {
-    throw new Error(`File too large: ${file.size} bytes (max: ${config.maxFileSize})`);
+    const actualMB = (file.size / (1024 * 1024)).toFixed(2);
+    const maxMB = (config.maxFileSize / (1024 * 1024)).toFixed(1);
+    throw new Error(`File too large: ${actualMB}MB (max: ${maxMB}MB)`);
   }
 
   // Fire before hook
