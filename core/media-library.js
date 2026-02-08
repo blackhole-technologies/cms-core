@@ -771,6 +771,146 @@ export function isInUse(mediaId) {
 }
 
 // ============================================
+// MEDIA REPLACE
+// ============================================
+
+/**
+ * Replace a media entity's file while preserving references
+ *
+ * WHY THIS EXISTS:
+ * ================
+ * When a media item needs to be replaced (e.g., updated logo, corrected image),
+ * all content referencing it should automatically use the new file. This is the
+ * Drupal "replace" pattern — the entity ID stays the same, only the file changes.
+ *
+ * ATOMICITY:
+ * ==========
+ * The replace operation updates the media entity in a single write. Since all
+ * content references point to the media entity ID (not the file path), updating
+ * the entity's path/filename atomically updates all references. No need to walk
+ * through each referencing content item.
+ *
+ * @param {string} mediaId - ID of the media entity to replace
+ * @param {Object} newFile - New file data
+ * @param {Buffer} newFile.data - File data
+ * @param {string} newFile.name - Filename
+ * @param {string} newFile.type - MIME type
+ * @param {number} newFile.size - File size in bytes
+ * @param {Object} options - Replace options
+ * @param {boolean} options.keepOldFile - If true, don't delete old file (default: false)
+ * @returns {Promise<{entity: MediaEntity, oldPath: string, newPath: string, referencesUpdated: number}>}
+ */
+export async function replaceMedia(mediaId, newFile, options = {}) {
+  const entity = get(mediaId);
+  if (!entity) {
+    throw new Error(`Media entity "${mediaId}" not found`);
+  }
+
+  // Remote videos can't be replaced with file uploads
+  if (entity.mediaType === 'remote_video') {
+    throw new Error('Cannot replace a remote video with a file upload. Update the URL instead.');
+  }
+
+  // Store old path for cleanup
+  const oldPath = entity.path;
+  const oldFilename = entity.filename;
+
+  // Fire before hook
+  if (hooksService) {
+    await hooksService.trigger('media-library:beforeReplace', {
+      mediaId,
+      entity,
+      newFile,
+      options,
+    });
+  }
+
+  // Save the new file via media service
+  // WHY use mediaService.saveFile: Consistent file naming (timestamp prefix),
+  // directory structure (year/month), and extension validation.
+  let savedFile;
+  if (mediaService && mediaService.saveFile) {
+    savedFile = mediaService.saveFile({
+      name: newFile.name,
+      originalName: newFile.name,
+      data: newFile.data,
+      size: newFile.size,
+      type: newFile.type,
+    });
+  } else {
+    throw new Error('Media service not available for file storage');
+  }
+
+  // Detect media type of new file
+  const newMediaType = detectMediaType(newFile.name, newFile.type);
+
+  // Update the media entity with new file info
+  // WHY: Entity ID stays the same, so all _usage references remain valid.
+  // Content items reference by media entity ID, not file path.
+  const updates = {
+    filename: newFile.name,
+    path: savedFile.relativePath,
+    mimeType: newFile.type || savedFile.type,
+    size: newFile.size,
+  };
+
+  // Update media type if it changed (e.g., replacing PNG with JPG is fine, both are 'image')
+  if (newMediaType && newMediaType !== entity.mediaType) {
+    updates.mediaType = newMediaType;
+  }
+
+  // Update thumbnail for images
+  if ((newMediaType === 'image' || entity.mediaType === 'image') && imageStylesService) {
+    try {
+      updates.thumbnail = await imageStylesService.generate(
+        savedFile.relativePath,
+        config.thumbnailStyle
+      );
+    } catch (e) {
+      // Thumbnail generation is best-effort
+      console.warn('[media-library] Thumbnail generation failed during replace:', e.message);
+    }
+  }
+
+  const updatedEntity = await update(mediaId, updates);
+
+  // Delete old file unless explicitly told to keep it
+  // WHY: Default is to remove — prevents orphaned files consuming disk space.
+  // Option to keep allows archival workflows.
+  if (!options.keepOldFile && mediaService && oldPath) {
+    try {
+      mediaService.deleteFile(oldPath);
+    } catch (e) {
+      // Old file deletion is best-effort (may already be gone)
+      console.warn('[media-library] Failed to delete old file during replace:', e.message);
+    }
+  }
+
+  // Count references (usage entries) that are now pointing to the new file
+  const usage = getUsage(mediaId);
+  const referencesUpdated = usage.length;
+
+  // Fire after hook
+  if (hooksService) {
+    await hooksService.trigger('media-library:afterReplace', {
+      entity: updatedEntity,
+      oldPath,
+      newPath: savedFile.relativePath,
+      referencesUpdated,
+    });
+  }
+
+  return {
+    entity: updatedEntity,
+    oldPath,
+    newPath: savedFile.relativePath,
+    oldFilename,
+    newFilename: newFile.name,
+    referencesUpdated,
+  };
+}
+
+// ============================================
 // URL AND PATH HELPERS
 // ============================================
 
