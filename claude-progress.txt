@@ -1,3 +1,33 @@
+## Session 25 - 2026-02-08
+
+### Completed
+- Feature #28: List workspaces via CLI (PASSING)
+  - workspace:list already implemented, shows all workspaces with id, label, status
+  - 11+ workspaces verified in output
+  - Active/archived status badges shown correctly
+- Feature #32: Workspace association table (content to workspace) (PASSING)
+  - Association records stored in config/workspace-associations/{workspaceId}.json
+  - Each entry includes: type, id, operation, revisionId, timestamp
+  - Added revisionId field to associateContent() for revision tracking
+  - Updated callers in content.js and jsonapi.js to pass revision info
+  - Data persists across server restart (flat-file JSON)
+- Feature #36: Content queries filter by active workspace (PASSING)
+  - content.list() filters by workspace context: workspace items + live items in workspace mode
+  - Live context excludes all workspace-tagged content (_workspace field)
+  - Workspace content only visible when workspace is active
+  - Verified via CLI search and content listing
+  - Browser UI shows workspace switcher and isolation
+
+### Changes Made
+1. **core/workspaces.js**: Added revisionId parameter to associateContent() with options object
+2. **core/content.js**: Updated associateContent() calls to pass revisionId from content timestamps
+3. **core/jsonapi.js**: Updated associateContent() calls to pass revisionId
+
+### Current Status
+- 102/165 features passing (~61.8%)
+- Workspace tier: Features 28, 32, 36 verified
+- All 3 assigned features completed
+
 ## Session 24 - 2026-02-08
 
 ### Completed
