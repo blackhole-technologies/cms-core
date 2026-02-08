@@ -1,8 +1,14 @@
+{{#if hasFlash}}
+<div id="flashMessage" style="padding:12px 16px;margin-bottom:16px;border-radius:4px;background:#e8f5e9;color:#2e7d32;border:1px solid #c8e6c9">
+  {{flash.message}}
+</div>
+{{/if}}
+
 <div style="margin-bottom:20px">
   <div style="display:flex;justify-content:space-between;align-items:center">
     <h1 style="margin:0">{{item.name}}</h1>
     <div>
-      <a href="/admin/media/library" style="padding:8px 16px;background:#f5f5f5;color:#333;text-decoration:none;border-radius:4px;border:1px solid #ddd">← Back to Library</a>
+      <a href="/admin/media/library" style="padding:8px 16px;background:#f5f5f5;color:#333;text-decoration:none;border-radius:4px;border:1px solid #ddd">&larr; Back to Library</a>
     </div>
   </div>
 </div>
@@ -20,25 +26,25 @@
     {{/if}}
     {{#if isVideo}}
     <div style="text-align:center;padding:40px">
-      <div style="font-size:64px">🎬</div>
+      <div style="font-size:64px">&#127916;</div>
       <a href="{{url}}" target="_blank" style="display:inline-block;margin-top:16px;padding:8px 16px;background:#0071b9;color:white;text-decoration:none;border-radius:4px">Download Video</a>
     </div>
     {{/if}}
     {{#if isAudio}}
     <div style="text-align:center;padding:40px">
-      <div style="font-size:64px">🎵</div>
+      <div style="font-size:64px">&#127925;</div>
       <a href="{{url}}" target="_blank" style="display:inline-block;margin-top:16px;padding:8px 16px;background:#0071b9;color:white;text-decoration:none;border-radius:4px">Download Audio</a>
     </div>
     {{/if}}
     {{#if isDocument}}
     <div style="text-align:center;padding:40px">
-      <div style="font-size:64px">📄</div>
+      <div style="font-size:64px">&#128196;</div>
       <a href="{{url}}" target="_blank" style="display:inline-block;margin-top:16px;padding:8px 16px;background:#0071b9;color:white;text-decoration:none;border-radius:4px">Download File</a>
     </div>
     {{/if}}
   </div>
 
-  <!-- Right: Metadata + Usage -->
+  <!-- Right: Metadata + Usage + Replace -->
   <div>
     <!-- Metadata -->
     <div style="background:white;border:1px solid #ddd;border-radius:8px;padding:16px;margin-bottom:16px">
@@ -98,6 +104,24 @@
         </tr>
       </table>
     </div>
+
+    <!-- Replace Media -->
+    {{#if canReplace}}
+    <div style="background:white;border:1px solid #ddd;border-radius:8px;padding:16px;margin-bottom:16px">
+      <h2 style="margin:0 0 12px;font-size:16px">Replace File</h2>
+      <p style="font-size:13px;color:#666;margin:0 0 12px">Upload a new file to replace the current one. All content referencing this media will automatically use the new file.</p>
+      <form action="/admin/media/library/{{item.id}}/replace?_csrf={{csrfToken}}" method="POST" enctype="multipart/form-data">
+        <input type="hidden" name="_csrf" value="{{csrfToken}}">
+        <div style="display:flex;flex-direction:column;gap:8px">
+          <input type="file" name="file" id="replaceFile" required style="padding:6px;border:1px solid #ccc;border-radius:4px;font-size:13px">
+          <label style="font-size:13px;color:#666;display:flex;align-items:center;gap:6px">
+            <input type="checkbox" name="keepOldFile" value="true"> Keep old file (archive)
+          </label>
+          <button type="submit" style="padding:8px 16px;border:none;background:#ff9800;color:white;border-radius:4px;cursor:pointer;font-size:14px;font-weight:600">Replace File</button>
+        </div>
+      </form>
+    </div>
+    {{/if}}
 
     <!-- Usage Tracking -->
     <div style="background:white;border:1px solid #ddd;border-radius:8px;padding:16px;margin-bottom:16px">
