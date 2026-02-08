@@ -1,0 +1,10 @@
+{
+  "id": "1770516625928-zqhx2",
+  "type": "article",
+  "created": "2026-02-08T02:10:25.928Z",
+  "updated": "2026-02-08T02:10:25.928Z",
+  "title": "Article with Poor Link Text for Accessibility Testing",
+  "body": "<p>Welcome to our website. To learn about our services, <a href=\"/services\">click here</a>. You can also <a href=\"/about\">read more</a> about our team. For additional details, check <a href=\"/details\">this link</a>.</p>",
+  "isDefaultRevision": true,
+  "status": "draft"
+}

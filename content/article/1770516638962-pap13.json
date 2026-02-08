@@ -1,0 +1,10 @@
+{
+  "id": "1770516638962-pap13",
+  "type": "article",
+  "created": "2026-02-08T02:10:38.962Z",
+  "updated": "2026-02-08T02:10:38.962Z",
+  "title": "Article with Good Descriptive Link Text for Testing",
+  "body": "<p>Welcome to our website. To learn about our services, visit our <a href=\"/services\">service offerings and pricing page</a>. You can also <a href=\"/about\">meet our experienced development team</a>. For additional details, see our <a href=\"/details\">comprehensive product documentation</a>.</p>",
+  "isDefaultRevision": true,
+  "status": "draft"
+}
