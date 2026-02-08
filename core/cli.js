@@ -1177,6 +1177,55 @@ register('validate:type', async (args, context) => {
   console.log(`\nSummary: ${result.valid} valid, ${result.invalid} invalid\n`);
 }, 'Validate all content of a type');
 
+// Feature #135: Bulk validation check CLI
+// Validates all existing content of a type against current constraint configuration
+register('validation:check', async (args, context) => {
+  const constraints = context.services.get('constraints');
+  const content = context.services.get('content');
+
+  if (args.length < 1) {
+    console.error('Usage: validation:check <type>');
+    throw new Error('Type required');
+  }
+
+  const type = args[0];
+
+  // Get schema
+  const schema = content.getSchema(type);
+  if (!schema) {
+    console.error(`Unknown content type: ${type}`);
+    throw new Error('Unknown content type');
+  }
+
+  // Get all items
+  const items = content.listAll ? content.listAll(type) : (content.list(type)?.items || []);
+  console.log(`\nValidating ${items.length} ${type}(s) against constraints...\n`);
+
+  // Track results
+  let validCount = 0;
+  let invalidCount = 0;
+  const allViolations = {};
+
+  // Validate each item
+  for (const item of items) {
+    const result = await constraints.validate(type, item, schema, { id: item.id });
+
+    if (result.valid) {
+      validCount++;
+      console.log(`  ✓ ${item.id} - valid`);
+    } else {
+      invalidCount++;
+      allViolations[item.id] = result.violations;
+      console.log(`  ✗ ${item.id} - ${result.violations.length} violation(s):`);
+      for (const violation of result.violations) {
+        console.log(`      - ${violation.field}: ${violation.message}`);
+      }
+    }
+  }
+
+  console.log(`\nSummary: ${validCount} valid, ${invalidCount} invalid\n`);
+}, 'CLI command to validate all existing content against current constraints');
+
 register('validate:all', async (args, context) => {
   const validation = context.services.get('validation');
   const content = context.services.get('content');
