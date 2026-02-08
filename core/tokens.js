@@ -37,7 +37,7 @@ const handlers = {};
  * Configuration
  */
 let config = {
-  pattern: /\[([a-zA-Z0-9_-]+):([a-zA-Z0-9_:-]+)\]/g,
+  pattern: /\[([a-zA-Z0-9_-]+):([a-zA-Z0-9_:\-\/ ]+)\]/g,
   escapeHtml: true,
 };
 
@@ -425,6 +425,184 @@ export function getBrowserData(context = {}) {
 }
 
 /**
+ * Render token tree for hierarchical display
+ *
+ * @param {Array|string} tokenTypes - Token types to include (array or single type)
+ * @param {Object} options - Tree rendering options
+ * @param {number} options.maxDepth - Maximum tree depth (default: 3)
+ * @param {boolean} options.sorted - Sort categories and tokens alphabetically (default: true)
+ * @param {Object} options.context - Context for availability filtering
+ * @returns {Array} - Hierarchical tree structure
+ *
+ * WHY TREE STRUCTURE:
+ * Token browser UI needs to show nested tokens hierarchically.
+ * E.g., [node:author:name] should appear as: Node > Author > Name
+ * Tree makes it easier for users to discover available tokens.
+ *
+ * TREE STRUCTURE:
+ * [
+ *   {
+ *     type: 'node',
+ *     label: 'Node (content)',
+ *     description: 'Tokens for content nodes',
+ *     tokens: [
+ *       {
+ *         name: 'title',
+ *         label: 'Node title',
+ *         description: 'The node title',
+ *         token: '[node:title]',
+ *         children: []
+ *       },
+ *       {
+ *         name: 'author',
+ *         label: 'Author',
+ *         description: 'The node author',
+ *         token: '[node:author]',
+ *         children: [
+ *           { name: 'name', label: 'Name', token: '[node:author:name]', children: [] }
+ *         ]
+ *       }
+ *     ]
+ *   }
+ * ]
+ */
+export function getTokenTree(tokenTypes = null, options = {}) {
+  const {
+    maxDepth = 3,
+    sorted = true,
+    context = {},
+  } = options;
+
+  // Determine which types to include
+  let typeKeys;
+  if (tokenTypes === null) {
+    typeKeys = Object.keys(types);
+  } else if (Array.isArray(tokenTypes)) {
+    typeKeys = tokenTypes.filter(t => types[t]);
+  } else if (typeof tokenTypes === 'string') {
+    typeKeys = types[tokenTypes] ? [tokenTypes] : [];
+  } else {
+    typeKeys = [];
+  }
+
+  // Build tree structure
+  const tree = typeKeys.map(typeKey => {
+    const typeInfo = types[typeKey];
+
+    return {
+      type: typeKey,
+      label: typeInfo.name,
+      description: typeInfo.description,
+      tokens: buildTokensForType(typeKey, typeInfo, maxDepth),
+    };
+  });
+
+  // Sort if requested
+  if (sorted) {
+    tree.sort((a, b) => a.label.localeCompare(b.label));
+    tree.forEach(category => {
+      sortTokenTree(category.tokens);
+    });
+  }
+
+  return tree;
+}
+
+/**
+ * Build token list for a specific type
+ *
+ * WHY SEPARATE FUNCTION:
+ * Recursively builds nested token structures.
+ * Keeps getTokenTree() clean and readable.
+ */
+function buildTokensForType(typeKey, typeInfo, maxDepth, currentDepth = 1) {
+  if (currentDepth > maxDepth) {
+    return [];
+  }
+
+  const tokensList = [];
+
+  for (const [tokenName, tokenDef] of Object.entries(typeInfo.tokens)) {
+    const tokenItem = {
+      name: tokenName,
+      label: tokenDef.name,
+      description: tokenDef.description,
+      token: `[${typeKey}:${tokenName}]`,
+      example: tokenDef.example || '',
+      children: [],
+    };
+
+    // Check if this token can have children (object-returning tokens)
+    // E.g., [node:author] returns an object, so it can have :name, :email children
+    // We detect this by checking if handler returns object type
+    // For now, we use a heuristic: tokens named 'author', 'user', 'parent' likely have children
+    const hasChildren = ['author', 'user', 'parent', 'term'].includes(tokenName);
+
+    if (hasChildren && currentDepth < maxDepth) {
+      // Add common child tokens for entity references
+      const childTokens = getChildTokensFor(tokenName);
+      tokenItem.children = childTokens.map(child => ({
+        name: child.name,
+        label: child.label,
+        description: child.description,
+        token: `[${typeKey}:${tokenName}:${child.name}]`,
+        example: child.example || '',
+        children: [],
+      }));
+    }
+
+    tokensList.push(tokenItem);
+  }
+
+  return tokensList;
+}
+
+/**
+ * Get child tokens for entity reference tokens
+ *
+ * WHY HARDCODED:
+ * In a full implementation, this would introspect the handler return type.
+ * For now, we use common entity field patterns.
+ */
+function getChildTokensFor(tokenName) {
+  const childMap = {
+    author: [
+      { name: 'name', label: 'Author name', description: 'The author\'s username' },
+      { name: 'mail', label: 'Author email', description: 'The author\'s email address' },
+      { name: 'uid', label: 'Author ID', description: 'The author\'s user ID' },
+    ],
+    user: [
+      { name: 'name', label: 'User name', description: 'The username' },
+      { name: 'mail', label: 'User email', description: 'The user email address' },
+      { name: 'uid', label: 'User ID', description: 'The user ID' },
+    ],
+    parent: [
+      { name: 'name', label: 'Parent name', description: 'The parent entity name' },
+      { name: 'id', label: 'Parent ID', description: 'The parent entity ID' },
+    ],
+    term: [
+      { name: 'name', label: 'Term name', description: 'The term name' },
+      { name: 'tid', label: 'Term ID', description: 'The term ID' },
+      { name: 'vocabulary', label: 'Vocabulary', description: 'The vocabulary machine name' },
+    ],
+  };
+
+  return childMap[tokenName] || [];
+}
+
+/**
+ * Recursively sort token tree by label
+ */
+function sortTokenTree(tokens) {
+  tokens.sort((a, b) => a.label.localeCompare(b.label));
+  tokens.forEach(token => {
+    if (token.children && token.children.length > 0) {
+      sortTokenTree(token.children);
+    }
+  });
+}
+
+/**
  * HTML escape utility
  *
  * WHY INTERNAL:
@@ -476,26 +654,68 @@ function registerCoreTypes() {
       medium: { name: 'Medium date', description: 'Medium date format', example: 'Feb 3, 2026' },
       long: { name: 'Long date', description: 'Long date format', example: 'February 3, 2026' },
       timestamp: { name: 'Unix timestamp', description: 'Unix timestamp in seconds', example: '1738540800' },
+      custom: { name: 'Custom format', description: 'Custom date format using PHP-style format codes (use chain: [date:custom:Y-m-d])', example: '2026-02-08' },
     },
   });
 
-  registerToken('date', 'short', () => {
+  registerToken('date', 'short', (ctx) => {
     const now = new Date();
-    return now.toLocaleDateString('en-US');
+    const timezone = ctx.site?.timezone || 'America/Los_Angeles';
+    return now.toLocaleDateString('en-US', { timeZone: timezone });
   });
 
-  registerToken('date', 'medium', () => {
+  registerToken('date', 'medium', (ctx) => {
     const now = new Date();
-    return now.toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' });
+    const timezone = ctx.site?.timezone || 'America/Los_Angeles';
+    return now.toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric', timeZone: timezone });
   });
 
-  registerToken('date', 'long', () => {
+  registerToken('date', 'long', (ctx) => {
     const now = new Date();
-    return now.toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' });
+    const timezone = ctx.site?.timezone || 'America/Los_Angeles';
+    return now.toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric', timeZone: timezone });
   });
 
   registerToken('date', 'timestamp', () => {
     return Math.floor(Date.now() / 1000);
+  });
+
+  registerToken('date', 'custom', (ctx, chain) => {
+    // Custom date format using PHP-style format codes
+    // chain contains all parts after 'custom' (e.g., ['H', 'i', 's'] from [date:custom:H:i:s])
+    // We need to join them back with ':' to reconstruct the format string
+    if (!chain || chain.length === 0) {
+      return new Date().toISOString().split('T')[0]; // Default to YYYY-MM-DD
+    }
+
+    // Reconstruct format string from chain parts (handles colons in format)
+    const format = chain.join(':');
+    const now = new Date();
+
+    // PHP-style format code mappings to JavaScript
+    const formatMap = {
+      'Y': now.getFullYear().toString(),
+      'm': String(now.getMonth() + 1).padStart(2, '0'),
+      'd': String(now.getDate()).padStart(2, '0'),
+      'H': String(now.getHours()).padStart(2, '0'),
+      'i': String(now.getMinutes()).padStart(2, '0'),
+      's': String(now.getSeconds()).padStart(2, '0'),
+      'y': now.getFullYear().toString().slice(-2),
+      'n': (now.getMonth() + 1).toString(),
+      'j': now.getDate().toString(),
+      'g': (now.getHours() % 12 || 12).toString(),
+      'G': now.getHours().toString(),
+      'a': now.getHours() < 12 ? 'am' : 'pm',
+      'A': now.getHours() < 12 ? 'AM' : 'PM',
+    };
+
+    // Replace format codes
+    let result = format;
+    for (const [code, value] of Object.entries(formatMap)) {
+      result = result.split(code).join(value);
+    }
+
+    return result;
   });
 
   // Current user tokens
@@ -506,6 +726,7 @@ function registerCoreTypes() {
       name: { name: 'User name', description: 'The username', example: 'johndoe' },
       email: { name: 'User email', description: 'The user email address', example: 'john@example.com' },
       id: { name: 'User ID', description: 'The user ID', example: '123' },
+      uid: { name: 'User ID (alias)', description: 'The user ID (Drupal alias for id)', example: '123' },
       role: { name: 'User role', description: 'The user primary role', example: 'editor' },
     },
   });
@@ -523,6 +744,11 @@ function registerCoreTypes() {
   registerToken('current-user', 'id', (ctx) => {
     const user = ctx.user || ctx.currentUser;
     return user?.id || '';
+  });
+
+  registerToken('current-user', 'uid', (ctx) => {
+    const user = ctx.user || ctx.currentUser;
+    return user?.id || user?.uid || '';
   });
 
   registerToken('current-user', 'role', (ctx) => {
@@ -577,9 +803,63 @@ function registerCoreTypes() {
   });
 
   registerToken('term', 'id', (ctx) => ctx.term?.id || '');
-  registerToken('term', 'name', (ctx) => ctx.term?.name || '');
-  registerToken('term', 'vocabulary', (ctx) => ctx.term?.vocabulary || '');
+  registerToken('term', 'name', (ctx) => ctx.term?.name || null);
+  registerToken('term', 'vocabulary', (ctx) => ctx.term?.vocabulary || null);
   registerToken('term', 'parent', (ctx) => ctx.term?.parent || null);
+
+  // Request tokens (HTTP request context)
+  registerType('request', {
+    name: 'Request context',
+    description: 'Tokens for the current HTTP request',
+    tokens: {
+      path: { name: 'Request path', description: 'The current request path', example: '/admin/content' },
+      query: { name: 'Query parameter', description: 'Extract query parameter (use chain: [request:query:page])', example: '1' },
+      method: { name: 'HTTP method', description: 'The HTTP request method', example: 'GET' },
+      host: { name: 'Host name', description: 'The request hostname', example: 'localhost:3001' },
+      protocol: { name: 'Protocol', description: 'The request protocol', example: 'http' },
+    },
+  });
+
+  registerToken('request', 'path', (ctx) => {
+    const req = ctx.request || ctx.req;
+    return req?.path || req?.url?.split('?')[0] || '';
+  });
+
+  registerToken('request', 'query', (ctx, chain) => {
+    // chain[0] contains the query parameter name (e.g., 'page' from [request:query:page])
+    if (!chain || chain.length === 0) return '';
+
+    const req = ctx.request || ctx.req;
+    const paramName = chain[0];
+
+    // Try to get from req.query (Express-style)
+    if (req?.query && req.query[paramName]) {
+      return req.query[paramName];
+    }
+
+    // Fall back to parsing URL query string
+    if (req?.url) {
+      const url = new URL(req.url, 'http://localhost');
+      return url.searchParams.get(paramName) || '';
+    }
+
+    return '';
+  });
+
+  registerToken('request', 'method', (ctx) => {
+    const req = ctx.request || ctx.req;
+    return req?.method || '';
+  });
+
+  registerToken('request', 'host', (ctx) => {
+    const req = ctx.request || ctx.req;
+    return req?.headers?.host || req?.hostname || '';
+  });
+
+  registerToken('request', 'protocol', (ctx) => {
+    const req = ctx.request || ctx.req;
+    return req?.protocol || (req?.headers?.['x-forwarded-proto']) || 'http';
+  });
 }
 
 /**
@@ -613,22 +893,22 @@ export function registerEntityProviders() {
 
   registerToken('node', 'nid', (ctx) => {
     const node = ctx.node || ctx.content;
-    return node?.id || '';
+    return node?.id || null;
   });
 
   registerToken('node', 'title', (ctx) => {
     const node = ctx.node || ctx.content;
-    return node?.title || '';
+    return node?.title || null;
   });
 
   registerToken('node', 'type', (ctx) => {
     const node = ctx.node || ctx.content;
-    return node?.type || '';
+    return node?.type || null;
   });
 
   registerToken('node', 'created', (ctx) => {
     const node = ctx.node || ctx.content;
-    if (!node?.created) return '';
+    if (!node?.created) return null;
     const date = new Date(node.created);
     return date.toISOString().split('T')[0];
   });
@@ -636,7 +916,7 @@ export function registerEntityProviders() {
   registerToken('node', 'changed', (ctx) => {
     const node = ctx.node || ctx.content;
     const timestamp = node?.updated || node?.changed;
-    if (!timestamp) return '';
+    if (!timestamp) return null;
     const date = new Date(timestamp);
     return date.toISOString().split('T')[0];
   });
@@ -648,12 +928,12 @@ export function registerEntityProviders() {
 
   registerToken('node', 'status', (ctx) => {
     const node = ctx.node || ctx.content;
-    return node?.status || '';
+    return node?.status || null;
   });
 
   registerToken('node', 'body', (ctx) => {
     const node = ctx.node || ctx.content;
-    return node?.body || '';
+    return node?.body || null;
   });
 
   // User tokens (Drupal-style user entity tokens)
@@ -672,22 +952,22 @@ export function registerEntityProviders() {
 
   registerToken('user', 'uid', (ctx) => {
     const user = ctx.user || ctx.currentUser;
-    return user?.id || '';
+    return user?.id || null;
   });
 
   registerToken('user', 'name', (ctx) => {
     const user = ctx.user || ctx.currentUser;
-    return user?.name || user?.username || '';
+    return user?.name || user?.username || null;
   });
 
   registerToken('user', 'mail', (ctx) => {
     const user = ctx.user || ctx.currentUser;
-    return user?.email || user?.mail || '';
+    return user?.email || user?.mail || null;
   });
 
   registerToken('user', 'created', (ctx) => {
     const user = ctx.user || ctx.currentUser;
-    if (!user?.created) return '';
+    if (!user?.created) return null;
     const date = new Date(user.created);
     return date.toISOString().split('T')[0];
   });
@@ -695,7 +975,7 @@ export function registerEntityProviders() {
   registerToken('user', 'access', (ctx) => {
     const user = ctx.user || ctx.currentUser;
     const timestamp = user?.access || user?.lastAccess;
-    if (!timestamp) return '';
+    if (!timestamp) return null;
     const date = new Date(timestamp);
     return date.toISOString().split('T')[0];
   });
@@ -710,7 +990,7 @@ export function registerEntityProviders() {
   const existingTermType = getTokens('term');
   if (existingTermType) {
     // Add 'tid' as alias for 'id'
-    registerToken('term', 'tid', (ctx) => ctx.term?.id || '');
+    registerToken('term', 'tid', (ctx) => ctx.term?.id || null);
   }
 }
 
