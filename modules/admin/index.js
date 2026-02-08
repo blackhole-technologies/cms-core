@@ -4094,31 +4094,284 @@ export function hook_cli(register, context) {
   }, 'List redirects');
 
   /**
-   * tokens:list [type] - List available tokens
+   * tokens:list [options] - List available tokens
+   * Options:
+   *   --type=<type>     Filter by token type (node, user, date, site, etc.)
+   *   --filter=<term>   Search tokens containing term
+   *   --verbose         Show examples and additional metadata
+   *   --format=json     Output as JSON
    */
   register('tokens:list', async (args, ctx) => {
-    const tokenService = ctx.services.get('token');
+    const tokenService = ctx.services.get('tokens');
     if (!tokenService) {
       console.error('Token service not available');
       return;
     }
 
-    const type = args[0];
-    const tokens = tokenService.getAvailableTokens(type);
+    // Parse options
+    const options = {
+      type: null,
+      filter: null,
+      verbose: false,
+      format: 'text',
+    };
 
-    console.log(`\nAvailable tokens${type ? ` (${type})` : ''}:\n`);
-    for (const [name, info] of Object.entries(tokens)) {
-      console.log(`  [${name}]`);
-      console.log(`    ${info.description || 'No description'}`);
+    for (const arg of args) {
+      if (arg.startsWith('--type=')) {
+        options.type = arg.substring(7);
+      } else if (arg.startsWith('--filter=')) {
+        options.filter = arg.substring(9);
+      } else if (arg === '--verbose') {
+        options.verbose = true;
+      } else if (arg.startsWith('--format=')) {
+        options.format = arg.substring(9);
+      } else if (arg.startsWith('--')) {
+        console.error(`Error: Unknown option: ${arg}`);
+        console.error('Run "node index.js help tokens:list" for usage information');
+        return;
+      }
     }
-    console.log('');
+
+    // Get all token types
+    const allTypes = tokenService.getTypes();
+
+    // Check if no tokens registered
+    if (Object.keys(allTypes).length === 0) {
+      console.log('\nNo tokens available. Enable modules to register tokens.\n');
+      return;
+    }
+
+    // Filter by type if specified
+    let typesToShow = allTypes;
+    if (options.type) {
+      if (!allTypes[options.type]) {
+        console.error(`Error: Unknown token type: ${options.type}`);
+        console.error(`Available types: ${Object.keys(allTypes).join(', ')}`);
+        return;
+      }
+      typesToShow = { [options.type]: allTypes[options.type] };
+    }
+
+    // Build output data structure
+    const output = [];
+    for (const [typeKey, typeInfo] of Object.entries(typesToShow)) {
+      const typeOutput = {
+        type: typeKey,
+        name: typeInfo.name,
+        description: typeInfo.description,
+        tokens: [],
+      };
+
+      // Process tokens for this type
+      for (const [tokenKey, tokenInfo] of Object.entries(typeInfo.tokens || {})) {
+        const tokenStr = `[${typeKey}:${tokenKey}]`;
+
+        // Apply filter if specified
+        if (options.filter) {
+          const searchTerm = options.filter.toLowerCase();
+          const matchesToken = tokenKey.toLowerCase().includes(searchTerm);
+          const matchesName = (tokenInfo.name || '').toLowerCase().includes(searchTerm);
+          const matchesDesc = (tokenInfo.description || '').toLowerCase().includes(searchTerm);
+
+          if (!matchesToken && !matchesName && !matchesDesc) {
+            continue;
+          }
+        }
+
+        const tokenOutput = {
+          token: tokenStr,
+          name: tokenInfo.name,
+          description: tokenInfo.description,
+        };
+
+        if (options.verbose && tokenInfo.example) {
+          tokenOutput.example = tokenInfo.example;
+        }
+
+        typeOutput.tokens.push(tokenOutput);
+      }
+
+      // Only add type if it has tokens (after filtering)
+      if (typeOutput.tokens.length > 0) {
+        output.push(typeOutput);
+      }
+    }
+
+    // Output based on format
+    if (options.format === 'json') {
+      console.log(JSON.stringify(output, null, 2));
+      return;
+    }
+
+    // Text format output
+    if (output.length === 0) {
+      console.log('\nNo tokens found matching your criteria.\n');
+      return;
+    }
+
+    console.log('\nAvailable tokens:\n');
+
+    for (const typeData of output) {
+      console.log(`${typeData.name} (${typeData.type})`);
+      if (typeData.description) {
+        console.log(`  ${typeData.description}`);
+      }
+      console.log('');
+
+      for (const token of typeData.tokens) {
+        console.log(`  ${token.token} - ${token.name}`);
+        if (token.description) {
+          console.log(`    ${token.description}`);
+        }
+        if (options.verbose && token.example) {
+          console.log(`    Example: ${token.example}`);
+        }
+      }
+      console.log('');
+    }
   }, 'List available tokens');
+
+  /**
+   * token:list - Alias for tokens:list (singular form)
+   * Drupal convention uses singular, but we support both for compatibility
+   */
+  const tokenListHandler = async (args, ctx) => {
+    const tokenService = ctx.services.get('tokens');
+    if (!tokenService) {
+      console.error('Token service not available');
+      return;
+    }
+
+    // Parse options
+    const options = {
+      type: null,
+      filter: null,
+      verbose: false,
+      format: 'text',
+    };
+
+    for (const arg of args) {
+      if (arg.startsWith('--type=')) {
+        options.type = arg.substring(7);
+      } else if (arg.startsWith('--filter=')) {
+        options.filter = arg.substring(9);
+      } else if (arg === '--verbose') {
+        options.verbose = true;
+      } else if (arg.startsWith('--format=')) {
+        options.format = arg.substring(9);
+      } else if (arg.startsWith('--')) {
+        console.error(`Error: Unknown option: ${arg}`);
+        console.error('Run "node index.js help token:list" for usage information');
+        return;
+      }
+    }
+
+    // Get all token types
+    const allTypes = tokenService.getTypes();
+
+    // Check if no tokens registered
+    if (Object.keys(allTypes).length === 0) {
+      console.log('\nNo tokens available. Enable modules to register tokens.\n');
+      return;
+    }
+
+    // Filter by type if specified
+    let typesToShow = allTypes;
+    if (options.type) {
+      if (!allTypes[options.type]) {
+        console.error(`Error: Unknown token type: ${options.type}`);
+        console.error(`Available types: ${Object.keys(allTypes).join(', ')}`);
+        return;
+      }
+      typesToShow = { [options.type]: allTypes[options.type] };
+    }
+
+    // Build output data structure
+    const output = [];
+    for (const [typeKey, typeInfo] of Object.entries(typesToShow)) {
+      const typeOutput = {
+        type: typeKey,
+        name: typeInfo.name,
+        description: typeInfo.description,
+        tokens: [],
+      };
+
+      // Process tokens for this type
+      for (const [tokenKey, tokenInfo] of Object.entries(typeInfo.tokens || {})) {
+        const tokenStr = `[${typeKey}:${tokenKey}]`;
+
+        // Apply filter if specified
+        if (options.filter) {
+          const searchTerm = options.filter.toLowerCase();
+          const matchesToken = tokenKey.toLowerCase().includes(searchTerm);
+          const matchesName = (tokenInfo.name || '').toLowerCase().includes(searchTerm);
+          const matchesDesc = (tokenInfo.description || '').toLowerCase().includes(searchTerm);
+
+          if (!matchesToken && !matchesName && !matchesDesc) {
+            continue;
+          }
+        }
+
+        const tokenOutput = {
+          token: tokenStr,
+          name: tokenInfo.name,
+          description: tokenInfo.description,
+        };
+
+        if (options.verbose && tokenInfo.example) {
+          tokenOutput.example = tokenInfo.example;
+        }
+
+        typeOutput.tokens.push(tokenOutput);
+      }
+
+      // Only add type if it has tokens (after filtering)
+      if (typeOutput.tokens.length > 0) {
+        output.push(typeOutput);
+      }
+    }
+
+    // Output based on format
+    if (options.format === 'json') {
+      console.log(JSON.stringify(output, null, 2));
+      return;
+    }
+
+    // Text format output
+    if (output.length === 0) {
+      console.log('\nNo tokens found matching your criteria.\n');
+      return;
+    }
+
+    console.log('\nAvailable tokens:\n');
+
+    for (const typeData of output) {
+      console.log(`${typeData.name} (${typeData.type})`);
+      if (typeData.description) {
+        console.log(`  ${typeData.description}`);
+      }
+      console.log('');
+
+      for (const token of typeData.tokens) {
+        console.log(`  ${token.token} - ${token.name}`);
+        if (token.description) {
+          console.log(`    ${token.description}`);
+        }
+        if (options.verbose && token.example) {
+          console.log(`    Example: ${token.example}`);
+        }
+      }
+      console.log('');
+    }
+  };
+
+  register('token:list', tokenListHandler, 'List available tokens (alias)');
 
   /**
    * tokens:replace <text> - Replace tokens in text (for testing)
    */
   register('tokens:replace', async (args, ctx) => {
-    const tokenService = ctx.services.get('token');
+    const tokenService = ctx.services.get('tokens');
     if (!tokenService) {
       console.error('Token service not available');
       return;
