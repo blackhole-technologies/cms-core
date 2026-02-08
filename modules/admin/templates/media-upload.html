@@ -23,6 +23,27 @@
   <div id="files" style="border:1px solid #ddd;border-radius:4px;overflow:hidden"></div>
 </div>
 
+<!-- Alt text modal (shown for images before upload) -->
+<div id="altTextModal" style="display:none;position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,0.5);z-index:9999;justify-content:center;align-items:center">
+  <div style="background:white;border-radius:8px;padding:24px;max-width:500px;width:90%;box-shadow:0 4px 20px rgba(0,0,0,0.3)">
+    <h3 style="margin:0 0 16px">Image Accessibility</h3>
+    <p style="margin:0 0 16px;color:#666;font-size:14px">Alt text describes this image for people using screen readers. It's required for accessibility.</p>
+    <div style="margin-bottom:16px">
+      <label style="display:block;font-weight:bold;margin-bottom:4px">Alt Text <span style="color:red">*</span></label>
+      <input type="text" id="altTextInput" placeholder="Describe the image..." style="width:100%;padding:8px;border:1px solid #ccc;border-radius:4px;box-sizing:border-box">
+      <p style="margin:4px 0 0;font-size:12px;color:#666">Example: "Team photo at the annual conference"</p>
+    </div>
+    <div style="margin-bottom:16px">
+      <label style="display:block;font-weight:bold;margin-bottom:4px">Caption (optional)</label>
+      <input type="text" id="captionInput" placeholder="Add a caption..." style="width:100%;padding:8px;border:1px solid #ccc;border-radius:4px;box-sizing:border-box">
+    </div>
+    <div style="display:flex;justify-content:flex-end;gap:8px">
+      <button onclick="cancelAltText()" style="padding:8px 16px;border:1px solid #ccc;background:white;border-radius:4px;cursor:pointer">Cancel</button>
+      <button onclick="submitAltText()" style="padding:8px 16px;border:none;background:#0071b9;color:white;border-radius:4px;cursor:pointer;font-weight:bold">Continue Upload</button>
+    </div>
+  </div>
+</div>
+
 <!-- Upload complete summary (hidden until done) -->
 <div id="uploadSummary" style="display:none;background:#f0f9f0;border:1px solid #4caf50;border-radius:4px;padding:20px;margin-bottom:20px">
   <h3 style="margin:0 0 10px;color:#2e7d32">Upload Complete</h3>
@@ -38,6 +59,15 @@
 const MAX_FILE_SIZE = {{maxFileSize}};
 let selectedFiles = [];
 let uploading = false;
+let pendingImageIndex = -1;
+
+// Image file extensions that require alt text
+const imageExtensions = ['jpg', 'jpeg', 'png', 'gif', 'webp', 'svg'];
+
+function isImage(filename) {
+  const ext = filename.split('.').pop().toLowerCase();
+  return imageExtensions.includes(ext);
+}
 
 function formatSize(bytes) {
   if (bytes < 1024) return bytes + ' B';
@@ -145,7 +175,52 @@ function clearFiles() {
   document.getElementById('fileInput').value = '';
 }
 
+function showAltTextModal(index) {
+  pendingImageIndex = index;
+  document.getElementById('altTextInput').value = selectedFiles[index].alt || '';
+  document.getElementById('captionInput').value = selectedFiles[index].caption || '';
+  document.getElementById('altTextModal').style.display = 'flex';
+  setTimeout(function() {
+    document.getElementById('altTextInput').focus();
+  }, 100);
+}
+
+function cancelAltText() {
+  document.getElementById('altTextModal').style.display = 'none';
+  pendingImageIndex = -1;
+}
+
+function submitAltText() {
+  var altText = document.getElementById('altTextInput').value.trim();
+  if (!altText) {
+    alert('Alt text is required for images (accessibility requirement)');
+    return;
+  }
+  if (pendingImageIndex >= 0) {
+    selectedFiles[pendingImageIndex].alt = altText;
+    selectedFiles[pendingImageIndex].caption = document.getElementById('captionInput').value.trim();
+  }
+  document.getElementById('altTextModal').style.display = 'none';
+  pendingImageIndex = -1;
+  continueUpload();
+}
+
 async function uploadAll() {
+  if (uploading || selectedFiles.length === 0) return;
+
+  // Check for images without alt text
+  for (var i = 0; i < selectedFiles.length; i++) {
+    var sf = selectedFiles[i];
+    if (sf.status !== 'error' && isImage(sf.file.name) && !sf.alt) {
+      showAltTextModal(i);
+      return;  // Will continue via continueUpload() after modal submission
+    }
+  }
+
+  continueUpload();
+}
+
+async function continueUpload() {
   if (uploading || selectedFiles.length === 0) return;
   uploading = true;
   document.getElementById('uploadBtn').disabled = true;
@@ -195,6 +270,8 @@ function uploadFile(sf, idx) {
   return new Promise(function(resolve, reject) {
     var formData = new FormData();
     formData.append('file', sf.file);
+    if (sf.alt) formData.append('alt', sf.alt);
+    if (sf.caption) formData.append('caption', sf.caption);
 
     var xhr = new XMLHttpRequest();
     xhr.open('POST', '/admin/media/upload', true);

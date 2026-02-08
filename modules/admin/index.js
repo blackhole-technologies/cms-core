@@ -7252,7 +7252,43 @@ export function hook_routes(register, context) {
       await content.create(type, data);
       redirect(res, `/admin/content/${type}?success=` + encodeURIComponent('Content created successfully'));
     } catch (error) {
-      redirect(res, `/admin/content/${type}/new?error=` + encodeURIComponent(error.message));
+      // Handle constraint violations with field-level error display
+      if (error.code === 'CONSTRAINT_VIOLATION' && Array.isArray(error.violations)) {
+        // Re-render form with validation errors and preserved values
+        const workflowConfig = content.getWorkflowConfig();
+        const workflowEnabled = workflowConfig.enabled;
+
+        // Build errors map: { fieldName: errorMessage }
+        const errors = {};
+        for (const v of error.violations) {
+          errors[v.field] = v.message;
+        }
+
+        // Build fields with preserved values and errors
+        const fields = Object.entries(schema).map(([name, def]) => ({
+          name,
+          type: def.type,
+          required: def.required,
+          value: formData[name] || '',
+          error: errors[name] || null,
+        }));
+
+        const html = renderAdmin('content-form.html', {
+          pageTitle: `Create ${type}`,
+          isCreate: true,
+          type,
+          fields,
+          hasErrors: true,
+          errors,
+          // Workflow data
+          workflowEnabled,
+          currentStatus: formData.status || workflowConfig.defaultStatus || 'draft',
+        }, ctx, req);
+
+        server.html(res, html);
+      } else {
+        redirect(res, `/admin/content/${type}/new?error=` + encodeURIComponent(error.message));
+      }
     }
   }, 'Create content');
 
@@ -7435,6 +7471,53 @@ export function hook_routes(register, context) {
         redirect(res, `/admin/content/${type}/${id}/edit?error=` + encodeURIComponent(`Content is locked by ${error.lockedBy}. Try again when they're done editing.`));
         return;
       }
+
+      // Handle constraint violations with field-level error display
+      if (error.code === 'CONSTRAINT_VIOLATION' && Array.isArray(error.violations)) {
+        // Re-render form with validation errors and preserved values
+        const item = content.read(type, id);
+        const schema = content.getSchema(type);
+        const workflowConfig = content.getWorkflowConfig();
+        const workflowEnabled = workflowConfig.enabled;
+
+        // Build errors map: { fieldName: errorMessage }
+        const errors = {};
+        for (const v of error.violations) {
+          errors[v.field] = v.message;
+        }
+
+        // Build fields with submitted values (from formData) and errors
+        const fields = Object.entries(schema).map(([name, def]) => ({
+          name,
+          type: def.type,
+          required: def.required,
+          value: formData[name] !== undefined ? formData[name] : (item[name] || ''),
+          error: errors[name] || null,
+        }));
+
+        const html = renderAdmin('content-form.html', {
+          pageTitle: `Edit ${type}`,
+          isCreate: false,
+          isEdit: true,
+          type,
+          id,
+          fields,
+          hasErrors: true,
+          errors,
+          createdFormatted: formatDate(item.created),
+          updatedFormatted: formatDate(item.updated),
+          workflowEnabled,
+          currentStatus: formData.status || item.status || 'draft',
+          publishedAt: item.publishedAt,
+          publishedAtFormatted: item.publishedAt ? formatDate(item.publishedAt) : null,
+          scheduledAt: item.scheduledAt,
+          scheduledAtFormatted: item.scheduledAt ? formatDate(item.scheduledAt) : null,
+        }, ctx, req);
+
+        server.html(res, html);
+        return;
+      }
+
       redirect(res, `/admin/content/${type}/${id}/edit?error=` + encodeURIComponent(error.message));
     }
   }, 'Update content');
@@ -17313,6 +17396,12 @@ export function hook_routes(register, context) {
           else if (videoExts.includes(ext)) mediaType = 'video';
           else if (audioExts.includes(ext)) mediaType = 'audio';
 
+          // Validate alt text for images (accessibility requirement)
+          // WHY: WCAG 2.1 Level A requires alt text on all images for screen reader accessibility
+          if (mediaType === 'image' && (!fields.alt || fields.alt.trim() === '')) {
+            throw new Error('Alt text is required for image uploads (accessibility requirement)');
+          }
+
           // Create media entity
           // WHY: Strip extension from filename to create a clean default name
           const name = file.originalName ? file.originalName.replace(/\.[^.]+$/, '') : file.name.replace(/\.[^.]+$/, '');
@@ -17325,9 +17414,10 @@ export function hook_routes(register, context) {
             size: saved.size,
             metadata: {},
             tags: [],
-            alt: '',
-            caption: '',
-            credit: '',
+            alt: fields.alt || '',
+            caption: fields.caption || '',
+            credit: fields.credit || '',
+            folder: fields.folder || '',  // Folder path for organization
             status: 'published',
           });
 

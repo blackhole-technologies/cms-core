@@ -39,6 +39,7 @@ let contentDir = './content';
 
 // Cache directory
 let cacheDir = null;
+let thumbnailCacheDir = null;
 
 // Provider registry
 // Structure: { name: { pattern: RegExp, endpoint: string, transform?: fn } }
@@ -60,6 +61,12 @@ export function init(config = {}) {
   cacheDir = path.join(contentDir, '.cache', 'oembed');
   if (!fs.existsSync(cacheDir)) {
     fs.mkdirSync(cacheDir, { recursive: true });
+  }
+
+  // Set up thumbnail cache directory in media folder (accessible via /media/*)
+  thumbnailCacheDir = path.join(contentDir, '..', 'media', 'oembed-cache');
+  if (!fs.existsSync(thumbnailCacheDir)) {
+    fs.mkdirSync(thumbnailCacheDir, { recursive: true });
   }
 
   // Register built-in providers
@@ -401,6 +408,86 @@ export async function discoverEmbed(url) {
 }
 
 /**
+ * Download and cache thumbnail from URL
+ * @param {string} thumbnailUrl - Thumbnail URL to download
+ * @param {string} originalUrl - Original embed URL (for cache key)
+ * @returns {Promise<string|null>} Local path to cached thumbnail or null
+ */
+async function downloadThumbnail(thumbnailUrl, originalUrl) {
+  if (!thumbnailUrl || !thumbnailCacheDir) {
+    return null;
+  }
+
+  try {
+    // Generate filename from original URL hash + extension from thumbnail URL
+    const hash = getCacheKey(originalUrl);
+    const ext = path.extname(new URL(thumbnailUrl).pathname) || '.jpg';
+    const filename = `thumb-${hash}${ext}`;
+    const localPath = path.join(thumbnailCacheDir, filename);
+
+    // Check if already cached
+    if (fs.existsSync(localPath)) {
+      return `/media/.cache/oembed/${filename}`;
+    }
+
+    // Download thumbnail
+    const parsedUrl = new URL(thumbnailUrl);
+    const client = parsedUrl.protocol === 'https:' ? https : http;
+
+    return new Promise((resolve, reject) => {
+      const options = {
+        hostname: parsedUrl.hostname,
+        port: parsedUrl.port,
+        path: parsedUrl.pathname + parsedUrl.search,
+        method: 'GET',
+        headers: {
+          'User-Agent': 'CMS-Core/1.0 oEmbed Thumbnail Fetcher',
+        },
+        timeout,
+      };
+
+      const req = client.request(options, (res) => {
+        // Handle redirects
+        if (res.statusCode >= 300 && res.statusCode < 400 && res.headers.location) {
+          downloadThumbnail(res.headers.location, originalUrl).then(resolve).catch(reject);
+          return;
+        }
+
+        if (res.statusCode !== 200) {
+          reject(new Error(`HTTP ${res.statusCode}`));
+          return;
+        }
+
+        // Write to file
+        const fileStream = fs.createWriteStream(localPath);
+        res.pipe(fileStream);
+
+        fileStream.on('finish', () => {
+          fileStream.close();
+          resolve(`/media/oembed-cache/${filename}`);
+        });
+
+        fileStream.on('error', (err) => {
+          fs.unlink(localPath, () => {}); // Clean up partial file
+          reject(err);
+        });
+      });
+
+      req.on('error', reject);
+      req.on('timeout', () => {
+        req.destroy();
+        reject(new Error('Thumbnail download timeout'));
+      });
+
+      req.end();
+    });
+  } catch (error) {
+    console.error('[oembed] Thumbnail download error:', error.message);
+    return null;
+  }
+}
+
+/**
  * Fetch oEmbed data for URL
  * @param {string} url - URL to embed
  * @param {object} options - Fetch options
@@ -458,6 +545,20 @@ export async function fetchEmbed(url, options = {}) {
   // Validate response
   if (!oembed.type) {
     throw new Error('Invalid oEmbed response: missing type');
+  }
+
+  // Download and cache thumbnail if available
+  if (oembed.thumbnail_url) {
+    try {
+      const localThumbnailPath = await downloadThumbnail(oembed.thumbnail_url, url);
+      if (localThumbnailPath) {
+        oembed.thumbnail_url_cached = localThumbnailPath;
+        oembed.thumbnail_url_original = oembed.thumbnail_url;
+      }
+    } catch (error) {
+      console.error('[oembed] Failed to cache thumbnail:', error.message);
+      // Continue with remote thumbnail URL
+    }
   }
 
   // Apply provider transform if any
@@ -672,11 +773,12 @@ export function renderEmbed(embed, options = {}) {
   }
 
   // If we have a thumbnail, show that with link
-  if (embed.oembed && embed.oembed.thumbnail_url) {
+  if (embed.oembed && (embed.oembed.thumbnail_url_cached || embed.oembed.thumbnail_url)) {
     const title = embed.oembed.title || 'View content';
+    const thumbnailSrc = embed.oembed.thumbnail_url_cached || embed.oembed.thumbnail_url;
     return `<div class="${className} ${className}-thumbnail">
       <a href="${escapeHtml(embed.url)}" target="_blank" rel="noopener">
-        <img src="${escapeHtml(embed.oembed.thumbnail_url)}" alt="${escapeHtml(title)}" />
+        <img src="${escapeHtml(thumbnailSrc)}" alt="${escapeHtml(title)}" />
         <span class="embed-title">${escapeHtml(title)}</span>
       </a>
     </div>`;
