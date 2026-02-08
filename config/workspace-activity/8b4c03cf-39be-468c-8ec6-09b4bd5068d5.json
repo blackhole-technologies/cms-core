@@ -1,0 +1,38 @@
+[
+  {
+    "timestamp": "2026-02-08T03:44:46.527Z",
+    "action": "content.create",
+    "user": null,
+    "details": {
+      "contentType": "page",
+      "contentId": "1770522286526-4ewd7"
+    }
+  },
+  {
+    "timestamp": "2026-02-08T03:44:46.067Z",
+    "action": "content.create",
+    "user": null,
+    "details": {
+      "contentType": "article",
+      "contentId": "1770522286066-nugzq"
+    }
+  },
+  {
+    "timestamp": "2026-02-08T03:44:39.621Z",
+    "action": "content.create",
+    "user": null,
+    "details": {
+      "contentType": "article",
+      "contentId": "1770522279620-eie65"
+    }
+  },
+  {
+    "timestamp": "2026-02-08T03:44:27.041Z",
+    "action": "workspace.create",
+    "user": null,
+    "details": {
+      "label": "Analytics Test Feature 55",
+      "machineName": "analytics_test_55"
+    }
+  }
+]

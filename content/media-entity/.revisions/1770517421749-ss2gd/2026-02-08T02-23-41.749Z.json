@@ -2,7 +2,7 @@
   "id": "1770517421749-ss2gd",
   "type": "media-entity",
   "created": "2026-02-08T02:23:41.749Z",
-  "updated": "2026-02-08T02:52:55.095Z",
+  "updated": "2026-02-08T02:23:41.749Z",
   "name": "test-upload-doc",
   "mediaType": "document",
   "filename": "1770517421749-test-upload-doc.txt",
@@ -16,6 +16,5 @@
   "credit": "",
   "status": "published",
   "isDefaultRevision": true,
-  "publishedAt": "2026-02-08T02:23:41.749Z",
-  "_usage": []
+  "publishedAt": "2026-02-08T02:23:41.749Z"
 }

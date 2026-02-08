@@ -1,0 +1,31 @@
+{
+  "id": "ws-e4f35b56-1770517421749-ss2gd",
+  "type": "media-entity",
+  "created": "2026-02-08T02:23:41.749Z",
+  "updated": "2026-02-08T02:53:40.471Z",
+  "name": "test-upload-doc",
+  "mediaType": "document",
+  "filename": "test-replacement.txt",
+  "path": "2026/02/1770519220470-test-replacement.txt",
+  "mimeType": "text/plain",
+  "size": 67,
+  "metadata": {},
+  "tags": [],
+  "alt": "",
+  "caption": "",
+  "credit": "",
+  "status": "published",
+  "isDefaultRevision": true,
+  "publishedAt": "2026-02-08T02:23:41.749Z",
+  "_usage": [
+    {
+      "contentType": "article",
+      "contentId": "REPLACE_TEST_ARTICLE",
+      "field": "attachment",
+      "added": "2026-02-08T02:52:55.095Z"
+    }
+  ],
+  "_workspace": "e4f35b56-72f0-4820-b45a-f6b4bb6d2bfa",
+  "_originalId": "1770517421749-ss2gd",
+  "_originalType": "media-entity"
+}

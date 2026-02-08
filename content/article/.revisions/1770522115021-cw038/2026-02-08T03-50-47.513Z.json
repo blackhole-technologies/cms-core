@@ -1,13 +1,11 @@
 {
-  "id": "1770432848806-bvb33",
+  "id": "1770522115021-cw038",
   "type": "article",
-  "created": "2026-02-07T02:54:08.806Z",
-  "updated": "2026-02-08T03:51:06.591Z",
-  "title": "Rev Test A - Draft Edit",
+  "created": "2026-02-08T03:41:55.021Z",
+  "updated": "2026-02-08T03:50:47.513Z",
+  "title": "PERSISTENCE_TEST_98765",
   "isDefaultRevision": true,
-  "status": "published",
-  "publishedAt": "2026-02-07T02:54:15.307Z",
-  "scheduledAt": null,
+  "status": "draft",
   "_layout": {
     "sections": [
       {
@@ -31,20 +29,36 @@
         "weight": 0
       },
       {
-        "uuid": "ab93d2ee7b024d0375e4277800bb2bf2",
+        "uuid": "b666f71e567223dd55068270796af19d",
+        "layoutId": "one_column",
+        "settings": {},
+        "components": {
+          "content": []
+        },
+        "weight": 1
+      },
+      {
+        "uuid": "cf7834262331ec4e8204df32ae780304",
         "layoutId": "three_column",
         "settings": {
           "columnWidths": "33-33-33"
         },
         "components": {
-          "first": [],
+          "first": [
+            {
+              "uuid": "baf14e4f11afb34019aa1c2e0e9caa0d",
+              "type": "field",
+              "fieldName": "title",
+              "configuration": {},
+              "weight": 0
+            }
+          ],
           "second": [],
           "third": []
         },
-        "weight": 1
+        "weight": 2
       }
     ],
-    "updated": "2026-02-08T03:51:06.591Z"
-  },
-  "body": "This is a pending draft revision"
+    "updated": "2026-02-08T03:50:55.443Z"
+  }
 }

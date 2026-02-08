@@ -1,0 +1,11 @@
+{
+  "id": "1770522352255-nlbpn",
+  "type": "article",
+  "created": "2026-02-08T03:45:52.255Z",
+  "updated": "2026-02-08T03:45:52.255Z",
+  "title": "EXPIRED_WRITE_TEST",
+  "body": "This should fail",
+  "isDefaultRevision": true,
+  "status": "draft",
+  "_workspace": "c8bdb778-3edf-4280-8974-c9c2f1167dda"
+}

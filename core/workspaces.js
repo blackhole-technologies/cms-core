@@ -69,6 +69,9 @@ let auditModule = null;
 /** Reference to content system for association cleanup */
 let contentModule = null;
 
+/** Reference to scheduler system for scheduled publish */
+let schedulerModule = null;
+
 /**
  * Workspace content associations directory.
  * Stores JSON files tracking which content items belong to which workspace.
@@ -131,6 +134,7 @@ export function init(options) {
   auditModule = options.audit || null;
 
   contentModule = options.content || null;
+  schedulerModule = options.scheduler || null;
 
   // Ensure workspace storage directory exists
   workspacesDir = join(baseDir, 'config', 'workspaces');
@@ -159,6 +163,14 @@ export function init(options) {
   // Register workspace permissions if permissions module available
   if (permissionsModule && typeof permissionsModule.definePermission === 'function') {
     registerWorkspacePermissions();
+  }
+
+  // Register scheduled publish task if scheduler available
+  // WHY EVERY MINUTE:
+  // Mirrors Drupal's hook_cron pattern. Every minute we check if any workspace
+  // has a scheduledPublishAt time that has passed, and auto-publish it.
+  if (schedulerModule && typeof schedulerModule.schedule === 'function') {
+    schedulerModule.schedule('workspace:scheduled-publish', '* * * * *', processScheduledPublishes);
   }
 
   console.log(`[workspaces] Initialized with ${workspaceCache.size} workspace(s)`);
