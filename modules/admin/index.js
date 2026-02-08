@@ -3070,6 +3070,55 @@ export function hook_cli(register, context) {
   }, 'Delete view');
 
   /**
+   * views:clone <sourceId> <newId> [--name=<name>] [--label=<label>] [--description=<desc>]
+   * Clone an existing view to create a copy
+   * WHY: Cloning is faster than building from scratch when creating similar views
+   */
+  register('views:clone', async (args, ctx) => {
+    const viewsService = ctx.services.get('views');
+    if (!viewsService) {
+      console.log('Views service not available');
+      return;
+    }
+
+    const sourceId = args[0];
+    const newId = args[1];
+    if (!sourceId || !newId) {
+      console.log('Usage: views:clone <sourceId> <newId> [--name=<name>] [--label=<label>] [--description=<desc>]');
+      console.log('');
+      console.log('Clone an existing view to create a copy with a new ID.');
+      console.log('');
+      console.log('Examples:');
+      console.log('  views:clone article_list article_archive');
+      console.log('  views:clone article_list featured_articles --name="Featured" --label="Featured Articles"');
+      return;
+    }
+
+    const options = {};
+    for (const arg of args.slice(2)) {
+      const match = arg.match(/^--([^=]+)=(.+)$/);
+      if (match) {
+        const [, key, value] = match;
+        options[key] = value;
+      }
+    }
+
+    try {
+      const cloned = await viewsService.cloneView(sourceId, newId, options);
+      console.log(`✓ Cloned view: ${sourceId} → ${newId}`);
+      console.log(`  Name: ${cloned.name}`);
+      console.log(`  Label: ${cloned.label}`);
+      console.log(`  Content Type: ${cloned.contentType}`);
+      console.log(`  Displays: ${cloned.displays?.length || 0}`);
+      console.log(`  Filters: ${cloned.filters?.length || 0}`);
+      console.log(`  Sorts: ${cloned.sort?.length || 0}`);
+      console.log(`  Fields: ${cloned.fields?.length || 0}`);
+    } catch (e) {
+      console.log(`✗ Error: ${e.message}`);
+    }
+  }, 'Clone view');
+
+  /**
    * views:execute <id> [--limit=N] - Run view query and show results
    * WHY: executeView() is async and returns {items, total, pager} object
    */
