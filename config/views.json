@@ -8,7 +8,14 @@
     "path": null,
     "header": "<p style=\"font-weight: bold; color: #2563eb;\">Welcome to our article collection! Browse our latest content below.</p>",
     "footer": "<p style=\"text-align: center; color: #6b7280;\">Thanks for reading. <a href=\"/contact\">Contact us</a> for more information.</p>",
-    "filters": [],
+    "filters": [
+      {
+        "field": "status",
+        "op": "=",
+        "value": "published",
+        "exposed": true
+      }
+    ],
     "contextualFilters": [],
     "sort": [
       {
@@ -32,11 +39,7 @@
         "formatter": "date"
       },
       "author",
-      {
-        "name": "body",
-        "label": "",
-        "formatter": "trimmed"
-      },
+      "body",
       {
         "name": "status",
         "label": "Publication Status",
@@ -50,7 +53,7 @@
       "ttl": 300
     },
     "created": "2026-02-03T00:00:00.000Z",
-    "updated": "2026-02-08T01:27:40.612Z",
+    "updated": "2026-02-08T01:45:20.082Z",
     "displayMode": "table",
     "template": null,
     "displays": [
@@ -93,7 +96,8 @@
         },
         "isDefault": false
       }
-    ]
+    ],
+    "filterLogic": "AND"
   },
   "recent_articles": {
     "id": "recent_articles",
@@ -126,6 +130,21 @@
     "description": "A view with complex configuration for export/import testing",
     "contentType": "article",
     "display": "page",
+    "displays": [
+      {
+        "id": "default",
+        "type": "page",
+        "label": "Page",
+        "path": "/test-complex",
+        "displayMode": "table",
+        "template": null,
+        "pager": {
+          "type": "full",
+          "limit": 25
+        },
+        "isDefault": true
+      }
+    ],
     "path": "/test-complex",
     "filters": [
       {
@@ -139,6 +158,7 @@
         "value": "test"
       }
     ],
+    "filterLogic": "AND",
     "contextualFilters": [
       {
         "source": "query",
@@ -182,7 +202,7 @@
       "enabled": true,
       "ttl": 600
     },
-    "created": "2026-02-07T12:53:25.819Z",
-    "updated": "2026-02-07T12:53:25.819Z"
+    "created": "2026-02-08T01:46:02.916Z",
+    "updated": "2026-02-08T01:46:02.916Z"
   }
 }
