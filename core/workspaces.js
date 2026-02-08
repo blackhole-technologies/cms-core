@@ -281,6 +281,7 @@ export async function create(data, user = null) {
     updated: now,
     parent: data.parent || null,
     description: data.description || '',
+    assignees: data.assignees || [],
   };
 
   // Persist to disk
@@ -872,6 +873,183 @@ export async function getUserPermissions(user) {
 }
 
 // ============================================================================
+// Workspace User Assignment
+// ============================================================================
+
+/**
+ * Assign a user to a workspace.
+ *
+ * WHY ASSIGNMENT:
+ * Drupal's workspaces module supports assigning specific users to workspaces.
+ * This controls who can collaborate within a workspace — only assigned users
+ * (and the owner) can view and edit workspace content. Admins bypass assignment
+ * checks via the wildcard permission.
+ *
+ * @param {string} workspaceId - Workspace UUID or machine name
+ * @param {string} userId - User ID to assign
+ * @param {Object} [user] - User performing the action (for permission check)
+ * @returns {Object} Updated workspace entity
+ * @throws {Error} If workspace not found or user already assigned
+ */
+export async function assignUser(workspaceId, userId, user = null) {
+  if (user && permissionsModule) {
+    const allowed = await checkPermission(user, 'edit');
+    if (!allowed) {
+      const err = new Error('Permission denied: workspace.edit');
+      err.code = 'PERMISSION_DENIED';
+      err.status = 403;
+      throw err;
+    }
+  }
+
+  const workspace = resolveWorkspace(workspaceId);
+  if (!workspace) {
+    throw new Error(`Workspace not found: ${workspaceId}`);
+  }
+
+  // Initialize assignees array if missing (backward compat with older workspaces)
+  if (!Array.isArray(workspace.assignees)) {
+    workspace.assignees = [];
+  }
+
+  if (workspace.assignees.includes(userId)) {
+    throw new Error(`User "${userId}" is already assigned to workspace "${workspace.label}"`);
+  }
+
+  workspace.assignees.push(userId);
+  workspace.updated = new Date().toISOString();
+  saveWorkspace(workspace);
+  workspaceCache.set(workspace.id, workspace);
+
+  // Audit log
+  if (auditModule && typeof auditModule.log === 'function') {
+    auditModule.log('workspace.assignUser', {
+      workspaceId: workspace.id,
+      workspaceLabel: workspace.label,
+      assignedUserId: userId,
+      performedBy: user?.id,
+    });
+  }
+
+  return workspace;
+}
+
+/**
+ * Unassign a user from a workspace.
+ *
+ * @param {string} workspaceId - Workspace UUID or machine name
+ * @param {string} userId - User ID to unassign
+ * @param {Object} [user] - User performing the action (for permission check)
+ * @returns {Object} Updated workspace entity
+ * @throws {Error} If workspace not found or user not assigned
+ */
+export async function unassignUser(workspaceId, userId, user = null) {
+  if (user && permissionsModule) {
+    const allowed = await checkPermission(user, 'edit');
+    if (!allowed) {
+      const err = new Error('Permission denied: workspace.edit');
+      err.code = 'PERMISSION_DENIED';
+      err.status = 403;
+      throw err;
+    }
+  }
+
+  const workspace = resolveWorkspace(workspaceId);
+  if (!workspace) {
+    throw new Error(`Workspace not found: ${workspaceId}`);
+  }
+
+  if (!Array.isArray(workspace.assignees)) {
+    workspace.assignees = [];
+  }
+
+  const idx = workspace.assignees.indexOf(userId);
+  if (idx === -1) {
+    throw new Error(`User "${userId}" is not assigned to workspace "${workspace.label}"`);
+  }
+
+  workspace.assignees.splice(idx, 1);
+  workspace.updated = new Date().toISOString();
+  saveWorkspace(workspace);
+  workspaceCache.set(workspace.id, workspace);
+
+  // Audit log
+  if (auditModule && typeof auditModule.log === 'function') {
+    auditModule.log('workspace.unassignUser', {
+      workspaceId: workspace.id,
+      workspaceLabel: workspace.label,
+      removedUserId: userId,
+      performedBy: user?.id,
+    });
+  }
+
+  return workspace;
+}
+
+/**
+ * Check if a user is assigned to (or has access to) a workspace.
+ *
+ * WHY ACCESS CHECK:
+ * Only the owner, assigned users, and admins (wildcard permission) can access
+ * a workspace. This prevents unauthorized users from viewing or modifying
+ * workspace content.
+ *
+ * @param {string} workspaceId - Workspace UUID or machine name
+ * @param {Object} user - User object with id and role
+ * @returns {boolean} True if user has access
+ */
+export async function isUserAssigned(workspaceId, user) {
+  if (!user || !user.id) return false;
+
+  const workspace = resolveWorkspace(workspaceId);
+  if (!workspace) return false;
+
+  // Owner always has access
+  if (workspace.owner === user.id) return true;
+
+  // Check assignees list
+  if (Array.isArray(workspace.assignees) && workspace.assignees.includes(user.id)) {
+    return true;
+  }
+
+  // Admin role (wildcard permission) bypasses assignment
+  if (permissionsModule) {
+    try {
+      const hasView = await checkPermission(user, 'view');
+      if (hasView) {
+        // Check if user's role has wildcard — admins can access any workspace
+        const rolePerms = permissionsModule.getRolePermissions(user.role);
+        if (rolePerms && rolePerms.includes('*')) return true;
+      }
+    } catch {
+      // Fall through
+    }
+  }
+
+  return false;
+}
+
+/**
+ * Get all workspaces assigned to a user.
+ *
+ * @param {string} userId - User ID
+ * @returns {Object[]} Array of workspace entities the user is assigned to
+ */
+export function getAssignedWorkspaces(userId) {
+  const result = [];
+  for (const ws of workspaceCache.values()) {
+    if (ws.owner === userId) {
+      result.push(ws);
+      continue;
+    }
+    if (Array.isArray(ws.assignees) && ws.assignees.includes(userId)) {
+      result.push(ws);
+    }
+  }
+  return result;
+}
+
+// ============================================================================
 // Helpers
 // ============================================================================
 
@@ -1197,6 +1375,128 @@ export function registerCli(register) {
 
     return true;
   }, 'Show workspace permissions for a role');
+
+  // workspace:assign <workspaceId|machineName> <userId>
+  register('workspace:assign', async (args) => {
+    const { positional } = parseCliArgs(args);
+    const identifier = positional[0];
+    const userId = positional[1];
+
+    if (!identifier || !userId) {
+      console.log('Usage: workspace:assign <workspaceId|machineName> <userId>');
+      console.log('Assign a user to a workspace for collaboration.');
+      return false;
+    }
+
+    try {
+      const workspace = await assignUser(identifier, userId);
+      console.log(`\u2713 User "${userId}" assigned to workspace "${workspace.label}"`);
+      console.log(`  Assignees: ${workspace.assignees.join(', ')}`);
+      return true;
+    } catch (err) {
+      console.error(`\u2717 Failed to assign user: ${err.message}`);
+      return false;
+    }
+  }, 'Assign a user to a workspace');
+
+  // workspace:unassign <workspaceId|machineName> <userId>
+  register('workspace:unassign', async (args) => {
+    const { positional } = parseCliArgs(args);
+    const identifier = positional[0];
+    const userId = positional[1];
+
+    if (!identifier || !userId) {
+      console.log('Usage: workspace:unassign <workspaceId|machineName> <userId>');
+      console.log('Remove a user from a workspace.');
+      return false;
+    }
+
+    try {
+      const workspace = await unassignUser(identifier, userId);
+      console.log(`\u2713 User "${userId}" removed from workspace "${workspace.label}"`);
+      const remaining = workspace.assignees.length;
+      console.log(`  Remaining assignees: ${remaining > 0 ? workspace.assignees.join(', ') : '(none)'}`);
+      return true;
+    } catch (err) {
+      console.error(`\u2717 Failed to unassign user: ${err.message}`);
+      return false;
+    }
+  }, 'Remove a user from a workspace');
+
+  // workspace:assigned <userId> - Show workspaces assigned to a user
+  register('workspace:assigned', async (args) => {
+    const { positional } = parseCliArgs(args);
+    const userId = positional[0];
+
+    if (!userId) {
+      console.log('Usage: workspace:assigned <userId>');
+      console.log('Show all workspaces assigned to a user.');
+      return false;
+    }
+
+    const workspaces = getAssignedWorkspaces(userId);
+    if (workspaces.length === 0) {
+      console.log(`No workspaces assigned to user "${userId}".`);
+      return true;
+    }
+
+    console.log(`Workspaces for user "${userId}" (${workspaces.length}):`);
+    console.log('\u2500'.repeat(60));
+    for (const ws of workspaces) {
+      const role = ws.owner === userId ? '[owner]' : '[assigned]';
+      console.log(`  ${ws.machineName} ${role} — ${ws.label}`);
+      console.log(`    ID: ${ws.id}`);
+    }
+    return true;
+  }, 'Show workspaces assigned to a user');
+
+  // workspace:check-access <workspaceId|machineName> <userId> - Check if user can access workspace
+  register('workspace:check-access', async (args) => {
+    const { positional } = parseCliArgs(args);
+    const identifier = positional[0];
+    const userId = positional[1];
+
+    if (!identifier || !userId) {
+      console.log('Usage: workspace:check-access <workspaceId|machineName> <userId>');
+      return false;
+    }
+
+    // Build a minimal user object for checking
+    // In a real system, we'd look up the user from the users module
+    let userObj = { id: userId, role: 'anonymous' };
+
+    // Try to find the user in content to get their role
+    if (contentModule) {
+      try {
+        const users = await contentModule.list('user');
+        const found = users.find(u => u.id === userId || u.username === userId);
+        if (found) {
+          userObj = { id: found.id, role: found.role || 'authenticated', username: found.username };
+        }
+      } catch {
+        // Fallback to minimal user
+      }
+    }
+
+    const hasAccess = await isUserAssigned(identifier, userObj);
+    const workspace = resolveWorkspace(identifier);
+    const wsLabel = workspace ? workspace.label : identifier;
+
+    if (hasAccess) {
+      console.log(`\u2713 User "${userId}" HAS access to workspace "${wsLabel}"`);
+      if (workspace && workspace.owner === userObj.id) {
+        console.log(`  Reason: user is the workspace owner`);
+      } else if (workspace && Array.isArray(workspace.assignees) && workspace.assignees.includes(userObj.id)) {
+        console.log(`  Reason: user is in the assignees list`);
+      } else {
+        console.log(`  Reason: user has admin-level permissions`);
+      }
+    } else {
+      console.log(`\u2717 User "${userId}" does NOT have access to workspace "${wsLabel}"`);
+      console.log(`  To grant access: workspace:assign ${identifier} ${userId}`);
+    }
+    return true;
+  }, 'Check if a user can access a workspace');
 
   // workspace:publish-content <workspaceId|machineName> <contentId>
   register('workspace:publish-content', async (args) => {

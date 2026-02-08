@@ -5417,6 +5417,71 @@ export function hook_cli(register, context) {
   }, 'Show where a media item is used');
 
   /**
+   * media:replace <id> <filepath> - Replace media file while preserving all references
+   *
+   * WHY: Allows updating a media file (e.g., corrected image, updated logo) without
+   * breaking any content references. The entity ID stays the same; only the file changes.
+   */
+  register('media:replace', async (args, ctx) => {
+    const mediaLibrary = ctx.services.get('mediaLibrary');
+    if (!mediaLibrary) {
+      console.log('Media Library not enabled');
+      return;
+    }
+
+    if (args.length < 2) {
+      console.error('Usage: media:replace <media-id> <filepath> [--keep-old]');
+      return;
+    }
+
+    const id = args[0];
+    const filepath = args[1];
+    const keepOldFile = args.includes('--keep-old');
+
+    // Read the replacement file from disk
+    const { readFileSync, existsSync } = await import('node:fs');
+    const { basename, extname } = await import('node:path');
+
+    if (!existsSync(filepath)) {
+      console.error(`File not found: ${filepath}`);
+      return;
+    }
+
+    const data = readFileSync(filepath);
+    const filename = basename(filepath);
+    const ext = extname(filepath).toLowerCase();
+
+    // Determine MIME type from extension
+    const mimeMap = {
+      '.jpg': 'image/jpeg', '.jpeg': 'image/jpeg', '.png': 'image/png',
+      '.gif': 'image/gif', '.webp': 'image/webp', '.svg': 'image/svg+xml',
+      '.mp4': 'video/mp4', '.webm': 'video/webm', '.pdf': 'application/pdf',
+      '.doc': 'application/msword', '.txt': 'text/plain', '.csv': 'text/csv',
+    };
+    const mimeType = mimeMap[ext] || 'application/octet-stream';
+
+    try {
+      const result = await mediaLibrary.replaceMedia(id, {
+        name: filename,
+        data,
+        type: mimeType,
+        size: data.length,
+      }, { keepOldFile });
+
+      console.log(`\n=== Media Replaced ===\n`);
+      console.log(`  ID: ${id}`);
+      console.log(`  Old file: ${result.oldFilename}`);
+      console.log(`  New file: ${result.newFilename}`);
+      console.log(`  New path: ${result.newPath}`);
+      console.log(`  References updated: ${result.referencesUpdated}`);
+      console.log(`  Old file ${keepOldFile ? 'kept' : 'deleted'}`);
+      console.log('');
+    } catch (err) {
+      console.error(`Replace failed: ${err.message}`);
+    }
+  }, 'Replace media file (update all references)');
+
+  /**
    * media:create-from-url <url> - Create media entity from remote URL with oEmbed metadata
    *
    * WHY: Tests the full oEmbed metadata extraction pipeline.
@@ -6224,6 +6289,105 @@ export function hook_routes(register, context) {
       server.html(res, html);
     }
   }, 'Workspace preview');
+
+  // GET /workspace/:id/activity - Workspace activity log page
+  register('GET', '/workspace/:id/activity', async (req, res, params, ctx) => {
+    const workspacesService = ctx.services.get('workspaces');
+    if (!workspacesService) {
+      res.writeHead(500, { 'Content-Type': 'text/plain' });
+      res.end('Workspaces service not available');
+      return;
+    }
+
+    // Resolve workspace by UUID or machine name
+    let workspace = workspacesService.get(params.id);
+    if (!workspace) {
+      workspace = workspacesService.getByMachineName(params.id);
+    }
+
+    if (!workspace) {
+      res.writeHead(404, { 'Content-Type': 'text/html' });
+      res.end('<h1>Workspace not found</h1>');
+      return;
+    }
+
+    let log = [];
+    try {
+      log = workspacesService.getActivityLog(workspace.id, { limit: 100 });
+    } catch (e) { /* ignore */ }
+
+    // Build activity rows
+    const rows = log.map(entry => {
+      const time = new Date(entry.timestamp).toLocaleString();
+      const user = entry.user ? (entry.user.name || entry.user.id) : 'system';
+      const details = Object.entries(entry.details || {})
+        .map(([k, v]) => `<strong>${k}:</strong> ${typeof v === 'object' ? JSON.stringify(v) : v}`)
+        .join(', ');
+      return `<tr>
+      <td>${time}</td>
+      <td><code>${entry.action}</code></td>
+      <td>${user}</td>
+      <td>${details || '—'}</td>
+    </tr>`;
+    }).join('\n');
+
+    const html = `<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Activity Log: ${workspace.label}</title>
+  <style>
+    body { font-family: -apple-system, BlinkMacSystemFont, sans-serif; margin: 0; padding: 20px; background: #f5f5f5; color: #333; }
+    .container { max-width: 1000px; margin: 0 auto; }
+    h1 { color: #0073aa; }
+    .meta { color: #666; margin-bottom: 20px; }
+    table { width: 100%; border-collapse: collapse; background: white; border-radius: 4px; box-shadow: 0 1px 3px rgba(0,0,0,0.1); }
+    th, td { padding: 10px 14px; text-align: left; border-bottom: 1px solid #eee; }
+    th { background: #f9f9f9; font-weight: 600; border-bottom: 2px solid #ddd; }
+    code { background: #f0f0f0; padding: 2px 6px; border-radius: 3px; font-size: 0.9em; }
+    .empty { text-align: center; padding: 40px; color: #999; }
+    a { color: #0073aa; text-decoration: none; }
+    a:hover { text-decoration: underline; }
+    .nav { margin-bottom: 20px; }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <div class="nav">
+      <a href="/admin">&larr; Admin</a> |
+      <a href="/workspace/${workspace.machineName}/preview">Preview</a>
+    </div>
+    <h1>Activity Log: ${workspace.label}</h1>
+    <div class="meta">
+      <strong>Machine name:</strong> ${workspace.machineName} &nbsp;|&nbsp;
+      <strong>Status:</strong> ${workspace.status} &nbsp;|&nbsp;
+      <strong>Created:</strong> ${new Date(workspace.created).toLocaleString()}
+    </div>
+    ${log.length === 0
+      ? '<div class="empty">No activity recorded for this workspace.</div>'
+      : `<table>
+        <thead>
+          <tr>
+            <th>Time</th>
+            <th>Action</th>
+            <th>User</th>
+            <th>Details</th>
+          </tr>
+        </thead>
+        <tbody>
+          ${rows}
+        </tbody>
+      </table>
+      <p style="color:#666;margin-top:10px;">Showing ${log.length} entries</p>`
+    }
+  </div>
+</body>
+</html>`;
+
+    res.writeHead(200, { 'Content-Type': 'text/html' });
+    res.end(html);
+  }, 'Workspace activity log');
 
   // ==========================================
   // Content Management
@@ -16685,6 +16849,17 @@ export function hook_routes(register, context) {
       label: u.contentType + '/' + u.contentId,
     }));
 
+    // WHY: Parse flash messages from URL for replace/usage operations
+    const urlObj = new URL(req.url, 'http://localhost');
+    const successMsg = urlObj.searchParams.get('success');
+    const errorMsg = urlObj.searchParams.get('error');
+    const flash = successMsg ? { type: 'success', message: decodeURIComponent(successMsg) }
+      : errorMsg ? { type: 'error', message: decodeURIComponent(errorMsg) }
+      : null;
+
+    // WHY: Remote videos can't be replaced with file uploads
+    const canReplace = item.mediaType !== 'remote_video';
+
     const html = renderAdmin('media-detail.html', {
       item,
       usage: usageList,
@@ -16698,12 +16873,15 @@ export function hook_routes(register, context) {
       isVideo,
       isAudio,
       isDocument,
+      canReplace,
       sizeFormatted: formatMediaSize(item.size),
       createdFormatted: formatDate(item.created),
       updatedFormatted: formatDate(item.updated),
       tagsFormatted: item.tags && item.tags.length ? item.tags.join(', ') : '',
       hasTags: item.tags && item.tags.length > 0,
       pageTitle: 'Media: ' + (item.name || item.id),
+      flash,
+      hasFlash: !!flash,
     }, ctx, req);
 
     server.html(res, html);
@@ -16760,6 +16938,113 @@ export function hook_routes(register, context) {
       server.json(res, { error: err.message }, 500);
     }
   }, 'Remove media usage');
+
+  /**
+   * POST /admin/media/library/:id/replace - Replace media file
+   *
+   * WHY: Allows replacing a media file while preserving all content references.
+   * The entity ID stays the same; all content that uses this media automatically
+   * gets the new file. This is essential for correcting images, updating logos, etc.
+   */
+  register('POST', '/admin/media/library/:id/replace', async (req, res, params, ctx) => {
+    const mediaLibrary = ctx.services.get('mediaLibrary');
+    const mediaService = ctx.services.get('media');
+    const server = ctx.services.get('server');
+
+    try {
+      // Parse multipart upload
+      const { fields, files } = await mediaService.parseUpload(req);
+
+      if (!files || files.length === 0) {
+        redirect(res, `/admin/media/library/${params.id}?error=` + encodeURIComponent('No replacement file selected'));
+        return;
+      }
+
+      const file = files[0];
+
+      const result = await mediaLibrary.replaceMedia(params.id, {
+        name: file.originalName || file.name,
+        data: file.data,
+        type: file.type,
+        size: file.size,
+      }, {
+        keepOldFile: fields.keepOldFile === 'true',
+      });
+
+      const msg = `Replaced: ${result.oldFilename} → ${result.newFilename} (${result.referencesUpdated} reference(s) updated)`;
+      redirect(res, `/admin/media/library/${params.id}?success=` + encodeURIComponent(msg));
+    } catch (err) {
+      console.error('[media] Replace error:', err.message);
+      redirect(res, `/admin/media/library/${params.id}?error=` + encodeURIComponent(err.message));
+    }
+  }, 'Replace media file');
+
+  /**
+   * GET /api/media/:id/usage - API endpoint for media usage tracking
+   * WHY: Enables headless/decoupled frontends to query media usage
+   */
+  register('GET', '/api/media/:id/usage', async (req, res, params, ctx) => {
+    const mediaLibrary = ctx.services.get('mediaLibrary');
+    const server = ctx.services.get('server');
+
+    if (!req.user) {
+      server.json(res, { error: 'Unauthorized' }, 401);
+      return;
+    }
+
+    const usage = mediaLibrary.getUsage(params.id);
+    server.json(res, { mediaId: params.id, usage, count: usage.length });
+  }, 'API: Get media usage');
+
+  /**
+   * POST /api/media/:id/replace - API endpoint for media replacement
+   * WHY: Enables headless/decoupled frontends to replace media files
+   */
+  register('POST', '/api/media/:id/replace', async (req, res, params, ctx) => {
+    const mediaLibrary = ctx.services.get('mediaLibrary');
+    const mediaService = ctx.services.get('media');
+    const server = ctx.services.get('server');
+    const auth = ctx.services.get('auth');
+
+    if (!req.user) {
+      server.json(res, { error: 'Unauthorized' }, 401);
+      return;
+    }
+    if (!auth.hasPermission(req.user, 'content.update')) {
+      server.json(res, { error: 'Forbidden' }, 403);
+      return;
+    }
+
+    try {
+      const { fields, files } = await mediaService.parseUpload(req);
+
+      if (!files || files.length === 0) {
+        server.json(res, { error: 'No replacement file provided' }, 400);
+        return;
+      }
+
+      const file = files[0];
+      const result = await mediaLibrary.replaceMedia(params.id, {
+        name: file.originalName || file.name,
+        data: file.data,
+        type: file.type,
+        size: file.size,
+      }, {
+        keepOldFile: fields && fields.keepOldFile === 'true',
+      });
+
+      server.json(res, {
+        success: true,
+        mediaId: params.id,
+        oldPath: result.oldPath,
+        newPath: result.newPath,
+        referencesUpdated: result.referencesUpdated,
+        entity: result.entity,
+      });
+    } catch (err) {
+      server.json(res, { error: err.message }, 500);
+    }
+  }, 'API: Replace media file');
 
   // ========================================
   // EDITOR ROUTES
