@@ -1,3 +1,45 @@
+## Session 19 - 2026-02-08
+
+### Completed
+- Feature #102: Sort configuration panel (PASSING)
+  - Drag-to-reorder sort priority with HTML5 drag-and-drop
+  - Drag handles (☰) on each sort row, visual feedback during drag
+  - Auto-reindex sort form fields after reorder
+  - Modified: views-edit.html (CSS, JS, HTML), admin/index.js (pre-rendered sort rows)
+- Feature #103: Add sort UI with field/direction (PASSING)
+  - Add Sort button creates new sort row with field dropdown + ASC/DESC direction
+  - Remove button per sort row, empty state message
+  - Sort criteria saved to view config and applied to query results
+- Feature #105: Path configuration for page displays (PASSING)
+  - URL Path field in Display Settings panel
+  - Path saved per display, view renders at configured URL (e.g., /articles)
+  - Already implemented in prior session, verified working
+
+### Progress: 76/165 features passing (46.1%)
+
+---
+
+## Session 18 - 2026-02-08
+
+### Completed
+- Feature #95: Display settings panel (PASSING)
+  - Per-display settings panels with title, format, pager type, items per page, URL path
+  - Display tab switching between Page, Sidebar Block, Feed displays
+  - Settings saved and persisted correctly
+- Feature #104: Pager configuration (PASSING)
+  - Display-specific and global pager settings (type + items per page)
+  - Preview shows correct count (e.g., "5 of 45" with 5 rows when set to 5)
+  - Full/Mini/No Pager type options available
+- Feature #114: Header/footer areas (PASSING)
+  - Added Header & Footer section to views edit form with textareas
+  - Header renders above results, footer below results in preview
+  - Supports HTML content, save round-trip verified
+  - Modified: views-edit.html, views-preview.html, admin/index.js, views.json
+
+### Progress: 73/165 features passing (44.2%)
+
+---
+
 ## Session 17 - 2026-02-08
 
 ### Completed
