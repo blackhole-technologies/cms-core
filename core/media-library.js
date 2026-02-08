@@ -726,7 +726,8 @@ export function list(options = {}) {
  * @returns {Array<{path: string, count: number}>} Array of folders with media counts
  */
 export function listFolders() {
-  const entities = list({ limit: 10000 });
+  const result = list({ limit: 10000 });
+  const entities = result.items || result || [];
   const folderMap = new Map();
 
   for (const entity of entities) {
@@ -1215,7 +1216,8 @@ export function register(registerCommand) {
 
   registerCommand('media:list-folder', async (args) => {
     const [folderPath] = args;
-    const items = list({ folder: folderPath || '', limit: 100 });
+    const result = list({ folder: folderPath || '', limit: 100 });
+    const items = result.items || result || [];
     console.log(`\nMedia in folder "${folderPath || '(root)'}": ${items.length} items\n`);
     for (const item of items) {
       console.log(`  ${item.id} - ${item.name} (${item.mediaType})`);
