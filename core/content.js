@@ -1524,9 +1524,16 @@ export async function create(type, data) {
     if (activeWs) {
       content._workspace = activeWs.id;
       // Track the association for workspace publish/delete operations
+      // WHY RE-THROW WORKSPACE_EXPIRED:
+      // Most association errors are non-critical (e.g., file I/O glitches).
+      // But expiration errors MUST block content creation — writing to an
+      // expired workspace violates its read-only contract.
       try {
         workspaceProvider.associateContent(activeWs.id, type, id, 'create', { revisionId: content.created || new Date().toISOString() });
-      } catch { /* workspace associations are non-critical */ }
+      } catch (wsErr) {
+        if (wsErr.code === 'WORKSPACE_EXPIRED') throw wsErr;
+        /* other workspace association errors are non-critical */
+      }
     }
   }
 
@@ -2063,7 +2070,10 @@ export async function update(type, id, data, options = {}) {
       // Track in workspace associations
       try {
         workspaceProvider.associateContent(activeWs.id, type, id, 'edit', { revisionId: workspaceCopy.updated || new Date().toISOString() });
-      } catch { /* non-critical */ }
+      } catch (wsErr) {
+        if (wsErr.code === 'WORKSPACE_EXPIRED') throw wsErr;
+        /* other workspace association errors are non-critical */
+      }
 
       // Invalidate cache
       if (cacheEnabled) {
