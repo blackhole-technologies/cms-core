@@ -1,0 +1,106 @@
+<div class="admin-breadcrumb">
+  <a href="/admin">Home</a> <span>&rsaquo;</span> <a href="/admin/content">Content</a> <span>&rsaquo;</span> Moderation
+</div>
+
+<h1 class="admin-page-title">Content Moderation</h1>
+<p class="admin-page-description">Content items with pending (unpublished) revisions awaiting review.</p>
+
+{{#if hasFlash}}
+<div class="flash flash-{{flash.type}}">{{flash.message}}</div>
+{{/if}}
+
+<div class="admin-stats">
+  <div class="admin-stat-card">
+    <div class="admin-stat-value">{{totalItems}}</div>
+    <div class="admin-stat-label">Items with Pending Revisions</div>
+  </div>
+  <div class="admin-stat-card">
+    <div class="admin-stat-value">{{totalPending}}</div>
+    <div class="admin-stat-label">Total Pending Drafts</div>
+  </div>
+</div>
+
+{{#if hasPendingItems}}
+<div class="admin-panel">
+  <div class="admin-panel-header" style="display: flex; justify-content: space-between; align-items: center;">
+    <h2>Pending Revisions</h2>
+    <form method="POST" action="/admin/moderation/bulk-publish" style="margin: 0;"
+          onsubmit="return confirm('Publish all {{totalPending}} pending revisions? This will make them the current default versions.');">
+      <input type="hidden" name="_csrf" value="{{csrfToken}}" />
+      <button type="submit" class="btn btn-primary">Publish All Pending</button>
+    </form>
+  </div>
+  <div class="admin-panel-body">
+    <table class="admin-table">
+      <thead>
+        <tr>
+          <th>Title</th>
+          <th>Type</th>
+          <th>Status</th>
+          <th>Pending Drafts</th>
+          <th>Age</th>
+          <th>Operations</th>
+        </tr>
+      </thead>
+      <tbody>
+        {{#each pendingItems}}
+        <tr>
+          <td><strong><a href="{{editUrl}}">{{title}}</a></strong></td>
+          <td><span class="type-badge">{{type}}</span></td>
+          <td><span class="status-badge status-{{status}}">{{status}}</span></td>
+          <td><span class="pending-revision-badge">{{pendingCount}} pending</span></td>
+          <td>{{ageDisplay}}</td>
+          <td>
+            <a href="{{editUrl}}" class="btn btn-small">Edit</a>
+            <a href="{{revisionsUrl}}" class="btn btn-small">Revisions</a>
+          </td>
+        </tr>
+        {{/each}}
+      </tbody>
+    </table>
+  </div>
+</div>
+{{else}}
+<div class="admin-panel">
+  <div class="admin-panel-body" style="text-align: center; padding: 40px;">
+    <p style="font-size: 18px; color: #666;">No content items have pending revisions.</p>
+    <p style="color: #999;">All content is up to date.</p>
+  </div>
+</div>
+{{/if}}
+
+<style>
+  .type-badge {
+    display: inline-block;
+    padding: 2px 8px;
+    background: #e3f2fd;
+    color: #1565c0;
+    border-radius: 4px;
+    font-size: 12px;
+    font-weight: 500;
+  }
+  .status-badge {
+    display: inline-block;
+    padding: 2px 8px;
+    border-radius: 4px;
+    font-size: 12px;
+    font-weight: 500;
+  }
+  .status-published {
+    background: #e8f5e9;
+    color: #2e7d32;
+  }
+  .status-draft {
+    background: #fff3e0;
+    color: #e65100;
+  }
+  .pending-revision-badge {
+    display: inline-block;
+    padding: 2px 8px;
+    background: #fff3e0;
+    color: #e65100;
+    border-radius: 4px;
+    font-size: 12px;
+    font-weight: 600;
+  }
+</style>
