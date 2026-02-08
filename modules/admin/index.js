@@ -13215,9 +13215,6 @@ export function hook_routes(register, context) {
 
       // Parse fields from form
       const fields = parseViewArrayFormData(formData, 'fields', ['name', 'label', 'formatter']);
-      // DEBUG: Log parsed fields to diagnose persistence issue
-      console.log('[views-debug] Parsed fields:', JSON.stringify(fields));
-      console.log('[views-debug] formData keys with fields:', Object.keys(formData).filter(k => k.startsWith('fields')));
       // Parse filters from form
       const filters = parseViewArrayFormData(formData, 'filters', ['field', 'operator', 'value', 'exposed']).map(f => ({
         field: f.field,
