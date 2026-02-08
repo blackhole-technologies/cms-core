@@ -1,0 +1,12 @@
+{
+  "id": "1770531357701-z5j88",
+  "type": "article",
+  "created": "2026-02-08T06:15:57.701Z",
+  "updated": "2026-02-08T06:15:57.701Z",
+  "title": "Node.js CMS - Complete Guide to Building Content Management Systems",
+  "slug": "nodejs-cms-guide",
+  "body": "<h2>What is a Node.js CMS?</h2><p>A Node.js CMS is a content management system built using Node.js technology. It provides tools for managing website content efficiently. This guide will help you understand the benefits and features of using a Node.js CMS for your projects.</p><h2>Key Features of Node.js CMS</h2><p>Modern platforms offer many useful features. Content editors can create and publish articles easily. The system handles media files and provides search capabilities. Users benefit from fast page loads and responsive design.</p><h2>Getting Started</h2><p>To begin using a CMS platform, start by understanding your needs. Consider what types of content you will manage. Think about who will use the system. Plan your content structure carefully.</p><h2>Best Practices</h2><p>Follow these tips for success. Keep your content organized in logical categories. Use clear titles and descriptions. Add internal links to related pages. Optimize images for web delivery.</p><h2>Conclusion</h2><p>Building with modern technology offers many advantages. The platform scales well as your site grows. You can extend functionality with custom modules. This makes it an excellent choice for many projects.</p>",
+  "summary": "A comprehensive guide to building and managing content with a Node.js CMS platform. Learn about key features, best practices, and how to get started with modern content management.",
+  "isDefaultRevision": true,
+  "status": "draft"
+}

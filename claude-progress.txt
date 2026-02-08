@@ -1339,3 +1339,80 @@ All features tested via CLI commands:
 - All 3 assigned features completed
 - Only 3 features remaining in entire project
 
+
+## Session (Current) - 2026-02-08 (Features #143, #148, #150)
+
+### Completed
+- Feature #143: Remote video media type (PASSING)
+  - Remote video media type already fully implemented in core/media-library.js
+  - Supports YouTube, Vimeo, and other oEmbed providers via core/oembed.js
+  - media:create-from-url CLI command creates remote video entities
+  - oEmbed data fetched automatically (title, author, thumbnail, embed HTML)
+  - Metadata stored in media entity (type: remote_video, embedUrl, thumbnailUrl)
+  - Video renders with embed player in media detail page
+  - Appears in media library with 🔗 icon
+  - Verified: CLI creation, browser display, server restart persistence
+  - Screenshot: feature-143-remote-video.png
+
+- Feature #148: Focal point for images (PASSING)
+  - Added POST /admin/media/library/:id/set-focal-point endpoint
+  - Stores focal point coordinates (x, y) in media entity (0-1 range)
+  - Added focal point UI section to media-detail.html template
+  - X/Y coordinate inputs with validation
+  - Save button calls API endpoint to persist focal point
+  - Focal point stored with media entity and persists across restarts
+  - Integration with image-styles.js anchor points for smart cropping
+  - Verified: UI inputs, data storage, server restart persistence
+  - Screenshot: feature-148-focal-point-final.png
+
+- Feature #150: Media folder organization (PASSING)
+  - Folder organization already implemented in core/media-library.js
+  - Added CLI command registration in core/boot.js
+  - media:folders - List all media folders with item counts
+  - media:move <id> <folder> - Move media to folder
+  - media:list-folder <folder> - List media in specific folder
+  - Folder path stored in media entity (e.g., "Screenshots/2026")
+  - Fixed listFolders() and media:list-folder to handle pagination object
+  - Folder hierarchy persists in flat-file storage
+  - Verified: All CLI commands, folder creation, move, list, persistence
+  - Test: Moved image to "Screenshots/2026" folder successfully
+
+### Changes Made
+1. **modules/admin/index.js**:
+   - Added POST /admin/media/library/:id/set-focal-point route
+   - Validates x/y coordinates (0-1 range)
+   - Updates media entity with focalPoint object
+   - Updated media detail route to provide default focal point (0.5, 0.5)
+
+2. **modules/admin/templates/media-detail.html**:
+   - Added Focal Point section (images only)
+   - X/Y coordinate inputs with spinbuttons
+   - Save Focal Point button
+   - JavaScript function saveFocalPoint() to call API
+   - Image click handler to visually set focal point
+
+3. **core/boot.js**:
+   - Added CLI command registration for mediaLibrary.register()
+   - Enables media:folders, media:move, media:list-folder commands
+
+4. **core/media-library.js**:
+   - Fixed listFolders() to handle pagination object from list()
+   - Fixed media:list-folder command to extract items array
+   - Folder organization infrastructure was already complete
+
+### Current Status
+- 159/165 features passing (96.4%)
+- Media enhancements tier: Features 143, 148, 150 done
+- All 3 assigned features completed
+
+### Verification
+- Feature #143: CLI test + browser verification + screenshot + restart persistence
+- Feature #148: Browser UI test + data storage verification + restart persistence
+- Feature #150: All CLI commands tested + folder hierarchy verified + restart persistence
+- Zero mock data - all real flat-file storage
+- No console errors in browser testing
+
+### Next Steps
+- Continue with remaining accessibility/SEO features (151-164)
+- Continue with remaining media features as needed
+

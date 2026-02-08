@@ -253,6 +253,7 @@ export function analyze(contentItem, options = {}) {
     summary: generateSeoSummary(metrics, score),
     recommendations: recommendations.filter(r => r.severity !== STATUS.PASS),
     focusKeyword: effectiveOptions.focusKeyword || null,
+    lastAnalyzed: seoMeta.lastAnalyzed || null,
     total: metrics.length,
     byStatus: {
       pass: metrics.filter(m => m.status === 'pass').length,
@@ -281,10 +282,38 @@ export function analyzeContent(type, id, options = {}) {
     if (!item) {
       return { metrics: [], score: 0, summary: `Content not found: ${type}/${id}`, recommendations: [] };
     }
-    return analyze(item, options);
+    const result = analyze(item, options);
+
+    // Store the SEO score with metadata for persistence
+    // WHY: Feature #165 requires score to be stored with content
+    if (result.score !== undefined) {
+      saveSeoMeta(type, id, {
+        seoScore: result.score,
+        lastAnalyzed: new Date().toISOString(),
+      });
+    }
+
+    return result;
   } catch (err) {
     return { metrics: [], score: 0, summary: `Error loading content: ${err.message}`, recommendations: [] };
   }
+}
+
+/**
+ * Get the stored SEO score for a content item
+ *
+ * WHY THIS EXISTS:
+ * Feature #165 requires SEO scores to be stored and retrievable without
+ * running full analysis. This allows displaying scores in content lists,
+ * dashboards, and APIs efficiently.
+ *
+ * @param {string} type - Content type
+ * @param {string} id - Content ID
+ * @returns {number|null} Stored SEO score (0-100) or null if not analyzed yet
+ */
+export function getSeoScore(type, id) {
+  const meta = loadSeoMeta(type, id);
+  return meta?.seoScore ?? null;
 }
 
 /**
@@ -1128,6 +1157,34 @@ export function registerCli(register) {
 
     return true;
   }, 'Set meta description for content item', 'seo');
+
+  // seo:score <type> <id> - Show stored SEO score
+  register('seo:score', async (args) => {
+    if (args.length < 2) {
+      console.log('Usage: seo:score <type> <id>');
+      console.log('Example: seo:score article my-post');
+      return true;
+    }
+
+    const [type, id] = args;
+    const score = getSeoScore(type, id);
+    const meta = loadSeoMeta(type, id);
+
+    if (score === null) {
+      console.log(`No SEO score found for ${type}/${id}`);
+      console.log('Run "seo:analyze" to calculate the score');
+    } else {
+      const scoreIcon = score >= 80 ? '🟢' : score >= 50 ? '🟡' : '🔴';
+      console.log(`\nSEO Score for ${type}/${id}: ${scoreIcon} ${score}/100`);
+      if (meta?.lastAnalyzed) {
+        console.log(`Last analyzed: ${meta.lastAnalyzed}`);
+      }
+      if (meta?.focusKeyword) {
+        console.log(`Focus keyword: "${meta.focusKeyword}"`);
+      }
+    }
+    return true;
+  }, 'Show stored SEO score for content item', 'seo');
 
   // seo:meta <type> <id> - Show SEO metadata
   register('seo:meta', async (args) => {
