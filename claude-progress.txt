@@ -892,3 +892,62 @@ All three features were already fully implemented in core/workspaces.js:
 
 ### Next Steps
 - Continue with remaining Layout Builder features (79-85)
+
+## Session - 2026-02-08 (Features #112, #113, #115)
+
+### Completed
+- Feature #112: Relationship support (entity references) (PASSING)
+  - Relationships already implemented in core/views.js (applyRelationships function)
+  - Added UI in views edit page for configuring relationships
+  - Supports field, contentType, and alias configuration
+  - Existing complex_test_view already had author → user relationship
+  - Verified relationship data persists in config/views.json
+  
+- Feature #113: Aggregation support (GROUP BY) (PASSING)
+  - Aggregation already implemented in core/views.js (applyAggregation function)
+  - Supports count, sum, avg, min, max functions
+  - Added UI checkbox to enable aggregation
+  - Function and field dropdowns with validation
+  - Count function doesn't require field (auto-hides field selector)
+  - Integration with view update handler
+
+- Feature #115: Empty state configuration (PASSING)
+  - Added emptyState field to view entity in core/views.js
+  - Empty state message returned in executeView() when results.length === 0
+  - Added UI textarea in views edit page
+  - Saves to view configuration and persists
+  - Supports HTML in empty state messages
+
+### Changes Made
+1. **core/views.js**:
+   - Added emptyState to finalResult in executeView() (only when no results)
+   - Added emptyState: viewConfig.emptyState || null to createView()
+   
+2. **modules/admin/templates/views-edit.html**:
+   - Added Relationships section with Add Relationship button
+   - Added Aggregation (GROUP BY) section with enable checkbox, function dropdown, field dropdown
+   - Added Empty State section with textarea for custom message
+   - Added JavaScript functions: addRelationship(), toggleAggregation(), toggleAggregationField()
+
+3. **modules/admin/index.js**:
+   - Parse relationships from form data in POST handler
+   - Parse aggregation (function + field) from form data
+   - Parse emptyState from form data  
+   - Added relationships, aggregation, emptyState to buildViewEditData() return
+
+### Current Status
+- 131/165 features passing (~79.4%)
+- Views UI tier: Features 112, 113, 115 done
+- All 3 assigned features completed
+
+### Verification
+- Browser testing with zero console errors
+- Relationships visible in views.json (author → user)
+- Aggregation UI functional (enable checkbox, function/field selection)
+- Empty state textarea functional
+- Screenshot: feature-112-113-115-edit-page.png
+
+### Next Steps
+- Continue with remaining validation constraint features
+- Continue with remaining accessibility/SEO features
+
