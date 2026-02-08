@@ -249,6 +249,19 @@ export async function getGroupsByEntityType(entity_type, bundle, mode = 'default
 }
 
 /**
+ * Alias for getGroupsByEntityType for clarity
+ * Get all field groups for a specific display mode
+ *
+ * @param {string} entity_type - Entity type
+ * @param {string} bundle - Bundle name
+ * @param {string} mode - Display mode (default: 'default')
+ * @returns {array} Array of groups
+ */
+export async function getGroupsByMode(entity_type, bundle, mode = 'default') {
+  return getGroupsByEntityType(entity_type, bundle, mode);
+}
+
+/**
  * Update a field group
  *
  * @param {string} id - Group ID
@@ -510,15 +523,35 @@ export function register(registerCommand) {
   });
 
   registerCommand('field-group:list', async (args) => {
-    const [entity_type, bundle] = args;
+    // Support both positional and flag-style arguments
+    let entity_type, bundle, mode;
+
+    const hasFlags = args.some(arg => arg.startsWith('--'));
+
+    if (hasFlags) {
+      // Parse flag-style arguments
+      const parseFlag = (flag) => {
+        const match = args.find(a => a.startsWith(`--${flag}=`));
+        return match ? match.split('=').slice(1).join('=') : null;
+      };
+
+      entity_type = parseFlag('entity-type');
+      bundle = parseFlag('bundle');
+      mode = parseFlag('mode') || 'default';
+    } else {
+      // Parse positional arguments
+      [entity_type, bundle, mode = 'default'] = args;
+    }
 
     if (!entity_type || !bundle) {
-      console.log('Usage: field-group:list <entity-type> <bundle>');
+      console.log('Usage: field-group:list <entity-type> <bundle> [mode]');
+      console.log('   or: field-group:list --entity-type=node --bundle=article [--mode=teaser]');
       console.log('Example: field-group:list node article');
+      console.log('Example: field-group:list node article teaser');
+      console.log('Example: field-group:list --entity-type=node --bundle=article --mode=teaser');
       return;
     }
 
-    const mode = 'default';
     const groupList = await getGroupsByEntityType(entity_type, bundle, mode);
     console.log(`\nField groups for ${entity_type}.${bundle}.${mode}:`);
     if (groupList.length === 0) {

@@ -1,0 +1,438 @@
+<div class="admin-page">
+
+  <div class="admin-header">
+    <h1>Field Groups: {{entityType}} / {{bundle}} / {{mode}}</h1>
+    <nav class="admin-nav">
+      <a href="/admin">Dashboard</a>
+      <a href="/admin/structure" class="active">Structure</a>
+      <a href="/admin/content">Content</a>
+    </nav>
+  </div>
+
+  <div class="breadcrumb">
+    <a href="/admin">Dashboard</a> &rarr;
+    <a href="/admin/structure">Structure</a> &rarr;
+    <span>Field Groups</span>
+  </div>
+
+  {{#if hasFlash}}
+  <div class="flash flash-{{flash.type}}">
+    {{flash.message}}
+  </div>
+  {{/if}}
+
+  <div class="admin-content">
+    <div class="admin-toolbar">
+      <button type="button" class="btn btn-primary" onclick="showCreateGroupModal()">
+        Create Group
+      </button>
+
+      <div class="mode-switcher">
+        <label>Display Mode:</label>
+        <select id="mode-select" class="form-control" onchange="switchMode(this.value)">
+          <option value="default" {{#if (eq mode 'default')}}selected{{/if}}>Default</option>
+          <option value="teaser" {{#if (eq mode 'teaser')}}selected{{/if}}>Teaser</option>
+          <option value="search_result" {{#if (eq mode 'search_result')}}selected{{/if}}>Search Result</option>
+          <option value="full" {{#if (eq mode 'full')}}selected{{/if}}>Full</option>
+        </select>
+      </div>
+    </div>
+
+    <div class="groups-container">
+      <div class="groups-list" id="groups-list">
+        {{#if groups.length}}
+          {{#each groups}}
+          <div class="group-item" data-id="{{this.id}}" draggable="true">
+            <div class="group-handle">
+              <span class="drag-icon">⋮⋮</span>
+            </div>
+            <div class="group-info">
+              <strong>{{this.label}}</strong>
+              <span class="group-format">{{this.format_type}}</span>
+              <span class="group-children">{{this.children.length}} field(s)</span>
+            </div>
+            <div class="group-actions">
+              <button type="button" class="btn btn-small" onclick="editGroup('{{this.id}}')">Edit</button>
+              <button type="button" class="btn btn-small btn-danger" onclick="deleteGroup('{{this.id}}')">Delete</button>
+            </div>
+          </div>
+          {{/each}}
+        {{else}}
+          <div class="empty-state">
+            <p>No field groups configured for this display mode.</p>
+            <p>Click "Create Group" to add one.</p>
+          </div>
+        {{/if}}
+      </div>
+
+      <div class="preview-pane" id="preview-pane">
+        <h3>Preview</h3>
+        <div class="preview-content" id="preview-content">
+          <p class="text-muted">Select a group to see preview with sample data</p>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Create/Edit Group Modal -->
+  <div id="group-modal" class="modal" style="display: none;">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h2 id="modal-title">Create Field Group</h2>
+        <button type="button" class="modal-close" onclick="closeGroupModal()">&times;</button>
+      </div>
+      <div class="modal-body">
+        <form id="group-form">
+          <input type="hidden" id="group-id" name="id">
+
+          <div class="form-group">
+            <label for="group-name">Machine Name</label>
+            <input type="text" id="group-name" name="group_name" class="form-control" required pattern="[a-z0-9_]+">
+            <small>Lowercase letters, numbers, and underscores only</small>
+          </div>
+
+          <div class="form-group">
+            <label for="group-label">Label</label>
+            <input type="text" id="group-label" name="label" class="form-control" required>
+          </div>
+
+          <div class="form-group">
+            <label for="format-type">Format Type</label>
+            <select id="format-type" name="format_type" class="form-control" onchange="updateFormatSettings(this.value)">
+              <option value="fieldset">Fieldset</option>
+              <option value="tabs_horizontal">Tabs (Horizontal)</option>
+              <option value="tabs_vertical">Tabs (Vertical)</option>
+              <option value="accordion">Accordion</option>
+              <option value="details">Details/Collapsible</option>
+            </select>
+          </div>
+
+          <div class="form-group">
+            <label for="parent-group">Parent Group (optional)</label>
+            <select id="parent-group" name="parent_name" class="form-control">
+              <option value="">None (top level)</option>
+              {{#each groups}}
+              <option value="{{this.group_name}}">{{this.label}}</option>
+              {{/each}}
+            </select>
+            <small>Nest this group inside another group</small>
+          </div>
+
+          <div class="form-group">
+            <label for="weight">Weight (display order)</label>
+            <input type="number" id="weight" name="weight" class="form-control" value="0">
+            <small>Lower numbers appear first</small>
+          </div>
+
+          <div id="format-settings-panel" class="format-settings-panel">
+            <!-- Format-specific settings will be injected here -->
+          </div>
+        </form>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-secondary" onclick="closeGroupModal()">Cancel</button>
+        <button type="button" class="btn btn-primary" onclick="saveGroup()">Save</button>
+      </div>
+    </div>
+  </div>
+
+</div>
+
+<style>
+.groups-container {
+  display: grid;
+  grid-template-columns: 2fr 1fr;
+  gap: 2rem;
+  margin-top: 2rem;
+}
+
+.groups-list {
+  border: 1px solid #ddd;
+  border-radius: 4px;
+  padding: 1rem;
+  min-height: 300px;
+}
+
+.group-item {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  padding: 0.75rem;
+  margin-bottom: 0.5rem;
+  background: #f9f9f9;
+  border: 1px solid #ddd;
+  border-radius: 4px;
+  cursor: move;
+}
+
+.group-item:hover {
+  background: #f0f0f0;
+  border-color: #999;
+}
+
+.group-handle {
+  cursor: grab;
+  color: #999;
+}
+
+.group-info {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+}
+
+.group-format, .group-children {
+  font-size: 0.875rem;
+  color: #666;
+  padding: 0.25rem 0.5rem;
+  background: #fff;
+  border-radius: 3px;
+}
+
+.group-actions {
+  display: flex;
+  gap: 0.5rem;
+}
+
+.preview-pane {
+  border: 1px solid #ddd;
+  border-radius: 4px;
+  padding: 1rem;
+  background: #f9f9f9;
+  min-height: 300px;
+}
+
+.preview-content {
+  margin-top: 1rem;
+}
+
+.modal {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background: rgba(0,0,0,0.5);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+}
+
+.modal-content {
+  background: white;
+  border-radius: 8px;
+  width: 90%;
+  max-width: 600px;
+  max-height: 90vh;
+  overflow: auto;
+}
+
+.modal-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 1.5rem;
+  border-bottom: 1px solid #ddd;
+}
+
+.modal-close {
+  font-size: 2rem;
+  background: none;
+  border: none;
+  cursor: pointer;
+  color: #999;
+}
+
+.modal-body {
+  padding: 1.5rem;
+}
+
+.modal-footer {
+  display: flex;
+  justify-content: flex-end;
+  gap: 0.5rem;
+  padding: 1.5rem;
+  border-top: 1px solid #ddd;
+}
+
+.empty-state {
+  text-align: center;
+  padding: 3rem;
+  color: #999;
+}
+
+.admin-toolbar {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 1.5rem;
+}
+
+.mode-switcher {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+</style>
+
+<script>
+const entityType = '{{entityType}}';
+const bundle = '{{bundle}}';
+let currentMode = '{{mode}}';
+
+function showCreateGroupModal() {
+  document.getElementById('group-modal').style.display = 'flex';
+  document.getElementById('modal-title').textContent = 'Create Field Group';
+  document.getElementById('group-form').reset();
+  document.getElementById('group-id').value = '';
+}
+
+function closeGroupModal() {
+  document.getElementById('group-modal').style.display = 'none';
+}
+
+async function saveGroup() {
+  const form = document.getElementById('group-form');
+  const formData = new FormData(form);
+
+  const data = {
+    entity_type: entityType,
+    bundle: bundle,
+    mode: currentMode,
+    group_name: formData.get('group_name'),
+    label: formData.get('label'),
+    format_type: formData.get('format_type'),
+    parent_name: formData.get('parent_name') || null,
+    weight: parseInt(formData.get('weight')) || 0,
+    format_settings: {},
+    children: []
+  };
+
+  try {
+    const response = await fetch('/admin/structure/entity/' + entityType + '/' + bundle + '/field-groups/' + currentMode, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(data)
+    });
+
+    if (response.ok) {
+      window.location.reload();
+    } else {
+      const error = await response.json();
+      alert('Error: ' + error.message);
+    }
+  } catch (err) {
+    alert('Error saving group: ' + err.message);
+  }
+}
+
+async function editGroup(id) {
+  try {
+    const response = await fetch('/api/field-groups/' + id);
+    const group = await response.json();
+
+    document.getElementById('group-modal').style.display = 'flex';
+    document.getElementById('modal-title').textContent = 'Edit Field Group';
+    document.getElementById('group-id').value = group.id;
+    document.getElementById('group-name').value = group.group_name;
+    document.getElementById('group-label').value = group.label;
+    document.getElementById('format-type').value = group.format_type;
+    document.getElementById('parent-group').value = group.parent_name || '';
+    document.getElementById('weight').value = group.weight;
+  } catch (err) {
+    alert('Error loading group: ' + err.message);
+  }
+}
+
+async function deleteGroup(id) {
+  if (!confirm('Are you sure you want to delete this field group?')) {
+    return;
+  }
+
+  try {
+    const response = await fetch('/api/field-groups/' + id, {
+      method: 'DELETE'
+    });
+
+    if (response.ok) {
+      window.location.reload();
+    } else {
+      const error = await response.json();
+      alert('Error: ' + error.message);
+    }
+  } catch (err) {
+    alert('Error deleting group: ' + err.message);
+  }
+}
+
+function switchMode(mode) {
+  window.location.href = '/admin/structure/entity/' + entityType + '/' + bundle + '/field-groups/' + mode;
+}
+
+function updateFormatSettings(formatType) {
+  const panel = document.getElementById('format-settings-panel');
+  // Format-specific settings would go here
+  panel.innerHTML = '';
+}
+
+// Drag and drop for reordering
+const groupsList = document.getElementById('groups-list');
+if (groupsList) {
+  let draggedItem = null;
+
+  groupsList.addEventListener('dragstart', (e) => {
+    if (e.target.classList.contains('group-item')) {
+      draggedItem = e.target;
+      e.target.style.opacity = '0.5';
+    }
+  });
+
+  groupsList.addEventListener('dragend', (e) => {
+    if (e.target.classList.contains('group-item')) {
+      e.target.style.opacity = '1';
+    }
+  });
+
+  groupsList.addEventListener('dragover', (e) => {
+    e.preventDefault();
+  });
+
+  groupsList.addEventListener('drop', (e) => {
+    e.preventDefault();
+    if (e.target.classList.contains('group-item') && draggedItem !== e.target) {
+      const allItems = [...groupsList.querySelectorAll('.group-item')];
+      const draggedIndex = allItems.indexOf(draggedItem);
+      const targetIndex = allItems.indexOf(e.target);
+
+      if (draggedIndex < targetIndex) {
+        e.target.after(draggedItem);
+      } else {
+        e.target.before(draggedItem);
+      }
+
+      // Update weights
+      updateWeights();
+    }
+  });
+}
+
+async function updateWeights() {
+  const items = [...document.querySelectorAll('.group-item')];
+  const updates = items.map((item, index) => ({
+    id: item.dataset.id,
+    weight: index
+  }));
+
+  try {
+    await fetch('/admin/structure/entity/' + entityType + '/' + bundle + '/field-groups/' + currentMode + '/reorder', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ updates })
+    });
+  } catch (err) {
+    console.error('Error updating weights:', err);
+  }
+}
+</script>

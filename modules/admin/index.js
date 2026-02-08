@@ -18873,6 +18873,129 @@ export function hook_routes(register, context) {
   }, 'Copy layout from another content (Feature #84)');
 
   /**
+   * GET /admin/structure/entity/:entity_type/:bundle/field-groups/:mode
+   * Field groups management UI (Feature #7)
+   */
+  register('GET', '/admin/structure/entity/:entity_type/:bundle/field-groups/:mode', async (req, res, params, ctx) => {
+    const { entity_type, bundle, mode } = params;
+    const fieldGroup = ctx.services.get('field-group');
+
+    try {
+      const groups = await fieldGroup.getGroupsByMode(entity_type, bundle, mode);
+
+      const templateContent = loadTemplate('field-groups-manage.html');
+      const html = render(res, templateContent, {
+        entityType: entity_type,
+        bundle: bundle,
+        mode: mode,
+        groups: groups
+      }, ctx);
+
+      server.html(res, html);
+    } catch (err) {
+      server.json(res, { error: err.message }, 500);
+    }
+  }, 'Field groups management UI');
+
+  /**
+   * POST /admin/structure/entity/:entity_type/:bundle/field-groups/:mode
+   * Create or update field group (Feature #7)
+   */
+  register('POST', '/admin/structure/entity/:entity_type/:bundle/field-groups/:mode', async (req, res, params, ctx) => {
+    const { entity_type, bundle, mode } = params;
+    const fieldGroup = ctx.services.get('field-group');
+
+    try {
+      // Parse request body
+      const body = await new Promise((resolve, reject) => {
+        if (req.body) { resolve(req.body); return; }
+        let data = '';
+        req.on('data', chunk => { data += chunk; });
+        req.on('end', () => {
+          try { resolve(data ? JSON.parse(data) : {}); }
+          catch (e) { reject(new Error('Invalid JSON body')); }
+        });
+        req.on('error', reject);
+      });
+
+      // Create or update group
+      const group = await fieldGroup.createGroup(body);
+      server.json(res, { success: true, group }, 201);
+    } catch (err) {
+      server.json(res, { error: err.message }, 400);
+    }
+  }, 'Create field group');
+
+  /**
+   * GET /api/field-groups/:id - Get single field group
+   */
+  register('GET', '/api/field-groups/:id', async (req, res, params, ctx) => {
+    const { id } = params;
+    const fieldGroup = ctx.services.get('field-group');
+
+    try {
+      const group = await fieldGroup.getGroup(id);
+      if (!group) {
+        server.json(res, { error: 'Group not found' }, 404);
+        return;
+      }
+      server.json(res, group);
+    } catch (err) {
+      server.json(res, { error: err.message }, 500);
+    }
+  }, 'Get field group by ID');
+
+  /**
+   * DELETE /api/field-groups/:id - Delete field group
+   */
+  register('DELETE', '/api/field-groups/:id', async (req, res, params, ctx) => {
+    const { id } = params;
+    const fieldGroup = ctx.services.get('field-group');
+
+    try {
+      const deleted = await fieldGroup.deleteGroup(id);
+      if (!deleted) {
+        server.json(res, { error: 'Group not found' }, 404);
+        return;
+      }
+      server.json(res, { success: true });
+    } catch (err) {
+      server.json(res, { error: err.message }, 500);
+    }
+  }, 'Delete field group');
+
+  /**
+   * POST /admin/structure/entity/:entity_type/:bundle/field-groups/:mode/reorder
+   * Reorder field groups (drag and drop)
+   */
+  register('POST', '/admin/structure/entity/:entity_type/:bundle/field-groups/:mode/reorder', async (req, res, params, ctx) => {
+    const fieldGroup = ctx.services.get('field-group');
+
+    try {
+      const body = await new Promise((resolve, reject) => {
+        if (req.body) { resolve(req.body); return; }
+        let data = '';
+        req.on('data', chunk => { data += chunk; });
+        req.on('end', () => {
+          try { resolve(data ? JSON.parse(data) : {}); }
+          catch (e) { reject(new Error('Invalid JSON body')); }
+        });
+        req.on('error', reject);
+      });
+
+      // Update weights for each group
+      const updates = body.updates || [];
+      for (const update of updates) {
+        await fieldGroup.updateGroup(update.id, { weight: update.weight });
+      }
+
+      server.json(res, { success: true });
+    } catch (err) {
+      server.json(res, { error: err.message }, 500);
+    }
+  }, 'Reorder field groups');
+
+  /**
    * Helper: Format value for display
    */
   function formatValue(value) {
