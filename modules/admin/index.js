@@ -16437,6 +16437,95 @@ export function hook_routes(register, context) {
   }, 'Media browser data for modals');
 
   /**
+   * GET /admin/media/upload - Render media bulk upload page
+   */
+  register('GET', '/admin/media/upload', async (req, res, params, ctx) => {
+    const server = ctx.services.get('server');
+
+    const html = renderAdmin('media-upload.html', {
+      pageTitle: 'Upload Media',
+      maxFileSize: 10 * 1024 * 1024,
+      maxFileSizeFormatted: '10 MB',
+    }, ctx, req);
+
+    server.html(res, html);
+  }, 'Media upload page');
+
+  /**
+   * POST /admin/media/upload - Handle file upload (one file per request)
+   * WHY: Each file is uploaded individually via XHR to provide granular progress tracking
+   * and error handling per file, similar to modern file upload UX patterns
+   */
+  register('POST', '/admin/media/upload', async (req, res, params, ctx) => {
+    const mediaService = ctx.services.get('media');
+    const contentService = ctx.services.get('content');
+    const server = ctx.services.get('server');
+
+    try {
+      const { fields, files } = await mediaService.parseUpload(req);
+
+      if (!files || files.length === 0) {
+        server.json(res, { error: 'No file uploaded' }, 400);
+        return;
+      }
+
+      const results = [];
+      for (const file of files) {
+        try {
+          // Save file to disk
+          const saved = mediaService.saveFile(file);
+
+          // WHY: Determine media type from extension to match Drupal's media type
+          // classification pattern (image, video, audio, document)
+          const ext = saved.filename.split('.').pop().toLowerCase();
+          const imageExts = ['jpg', 'jpeg', 'png', 'gif', 'webp', 'svg'];
+          const videoExts = ['mp4', 'webm', 'mov', 'avi', 'mkv', 'm4v'];
+          const audioExts = ['mp3', 'wav', 'ogg', 'flac'];
+          let mediaType = 'document';
+          if (imageExts.includes(ext)) mediaType = 'image';
+          else if (videoExts.includes(ext)) mediaType = 'video';
+          else if (audioExts.includes(ext)) mediaType = 'audio';
+
+          // Create media entity
+          // WHY: Strip extension from filename to create a clean default name
+          const name = file.originalName ? file.originalName.replace(/\.[^.]+$/, '') : file.name.replace(/\.[^.]+$/, '');
+          const entity = await contentService.create('media-entity', {
+            name: name,
+            mediaType: mediaType,
+            filename: saved.filename,
+            path: saved.relativePath,
+            mimeType: saved.type,
+            size: saved.size,
+            metadata: {},
+            tags: [],
+            alt: '',
+            caption: '',
+            credit: '',
+            status: 'published',
+          });
+
+          results.push({
+            success: true,
+            name: file.originalName || file.name,
+            id: entity.id,
+            mediaType
+          });
+        } catch (fileErr) {
+          results.push({
+            success: false,
+            name: file.originalName || file.name,
+            error: fileErr.message
+          });
+        }
+      }
+
+      server.json(res, { results });
+    } catch (err) {
+      server.json(res, { error: err.message }, 500);
+    }
+  }, 'Handle media file upload');
+
+  /**
    * GET /admin/media/library/:id - View media item details
    */
   register('GET', '/admin/media/library/:id', async (req, res, params, ctx) => {

@@ -1,0 +1,249 @@
+<div style="margin-bottom:20px">
+  <h1 style="margin:0 0 5px">Upload Media</h1>
+  <p style="color:#666;margin:0">Upload files to the media library. Maximum file size: {{maxFileSizeFormatted}} per file.</p>
+</div>
+
+<!-- Drop zone -->
+<div id="dropZone" style="border:2px dashed #ccc;border-radius:8px;padding:60px 20px;text-align:center;cursor:pointer;transition:all 0.3s;background:#fafafa;margin-bottom:20px" ondragover="handleDragOver(event)" ondragleave="handleDragLeave(event)" ondrop="handleDrop(event)" onclick="document.getElementById('fileInput').click()">
+  <div style="font-size:48px;margin-bottom:10px">📁</div>
+  <p style="font-size:16px;margin:0 0 5px"><strong>Drag & drop files here</strong></p>
+  <p style="color:#666;margin:0">or click to browse</p>
+  <input type="file" id="fileInput" multiple accept=".jpg,.jpeg,.png,.gif,.webp,.svg,.mp4,.webm,.mov,.avi,.mkv,.m4v,.pdf,.doc,.docx,.txt,.md,.json,.csv" style="display:none" onchange="handleFiles(this.files)">
+</div>
+
+<!-- File list (populated by JS) -->
+<div id="fileList" style="display:none;margin-bottom:20px">
+  <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px">
+    <h3 style="margin:0">Selected Files (<span id="fileCount">0</span>)</h3>
+    <div>
+      <button onclick="clearFiles()" style="padding:6px 16px;border:1px solid #ccc;background:white;border-radius:4px;cursor:pointer;margin-right:8px">Clear All</button>
+      <button id="uploadBtn" onclick="uploadAll()" style="padding:6px 16px;border:none;background:#0071b9;color:white;border-radius:4px;cursor:pointer;font-weight:bold">Upload All</button>
+    </div>
+  </div>
+  <div id="files" style="border:1px solid #ddd;border-radius:4px;overflow:hidden"></div>
+</div>
+
+<!-- Upload complete summary (hidden until done) -->
+<div id="uploadSummary" style="display:none;background:#f0f9f0;border:1px solid #4caf50;border-radius:4px;padding:20px;margin-bottom:20px">
+  <h3 style="margin:0 0 10px;color:#2e7d32">Upload Complete</h3>
+  <p id="summaryText" style="margin:0 0 10px"></p>
+  <div>
+    <a href="/admin/media/library" style="color:#0071b9;text-decoration:none;margin-right:15px">← Back to Media Library</a>
+    <button onclick="resetUploader()" style="padding:6px 16px;border:1px solid #ccc;background:white;border-radius:4px;cursor:pointer">Upload More</button>
+  </div>
+</div>
+
+<script>
+// All upload logic is client-side
+const MAX_FILE_SIZE = {{maxFileSize}};
+let selectedFiles = [];
+let uploading = false;
+
+function formatSize(bytes) {
+  if (bytes < 1024) return bytes + ' B';
+  if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(1) + ' KB';
+  return (bytes / (1024 * 1024)).toFixed(1) + ' MB';
+}
+
+function handleDragOver(e) {
+  e.preventDefault();
+  e.stopPropagation();
+  document.getElementById('dropZone').style.borderColor = '#0071b9';
+  document.getElementById('dropZone').style.background = '#e8f4fc';
+}
+
+function handleDragLeave(e) {
+  e.preventDefault();
+  e.stopPropagation();
+  document.getElementById('dropZone').style.borderColor = '#ccc';
+  document.getElementById('dropZone').style.background = '#fafafa';
+}
+
+function handleDrop(e) {
+  e.preventDefault();
+  e.stopPropagation();
+  document.getElementById('dropZone').style.borderColor = '#ccc';
+  document.getElementById('dropZone').style.background = '#fafafa';
+  handleFiles(e.dataTransfer.files);
+}
+
+function handleFiles(fileList) {
+  if (uploading) return;
+  for (let i = 0; i < fileList.length; i++) {
+    const f = fileList[i];
+    // Check for duplicates by name+size
+    const isDupe = selectedFiles.some(sf => sf.file.name === f.name && sf.file.size === f.size);
+    if (!isDupe) {
+      selectedFiles.push({
+        file: f,
+        status: f.size > MAX_FILE_SIZE ? 'error' : 'pending',
+        error: f.size > MAX_FILE_SIZE ? 'File too large (max ' + formatSize(MAX_FILE_SIZE) + ')' : '',
+        progress: 0
+      });
+    }
+  }
+  renderFileList();
+}
+
+function renderFileList() {
+  var container = document.getElementById('files');
+  var list = document.getElementById('fileList');
+  document.getElementById('fileCount').textContent = selectedFiles.length;
+
+  if (selectedFiles.length === 0) {
+    list.style.display = 'none';
+    return;
+  }
+  list.style.display = 'block';
+
+  var html = '';
+  for (var i = 0; i < selectedFiles.length; i++) {
+    var sf = selectedFiles[i];
+    var statusColor = '#666';
+    var statusText = 'Pending';
+    var bgColor = 'white';
+    if (sf.status === 'uploading') { statusColor = '#0071b9'; statusText = 'Uploading...'; bgColor = '#f8f9ff'; }
+    else if (sf.status === 'success') { statusColor = '#4caf50'; statusText = '✓ Uploaded'; bgColor = '#f0f9f0'; }
+    else if (sf.status === 'error') { statusColor = '#f44336'; statusText = '✗ ' + (sf.error || 'Failed'); bgColor = '#fff5f5'; }
+
+    html += '<div style="padding:10px 15px;border-bottom:1px solid #eee;display:flex;align-items:center;gap:12px;background:' + bgColor + '">';
+    html += '<div style="flex:1;min-width:0">';
+    html += '<div style="font-weight:500;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">' + escapeHtml(sf.file.name) + '</div>';
+    html += '<div style="font-size:12px;color:#666">' + formatSize(sf.file.size) + '</div>';
+    html += '</div>';
+    html += '<div style="width:150px">';
+    if (sf.status === 'uploading') {
+      html += '<div style="background:#e0e0e0;border-radius:3px;height:6px;overflow:hidden"><div style="background:#0071b9;height:100%;width:' + sf.progress + '%;transition:width 0.2s"></div></div>';
+    }
+    html += '</div>';
+    html += '<div style="width:120px;text-align:right;font-size:13px;color:' + statusColor + '">' + statusText + '</div>';
+    if (sf.status === 'pending' && !uploading) {
+      html += '<button onclick="removeFile(' + i + ')" style="border:none;background:none;color:#999;cursor:pointer;font-size:18px;padding:0 4px" title="Remove">×</button>';
+    } else {
+      html += '<div style="width:22px"></div>';
+    }
+    html += '</div>';
+  }
+  container.innerHTML = html;
+}
+
+function escapeHtml(str) {
+  var div = document.createElement('div');
+  div.textContent = str;
+  return div.innerHTML;
+}
+
+function removeFile(idx) {
+  selectedFiles.splice(idx, 1);
+  renderFileList();
+}
+
+function clearFiles() {
+  if (uploading) return;
+  selectedFiles = [];
+  renderFileList();
+  document.getElementById('fileInput').value = '';
+}
+
+async function uploadAll() {
+  if (uploading || selectedFiles.length === 0) return;
+  uploading = true;
+  document.getElementById('uploadBtn').disabled = true;
+  document.getElementById('uploadBtn').textContent = 'Uploading...';
+
+  var successCount = 0;
+  var failCount = 0;
+
+  for (var i = 0; i < selectedFiles.length; i++) {
+    var sf = selectedFiles[i];
+    if (sf.status === 'error') { failCount++; continue; }
+
+    sf.status = 'uploading';
+    sf.progress = 0;
+    renderFileList();
+
+    try {
+      await uploadFile(sf, i);
+      sf.status = 'success';
+      successCount++;
+    } catch (err) {
+      sf.status = 'error';
+      sf.error = err.message || 'Upload failed';
+      failCount++;
+    }
+    renderFileList();
+  }
+
+  uploading = false;
+  document.getElementById('uploadBtn').disabled = false;
+  document.getElementById('uploadBtn').textContent = 'Upload All';
+
+  // Show summary
+  var summary = document.getElementById('uploadSummary');
+  var text = document.getElementById('summaryText');
+  text.textContent = successCount + ' file(s) uploaded successfully' + (failCount > 0 ? ', ' + failCount + ' failed' : '') + '.';
+  if (failCount > 0) {
+    summary.style.background = '#fff8e1';
+    summary.style.borderColor = '#ff9800';
+    summary.querySelector('h3').style.color = '#e65100';
+    summary.querySelector('h3').textContent = 'Upload Complete (with errors)';
+  }
+  summary.style.display = 'block';
+}
+
+function uploadFile(sf, idx) {
+  return new Promise(function(resolve, reject) {
+    var formData = new FormData();
+    formData.append('file', sf.file);
+
+    var xhr = new XMLHttpRequest();
+    xhr.open('POST', '/admin/media/upload', true);
+
+    xhr.upload.onprogress = function(e) {
+      if (e.lengthComputable) {
+        sf.progress = Math.round((e.loaded / e.total) * 100);
+        renderFileList();
+      }
+    };
+
+    xhr.onload = function() {
+      if (xhr.status >= 200 && xhr.status < 300) {
+        try {
+          var data = JSON.parse(xhr.responseText);
+          if (data.results && data.results[0] && data.results[0].success) {
+            resolve(data);
+          } else if (data.error) {
+            reject(new Error(data.error));
+          } else if (data.results && data.results[0]) {
+            reject(new Error(data.results[0].error || 'Upload failed'));
+          } else {
+            resolve(data);
+          }
+        } catch (e) {
+          resolve();
+        }
+      } else {
+        try {
+          var errData = JSON.parse(xhr.responseText);
+          reject(new Error(errData.error || 'Upload failed'));
+        } catch (e) {
+          reject(new Error('Upload failed (HTTP ' + xhr.status + ')'));
+        }
+      }
+    };
+
+    xhr.onerror = function() {
+      reject(new Error('Network error'));
+    };
+
+    xhr.send(formData);
+  });
+}
+
+function resetUploader() {
+  selectedFiles = [];
+  document.getElementById('uploadSummary').style.display = 'none';
+  document.getElementById('fileInput').value = '';
+  renderFileList();
+}
+</script>
