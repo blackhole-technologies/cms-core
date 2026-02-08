@@ -1189,3 +1189,62 @@ Created FEATURES-138-139-140-VERIFICATION.md documenting:
 - 150/165 features passing (90.9%)
 - Media enhancements tier: Features 138, 139, 140 done
 - All 3 assigned features completed
+
+## Session (Current) - 2026-02-08 (Features #129, #130)
+
+### Completed
+- Feature #129: Custom constraint registration (PASSING)
+  - Added REST API endpoints for custom constraint registration:
+    - POST /api/constraints/register - Register custom constraint at runtime
+    - GET /api/constraints - List all registered constraints
+    - GET /api/constraints/:id - Get specific constraint by ID
+  - Programmatic registration via constraints.register() already existed
+  - Created comprehensive test (test-feature-129-custom-constraint.js)
+  - Verified custom PhoneNumber constraint:
+    - Registers successfully
+    - Appears in registry (constraints.has/get/list)
+    - Validates phone numbers (555-123-4567, (555) 123-4567)
+    - Rejects invalid formats with descriptive errors
+    - Custom error messages include field name, examples, error codes
+  - All 5 verification steps passed
+
+- Feature #130: Constraint error messages (PASSING)
+  - Tested all built-in constraints (10 total):
+    - Required: "Title is required"
+    - Length: "must be at least X characters (got Y)"
+    - Regex: Custom message with examples
+    - Email: "Invalid email address"
+    - Url: "Invalid URL"
+    - Range: "must be at least X" / "must be at most X"
+    - Unique: "must be unique (conflicts with ID)"
+  - All error messages verified:
+    - Include field name ✓
+    - Include constraint details (min, max, pattern) ✓
+    - User-friendly (not technical) ✓
+    - Descriptive with examples ✓
+  - Created test suite (test-feature-130-constraints.sh)
+  - All 9 test cases passed
+
+### Changes Made
+1. **core/boot.js**: Added 3 REST API endpoints for constraint management:
+   - POST /api/constraints/register (with eval for function strings)
+   - GET /api/constraints (list all)
+   - GET /api/constraints/:id (get specific)
+
+2. **Verification Files**:
+   - feature-129-verification.md: Custom constraint registration test report
+   - feature-130-verification.md: Constraint error messages test report
+   - test-feature-129-custom-constraint.js: Programmatic test suite
+   - test-feature-130-constraints.sh: CLI-based error message tests
+
+### Current Status
+- 144/165 features passing (87.3%)
+- Validation Constraints tier: Features 129, 130 done
+- Both assigned features completed
+
+### Verification
+- Feature #129: Programmatic test shows custom constraint registration, validation, and error messages all working
+- Feature #130: CLI tests show all constraint types produce descriptive, user-friendly error messages
+- Zero mock data, all real constraint validation
+- Server running on localhost:3001
+
