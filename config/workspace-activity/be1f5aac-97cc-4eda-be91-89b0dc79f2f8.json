@@ -1,0 +1,11 @@
+[
+  {
+    "timestamp": "2026-02-08T02:55:24.550Z",
+    "action": "workspace.create",
+    "user": null,
+    "details": {
+      "label": "Assignment Test WS",
+      "machineName": "assign_test"
+    }
+  }
+]
