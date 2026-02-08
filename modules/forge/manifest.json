@@ -1,0 +1,15 @@
+{
+  "name": "forge",
+  "version": "0.1.0",
+  "description": "Project orchestration — plan, build, test, deploy with AutoForge integration",
+  "dependencies": ["admin"],
+  "provides": [
+    "project management",
+    "phase/feature tracking",
+    "template browser",
+    "handoff documents",
+    "AutoForge proxy",
+    "process management",
+    "git workflow"
+  ]
+}

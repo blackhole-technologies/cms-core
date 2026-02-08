@@ -1,0 +1,27 @@
+{
+  "id": "1770519539756-hqspb",
+  "type": "media-entity",
+  "created": "2026-02-08T02:58:59.756Z",
+  "updated": "2026-02-08T02:58:59.756Z",
+  "name": "vimeo video",
+  "mediaType": "remote_video",
+  "filename": "https://vimeo.com/148751763",
+  "path": "https://vimeo.com/148751763",
+  "mimeType": "video/embed",
+  "size": 0,
+  "metadata": {
+    "url": "https://vimeo.com/148751763",
+    "provider": "vimeo",
+    "videoId": "148751763",
+    "embedUrl": "https://player.vimeo.com/video/148751763",
+    "oembed": null
+  },
+  "thumbnail": null,
+  "tags": [],
+  "alt": "",
+  "caption": "",
+  "credit": "vimeo",
+  "status": "published",
+  "isDefaultRevision": true,
+  "publishedAt": "2026-02-08T02:58:59.756Z"
+}

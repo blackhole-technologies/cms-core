@@ -1,0 +1,12 @@
+{
+  "id": "64612ae9-1b4f-4e29-a6fc-9f2d2587a267",
+  "label": "Child Workspace",
+  "machineName": "child_ws",
+  "status": "active",
+  "owner": null,
+  "created": "2026-02-08T02:58:51.632Z",
+  "updated": "2026-02-08T02:58:51.632Z",
+  "parent": "1c7cf318-a5df-48c6-a616-636fd05ee62a",
+  "description": "",
+  "assignees": []
+}

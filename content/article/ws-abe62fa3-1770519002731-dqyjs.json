@@ -1,0 +1,14 @@
+{
+  "id": "ws-abe62fa3-1770519002731-dqyjs",
+  "type": "article",
+  "created": "2026-02-08T02:50:02.731Z",
+  "updated": "2026-02-08T02:50:53.468Z",
+  "title": "DIFF_TEST_MODIFIED_IN_WORKSPACE",
+  "body": "Body modified in workspace",
+  "status": "published",
+  "isDefaultRevision": true,
+  "publishedAt": "2026-02-08T02:50:02.731Z",
+  "_workspace": "abe62fa3-fc97-4c92-9e68-04f02cc3cce9",
+  "_originalId": "1770519002731-dqyjs",
+  "_originalType": "article"
+}

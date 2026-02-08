@@ -1,0 +1,88 @@
+{
+  "id": "ws-c8bdb778-1770522115021-cw038",
+  "type": "article",
+  "created": "2026-02-08T03:41:55.021Z",
+  "updated": "2026-02-08T03:47:30.546Z",
+  "title": "PERSISTENCE_TEST_98765",
+  "isDefaultRevision": true,
+  "status": "draft",
+  "_layout": {
+    "sections": [
+      {
+        "uuid": "bec03fc2ab102bc788efde952d2b5d48",
+        "layoutId": "two_column",
+        "settings": {
+          "columnWidths": "50-50"
+        },
+        "components": {
+          "first": [
+            {
+              "uuid": "43253f73c61c5c28cc98243458c0f9f1",
+              "type": "block",
+              "blockId": "text_block",
+              "configuration": {},
+              "weight": 0
+            }
+          ],
+          "second": []
+        },
+        "weight": 0
+      },
+      {
+        "uuid": "b666f71e567223dd55068270796af19d",
+        "layoutId": "one_column",
+        "settings": {},
+        "components": {
+          "content": []
+        },
+        "weight": 1
+      },
+      {
+        "uuid": "29177188a5fe71db7efb6fd2ea6b0328",
+        "layoutId": "three_column",
+        "settings": {
+          "columnWidths": "33-33-33"
+        },
+        "components": {
+          "first": [
+            {
+              "uuid": "0965ffac462a6995735ed4c9258f2813",
+              "type": "field",
+              "fieldName": "title",
+              "configuration": {},
+              "weight": 0
+            }
+          ],
+          "second": [],
+          "third": []
+        },
+        "weight": 2
+      },
+      {
+        "uuid": "4e13aadbee088cf8d55894ce1b037524",
+        "layoutId": "three_column",
+        "settings": {
+          "columnWidths": "33-33-33"
+        },
+        "components": {
+          "first": [
+            {
+              "uuid": "1d231413e22be44a8ee89e9fce08001d",
+              "type": "field",
+              "fieldName": "body",
+              "configuration": {},
+              "weight": 0
+            }
+          ],
+          "second": [],
+          "third": []
+        },
+        "weight": 3
+      }
+    ],
+    "updated": "2026-02-08T03:47:30.633Z"
+  },
+  "_workspace": "c8bdb778-3edf-4280-8974-c9c2f1167dda",
+  "_originalId": "1770522115021-cw038",
+  "_originalType": "article"
+}

@@ -1,0 +1,19 @@
+[
+  {
+    "timestamp": "2026-02-08T03:45:37.091Z",
+    "action": "workspace.set_expiration",
+    "user": null,
+    "details": {
+      "expiresAt": "2025-01-01T00:00:00.000Z"
+    }
+  },
+  {
+    "timestamp": "2026-02-08T03:45:26.656Z",
+    "action": "workspace.create",
+    "user": null,
+    "details": {
+      "label": "Expiration Test",
+      "machineName": "expiry_test"
+    }
+  }
+]

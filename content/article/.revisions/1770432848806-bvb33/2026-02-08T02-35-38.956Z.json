@@ -2,7 +2,7 @@
   "id": "1770432848806-bvb33",
   "type": "article",
   "created": "2026-02-07T02:54:08.806Z",
-  "updated": "2026-02-08T03:51:06.591Z",
+  "updated": "2026-02-08T02:35:38.956Z",
   "title": "Rev Test A - Draft Edit",
   "isDefaultRevision": true,
   "status": "published",
@@ -42,9 +42,18 @@
           "third": []
         },
         "weight": 1
+      },
+      {
+        "uuid": "b582a4b03ff63e9209d0768efa4710e8",
+        "layoutId": "one_column",
+        "settings": {},
+        "components": {
+          "content": []
+        },
+        "weight": 2
       }
     ],
-    "updated": "2026-02-08T03:51:06.591Z"
+    "updated": "2026-02-08T03:50:45.028Z"
   },
   "body": "This is a pending draft revision"
 }
