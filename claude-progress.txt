@@ -1,3 +1,59 @@
+## Session 24 - 2026-02-08
+
+### Completed
+- Feature #20: Discard pending revision action (PASSING)
+  - New discardPendingRevision() function in core/content.js
+  - Discards specific pending revision by timestamp or ALL pending revisions
+  - Verifies revision is actually pending (isDefaultRevision: false) before deleting
+  - Published/default revision unchanged after discard
+  - Pending revision count updates correctly (1 → 0)
+  - Cache invalidated after discard
+  - New content:discard-pending CLI command
+- Feature #21: Compare pending to published revision (PASSING)
+  - New comparePendingToPublished() function in core/content.js
+  - Shows field-level diff between published and pending versions
+  - Changed fields shown with type (modified/added/removed)
+  - Unchanged fields listed separately
+  - System fields (updated, isDefaultRevision) skipped in comparison
+  - Compares most recent pending or specific timestamp
+  - New content:compare-pending CLI command
+- Feature #22: Workflow state reflects pending status (PASSING)
+  - New getWorkflowState() function in core/content.js
+  - Returns complete workflow picture: status, hasPending, pendingCount, availableTransitions
+  - Published content with pending drafts shows "Published with N pending draft(s)"
+  - Available transitions include publish-pending and discard-pending when pending exists
+  - After discarding pending, workflow shows "Published (live)" with standard transitions
+  - Human-readable workflowSummary for all states
+  - New content:workflow-state CLI command
+
+### Changes Made
+1. **core/content.js**: Added 3 new exported functions:
+   - discardPendingRevision() - Remove pending revisions from .revisions/ dir
+   - comparePendingToPublished() - Field-level diff between published and pending
+   - getWorkflowState() - Complete workflow state including pending status
+
+2. **core/boot.js**: Added 3 new CLI commands:
+   - content:discard-pending <type> <id> [timestamp]
+   - content:compare-pending <type> <id> [timestamp]
+   - content:workflow-state <type> <id>
+
+3. **core/jsonapi.js**: Fixed duplicate const includeAllRevisions declaration (SyntaxError)
+
+### Current Status
+- 96/165 features passing (~58.2%)
+- Pending revisions tier: Features 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 20, 21, 22 done
+- All 3 assigned features completed
+
+### Verification
+- All features tested via CLI with real data
+- Server restart persistence verified
+- Published version unchanged after discard
+- Pending count updates correctly
+- Compare shows correct field-level diffs
+- Workflow state reflects pending status accurately
+- Zero console errors
+- No mock data patterns found
+
 ## Session 22 - 2026-02-08
 
 ### Completed
