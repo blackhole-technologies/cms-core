@@ -1,3 +1,37 @@
+## Session 17 - 2026-02-08
+
+### Completed
+- Feature #72: Drag handle for components (PASSING)
+  - Component drag handle (⠿ grip icon) visible on each component chip
+  - CSS: cursor:grab, hover effects, grabbing on active, focus outline
+  - Accessible: role="button", aria-label, aria-roledescription="drag handle", tabindex=0
+  - Only appears in layout builder edit mode
+  - Full drag/drop JS for components between regions
+- Feature #74: Component move between regions via drag (PASSING)
+  - Added POST /api/layout/:contentType/:id/components/move endpoint
+  - Handles cross-section component moves (source section/region → target section/region)
+  - Supports componentOrder array for precise insertion position
+  - Auto-creates layout override when modifying default layout
+  - UI drag handler calls API and updates DOM in real-time
+  - Verified: component moved from First→Second region, persisted across reload
+- Feature #62: Layout REST API: PUT section (reorder) (PASSING)
+  - PUT /api/layout/:contentType/:id/sections/:sectionId with position/settings
+  - Created 3 sections, moved One Column to position 0 via PUT
+  - Section order correctly reflected in layout builder UI
+  - Returns 404 with descriptive error for invalid section IDs
+  - Data persists across server restart
+
+### Changes Made
+1. **core/layout-builder.js**: Added POST /api/layout/:contentType/:id/components/move
+   endpoint (~100 lines) for cross-section component drag-and-drop moves.
+   Validates source/target sections and regions, removes from source, inserts
+   at correct position in target, updates weights.
+
+### Current Status
+- 67/165 features passing (~40.6%)
+- Layout Builder tier: Features 62, 72, 74 done
+- All 3 assigned features completed
+
 ## Session 1 - 2026-02-07
 
 ### Completed
