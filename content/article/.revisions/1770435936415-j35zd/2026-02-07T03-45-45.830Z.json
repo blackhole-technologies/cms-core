@@ -1,0 +1,15 @@
+{
+  "id": "1770435936415-j35zd",
+  "type": "article",
+  "created": "2026-02-07T03:45:36.415Z",
+  "updated": "2026-02-07T03:45:45.830Z",
+  "title": "F13_PUBLISHED_VIA_PENDING",
+  "body": {
+    "value": "<p>New draft body</p>",
+    "format": "basic_html"
+  },
+  "isDefaultRevision": false,
+  "status": "draft",
+  "publishedAt": "2026-02-07T03:45:44.659Z",
+  "scheduledAt": null
+}

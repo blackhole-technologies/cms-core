@@ -1094,6 +1094,41 @@ export function registerCli(register) {
     return true;
   }, 'Set focus keyword for content item', 'seo');
 
+  // seo:description <type> <id> <description> - Set meta description
+  register('seo:description', async (args) => {
+    if (args.length < 3) {
+      console.log('Usage: seo:description <type> <id> <description>');
+      console.log('Example: seo:description article my-post "Learn about our CMS features and benefits"');
+      return true;
+    }
+
+    const [type, id, ...descParts] = args;
+    const description = descParts.join(' ').replace(/^["']|["']$/g, '');
+
+    const meta = saveSeoMeta(type, id, { metaDescription: description });
+    console.log(`Meta description set for ${type}/${id}:`);
+    console.log(`  "${description}"`);
+    console.log(`  Length: ${description.length} characters`);
+
+    // Provide length guidance
+    const cfg = configData.metaDescription || DEFAULTS.metaDescription;
+    if (description.length < cfg.minLength) {
+      console.log(`  ⚠️  Too short (minimum ${cfg.minLength} characters)`);
+    } else if (description.length > cfg.maxLength) {
+      console.log(`  ⚠️  Too long (maximum ${cfg.maxLength} characters)`);
+    } else if (description.length >= cfg.optimalMin && description.length <= cfg.optimalMax) {
+      console.log(`  ✅ Optimal length (${cfg.optimalMin}-${cfg.optimalMax} characters)`);
+    } else {
+      console.log(`  ✅ Acceptable length`);
+    }
+
+    // Auto-run analysis with the new description
+    const result = analyzeContent(type, id, { metaDescription: description });
+    console.log(`\nSEO Score: ${result.score}/100`);
+
+    return true;
+  }, 'Set meta description for content item', 'seo');
+
   // seo:meta <type> <id> - Show SEO metadata
   register('seo:meta', async (args) => {
     if (args.length < 2) {

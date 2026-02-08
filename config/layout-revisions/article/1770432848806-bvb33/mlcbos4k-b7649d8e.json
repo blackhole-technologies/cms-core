@@ -1,0 +1,43 @@
+{
+  "id": "mlcbos4k-b7649d8e",
+  "contentType": "article",
+  "contentId": "1770432848806-bvb33",
+  "timestamp": "2026-02-07T13:01:05.252Z",
+  "message": "Reverted to revision from 2026-02-07T13:00:24.007Z",
+  "sectionCount": 2,
+  "componentCount": 1,
+  "layout": {
+    "sections": [
+      {
+        "uuid": "bec03fc2ab102bc788efde952d2b5d48",
+        "layoutId": "two_column",
+        "settings": {
+          "columnWidths": "50-50"
+        },
+        "components": {
+          "first": [
+            {
+              "uuid": "43253f73c61c5c28cc98243458c0f9f1",
+              "type": "block",
+              "blockId": "text_block",
+              "configuration": {},
+              "weight": 0
+            }
+          ],
+          "second": []
+        },
+        "weight": 0
+      },
+      {
+        "uuid": "92f17866b5d7d5e64253231a3045a16d",
+        "layoutId": "one_column",
+        "settings": {},
+        "components": {
+          "content": []
+        },
+        "weight": 1
+      }
+    ],
+    "updated": "2026-02-07T13:01:05.077Z"
+  }
+}

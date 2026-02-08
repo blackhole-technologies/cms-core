@@ -136,6 +136,25 @@
         {{/if}}
       </div>
 
+      <div class="layout-section">
+        <h3>Layout</h3>
+        <p style="font-size: 0.9em; color: #666; margin-bottom: 0.75rem;">Customize the layout for this content item.</p>
+        <a href="/admin/content/{{type}}/{{id}}/layout" class="btn btn-secondary">Manage Layout</a>
+      </div>
+      <style>
+        .layout-section {
+          margin-top: 1.5rem;
+          padding: 1rem;
+          background: #f8f9fa;
+          border-radius: 4px;
+        }
+        .layout-section h3 {
+          margin: 0 0 0.5rem 0;
+          font-size: 1rem;
+          color: #495057;
+        }
+      </style>
+
       <div class="clone-section">
         <h3>Clone</h3>
         <button type="button" class="btn btn-secondary" onclick="toggleCloneModal()">Clone this {{type}}</button>

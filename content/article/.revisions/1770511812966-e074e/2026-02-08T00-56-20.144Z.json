@@ -1,0 +1,56 @@
+{
+  "id": "1770511812966-e074e",
+  "type": "article",
+  "created": "2026-02-08T00:50:12.966Z",
+  "updated": "2026-02-08T00:56:20.144Z",
+  "title": "PERSIST_CHECK_99999",
+  "isDefaultRevision": true,
+  "status": "draft",
+  "_layout": {
+    "sections": [
+      {
+        "uuid": "5e3db6d31d96960bd22653298acb0e0b",
+        "layoutId": "one_column",
+        "settings": {},
+        "components": {
+          "content": []
+        },
+        "weight": 0
+      },
+      {
+        "uuid": "bec03fc2ab102bc788efde952d2b5d48",
+        "layoutId": "two_column",
+        "settings": {
+          "columnWidths": "50-50"
+        },
+        "components": {
+          "first": [
+            {
+              "uuid": "43253f73c61c5c28cc98243458c0f9f1",
+              "type": "block",
+              "blockId": "text_block",
+              "configuration": {},
+              "weight": 0
+            }
+          ],
+          "second": []
+        },
+        "weight": 1
+      },
+      {
+        "uuid": "1cb7027553250257b0225e276676ddab",
+        "layoutId": "three_column",
+        "settings": {
+          "columnWidths": "33-33-33"
+        },
+        "components": {
+          "first": [],
+          "second": [],
+          "third": []
+        },
+        "weight": 2
+      }
+    ],
+    "updated": "2026-02-08T00:56:27.376Z"
+  }
+}

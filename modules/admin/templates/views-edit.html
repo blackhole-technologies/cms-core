@@ -212,11 +212,30 @@
       <div class="form-actions">
         <button type="submit" class="btn btn-primary">Save View</button>
         {{#if isEdit}}
-        <a href="/admin/views/{{viewId}}/preview" class="btn btn-secondary">Preview Results</a>
+        <button type="button" class="btn btn-secondary" onclick="loadPreview()">Preview</button>
+        <a href="/admin/views/{{viewId}}/preview" class="btn btn-link" style="font-size:0.85rem;color:#6b7280;">Open in new page</a>
         {{/if}}
         <a href="/admin/views" class="btn btn-secondary">Cancel</a>
       </div>
     </form>
+
+    <!-- Inline Preview Results -->
+    {{#if isEdit}}
+    <div id="view-preview" style="display:none; margin-top: 2rem;">
+      <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:1rem; border-bottom:2px solid #2563eb; padding-bottom:0.5rem;">
+        <h2 style="margin:0; color:#2563eb;">Live Preview</h2>
+        <div>
+          <span id="preview-count" style="font-size:0.9rem; color:#6b7280;"></span>
+          <button type="button" class="btn btn-secondary" onclick="loadPreview()" style="margin-left:0.5rem; font-size:0.85rem; padding:0.3rem 0.8rem;">Refresh</button>
+        </div>
+      </div>
+      <div id="preview-loading" style="display:none; text-align:center; padding:2rem; color:#6b7280;">
+        Loading preview...
+      </div>
+      <div id="preview-error" style="display:none; padding:1rem; background:#fef2f2; border:1px solid #fecaca; border-radius:8px; color:#991b1b; margin-bottom:1rem;"></div>
+      <div id="preview-results"></div>
+    </div>
+    {{/if}}
   </div>
 
   <!-- Add Display Modal -->
@@ -1145,6 +1164,81 @@
 
     // Initialize sort drag-and-drop on page load
     initSortDragDrop();
+
+    // WHY: Inline preview loads view results via AJAX and renders them
+    // in a table below the configuration form. This lets users see the
+    // effect of their changes without navigating away from the edit page.
+    function loadPreview() {
+      var previewSection = document.getElementById('view-preview');
+      var previewLoading = document.getElementById('preview-loading');
+      var previewError = document.getElementById('preview-error');
+      var previewResults = document.getElementById('preview-results');
+      var previewCount = document.getElementById('preview-count');
+
+      // Show the preview section
+      previewSection.style.display = 'block';
+      previewLoading.style.display = 'block';
+      previewError.style.display = 'none';
+      previewResults.innerHTML = '';
+
+      var viewId = document.querySelector('input[name="machine_name"]').value;
+
+      fetch('/admin/views/' + viewId + '/preview.json', {
+        credentials: 'same-origin'
+      })
+      .then(function(resp) { return resp.json(); })
+      .then(function(data) {
+        previewLoading.style.display = 'none';
+
+        if (data.error) {
+          previewError.style.display = 'block';
+          previewError.textContent = 'Error: ' + data.error;
+          return;
+        }
+
+        previewCount.textContent = data.count + ' of ' + data.total + ' items';
+
+        if (data.items.length === 0) {
+          previewResults.innerHTML = '<p style="text-align:center;color:#6b7280;padding:2rem;">No results found.</p>';
+          return;
+        }
+
+        // Build table
+        var html = '<table class="admin-table" style="width:100%;">';
+        html += '<thead><tr>';
+        var labels = data.fieldLabels.length > 0 ? data.fieldLabels : ['ID', 'Title', 'Status', 'Created'];
+        var names = data.fieldNames.length > 0 ? data.fieldNames : ['id', 'title', 'status', 'created'];
+        for (var i = 0; i < labels.length; i++) {
+          html += '<th>' + labels[i] + '</th>';
+        }
+        html += '</tr></thead><tbody>';
+
+        for (var j = 0; j < data.items.length; j++) {
+          var item = data.items[j];
+          html += '<tr>';
+          for (var k = 0; k < names.length; k++) {
+            var val = item[names[k]];
+            if (val === undefined || val === null) val = '';
+            // Format dates
+            if (names[k] === 'created' || names[k] === 'updated') {
+              try { val = new Date(val).toLocaleString(); } catch(e) {}
+            }
+            html += '<td>' + String(val) + '</td>';
+          }
+          html += '</tr>';
+        }
+        html += '</tbody></table>';
+        previewResults.innerHTML = html;
+
+        // Scroll to preview
+        previewSection.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      })
+      .catch(function(err) {
+        previewLoading.style.display = 'none';
+        previewError.style.display = 'block';
+        previewError.textContent = 'Failed to load preview: ' + err.message;
+      });
+    }
   </script>
   <script src="/public/js/shortcuts.js"></script>
   <script>Shortcuts.init({ context: 'global' });</script>

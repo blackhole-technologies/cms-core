@@ -1,0 +1,15 @@
+{
+  "id": "1770435681711-tkkt2",
+  "type": "article",
+  "created": "2026-02-07T03:41:21.711Z",
+  "updated": "2026-02-07T03:41:35.180Z",
+  "title": "FEATURE_11_12_13_TEST - UPDATED DRAFT",
+  "body": {
+    "value": "<p>Test body</p>",
+    "format": "basic_html"
+  },
+  "isDefaultRevision": false,
+  "status": "draft",
+  "publishedAt": "2026-02-07T03:41:27.924Z",
+  "scheduledAt": null
+}

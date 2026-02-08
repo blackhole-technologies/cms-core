@@ -1196,6 +1196,136 @@ export function registerCli(register) {
     }
     return true;
   }, 'List content associated with a workspace');
+
+  // workspace:publish <workspaceId|machineName> [--force]
+  register('workspace:publish', async (args) => {
+    const { positional, options } = parseCliArgs(args);
+    const identifier = positional[0];
+
+    if (!identifier) {
+      console.log('Usage: workspace:publish <workspaceId|machineName> [--force]');
+      console.log('Publishes all content from the workspace to live.');
+      console.log('Options:');
+      console.log('  --force  Skip conflict validation and publish anyway');
+      return false;
+    }
+
+    try {
+      const workspace = resolveWorkspace(identifier);
+      if (!workspace) {
+        console.error(`\u2717 Workspace not found: ${identifier}`);
+        return false;
+      }
+
+      // Show what will be published
+      const associations = getAssociations(workspace.id);
+      const itemCount = associations.items ? associations.items.length : 0;
+      if (itemCount === 0) {
+        console.log(`Workspace "${workspace.label}" has no content to publish.`);
+        return true;
+      }
+
+      console.log(`Publishing workspace "${workspace.label}" (${itemCount} item(s))...`);
+
+      const result = await publishWorkspace(identifier, {
+        validateConflicts: !options.force,
+      });
+
+      console.log(`\u2713 ${result.message}`);
+      for (const item of result.items) {
+        console.log(`  \u2713 ${item.contentType}/${item.contentId} [${item.operation}]`);
+      }
+      if (result.errors && result.errors.length > 0) {
+        for (const err of result.errors) {
+          console.log(`  \u2717 ${err.contentType}/${err.contentId}: ${err.error}`);
+        }
+      }
+
+      // Show remaining associations (should be empty after full publish)
+      const remaining = getAssociations(workspace.id);
+      const remainCount = remaining.items ? remaining.items.length : 0;
+      if (remainCount === 0) {
+        console.log(`  Workspace is now empty (all content published to live).`);
+      } else {
+        console.log(`  ${remainCount} item(s) remaining in workspace (due to errors).`);
+      }
+
+      return true;
+    } catch (err) {
+      if (err.code === 'WORKSPACE_CONFLICTS') {
+        console.error(`\u2717 ${err.message}`);
+        if (err.conflicts) {
+          for (const c of err.conflicts) {
+            console.error(`  - ${c.contentType}/${c.contentId}: ${c.message}`);
+            if (c.conflictingFields && c.conflictingFields.length > 0) {
+              console.error(`    Conflicting fields: ${c.conflictingFields.map(f => f.field).join(', ')}`);
+            }
+          }
+        }
+        return false;
+      }
+      console.error(`\u2717 Failed to publish workspace: ${err.message}`);
+      return false;
+    }
+  }, 'Publish all workspace content to live');
+
+  // workspace:conflicts <workspaceId|machineName>
+  register('workspace:conflicts', async (args) => {
+    const { positional } = parseCliArgs(args);
+    const identifier = positional[0];
+
+    if (!identifier) {
+      console.log('Usage: workspace:conflicts <workspaceId|machineName>');
+      console.log('Detect conflicts between workspace content and live content.');
+      return false;
+    }
+
+    try {
+      const workspace = resolveWorkspace(identifier);
+      if (!workspace) {
+        console.error(`\u2717 Workspace not found: ${identifier}`);
+        return false;
+      }
+
+      const conflicts = detectConflicts(workspace.id);
+
+      if (conflicts.length === 0) {
+        console.log(`\u2713 No conflicts detected in workspace "${workspace.label}".`);
+        console.log(`  Workspace can be published safely.`);
+        return true;
+      }
+
+      console.log(`\u26A0 ${conflicts.length} conflict(s) detected in workspace "${workspace.label}":`);
+      console.log('\u2500'.repeat(80));
+
+      for (const conflict of conflicts) {
+        console.log(`  ${conflict.contentType}/${conflict.contentId}`);
+        console.log(`    Workspace copy modified: ${conflict.workspaceModified}`);
+        console.log(`    Live version modified:   ${conflict.liveModified}`);
+        console.log(`    Workspace associated at: ${conflict.workspaceAssociatedAt}`);
+
+        if (conflict.conflictingFields && conflict.conflictingFields.length > 0) {
+          console.log(`    Conflicting fields:`);
+          for (const f of conflict.conflictingFields) {
+            const wsVal = typeof f.workspaceValue === 'string'
+              ? f.workspaceValue.substring(0, 50)
+              : JSON.stringify(f.workspaceValue).substring(0, 50);
+            const liveVal = typeof f.liveValue === 'string'
+              ? f.liveValue.substring(0, 50)
+              : JSON.stringify(f.liveValue).substring(0, 50);
+            console.log(`      - ${f.field}: workspace="${wsVal}" vs live="${liveVal}"`);
+          }
+        }
+        console.log('');
+      }
+
+      console.log(`To publish anyway, use: workspace:publish ${identifier} --force`);
+      return true;
+    } catch (err) {
+      console.error(`\u2717 Failed to check conflicts: ${err.message}`);
+      return false;
+    }
+  }, 'Detect conflicts between workspace and live content');
 }
 
 /**
@@ -1379,6 +1509,280 @@ export async function publishContent(workspaceId, contentId, user = null) {
 }
 
 // ============================================================================
+// Publish Entire Workspace
+// ============================================================================
+
+/**
+ * Publish an entire workspace to live.
+ *
+ * WHY BULK PUBLISH:
+ * Drupal's workspaces module supports publishing all workspace changes
+ * at once. This is the primary workflow: make changes in a staging
+ * workspace, review them, then deploy everything to live in one operation.
+ *
+ * FLOW:
+ * 1. Get all associations for the workspace
+ * 2. Optionally validate for conflicts (if validateConflicts=true)
+ * 3. Publish each associated content item using publishContent()
+ * 4. Clear all workspace associations
+ * 5. Workspace still exists but is empty (can be reused or deleted)
+ *
+ * @param {string} workspaceId - Workspace UUID or machine name
+ * @param {Object} [options] - Options
+ * @param {boolean} [options.validateConflicts=true] - Check for conflicts before publishing
+ * @param {Object} [user] - User performing the action (for permission check)
+ * @returns {Object} Result with published items count and details
+ * @throws {Error} If workspace not found, permission denied, or conflicts detected
+ */
+export async function publishWorkspace(workspaceId, options = {}, user = null) {
+  const validateConflicts = options.validateConflicts !== false;
+
+  // Permission check
+  if (user && permissionsModule) {
+    const allowed = await checkPermission(user, 'publish');
+    if (!allowed) {
+      const err = new Error('Permission denied: workspace.publish');
+      err.code = 'PERMISSION_DENIED';
+      err.status = 403;
+      throw err;
+    }
+  }
+
+  // Resolve workspace
+  const workspace = resolveWorkspace(workspaceId);
+  if (!workspace) {
+    throw new Error(`Workspace not found: ${workspaceId}`);
+  }
+
+  // Get all associations
+  const associations = getAssociations(workspace.id);
+  if (!associations.items || associations.items.length === 0) {
+    return {
+      published: true,
+      workspaceId: workspace.id,
+      workspaceLabel: workspace.label,
+      itemCount: 0,
+      items: [],
+      message: 'Workspace has no content to publish',
+    };
+  }
+
+  // Validate for conflicts if requested
+  if (validateConflicts) {
+    const conflicts = detectConflicts(workspace.id);
+    if (conflicts.length > 0) {
+      const err = new Error(
+        `Cannot publish workspace "${workspace.label}": ${conflicts.length} conflict(s) detected. ` +
+        `Use workspace:conflicts to view details, or publish with --force to skip validation.`
+      );
+      err.code = 'WORKSPACE_CONFLICTS';
+      err.status = 409;
+      err.conflicts = conflicts;
+      throw err;
+    }
+  }
+
+  // Publish each content item
+  const results = [];
+  const errors = [];
+
+  for (const association of [...associations.items]) {
+    try {
+      const result = await publishContent(workspace.id, association.id, user);
+      results.push(result);
+    } catch (err) {
+      errors.push({
+        contentId: association.id,
+        contentType: association.type,
+        error: err.message,
+      });
+    }
+  }
+
+  // Emit hook
+  if (hooksModule) {
+    try {
+      await hooksModule.emit('workspace:published', {
+        workspaceId: workspace.id,
+        workspaceLabel: workspace.label,
+        publishedCount: results.length,
+        errorCount: errors.length,
+      });
+    } catch (e) {
+      // Non-blocking
+    }
+  }
+
+  // Audit log
+  if (auditModule && typeof auditModule.log === 'function') {
+    auditModule.log('workspace.publish', {
+      workspaceId: workspace.id,
+      workspaceLabel: workspace.label,
+      publishedCount: results.length,
+      errorCount: errors.length,
+      userId: user?.id,
+    });
+  }
+
+  return {
+    published: true,
+    workspaceId: workspace.id,
+    workspaceLabel: workspace.label,
+    itemCount: results.length,
+    items: results,
+    errors: errors.length > 0 ? errors : undefined,
+    message: errors.length > 0
+      ? `Published ${results.length} items with ${errors.length} error(s)`
+      : `Successfully published ${results.length} item(s) to live`,
+  };
+}
+
+// ============================================================================
+// Conflict Detection
+// ============================================================================
+
+/**
+ * Detect conflicts between workspace content and live content.
+ *
+ * WHY CONFLICT DETECTION:
+ * When a workspace has edits to content that was also modified in live
+ * (after the workspace copy was created), publishing would overwrite
+ * those live changes. Conflict detection warns the user before this
+ * data loss occurs.
+ *
+ * DETECTION METHOD:
+ * For each 'edit' association in the workspace:
+ * 1. Read the workspace copy (ws-{prefix}-{originalId})
+ * 2. Read the live version
+ * 3. Compare the 'updated' timestamps: if live was updated AFTER the
+ *    workspace copy was created, there's a potential conflict
+ * 4. Optionally compare individual field values for specificity
+ *
+ * @param {string} workspaceId - Workspace UUID or machine name
+ * @returns {Array} Array of conflict objects, empty if no conflicts
+ */
+export function detectConflicts(workspaceId) {
+  const workspace = resolveWorkspace(workspaceId);
+  if (!workspace) {
+    throw new Error(`Workspace not found: ${workspaceId}`);
+  }
+
+  const associations = getAssociations(workspace.id);
+  if (!associations.items || associations.items.length === 0) {
+    return [];
+  }
+
+  const conflicts = [];
+  const wsPrefix = workspace.id.substring(0, 8);
+  const contentDir = join(baseDir, 'content');
+
+  for (const association of associations.items) {
+    // Only edits can conflict (creates are new content, no live version to conflict with)
+    if (association.operation !== 'edit') {
+      continue;
+    }
+
+    const contentType = association.type;
+    const contentId = association.id;
+    const workspaceCopyId = `ws-${wsPrefix}-${contentId}`;
+
+    // Read workspace copy
+    const wsCopyPath = join(contentDir, contentType, `${workspaceCopyId}.json`);
+    if (!existsSync(wsCopyPath)) continue;
+
+    let wsCopy;
+    try {
+      wsCopy = JSON.parse(readFileSync(wsCopyPath, 'utf-8'));
+    } catch {
+      continue;
+    }
+
+    // Read live version
+    const livePath = join(contentDir, contentType, `${contentId}.json`);
+    if (!existsSync(livePath)) continue;
+
+    let liveContent;
+    try {
+      liveContent = JSON.parse(readFileSync(livePath, 'utf-8'));
+    } catch {
+      continue;
+    }
+
+    // Compare timestamps: if live was modified after the workspace copy was created,
+    // there's a potential conflict
+    const wsCreatedAt = new Date(association.timestamp);
+    const liveUpdatedAt = new Date(liveContent.updated || liveContent.created);
+
+    if (liveUpdatedAt > wsCreatedAt) {
+      // Live content was modified after the workspace copy was created
+      // Identify conflicting fields
+      const conflictingFields = findConflictingFields(wsCopy, liveContent);
+
+      conflicts.push({
+        contentType,
+        contentId,
+        workspaceCopyId,
+        workspaceModified: wsCopy.updated || wsCopy.created,
+        liveModified: liveContent.updated || liveContent.created,
+        workspaceAssociatedAt: association.timestamp,
+        conflictingFields,
+        message: `Content "${contentId}" (${contentType}) was modified in live after workspace copy was created`,
+      });
+    }
+  }
+
+  return conflicts;
+}
+
+/**
+ * Find which fields differ between workspace copy and live content.
+ *
+ * WHY FIELD-LEVEL DIFF:
+ * Knowing which specific fields conflict helps users make informed
+ * decisions about which version to keep. This follows Drupal's approach
+ * of showing field-level differences in content moderation.
+ *
+ * @param {Object} wsCopy - Workspace copy of content
+ * @param {Object} liveContent - Live version of content
+ * @returns {Array} Array of { field, workspaceValue, liveValue }
+ */
+function findConflictingFields(wsCopy, liveContent) {
+  const conflicts = [];
+  // Skip metadata fields that are expected to differ
+  const skipFields = new Set([
+    'id', '_workspace', '_originalId', '_originalType',
+    'updated', 'created', 'revisions',
+  ]);
+
+  // Compare all fields in the workspace copy against live
+  const allKeys = new Set([
+    ...Object.keys(wsCopy),
+    ...Object.keys(liveContent),
+  ]);
+
+  for (const key of allKeys) {
+    if (skipFields.has(key)) continue;
+
+    const wsVal = wsCopy[key];
+    const liveVal = liveContent[key];
+
+    // Deep comparison
+    const wsStr = JSON.stringify(wsVal);
+    const liveStr = JSON.stringify(liveVal);
+
+    if (wsStr !== liveStr) {
+      conflicts.push({
+        field: key,
+        workspaceValue: wsVal,
+        liveValue: liveVal,
+      });
+    }
+  }
+
+  return conflicts;
+}
+
+// ============================================================================
 // Route Registration
 // ============================================================================
 
@@ -1479,6 +1883,58 @@ export function registerRoutes(router, auth) {
 
     res.writeHead(200, { 'Content-Type': 'application/json' });
     res.end(JSON.stringify({ data: perms }));
+  });
+
+  // POST /api/workspaces/:id/publish - Publish entire workspace to live
+  router.register('POST', '/api/workspaces/:id/publish', async (req, res) => {
+    try {
+      const user = req.user || null;
+      const workspace = resolveWorkspace(req.params.id);
+
+      if (!workspace) {
+        res.writeHead(404, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ error: 'Workspace not found' }));
+        return;
+      }
+
+      const body = await parseBody(req);
+      const force = body.force === true;
+
+      const result = await publishWorkspace(workspace.id, {
+        validateConflicts: !force,
+      }, user);
+
+      res.writeHead(200, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ data: result }));
+    } catch (err) {
+      const status = err.status || 400;
+      const response = { error: err.message };
+      if (err.conflicts) {
+        response.conflicts = err.conflicts;
+      }
+      res.writeHead(status, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify(response));
+    }
+  });
+
+  // GET /api/workspaces/:id/conflicts - Detect conflicts
+  router.register('GET', '/api/workspaces/:id/conflicts', async (req, res) => {
+    try {
+      const workspace = resolveWorkspace(req.params.id);
+
+      if (!workspace) {
+        res.writeHead(404, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ error: 'Workspace not found' }));
+        return;
+      }
+
+      const conflicts = detectConflicts(workspace.id);
+      res.writeHead(200, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ data: conflicts, count: conflicts.length, hasConflicts: conflicts.length > 0 }));
+    } catch (err) {
+      res.writeHead(400, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ error: err.message }));
+    }
   });
 }
 

@@ -1,0 +1,14 @@
+{
+  "id": "1770468862778-rqhz4",
+  "type": "user",
+  "created": "2026-02-07T12:54:22.778Z",
+  "updated": "2026-02-07T12:54:22.778Z",
+  "username": "admin",
+  "password": "037e1b56a6c59c6a0bdf7809b3669fec:43e6567cea1c6ca246bf6482c83f536f73831ed30e1093dc78c4b614f6a17cd7",
+  "role": "admin",
+  "email": "",
+  "lastLogin": null,
+  "isDefaultRevision": true,
+  "status": "draft",
+  "_workspace": "f3899e39-61d3-4f51-aa6b-9d944c11f04a"
+}

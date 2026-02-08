@@ -1,0 +1,49 @@
+{
+  "id": "1770432848806-bvb33",
+  "type": "article",
+  "created": "2026-02-07T02:54:08.806Z",
+  "updated": "2026-02-07T03:47:35.273Z",
+  "title": "Rev Test A",
+  "isDefaultRevision": true,
+  "status": "published",
+  "publishedAt": "2026-02-07T02:54:15.307Z",
+  "scheduledAt": null,
+  "_layout": {
+    "sections": [
+      {
+        "uuid": "bec03fc2ab102bc788efde952d2b5d48",
+        "layoutId": "two_column",
+        "settings": {
+          "columnWidths": "50-50"
+        },
+        "components": {
+          "first": [
+            {
+              "uuid": "43253f73c61c5c28cc98243458c0f9f1",
+              "type": "block",
+              "blockId": "text_block",
+              "configuration": {},
+              "weight": 0
+            }
+          ],
+          "second": []
+        },
+        "weight": 0
+      },
+      {
+        "uuid": "ab93d2ee7b024d0375e4277800bb2bf2",
+        "layoutId": "three_column",
+        "settings": {
+          "columnWidths": "33-33-33"
+        },
+        "components": {
+          "first": [],
+          "second": [],
+          "third": []
+        },
+        "weight": 1
+      }
+    ],
+    "updated": "2026-02-07T03:47:35.272Z"
+  }
+}
