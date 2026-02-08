@@ -105,6 +105,34 @@ import { slugify, generateUniqueSlug, validateSlug, looksLikeId } from './slugif
 let constraintService = null;
 
 /**
+ * Workspace provider reference (injected after boot)
+ *
+ * WHY LATE-BINDING:
+ * Content.js is initialized before workspaces.js in the boot sequence.
+ * The workspace provider is injected via setWorkspaceProvider() after both
+ * are initialized. This avoids circular dependency issues while enabling
+ * workspace-aware content isolation (Drupal workspaces pattern).
+ *
+ * The provider must implement:
+ * - getActiveWorkspace() -> {id, machineName, label} | null
+ * - associateContent(workspaceId, contentType, contentId, operation)
+ */
+let workspaceProvider = null;
+
+/**
+ * Set the workspace provider for workspace-aware content operations
+ *
+ * Called from boot.js after both content and workspaces are initialized.
+ * Enables workspace isolation: content created in a workspace is tagged
+ * with _workspace field and filtered from live queries.
+ *
+ * @param {Object} provider - The workspaces service module
+ */
+export function setWorkspaceProvider(provider) {
+  workspaceProvider = provider;
+}
+
+/**
  * Set the constraint service for content validation
  *
  * Called from boot.js after both content and constraints are initialized.
@@ -807,6 +835,18 @@ export async function publishPendingRevision(type, id, revisionTimestamp = null)
   const filePath = getContentPath(type, id);
   writeFileSync(filePath, JSON.stringify(newPublished, null, 2) + '\n');
 
+  // 3b. Remove the promoted pending draft from .revisions/
+  // WHY: Once a pending draft is published, it should no longer count as pending.
+  // The draft's content is now the main file, so the revision file is redundant.
+  const promotedTimestamp = pendingDraft.updated;
+  if (promotedTimestamp) {
+    const safeTs = promotedTimestamp.replace(/:/g, '-');
+    const draftRevPath = join(getRevisionsDir(type, id), `${safeTs}.json`);
+    if (existsSync(draftRevPath)) {
+      unlinkSync(draftRevPath);
+    }
+  }
+
   // 4. Invalidate cache
   if (cacheEnabled) {
     cache.delete(cache.itemKey(type, id));
@@ -1218,6 +1258,23 @@ export async function create(type, data) {
     }
   }
 
+  // Tag content with workspace if one is active
+  // WHY WORKSPACE TAGGING:
+  // - Content created in a workspace is isolated from live site
+  // - The _workspace field marks which workspace owns this content
+  // - Live queries filter out workspace content; workspace queries include it
+  // - Mirrors Drupal's workspaces module: changes don't affect live until published
+  if (workspaceProvider) {
+    const activeWs = workspaceProvider.getActiveWorkspace();
+    if (activeWs) {
+      content._workspace = activeWs.id;
+      // Track the association for workspace publish/delete operations
+      try {
+        workspaceProvider.associateContent(activeWs.id, type, id, 'create');
+      } catch { /* workspace associations are non-critical */ }
+    }
+  }
+
   // Ensure type directory exists
   ensureTypeDir(type);
 
@@ -1226,7 +1283,13 @@ export async function create(type, data) {
   // - Human-readable
   // - Git-friendly diffs
   // - Standard JSON formatting
-  const filePath = getContentPath(type, id);
+  // WHY content.id (not local id variable):
+  // - data.id can override the generated ID (e.g., workspace copies
+  //   use a convention like "ws-{prefix}-{originalId}")
+  // - The file path must match the stored ID so read(type, id) can find it
+  // - Without this, workspace copies get saved with a generated filename
+  //   that doesn't match their ws- prefixed ID, breaking lookups
+  const filePath = getContentPath(type, content.id);
   writeFileSync(filePath, JSON.stringify(content, null, 2) + '\n');
 
   // Invalidate list cache for this type
@@ -1433,7 +1496,67 @@ export function read(type, id, options = {}) {
     computed = true,
     computedFields: requestedComputedFields = null,
     context = null,
+    skipWorkspace = false,
   } = options;
+
+  // WORKSPACE-AWARE READ:
+  // When a workspace is active, check if a workspace-specific copy exists
+  // for this content item. If so, return the workspace version instead of
+  // the live version. This mirrors Drupal's workspaces module where viewing
+  // content in a workspace context shows the staged (modified) version.
+  //
+  // WHY HERE (not in readRaw):
+  // - readRaw is a low-level file reader used everywhere
+  // - Workspace resolution is a business-level concern
+  // - Only user-facing read() should do workspace substitution
+  // - skipWorkspace option prevents infinite recursion
+  if (!skipWorkspace && workspaceProvider) {
+    const activeWs = workspaceProvider.getActiveWorkspace();
+    if (activeWs) {
+      // Build the workspace copy ID: ws-{first8chars}-{originalId}
+      const workspaceCopyId = `ws-${activeWs.id.substring(0, 8)}-${id}`;
+      const workspaceCopy = readRaw(type, workspaceCopyId);
+      if (workspaceCopy) {
+        // Found a workspace-specific version — use it instead
+        // Preserve _originalId so callers know this is a workspace copy
+        let item = workspaceCopy;
+
+        // Populate relations if requested
+        if (populate && populate.length > 0) {
+          const schema = contentTypes[type]?.schema;
+          if (schema) {
+            item = populateRelations(item, schema, populate);
+          }
+        }
+
+        // Resolve computed fields
+        if (computed && computedEnabled && hasComputedFields(type)) {
+          const allComputed = getComputedFields(type);
+          const hasAsync = Object.values(allComputed).some(f => f.async);
+          if (!hasAsync) {
+            const resolved = { ...item };
+            const fieldsToCompute = requestedComputedFields
+              ? requestedComputedFields.filter(f => allComputed[f])
+              : Object.keys(allComputed);
+            for (const fieldName of fieldsToCompute) {
+              const fieldDef = allComputed[fieldName];
+              try {
+                resolved[fieldName] = fieldDef.compute(item, context);
+              } catch (error) {
+                console.error(`[content] Error computing "${fieldName}": ${error.message}`);
+                resolved[fieldName] = null;
+              }
+            }
+            item = resolved;
+          }
+        }
+
+        return item;
+      }
+      // No workspace copy exists — fall through to return live version
+      // This is correct: content not edited in workspace shows the live version
+    }
+  }
 
   // Get raw item
   let item = readRaw(type, id);
@@ -1502,7 +1625,34 @@ export async function readAsync(type, id, options = {}) {
     computed = true,
     computedFields: requestedComputedFields = null,
     context = null,
+    skipWorkspace = false,
   } = options;
+
+  // WORKSPACE-AWARE ASYNC READ:
+  // Same logic as read() — check for workspace copy first
+  if (!skipWorkspace && workspaceProvider) {
+    const activeWs = workspaceProvider.getActiveWorkspace();
+    if (activeWs) {
+      const workspaceCopyId = `ws-${activeWs.id.substring(0, 8)}-${id}`;
+      const workspaceCopy = readRaw(type, workspaceCopyId);
+      if (workspaceCopy) {
+        let item = workspaceCopy;
+        if (populate && populate.length > 0) {
+          const schema = contentTypes[type]?.schema;
+          if (schema) {
+            item = populateRelations(item, schema, populate);
+          }
+        }
+        if (computed && computedEnabled && hasComputedFields(type)) {
+          item = await resolveComputed(item, {
+            fields: requestedComputedFields,
+            context,
+          });
+        }
+        return item;
+      }
+    }
+  }
 
   // Get raw item
   let item = readRaw(type, id);
@@ -1556,8 +1706,8 @@ export async function readAsync(type, id, options = {}) {
  * await update('greeting', '1705123456789-x7k9m', { message: 'Updated message!' });
  */
 export async function update(type, id, data, options = {}) {
-  // Read existing content
-  const existing = read(type, id);
+  // Read existing content (bypasses workspace filter to find live content)
+  const existing = readRaw(type, id);
 
   if (!existing) {
     return null;
@@ -1566,6 +1716,64 @@ export async function update(type, id, data, options = {}) {
   // Verify content type is registered
   if (!contentTypes[type]) {
     throw new Error(`Unknown content type: "${type}"`);
+  }
+
+  // WORKSPACE-AWARE EDITING:
+  // If we're in a workspace and editing live content (no _workspace field),
+  // create a workspace-specific copy instead of modifying the original.
+  // This mirrors Drupal's workspaces module: edits in a workspace are isolated
+  // and don't affect live content until the workspace is published.
+  //
+  // WHY CREATE COPY:
+  // - Live content stays untouched for public-facing reads
+  // - Workspace copy captures the modified version
+  // - Association table tracks which live items have workspace edits
+  // - Publishing workspace later merges these copies back to live
+  if (workspaceProvider && !options.skipWorkspace) {
+    const activeWs = workspaceProvider.getActiveWorkspace();
+    if (activeWs && !existing._workspace) {
+      // Check if a workspace copy already exists for this content
+      const workspaceCopyId = `ws-${activeWs.id.substring(0, 8)}-${id}`;
+      const existingCopy = readRaw(type, workspaceCopyId);
+
+      if (existingCopy) {
+        // Update the existing workspace copy instead of creating a new one
+        return update(type, workspaceCopyId, data, { ...options, skipWorkspace: true });
+      }
+
+      // Create a workspace copy with the edits applied
+      const now = new Date().toISOString();
+      const workspaceCopy = {
+        ...existing,
+        ...data,
+        id: workspaceCopyId,
+        _workspace: activeWs.id,
+        _originalId: id,
+        _originalType: type,
+        created: existing.created,
+        updated: now,
+      };
+
+      // Persist the workspace copy
+      ensureTypeDir(type);
+      const filePath = getContentPath(type, workspaceCopyId);
+      writeFileSync(filePath, JSON.stringify(workspaceCopy, null, 2) + '\n');
+
+      // Track in workspace associations
+      try {
+        workspaceProvider.associateContent(activeWs.id, type, id, 'edit');
+      } catch { /* non-critical */ }
+
+      // Invalidate cache
+      if (cacheEnabled) {
+        cache.clear(`content:${type}:list:*`);
+      }
+
+      // Fire afterUpdate hook
+      await hooks.trigger('content:afterUpdate', { type, item: workspaceCopy });
+
+      return workspaceCopy;
+    }
   }
 
   // Check lock status (unless force flag is set)
@@ -1968,20 +2176,34 @@ function applyFilter(itemValue, operator, filterValue) {
  *
  * @param {Object} item - Content item
  * @param {Object} filters - Filter conditions
- * @returns {boolean} - Whether item passes all filters (AND logic)
+ * @param {string} filterLogic - 'AND' (all must match) or 'OR' (any can match)
+ * @returns {boolean} - Whether item passes filters
  * @private
  */
-function matchesFilters(item, filters) {
+function matchesFilters(item, filters, filterLogic = 'AND') {
   if (!filters || Object.keys(filters).length === 0) {
     return true;
   }
 
+  if (filterLogic === 'OR') {
+    // OR logic: pass on first match
+    for (const [key, value] of Object.entries(filters)) {
+      const { field, operator } = parseFilterKey(key);
+      const itemValue = item[field];
+      if (applyFilter(itemValue, operator, value)) {
+        return true;
+      }
+    }
+    return false;
+  }
+
+  // AND logic (default): fail on first non-match
   for (const [key, value] of Object.entries(filters)) {
     const { field, operator } = parseFilterKey(key);
     const itemValue = item[field];
 
     if (!applyFilter(itemValue, operator, value)) {
-      return false; // AND logic: fail on first non-match
+      return false;
     }
   }
 
@@ -2067,15 +2289,21 @@ export function list(type, options = {}) {
     sortBy = 'created',
     sortOrder = 'desc',
     filters = null,
+    filterLogic = 'AND',
     populate = null,
     computed = true,
     computedFields: requestedComputedFields = null,
+    workspaceId = null,
   } = options;
 
   // Check cache first if enabled
-  // Include filters in cache key for accurate caching
+  // Include filters AND workspaceId in cache key for accurate caching
+  // WHY workspaceId IN CACHE KEY:
+  // Different workspace contexts return different content sets.
+  // Without this, a live query caches results that then get served
+  // for workspace-scoped queries (or vice versa), breaking isolation.
   if (cacheEnabled) {
-    const cacheKey = cache.listKey(type, { page, limit, search, sortBy, sortOrder, filters });
+    const cacheKey = cache.listKey(type, { page, limit, search, sortBy, sortOrder, filters, workspaceId });
     const cached = cache.get(cacheKey);
     if (cached !== null) {
       return cached;
@@ -2096,9 +2324,54 @@ export function list(type, options = {}) {
   for (const file of files) {
     const id = file.replace('.json', '');
     // Read without computed fields initially (we'll add them after pagination)
-    const item = read(type, id, { computed: false });
+    // WHY skipWorkspace: true:
+    // - list() handles its own workspace filtering logic below
+    // - read()'s workspace substitution would cause duplicates since list()
+    //   reads ALL files from disk including workspace copies
+    // - The workspace overlay merge in list() needs raw items to work correctly
+    const item = read(type, id, { computed: false, skipWorkspace: true });
     if (item) {
       items.push(item);
+    }
+  }
+
+  // Apply workspace isolation filter
+  // WHY FILTER BY WORKSPACE:
+  // - Live context: exclude items created in any workspace (_workspace field set)
+  // - Workspace context: include ONLY items created in the active workspace
+  //   (not live items - those are separate from workspace staging)
+  // - Mirrors Drupal's workspaces: workspace content is isolated until published
+  //
+  // WHY workspaceId OPTION:
+  // - HTTP requests use X-Workspace header per-request, not CLI-level active workspace
+  // - The workspaceId option allows JSON:API and REST handlers to pass workspace
+  //   context from the request header, overriding the CLI active workspace
+  // - When workspaceId is explicitly provided (even null), it takes precedence
+  // - When 'live' is passed, forces live context regardless of CLI workspace
+  if (workspaceId === 'live') {
+    // Explicit live context: exclude all workspace content
+    items = items.filter(item => !item._workspace);
+  } else if (workspaceId) {
+    // Explicit workspace context from HTTP request header
+    // Show workspace-specific content PLUS live content with workspace overlays
+    const wsItems = items.filter(item => item._workspace === workspaceId);
+    const liveItems = items.filter(item => !item._workspace);
+    // Merge: workspace copies override their live originals
+    const overriddenIds = new Set(wsItems.filter(i => i._originalId).map(i => i._originalId));
+    const filteredLive = liveItems.filter(item => !overriddenIds.has(item.id));
+    items = [...filteredLive, ...wsItems];
+  } else if (workspaceProvider) {
+    const activeWs = workspaceProvider.getActiveWorkspace();
+    if (activeWs) {
+      // CLI workspace context: show workspace content + live with overlays
+      const wsItems = items.filter(item => item._workspace === activeWs.id);
+      const liveItems = items.filter(item => !item._workspace);
+      const overriddenIds = new Set(wsItems.filter(i => i._originalId).map(i => i._originalId));
+      const filteredLive = liveItems.filter(item => !overriddenIds.has(item.id));
+      items = [...filteredLive, ...wsItems];
+    } else {
+      // Live context: exclude all workspace content
+      items = items.filter(item => !item._workspace);
     }
   }
 
@@ -2108,7 +2381,7 @@ export function list(type, options = {}) {
   // - Search is a broad text match
   // - Filtering first reduces items for search to process
   if (filters && Object.keys(filters).length > 0) {
-    items = items.filter(item => matchesFilters(item, filters));
+    items = items.filter(item => matchesFilters(item, filters, filterLogic));
   }
 
   // Apply search filter
@@ -2227,7 +2500,7 @@ export function list(type, options = {}) {
   // - Cache key would need to include populate fields
   // - Complexity vs benefit tradeoff
   if (cacheEnabled && !populate) {
-    const cacheKey = cache.listKey(type, { page, limit, search, sortBy, sortOrder, filters });
+    const cacheKey = cache.listKey(type, { page, limit, search, sortBy, sortOrder, filters, workspaceId });
     cache.set(cacheKey, result, cacheTTL);
   }
 

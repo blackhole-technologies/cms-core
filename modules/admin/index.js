@@ -12953,7 +12953,8 @@ export function hook_routes(register, context) {
         const sortFieldOptsHtml = buildOptionsHtml(availableFields, s.field);
 
         sortsRowsHtml += `
-          <div class="sort-row">
+          <div class="sort-row" draggable="true">
+            <span class="drag-handle" title="Drag to reorder">&#9776;</span>
             <select name="sort[${idx}][field]" class="sort-field" required>
               <option value="">-- Select Field --</option>
               ${sortFieldOptsHtml}
@@ -13064,6 +13065,9 @@ export function hook_routes(register, context) {
       viewFilters,
       hasFilters: viewFilters.length > 0,
       filterCount: viewFilters.length,
+      filterLogic: view?.filterLogic || 'AND',
+      filterLogicAndChecked: (view?.filterLogic || 'AND') === 'AND' ? 'checked' : '',
+      filterLogicOrChecked: (view?.filterLogic || 'AND') === 'OR' ? 'checked' : '',
       filtersRowsHtml,
       // Sorts - pre-rendered HTML for rows
       viewSorts,
@@ -13141,6 +13145,7 @@ export function hook_routes(register, context) {
         value: f.value,
         exposed: f.exposed === 'true',
       }));
+      const filterLogic = formData.filterLogic || 'AND';
       // Parse sorts from form
       const sorts = parseViewArrayFormData(formData, 'sort', ['field', 'direction']).map(s => ({
         field: s.field,
@@ -13157,6 +13162,7 @@ export function hook_routes(register, context) {
         template: (formData.template || '').trim() || null,
         fields: fields.map(f => f.label ? { name: f.name, label: f.label, formatter: f.formatter || 'default' } : f.name),
         filters,
+        filterLogic,
         sort: sorts,
         pager: {
           type: formData.pager_type || 'full',
@@ -13222,6 +13228,7 @@ export function hook_routes(register, context) {
         value: f.value,
         exposed: f.exposed === 'true',
       }));
+      const filterLogic = formData.filterLogic || 'AND';
       // Parse sorts from form
       const sorts = parseViewArrayFormData(formData, 'sort', ['field', 'direction']).map(s => ({
         field: s.field,
@@ -13240,6 +13247,7 @@ export function hook_routes(register, context) {
         footer: (formData.footer || '').trim() || null,
         fields: fields.map(f => f.label ? { name: f.name, label: f.label, formatter: f.formatter || 'default' } : f.name),
         filters,
+        filterLogic,
         sort: sorts,
         pager: {
           type: formData.pager_type || 'full',

@@ -143,6 +143,11 @@
           <button type="button" class="btn btn-sm btn-secondary" onclick="addFilter()">Add Filter</button>
         </div>
         <p class="section-description">Restrict which content items are displayed.</p>
+        <div class="filter-logic-toggle" id="filter-logic-toggle">
+          <label>Filter logic:</label>
+          <label class="radio-inline"><input type="radio" name="filterLogic" value="AND" {{filterLogicAndChecked}}> AND <span class="text-muted">(all must match)</span></label>
+          <label class="radio-inline"><input type="radio" name="filterLogic" value="OR" {{filterLogicOrChecked}}> OR <span class="text-muted">(any can match)</span></label>
+        </div>
         <div id="filters-container">
           {{#if hasFilters}}
           {{filtersRowsHtml}}
@@ -158,7 +163,7 @@
           <h2>Sorts</h2>
           <button type="button" class="btn btn-sm btn-secondary" onclick="addSort()">Add Sort</button>
         </div>
-        <p class="section-description">Control the order of results.</p>
+        <p class="section-description">Control the order of results. Drag to reorder sort priority.</p>
         <div id="sort-container">
           {{#if hasSorts}}
           {{sortsRowsHtml}}
@@ -429,10 +434,25 @@
     }
     .sort-row {
       display: grid;
-      grid-template-columns: 2fr 1.5fr auto;
+      grid-template-columns: auto 2fr 1.5fr auto;
       gap: 0.5rem;
       margin-bottom: 0.5rem;
+      padding: 0.5rem;
       align-items: center;
+      background: white;
+      border: 1px solid #e5e7eb;
+      border-radius: 4px;
+      transition: border-color 0.15s;
+    }
+    .sort-row:hover {
+      border-color: #93c5fd;
+    }
+    .sort-row.dragging {
+      opacity: 0.4;
+      border-color: #3b82f6;
+    }
+    .sort-row.drag-over {
+      border-top: 2px solid #3b82f6;
     }
     .filter-row select,
     .filter-row input,
@@ -673,6 +693,33 @@
       border-color: #93c5fd;
       box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.15);
     }
+    .filter-logic-toggle {
+      display: flex;
+      align-items: center;
+      gap: 1rem;
+      margin-bottom: 0.75rem;
+      padding: 0.5rem 0.75rem;
+      background: #f0f4ff;
+      border-radius: 4px;
+      font-size: 0.85rem;
+    }
+    .filter-logic-toggle label:first-child {
+      font-weight: 600;
+      margin-right: 0.25rem;
+    }
+    .radio-inline {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.25rem;
+      cursor: pointer;
+    }
+    .radio-inline input[type="radio"] {
+      margin: 0;
+    }
+    .text-muted {
+      color: #6b7280;
+      font-size: 0.8rem;
+    }
   </style>
 
   <script>
@@ -882,7 +929,9 @@
 
       var row = document.createElement('div');
       row.className = 'sort-row';
+      row.draggable = true;
       row.innerHTML =
+        '<span class="drag-handle" title="Drag to reorder">&#9776;</span>' +
         '<select name="sort[' + sortIndex + '][field]" class="sort-field" required>' +
           '<option value="">-- Select Field --</option>' +
           buildFieldOptions('') +
@@ -894,6 +943,7 @@
         '<button type="button" class="btn btn-sm btn-danger" onclick="removeSort(this)">Remove</button>';
       container.appendChild(row);
       sortIndex++;
+      initSortDragDrop();
     }
 
     function removeSort(btn) {
@@ -902,6 +952,96 @@
       if (!container.querySelector('.sort-row')) {
         container.innerHTML = '<p class="empty-message">No sorting defined. Add sort fields to control result order.</p>';
       }
+      reindexSorts();
+    }
+
+    // WHY: Sort priority determines which sort criteria is applied first.
+    // Drag-and-drop reordering lets users visually set sort priority without
+    // manually typing index numbers. After each reorder, form field names
+    // are re-indexed so the server receives sorts in the correct order.
+    var sortDragItem = null;
+    function initSortDragDrop() {
+      var container = document.getElementById('sort-container');
+      var rows = container.querySelectorAll('.sort-row');
+      rows.forEach(function(row) {
+        row.removeEventListener('dragstart', handleSortDragStart);
+        row.removeEventListener('dragover', handleSortDragOver);
+        row.removeEventListener('dragenter', handleSortDragEnter);
+        row.removeEventListener('dragleave', handleSortDragLeave);
+        row.removeEventListener('drop', handleSortDrop);
+        row.removeEventListener('dragend', handleSortDragEnd);
+
+        row.addEventListener('dragstart', handleSortDragStart);
+        row.addEventListener('dragover', handleSortDragOver);
+        row.addEventListener('dragenter', handleSortDragEnter);
+        row.addEventListener('dragleave', handleSortDragLeave);
+        row.addEventListener('drop', handleSortDrop);
+        row.addEventListener('dragend', handleSortDragEnd);
+      });
+    }
+
+    function handleSortDragStart(e) {
+      sortDragItem = this;
+      this.classList.add('dragging');
+      e.dataTransfer.effectAllowed = 'move';
+      e.dataTransfer.setData('text/plain', '');
+    }
+
+    function handleSortDragOver(e) {
+      e.preventDefault();
+      e.dataTransfer.dropEffect = 'move';
+    }
+
+    function handleSortDragEnter(e) {
+      e.preventDefault();
+      if (this !== sortDragItem) {
+        this.classList.add('drag-over');
+      }
+    }
+
+    function handleSortDragLeave(e) {
+      this.classList.remove('drag-over');
+    }
+
+    function handleSortDrop(e) {
+      e.preventDefault();
+      e.stopPropagation();
+      this.classList.remove('drag-over');
+      if (sortDragItem && sortDragItem !== this) {
+        var container = document.getElementById('sort-container');
+        var rows = Array.from(container.querySelectorAll('.sort-row'));
+        var fromIdx = rows.indexOf(sortDragItem);
+        var toIdx = rows.indexOf(this);
+        if (fromIdx < toIdx) {
+          container.insertBefore(sortDragItem, this.nextSibling);
+        } else {
+          container.insertBefore(sortDragItem, this);
+        }
+        reindexSorts();
+      }
+    }
+
+    function handleSortDragEnd(e) {
+      this.classList.remove('dragging');
+      var container = document.getElementById('sort-container');
+      container.querySelectorAll('.sort-row').forEach(function(row) {
+        row.classList.remove('drag-over');
+      });
+    }
+
+    // WHY: After drag-and-drop reorder, re-index the form field names so
+    // sort[0], sort[1], sort[2]... match the visual order. This ensures
+    // the server receives sorts in the correct priority order.
+    function reindexSorts() {
+      var container = document.getElementById('sort-container');
+      var rows = container.querySelectorAll('.sort-row');
+      rows.forEach(function(row, idx) {
+        var fieldSelect = row.querySelector('.sort-field');
+        var dirSelect = row.querySelector('.sort-direction');
+        if (fieldSelect) fieldSelect.name = 'sort[' + idx + '][field]';
+        if (dirSelect) dirSelect.name = 'sort[' + idx + '][direction]';
+      });
+      sortIndex = rows.length;
     }
 
     // ---- Display Tabs ----
@@ -1002,6 +1142,9 @@
         });
       });
     }
+
+    // Initialize sort drag-and-drop on page load
+    initSortDragDrop();
   </script>
   <script src="/public/js/shortcuts.js"></script>
   <script>Shortcuts.init({ context: 'global' });</script>
