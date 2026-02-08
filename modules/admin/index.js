@@ -13783,6 +13783,12 @@ export function hook_routes(register, context) {
       formatGrid: displayMode === 'grid',
       formatList: displayMode === 'list',
       formatCustom: displayMode === 'custom',
+      // Relationships
+      relationships: view?.relationships || [],
+      // Aggregation
+      aggregation: view?.aggregation || null,
+      // Empty State
+      emptyState: view?.emptyState || '',
       // Flash
       hasFlash: !!flash,
       flashType: flash ? flash.type : '',
@@ -13929,6 +13935,24 @@ export function hook_routes(register, context) {
         dir: (s.direction || 'DESC').toLowerCase(),
       }));
 
+      // Parse relationships from form
+      const relationships = parseViewArrayFormData(formData, 'relationships', ['field', 'contentType', 'alias'])
+        .filter(r => r.field && r.contentType)
+        .map(r => ({
+          field: r.field,
+          contentType: r.contentType,
+          alias: r.alias || `${r.field}_ref`,
+        }));
+
+      // Parse aggregation from form
+      let aggregation = null;
+      if (formData.aggregation_enabled === 'on' && formData['aggregation[function]']) {
+        aggregation = {
+          function: formData['aggregation[function]'],
+          field: formData['aggregation[field]'] || null,
+        };
+      }
+
       const updates = {
         name: (formData.name || '').trim(),
         description: (formData.description || '').trim(),
@@ -13943,6 +13967,9 @@ export function hook_routes(register, context) {
         filters,
         filterLogic,
         sort: sorts,
+        relationships,
+        aggregation,
+        emptyState: (formData.emptyState || '').trim() || null,
         pager: {
           type: formData.pager_type || 'full',
           limit: parseInt(formData.items_per_page) || 10,
@@ -14117,6 +14144,52 @@ export function hook_routes(register, context) {
       error: queryError,
     }));
   }, 'View preview JSON API');
+
+  /**
+   * GET /admin/views/:id/query.json - Query inspection (debugging tool)
+   * WHY: Shows the generated query structure from view configuration.
+   * This helps developers understand how filters, sorts, fields, and contextual
+   * filters translate into the actual query sent to content.list().
+   */
+  register('GET', '/admin/views/:id/query.json', async (req, res, params, ctx) => {
+    const viewsService = ctx.services.get('views');
+    if (!viewsService) {
+      res.writeHead(404, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ error: 'Views service not available' }));
+      return;
+    }
+
+    const { id } = params;
+    const view = viewsService.getViewConfig(id);
+    if (!view) {
+      res.writeHead(404, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ error: 'View not found: ' + id }));
+      return;
+    }
+
+    let queryStructure = null;
+    let error = null;
+    try {
+      // buildQuery() generates the query structure without executing it
+      queryStructure = viewsService.buildQuery(id, {});
+    } catch (err) {
+      error = err.message;
+    }
+
+    if (error) {
+      res.writeHead(500, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ error }));
+      return;
+    }
+
+    res.writeHead(200, { 'Content-Type': 'application/json' });
+    res.end(JSON.stringify({
+      success: true,
+      viewId: id,
+      viewName: view.name,
+      query: queryStructure,
+    }));
+  }, 'View query inspection API');
 
   /**
    * GET /admin/views/:id/preview - Preview view results

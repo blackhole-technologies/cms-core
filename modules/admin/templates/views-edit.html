@@ -192,6 +192,87 @@
         </div>
       </div>
 
+      <!-- Relationships -->
+      <div class="form-section" id="relationships-section">
+        <div class="section-header">
+          <h2>Relationships</h2>
+          <button type="button" class="btn btn-secondary btn-sm" onclick="addRelationship()">Add Relationship</button>
+        </div>
+        <p class="section-description">Load related content through entity reference fields (e.g., article → author).</p>
+        <div id="relationships-container">
+          {{#if relationships}}
+            {{#each relationships}}
+            <div class="relationship-row">
+              <select name="relationships[{{@index}}][field]" class="relationship-field" required>
+                <option value="">-- Select Field --</option>
+                <option value="author" {{#if (eq field "author")}}selected{{/if}}>Author</option>
+                <option value="category" {{#if (eq field "category")}}selected{{/if}}>Category</option>
+                <option value="tags" {{#if (eq field "tags")}}selected{{/if}}>Tags</option>
+              </select>
+              <select name="relationships[{{@index}}][contentType]" class="relationship-type" required>
+                <option value="">-- Target Type --</option>
+                <option value="user" {{#if (eq contentType "user")}}selected{{/if}}>User</option>
+                <option value="term" {{#if (eq contentType "term")}}selected{{/if}}>Term</option>
+                <option value="article" {{#if (eq contentType "article")}}selected{{/if}}>Article</option>
+              </select>
+              <input type="text" name="relationships[{{@index}}][alias]" placeholder="Alias (e.g., author_ref)" value="{{alias}}" class="relationship-alias">
+              <button type="button" class="btn btn-danger btn-sm" onclick="this.parentElement.remove()">Remove</button>
+            </div>
+            {{/each}}
+          {{else}}
+            <p class="empty-message">No relationships configured. Click "Add Relationship" to join related content.</p>
+          {{/if}}
+        </div>
+      </div>
+
+      <!-- Aggregation -->
+      <div class="form-section" id="aggregation-section">
+        <h2>Aggregation (GROUP BY)</h2>
+        <p class="section-description">Apply aggregate functions like count, sum, average to group results.</p>
+        <div class="form-group">
+          <label>
+            <input type="checkbox" id="aggregation_enabled" name="aggregation_enabled" {{#if aggregation}}checked{{/if}} onchange="toggleAggregation()">
+            Enable aggregation
+          </label>
+        </div>
+        <div id="aggregation-config" style="{{#unless aggregation}}display:none;{{/unless}}">
+          <div class="form-row">
+            <div class="form-group">
+              <label for="aggregation_function">Function</label>
+              <select id="aggregation_function" name="aggregation[function]" onchange="toggleAggregationField()">
+                <option value="">-- Select Function --</option>
+                <option value="count" {{#if (eq aggregation.function "count")}}selected{{/if}}>Count</option>
+                <option value="sum" {{#if (eq aggregation.function "sum")}}selected{{/if}}>Sum</option>
+                <option value="avg" {{#if (eq aggregation.function "avg")}}selected{{/if}}>Average</option>
+                <option value="min" {{#if (eq aggregation.function "min")}}selected{{/if}}>Minimum</option>
+                <option value="max" {{#if (eq aggregation.function "max")}}selected{{/if}}>Maximum</option>
+              </select>
+            </div>
+            <div class="form-group" id="aggregation-field-group" style="{{#if (eq aggregation.function "count")}}display:none;{{/if}}">
+              <label for="aggregation_field">Field</label>
+              <select id="aggregation_field" name="aggregation[field]">
+                <option value="">-- Select Field --</option>
+                <option value="id" {{#if (eq aggregation.field "id")}}selected{{/if}}>ID</option>
+                <option value="created" {{#if (eq aggregation.field "created")}}selected{{/if}}>Created Date</option>
+                <option value="updated" {{#if (eq aggregation.field "updated")}}selected{{/if}}>Updated Date</option>
+              </select>
+              <small>Required for sum, avg, min, max functions</small>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Empty State -->
+      <div class="form-section" id="empty-state-section">
+        <h2>Empty State</h2>
+        <p class="section-description">Configure what to display when the view returns no results.</p>
+        <div class="form-group">
+          <label for="empty_state">Empty State Message</label>
+          <textarea id="empty_state" name="emptyState" rows="3" placeholder="No results found. Try adjusting your filters.">{{emptyState}}</textarea>
+          <small>Displayed when no content matches the view filters. Supports HTML.</small>
+        </div>
+      </div>
+
       <!-- Header & Footer Areas -->
       <div class="form-section" id="header-footer-section">
         <h2>Header & Footer</h2>
@@ -235,6 +316,21 @@
       </div>
       <div id="preview-error" style="display:none; padding:1rem; background:#fef2f2; border:1px solid #fecaca; border-radius:8px; color:#991b1b; margin-bottom:1rem;"></div>
       <div id="preview-results"></div>
+    </div>
+
+    <!-- Query Inspector -->
+    <div id="query-inspector" style="display:none; margin-top: 2rem;">
+      <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:1rem; border-bottom:2px solid #059669; padding-bottom:0.5rem;">
+        <h2 style="margin:0; color:#059669;">Query Structure</h2>
+        <button type="button" class="btn btn-secondary" onclick="document.getElementById('query-inspector').style.display='none'" style="font-size:0.85rem; padding:0.3rem 0.8rem;">Close</button>
+      </div>
+      <div id="query-loading" style="display:none; text-align:center; padding:2rem; color:#6b7280;">
+        Loading query structure...
+      </div>
+      <div id="query-error" style="display:none; padding:1rem; background:#fef2f2; border:1px solid #fecaca; border-radius:8px; color:#991b1b; margin-bottom:1rem;"></div>
+      <div id="query-results" style="background:#f9fafb; border:1px solid #e5e7eb; border-radius:8px; padding:1.5rem; font-family:monospace; font-size:0.85rem; overflow-x:auto;">
+        <pre id="query-json" style="margin:0; white-space:pre-wrap; word-wrap:break-word;"></pre>
+      </div>
     </div>
     {{/if}}
   </div>
@@ -1064,6 +1160,55 @@
       sortIndex = rows.length;
     }
 
+    // ---- Relationships ----
+    var relationshipIndex = {{#if relationships}}{{relationships.length}}{{else}}0{{/if}};
+
+    function addRelationship() {
+      var container = document.getElementById('relationships-container');
+      var empty = container.querySelector('.empty-message');
+      if (empty) empty.remove();
+
+      var row = document.createElement('div');
+      row.className = 'relationship-row';
+      row.innerHTML =
+        '<select name="relationships[' + relationshipIndex + '][field]" class="relationship-field" required>' +
+          '<option value="">-- Select Field --</option>' +
+          '<option value="author">Author</option>' +
+          '<option value="category">Category</option>' +
+          '<option value="tags">Tags</option>' +
+        '</select>' +
+        '<select name="relationships[' + relationshipIndex + '][contentType]" class="relationship-type" required>' +
+          '<option value="">-- Target Type --</option>' +
+          '<option value="user">User</option>' +
+          '<option value="term">Term</option>' +
+          '<option value="article">Article</option>' +
+        '</select>' +
+        '<input type="text" name="relationships[' + relationshipIndex + '][alias]" placeholder="Alias (e.g., author_ref)" class="relationship-alias">' +
+        '<button type="button" class="btn btn-sm btn-danger" onclick="this.parentElement.remove()">Remove</button>';
+      container.appendChild(row);
+      relationshipIndex++;
+    }
+
+    // ---- Aggregation ----
+    function toggleAggregation() {
+      var enabled = document.getElementById('aggregation_enabled').checked;
+      var config = document.getElementById('aggregation-config');
+      config.style.display = enabled ? 'block' : 'none';
+
+      if (!enabled) {
+        // Clear values when disabled
+        document.getElementById('aggregation_function').value = '';
+        document.getElementById('aggregation_field').value = '';
+      }
+    }
+
+    function toggleAggregationField() {
+      var func = document.getElementById('aggregation_function').value;
+      var fieldGroup = document.getElementById('aggregation-field-group');
+      // Count doesn't need a field, all others do
+      fieldGroup.style.display = (func === 'count' || func === '') ? 'none' : 'block';
+    }
+
     // ---- Display Tabs ----
     function switchDisplay(displayId) {
       // Update tab active state
@@ -1238,6 +1383,54 @@
         previewLoading.style.display = 'none';
         previewError.style.display = 'block';
         previewError.textContent = 'Failed to load preview: ' + err.message;
+      });
+    }
+
+    /**
+     * Show query structure for debugging
+     * WHY: Developers need to see how view configuration (filters, sorts, fields)
+     * translates into the actual query sent to content.list(). This helps debug
+     * complex views and understand query generation.
+     */
+    function showQuery() {
+      var queryInspector = document.getElementById('query-inspector');
+      var queryLoading = document.getElementById('query-loading');
+      var queryError = document.getElementById('query-error');
+      var queryResults = document.getElementById('query-results');
+      var queryJson = document.getElementById('query-json');
+
+      // Show inspector panel
+      queryInspector.style.display = 'block';
+      queryLoading.style.display = 'block';
+      queryError.style.display = 'none';
+      queryResults.style.display = 'none';
+
+      var viewId = document.querySelector('input[name="machine_name"]').value;
+
+      fetch('/admin/views/' + viewId + '/query.json', {
+        credentials: 'same-origin'
+      })
+      .then(function(resp) { return resp.json(); })
+      .then(function(data) {
+        queryLoading.style.display = 'none';
+
+        if (data.error) {
+          queryError.style.display = 'block';
+          queryError.textContent = 'Error: ' + data.error;
+          return;
+        }
+
+        // Display formatted query structure
+        queryResults.style.display = 'block';
+        queryJson.textContent = JSON.stringify(data.query, null, 2);
+
+        // Scroll to query inspector
+        queryInspector.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      })
+      .catch(function(err) {
+        queryLoading.style.display = 'none';
+        queryError.style.display = 'block';
+        queryError.textContent = 'Failed to load query: ' + err.message;
       });
     }
   </script>
