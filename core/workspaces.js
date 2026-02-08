@@ -1458,17 +1458,140 @@ export async function publishContent(workspaceId, contentId, user = null) {
       throw new Error(`Workspace copy "${workspaceCopyId}" not found for content "${contentId}"`);
     }
 
-    // Prepare the live version: strip workspace metadata, restore original ID
-    const liveContent = { ...workspaceCopy };
-    liveContent.id = contentId;
-    delete liveContent._workspace;
-    delete liveContent._originalId;
-    delete liveContent._originalType;
-    liveContent.updated = new Date().toISOString();
+    // Read the current live version for merge
+    const currentLive = readContentFile(contentType, contentId);
 
-    // Write updated live content
+    /**
+     * MERGE NON-CONFLICTING CHANGES
+     *
+     * WHY MERGE:
+     * When a workspace edits field A and live edits field B of the same content,
+     * both changes should be preserved on publish. A full overwrite would lose
+     * the live changes to field B. This follows Drupal's workspaces module
+     * approach of automatic merge for non-conflicting field-level changes.
+     *
+     * STRATEGY (three-way merge):
+     * 1. Find the ORIGINAL BASELINE — the content as it existed when the
+     *    workspace copy was first created (using revision history)
+     * 2. Diff workspace copy vs baseline → identify workspace-changed fields
+     * 3. Start with current live content (preserves all live-side changes)
+     * 4. Overlay ONLY workspace-changed fields on top
+     * 5. Result: merged content with both sets of changes preserved
+     *
+     * For conflicting fields (both workspace and live changed the same field),
+     * workspace version wins — the user was already warned by conflict detection
+     * and chose to publish anyway (or there were no true conflicts).
+     */
+    let mergedContent;
+
+    if (currentLive) {
+      // Metadata fields that should not participate in merge comparison
+      const metaFields = new Set([
+        'id', '_workspace', '_originalId', '_originalType',
+        'updated', 'created', 'revisions',
+      ]);
+
+      /**
+       * Find the original baseline from revision history.
+       *
+       * WHY REVISIONS:
+       * The workspace copy was created at a specific point in time. The revision
+       * closest to (but not after) the association timestamp represents the content
+       * state when the workspace copy was branched. By comparing the workspace copy
+       * against this baseline, we can determine exactly which fields the workspace
+       * user actually changed, vs fields that were inherited unchanged from the original.
+       */
+      let baseline = null;
+      const revisionsDir = join(contentDir, contentType, '.revisions', contentId);
+      if (existsSync(revisionsDir)) {
+        try {
+          const revFiles = readdirSync(revisionsDir)
+            .filter(f => f.endsWith('.json'))
+            .sort(); // Chronological order
+
+          // Find the revision closest to (at or before) the workspace association timestamp
+          const assocTime = new Date(association.timestamp).getTime();
+          let bestRevFile = null;
+          for (const rf of revFiles) {
+            // Revision filename is a timestamp like 2026-02-08T02-37-35.551Z.json
+            const revTimestamp = rf.replace('.json', '').replace(/-/g, (m, offset) => {
+              // Convert filename back to ISO timestamp for comparison:
+              // 2026-02-08T02-37-35.551Z → 2026-02-08T02:37:35.551Z
+              // Hyphens in date part (positions 4,7) stay as hyphens
+              // Hyphens in time part become colons
+              return offset > 9 ? ':' : m;
+            });
+            const revTime = new Date(revTimestamp).getTime();
+            if (!isNaN(revTime) && revTime <= assocTime) {
+              bestRevFile = rf;
+            }
+          }
+          if (bestRevFile) {
+            const revPath = join(revisionsDir, bestRevFile);
+            baseline = JSON.parse(readFileSync(revPath, 'utf-8'));
+          }
+        } catch {
+          // If revision lookup fails, fall through to non-baseline merge
+        }
+      }
+
+      // Start with current live content (preserves any live-side changes)
+      mergedContent = { ...currentLive };
+
+      if (baseline) {
+        // THREE-WAY MERGE: Compare workspace copy against baseline to find
+        // which fields the workspace actually changed, then apply only those.
+        for (const key of Object.keys(workspaceCopy)) {
+          if (metaFields.has(key)) continue;
+
+          const wsVal = JSON.stringify(workspaceCopy[key]);
+          const baseVal = JSON.stringify(baseline[key]);
+
+          // If workspace value differs from baseline, the workspace changed this field
+          if (wsVal !== baseVal) {
+            mergedContent[key] = workspaceCopy[key];
+          }
+          // If workspace value == baseline value, workspace didn't change it.
+          // Keep the current live version (which may have been updated independently).
+        }
+
+        // Also check for fields that exist in workspace copy but not in baseline
+        // (new fields added by workspace)
+        for (const key of Object.keys(workspaceCopy)) {
+          if (metaFields.has(key)) continue;
+          if (!(key in baseline)) {
+            mergedContent[key] = workspaceCopy[key];
+          }
+        }
+      } else {
+        // No baseline found — fall back to simple workspace-wins-on-diff merge.
+        // This is less precise but still better than full overwrite.
+        for (const key of Object.keys(workspaceCopy)) {
+          if (metaFields.has(key)) continue;
+
+          const wsVal = JSON.stringify(workspaceCopy[key]);
+          const liveVal = JSON.stringify(currentLive[key]);
+
+          if (wsVal !== liveVal) {
+            mergedContent[key] = workspaceCopy[key];
+          }
+        }
+      }
+    } else {
+      // No live version exists (edge case) — use workspace copy as-is
+      mergedContent = { ...workspaceCopy };
+    }
+
+    // Restore correct metadata
+    mergedContent.id = contentId;
+    delete mergedContent._workspace;
+    delete mergedContent._originalId;
+    delete mergedContent._originalType;
+    mergedContent.updated = new Date().toISOString();
+
+    // Write merged content to live
     const livePath = join(contentDir, contentType, `${contentId}.json`);
-    writeFileSync(livePath, JSON.stringify(liveContent, null, 2) + '\n');
+    writeFileSync(livePath, JSON.stringify(mergedContent, null, 2) + '\n');
 
     // Delete the workspace copy
     const copyPath = join(contentDir, contentType, `${workspaceCopyId}.json`);
