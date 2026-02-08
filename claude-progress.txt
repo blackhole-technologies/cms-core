@@ -1,3 +1,51 @@
+## Session 22 - 2026-02-08
+
+### Completed
+- Feature #8: Content.get() accepts includeAllRevisions option (PASSING)
+  - read() accepts includeAllRevisions option in options object
+  - When true, returns main item with _revisions array of all historical revisions
+  - Revisions sorted chronologically (oldest first)
+  - Both default and non-default (pending draft) revisions included
+  - _revisionCount field shows total count
+  - CLI: content:show --include-revisions shows all revisions inline
+- Feature #10: Content.list() accepts includeAllRevisions option (PASSING)
+  - list() accepts includeAllRevisions option
+  - When true, adds historical revisions as separate items in the listing
+  - Each revision item has _isHistoricalRevision and _revisionTimestamp metadata
+  - Non-default revisions marked in CLI output with [non-default] tag
+  - CLI: content:list --include-revisions includes all revisions
+- Feature #17: API GET /jsonapi?include=allRevisions returns all (PASSING)
+  - JSON:API collection and single resource endpoints support ?include=allRevisions
+  - Revision metadata placed in resource meta (revisionTimestamp, isHistoricalRevision)
+  - Single resource: meta.revisions array with full revision resources
+  - Single resource: meta.revisionCount for total count
+  - Collection: revision items appear as separate resources with meta tags
+  - Proper JSON:API format maintained (data, attributes, meta, links)
+  - allRevisions filtered from normal include resolution to avoid errors
+
+### Changes Made
+1. **core/content.js**: Added includeAllRevisions option to read() and list() functions.
+   read() returns item with _revisions array and _revisionCount when enabled.
+   list() includes historical revisions as separate items in results.
+
+2. **core/boot.js**: Added --include-revisions flag parsing to content:show and
+   content:list CLI commands. Enhanced display to show revision tags and
+   non-default indicators.
+
+3. **core/jsonapi.js**: Modified handleCollection and handleRead to detect
+   allRevisions in include parameter. Updated toResource to expose revision
+   metadata in resource meta section. Filtered allRevisions from normal
+   include resolution.
+
+### Current Status
+- 92/165 features passing (~55.8%)
+- Pending revisions tier: Features 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17 done
+- All 3 assigned features completed
+
+### Next Steps
+- Continue pending revisions tier (Features 18-24)
+- Continue other tiers as assigned
+
 ## Session 20 - 2026-02-08
 
 ### Completed
