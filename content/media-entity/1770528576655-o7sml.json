@@ -1,0 +1,12 @@
+{
+  "id": "1770528576655-o7sml",
+  "type": "media-entity",
+  "created": "2026-02-08T05:29:36.655Z",
+  "updated": "2026-02-08T05:29:36.655Z",
+  "name": "Test JPG",
+  "mediaType": "image",
+  "filename": "test.jpg",
+  "path": "/media/test.jpg",
+  "isDefaultRevision": true,
+  "status": "draft"
+}

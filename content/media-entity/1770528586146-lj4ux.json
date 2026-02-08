@@ -1,0 +1,12 @@
+{
+  "id": "1770528586146-lj4ux",
+  "type": "media-entity",
+  "created": "2026-02-08T05:29:46.146Z",
+  "updated": "2026-02-08T05:29:46.146Z",
+  "name": "Test Uppercase",
+  "mediaType": "image",
+  "filename": "photo.JPG",
+  "path": "/media/photo.JPG",
+  "isDefaultRevision": true,
+  "status": "draft"
+}
