@@ -12,23 +12,23 @@
 
 ---
 
-## TIER 1: FIELD GROUP (Features 0-6)
+## TIER 1: TOKEN SYSTEM (Features 0-6)
 
 These must pass before any functional features.
 
 ### Features
 
-### Feature 0: Field group definition and storage service
+### Feature 0: Token replacement service
 
-### Feature 1: Fieldset group formatter
+### Feature 1: Token browser UI admin route
 
-### Feature 2: Tab group formatter (horizontal/vertical)
+### Feature 2: Custom token type registration API
 
-### Feature 3: Accordion group formatter
+### Feature 3: Entity token providers (node, user, etc.)
 
-### Feature 4: Details/collapsible group formatter
+### Feature 4: Date and system token providers
 
-### Feature 5: Display mode group configuration
+### Feature 5: Token tree rendering service
 
-### Feature 6: Admin route: field group management per entity
+### Feature 6: CLI command: token:list available tokens
 
