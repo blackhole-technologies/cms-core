@@ -1,11 +1,11 @@
-# CMS-Core — Coding Agent Guide
+# CMS-Core — Architecture Guide
 
-## ⚠️ CRITICAL: Module Structure
+## Project Structure
 
-**ALL new functionality MUST be created as modules in `modules/<name>/`, NOT in `core/`.**
+CMS-Core has two main code locations:
 
-The `core/` directory contains only foundational services that ship with the platform.
-New features (field groups, trash, scheduler, AI, SEO, etc.) are **modules**.
+- **`core/`** — Foundational services (boot, auth, database, content, fields, cache, etc.). ~90 files. Modify these when fixing bugs or extending existing core behaviour.
+- **`modules/`** — Self-contained feature packages. New features typically go here unless they extend an existing core service.
 
 ### Creating a New Module
 
@@ -108,11 +108,21 @@ Verify: `curl http://localhost:3001/` should return JSON with site info.
 CMS-Core uses SQLite via `core/database.js`. Content is stored as JSON files in `content/`.
 Modules can create their own SQLite tables via `hook_install`.
 
-## Key Rules
+## When to Use What
 
-1. **NEVER create files in `core/`** — use `modules/<name>/` instead
-2. **ALWAYS create manifest.json** for new modules
-3. **ALWAYS add module to `config/modules.json`** after creating it
-4. **Use hook pattern** — don't modify existing files unless fixing bugs in them
-5. **Test on port 3001** — `curl` or browser automation
-6. **Commit after each feature** — descriptive message with feature ID
+| You're building... | Put it in... |
+|---|---|
+| A new self-contained feature (trash, scheduler, SEO, AI) | `modules/<name>/` with manifest.json |
+| A fix or extension to an existing core service | `core/<existing-file>.js` |
+| A new foundational service used by many modules | `core/<new-service>.js` (rare — check with project context first) |
+| New content types or config | `content/` or `config/` |
+
+**When in doubt, check the phase context or project context for specific guidance.**
+
+## Key Conventions
+
+1. **New modules need `manifest.json`** and must be added to `config/modules.json`
+2. **Use hook pattern** in modules — `hook_boot`, `hook_routes`, `hook_content`, `hook_cron`, `hook_install`
+3. **Test on port 3001** — `curl` or browser automation
+4. **Commit after each feature** — descriptive message with feature ID
+5. **Zero npm dependencies** — Node.js built-ins only
