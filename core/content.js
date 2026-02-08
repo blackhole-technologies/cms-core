@@ -1497,7 +1497,53 @@ export function read(type, id, options = {}) {
     computedFields: requestedComputedFields = null,
     context = null,
     skipWorkspace = false,
+    includeAllRevisions = false,
   } = options;
+
+  // INCLUDE ALL REVISIONS:
+  // When includeAllRevisions is true, return the main content item with an
+  // attached `revisions` array containing all historical revisions (both
+  // default and non-default). This enables callers to see the full revision
+  // history inline, including pending drafts.
+  //
+  // WHY on read() not a separate function:
+  // - Matches Drupal's entity load with revision support
+  // - Single call returns everything needed for revision comparison UIs
+  // - Callers can opt-in without changing their code structure
+  if (includeAllRevisions) {
+    const mainItem = read(type, id, { ...options, includeAllRevisions: false });
+    if (!mainItem) return null;
+
+    // Get all revisions from the .revisions/ directory
+    const allRevisions = getRevisions(type, id);
+    const revisionDetails = [];
+
+    for (const rev of allRevisions) {
+      const revContent = getRevision(type, id, rev.timestamp);
+      if (revContent) {
+        revisionDetails.push({
+          ...revContent,
+          _revisionTimestamp: rev.timestamp,
+          _isHistoricalRevision: true,
+        });
+      }
+    }
+
+    // Sort chronologically (oldest first)
+    revisionDetails.sort((a, b) => {
+      const tsA = a._revisionTimestamp || a.updated || a.created || '';
+      const tsB = b._revisionTimestamp || b.updated || b.created || '';
+      return new Date(tsA).getTime() - new Date(tsB).getTime();
+    });
+
+    // Attach revisions array to the main item
+    // The main item is the current default revision
+    return {
+      ...mainItem,
+      _revisions: revisionDetails,
+      _revisionCount: revisionDetails.length + 1, // +1 for current
+    };
+  }
 
   // WORKSPACE-AWARE READ:
   // When a workspace is active, check if a workspace-specific copy exists

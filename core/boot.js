@@ -2685,7 +2685,11 @@ export async function boot(baseDir, options = {}) {
         throw new Error('Unknown content type');
       }
 
-      const item = content.read(type, id);
+      // --include-revisions flag triggers includeAllRevisions mode
+      // WHY: Enables CLI users to see the full revision history inline
+      // with a single command, matching the API's includeAllRevisions option
+      const includeAll = args.includes('--include-revisions') || args.includes('--includeAllRevisions');
+      const item = content.read(type, id, { includeAllRevisions: includeAll });
 
       if (!item) {
         console.error(`Content not found: ${type}/${id}`);
@@ -2695,8 +2699,11 @@ export async function boot(baseDir, options = {}) {
       if (item._workspace) {
         console.log(`\n[Workspace copy — original: ${item._originalId || 'N/A'}]`);
       }
+      if (includeAll && item._revisions) {
+        console.log(`\n[Showing all revisions: ${item._revisionCount} total (1 current + ${item._revisions.length} historical)]`);
+      }
       console.log(JSON.stringify(item, null, 2));
-    }, 'Show a single content item');
+    }, 'Show a single content item (--include-revisions for all revisions)');
 
     // content:delete <type> <id> - Delete content
     cli.register('content:delete', async (args, ctx) => {
