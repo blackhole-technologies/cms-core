@@ -1,0 +1,62 @@
+[
+  {
+    "id": "node.article.default.basic_info",
+    "entity_type": "node",
+    "bundle": "article",
+    "mode": "default",
+    "group_name": "basic_info",
+    "label": "Basic Information",
+    "format_type": "fieldset",
+    "format_settings": {},
+    "parent_name": null,
+    "weight": 0,
+    "children": [],
+    "created_at": "2026-02-08T09:23:57.823Z",
+    "updated_at": "2026-02-08T09:23:57.823Z"
+  },
+  {
+    "id": "node.article.default.advanced_info",
+    "entity_type": "node",
+    "bundle": "article",
+    "mode": "default",
+    "group_name": "advanced_info",
+    "label": "Advanced Information",
+    "format_type": "fieldset",
+    "format_settings": {},
+    "parent_name": null,
+    "weight": 0,
+    "children": [],
+    "created_at": "2026-02-08T09:24:16.527Z",
+    "updated_at": "2026-02-08T09:24:16.527Z"
+  },
+  {
+    "id": "--entity-type=node.--bundle=article.default.--mode=default",
+    "entity_type": "--entity-type=node",
+    "bundle": "--bundle=article",
+    "mode": "default",
+    "group_name": "--mode=default",
+    "label": "--name=test_regression",
+    "format_type": "fieldset",
+    "format_settings": {},
+    "parent_name": null,
+    "weight": 0,
+    "children": [],
+    "created_at": "2026-02-08T09:24:57.374Z",
+    "updated_at": "2026-02-08T09:24:57.374Z"
+  },
+  {
+    "id": "node.article.default.tabs_group",
+    "entity_type": "node",
+    "bundle": "article",
+    "mode": "default",
+    "group_name": "tabs_group",
+    "label": "Tabbed Group",
+    "format_type": "fieldset",
+    "format_settings": {},
+    "parent_name": null,
+    "weight": 0,
+    "children": [],
+    "created_at": "2026-02-08T09:27:27.381Z",
+    "updated_at": "2026-02-08T09:27:27.381Z"
+  }
+]
