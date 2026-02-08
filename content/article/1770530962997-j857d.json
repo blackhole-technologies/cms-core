@@ -1,0 +1,12 @@
+{
+  "id": "1770530962997-j857d",
+  "type": "article",
+  "created": "2026-02-08T06:09:22.997Z",
+  "updated": "2026-02-08T06:09:22.997Z",
+  "title": "ARIA Labels Test Article",
+  "slug": "aria-labels-test",
+  "body": "<div><button>Click Me</button><button></button><input type=\"text\" placeholder=\"Enter name\"><input type=\"email\" aria-label=\"Email address\"><form><input type=\"text\" name=\"username\"><input type=\"password\" name=\"password\"></form></div>",
+  "status": "published",
+  "isDefaultRevision": true,
+  "publishedAt": "2026-02-08T06:09:22.997Z"
+}

@@ -1,0 +1,6 @@
+{
+  "title": "Accessibility Score Test - Few Issues",
+  "slug": "score-test-few-issues",
+  "body": "<div><img src=\"test.jpg\" alt=\"Test image\"><button>Click Me</button><input type=\"text\" aria-label=\"Name\"><h1>Title</h1><h2>Subtitle</h2><a href=\"/about\">Learn about our services</a></div>",
+  "status": "published"
+}

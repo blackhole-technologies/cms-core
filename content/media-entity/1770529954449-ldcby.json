@@ -1,0 +1,41 @@
+{
+  "id": "1770529954449-ldcby",
+  "type": "media-entity",
+  "created": "2026-02-08T05:52:34.449Z",
+  "updated": "2026-02-08T05:52:34.449Z",
+  "name": "Rick Astley - Never Gonna Give You Up (Official Video) (4K Remaster)",
+  "mediaType": "remote_video",
+  "filename": "https://www.youtube.com/watch?v=dQw4w9WgXcQ",
+  "path": "https://www.youtube.com/watch?v=dQw4w9WgXcQ",
+  "mimeType": "video/embed",
+  "size": 0,
+  "metadata": {
+    "url": "https://www.youtube.com/watch?v=dQw4w9WgXcQ",
+    "provider": "youtube",
+    "videoId": "dQw4w9WgXcQ",
+    "embedUrl": "https://www.youtube.com/embed/dQw4w9WgXcQ",
+    "oembed": {
+      "type": "video",
+      "title": "Rick Astley - Never Gonna Give You Up (Official Video) (4K Remaster)",
+      "author_name": "Rick Astley",
+      "author_url": "https://www.youtube.com/@RickAstleyYT",
+      "provider_name": "YouTube",
+      "provider_url": "https://www.youtube.com/",
+      "thumbnail_url": "https://i.ytimg.com/vi/dQw4w9WgXcQ/hqdefault.jpg",
+      "thumbnail_url_cached": "/media/oembed-cache/thumb-75170fc230cd88f32e475ff4087f81d9.jpg",
+      "thumbnail_width": 480,
+      "thumbnail_height": 360,
+      "html": "<iframe width=\"800\" height=\"450\" src=\"https://www.youtube.com/embed/dQw4w9WgXcQ?feature=oembed\" frameborder=\"0\" allow=\"accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share\" referrerpolicy=\"strict-origin-when-cross-origin\" allowfullscreen title=\"Rick Astley - Never Gonna Give You Up (Official Video) (4K Remaster)\"></iframe>",
+      "width": 800,
+      "height": 450
+    }
+  },
+  "thumbnail": "/media/oembed-cache/thumb-75170fc230cd88f32e475ff4087f81d9.jpg",
+  "tags": [],
+  "alt": "Rick Astley - Never Gonna Give You Up (Official Video) (4K Remaster)",
+  "caption": "",
+  "credit": "Rick Astley",
+  "status": "published",
+  "isDefaultRevision": true,
+  "publishedAt": "2026-02-08T05:52:34.449Z"
+}

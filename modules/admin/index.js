@@ -17499,7 +17499,10 @@ export function hook_routes(register, context) {
     const canReplace = item.mediaType !== 'remote_video';
 
     const html = renderAdmin('media-detail.html', {
-      item,
+      item: {
+        ...item,
+        focalPoint: item.focalPoint || { x: 0.5, y: 0.5 } // Default to center
+      },
       usage: usageList,
       hasUsage: usageList.length > 0,
       noUsage: usageList.length === 0,
@@ -17550,6 +17553,38 @@ export function hook_routes(register, context) {
       server.json(res, { error: err.message }, 500);
     }
   }, 'Track media usage');
+
+  /**
+   * POST /admin/media/library/:id/set-focal-point - Set focal point for image
+   * WHY: Allows smart cropping by defining the important area of an image
+   */
+  register('POST', '/admin/media/library/:id/set-focal-point', async (req, res, params, ctx) => {
+    const mediaLibrary = ctx.services.get('mediaLibrary');
+    const server = ctx.services.get('server');
+
+    try {
+      const body = ctx._parsedBody || {};
+      const { x, y } = body;
+
+      // Validate coordinates (0-1 range)
+      const xNum = parseFloat(x);
+      const yNum = parseFloat(y);
+
+      if (isNaN(xNum) || isNaN(yNum) || xNum < 0 || xNum > 1 || yNum < 0 || yNum > 1) {
+        server.json(res, { error: 'Invalid focal point coordinates. Must be between 0 and 1.' }, 400);
+        return;
+      }
+
+      // Update media entity with focal point
+      await mediaLibrary.update(params.id, {
+        focalPoint: { x: xNum, y: yNum }
+      });
+
+      server.json(res, { success: true, focalPoint: { x: xNum, y: yNum } });
+    } catch (err) {
+      server.json(res, { error: err.message }, 500);
+    }
+  }, 'Set focal point for image');
 
   /**
    * POST /admin/media/library/:id/remove-usage - Remove media usage tracking

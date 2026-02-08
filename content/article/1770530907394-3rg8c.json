@@ -1,0 +1,10 @@
+{
+  "id": "1770530907394-3rg8c",
+  "type": "article",
+  "created": "2026-02-08T06:08:27.394Z",
+  "updated": "2026-02-08T06:08:27.394Z",
+  "title": "Complete Guide to Web Performance",
+  "body": "This comprehensive guide explores techniques for improving website speed and user experience. Modern web applications require careful attention to loading times, resource management, and code efficiency. When implementing performance improvements, start by measuring current metrics using tools like Lighthouse or WebPageTest. Key strategies include minifying assets, leveraging browser caching, optimizing images, and reducing JavaScript bundle sizes. Content delivery networks help distribute resources globally for faster access. Progressive enhancement ensures sites work across all devices and connections. Regular audits identify bottlenecks and opportunities. Database query optimization reduces server response times. Lazy loading defers non-critical resources until needed. These practices combined create fast, reliable web experiences that users appreciate and search engines reward.",
+  "isDefaultRevision": true,
+  "status": "draft"
+}

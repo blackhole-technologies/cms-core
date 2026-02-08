@@ -105,6 +105,24 @@
       </table>
     </div>
 
+    <!-- Focal Point (Images Only) -->
+    {{#if isImage}}
+    <div style="background:white;border:1px solid #ddd;border-radius:8px;padding:16px;margin-bottom:16px">
+      <h2 style="margin:0 0 12px;font-size:16px">Focal Point</h2>
+      <p style="font-size:13px;color:#666;margin:0 0 12px">Click on the image preview to set the focal point for smart cropping.</p>
+      <div style="display:flex;gap:8px;align-items:center;margin-bottom:8px">
+        <div style="flex:1">
+          <label style="font-size:12px;color:#666">X: <input type="number" id="focalX" value="{{item.focalPoint.x}}" min="0" max="1" step="0.01" style="width:80px;padding:4px;border:1px solid #ccc;border-radius:4px"></label>
+        </div>
+        <div style="flex:1">
+          <label style="font-size:12px;color:#666">Y: <input type="number" id="focalY" value="{{item.focalPoint.y}}" min="0" max="1" step="0.01" style="width:80px;padding:4px;border:1px solid #ccc;border-radius:4px"></label>
+        </div>
+      </div>
+      <button onclick="saveFocalPoint()" style="width:100%;padding:8px 16px;border:none;background:#4caf50;color:white;border-radius:4px;cursor:pointer;font-size:14px;font-weight:600">Save Focal Point</button>
+      <div id="focalMessage" style="margin-top:8px;font-size:13px"></div>
+    </div>
+    {{/if}}
+
     <!-- Replace Media -->
     {{#if canReplace}}
     <div style="background:white;border:1px solid #ddd;border-radius:8px;padding:16px;margin-bottom:16px">
@@ -163,6 +181,62 @@
 <script>
 var mediaId = '{{item.id}}';
 var csrfToken = '{{csrfToken}}';
+var isImage = {{#if isImage}}true{{else}}false{{/if}};
+
+// Focal point click handler for image preview
+if (isImage) {
+  var imgEl = document.querySelector('img[src="{{url}}"]');
+  if (imgEl) {
+    imgEl.style.cursor = 'crosshair';
+    imgEl.addEventListener('click', function(e) {
+      var rect = imgEl.getBoundingClientRect();
+      var x = (e.clientX - rect.left) / rect.width;
+      var y = (e.clientY - rect.top) / rect.height;
+      document.getElementById('focalX').value = x.toFixed(2);
+      document.getElementById('focalY').value = y.toFixed(2);
+
+      // Visual indicator
+      var indicator = document.getElementById('focalIndicator');
+      if (!indicator) {
+        indicator = document.createElement('div');
+        indicator.id = 'focalIndicator';
+        indicator.style.cssText = 'position:absolute;width:20px;height:20px;border:3px solid #ff5722;border-radius:50%;pointer-events:none;transform:translate(-50%,-50%)';
+        imgEl.parentElement.style.position = 'relative';
+        imgEl.parentElement.appendChild(indicator);
+      }
+      indicator.style.left = (x * rect.width) + 'px';
+      indicator.style.top = (y * rect.height) + 'px';
+    });
+  }
+}
+
+async function saveFocalPoint() {
+  var x = parseFloat(document.getElementById('focalX').value);
+  var y = parseFloat(document.getElementById('focalY').value);
+  var msg = document.getElementById('focalMessage');
+
+  if (isNaN(x) || isNaN(y) || x < 0 || x > 1 || y < 0 || y > 1) {
+    msg.innerHTML = '<span style="color:#d32f2f">Invalid coordinates. Must be between 0 and 1.</span>';
+    return;
+  }
+
+  try {
+    var body = '_csrf=' + encodeURIComponent(csrfToken) + '&x=' + x + '&y=' + y;
+    var resp = await fetch('/admin/media/library/' + mediaId + '/set-focal-point', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+      body: body
+    });
+    var data = await resp.json();
+    if (data.success) {
+      msg.innerHTML = '<span style="color:#4caf50">Focal point saved: (' + x.toFixed(2) + ', ' + y.toFixed(2) + ')</span>';
+    } else {
+      msg.innerHTML = '<span style="color:#d32f2f">' + (data.error || 'Failed') + '</span>';
+    }
+  } catch(err) {
+    msg.innerHTML = '<span style="color:#d32f2f">Error: ' + err.message + '</span>';
+  }
+}
 
 async function addUsage() {
   var ct = document.getElementById('usageContentType').value.trim();

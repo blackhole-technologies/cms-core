@@ -536,6 +536,7 @@ export async function createFromUrl(url, options = {}) {
         provider_name: oembedData.provider_name || null,
         provider_url: oembedData.provider_url || null,
         thumbnail_url: oembedData.thumbnail_url || null,
+        thumbnail_url_cached: oembedData.thumbnail_url_cached || null,
         thumbnail_width: oembedData.thumbnail_width || null,
         thumbnail_height: oembedData.thumbnail_height || null,
         html: oembedData.html || null,
@@ -543,7 +544,7 @@ export async function createFromUrl(url, options = {}) {
         height: oembedData.height || null,
       } : null,
     },
-    thumbnail: (oembedData && oembedData.thumbnail_url) || videoInfo.thumbnailUrl || null,
+    thumbnail: (oembedData && (oembedData.thumbnail_url_cached || oembedData.thumbnail_url)) || videoInfo.thumbnailUrl || null,
     tags: options.tags || [],
     alt: options.alt || (oembedData && oembedData.title) || '',
     caption: options.caption || '',
@@ -1117,129 +1118,6 @@ export async function bulkDelete(ids, options = {}) {
   }
 
   return count;
-}
-
-// ============================================
-// REMOTE VIDEO CREATION
-// ============================================
-
-/**
- * Create remote video media entity from URL with oEmbed integration
- *
- * WHY: Remote videos (YouTube, Vimeo) don't require file uploads.
- * Instead, we fetch metadata via oEmbed and store the embed data.
- *
- * FLOW:
- * 1. Fetch oEmbed metadata from provider
- * 2. Extract title, author, thumbnail, embed code
- * 3. Create media entity with remote_video type
- * 4. Store oEmbed data in metadata field
- *
- * @param {string} url - Video URL (YouTube, Vimeo, etc.)
- * @param {Object} options - Creation options
- * @returns {Promise<Object>} Created media entity
- */
-export async function createFromUrl(url, options = {}) {
-  if (!oembedService) {
-    throw new Error('oEmbed service not available');
-  }
-
-  // Fetch oEmbed data
-  const oembedData = await oembedService.fetchEmbed(url, {
-    skipCache: options.skipCache || false,
-  });
-
-  // Validate it's a video type
-  if (oembedData.type !== 'video' && oembedData.type !== 'rich') {
-    throw new Error(`Unsupported oEmbed type: ${oembedData.type}. Expected 'video' or 'rich'.`);
-  }
-
-  // Extract provider info
-  const provider = oembedData.provider_name || 'Unknown';
-  const videoId = extractVideoId(url, provider);
-
-  // Generate entity data
-  const entityData = {
-    name: options.name || oembedData.title || 'Untitled Video',
-    mediaType: 'remote_video',
-    filename: '', // No file for remote videos
-    path: '', // No file path
-    mimeType: 'application/x-remote-video', // Virtual MIME type
-    size: 0, // No file size
-    metadata: {
-      url,
-      provider,
-      videoId,
-      embedUrl: url,
-      oembed: {
-        type: oembedData.type,
-        title: oembedData.title,
-        author_name: oembedData.author_name,
-        author_url: oembedData.author_url,
-        provider_name: oembedData.provider_name,
-        provider_url: oembedData.provider_url,
-        thumbnail_url: oembedData.thumbnail_url,
-        thumbnail_url_cached: oembedData.thumbnail_url_cached,
-        thumbnail_width: oembedData.thumbnail_width,
-        thumbnail_height: oembedData.thumbnail_height,
-        html: oembedData.html,
-        width: oembedData.width,
-        height: oembedData.height,
-      },
-    },
-    // Use cached thumbnail if available, otherwise remote URL
-    thumbnail: oembedData.thumbnail_url_cached || oembedData.thumbnail_url || '',
-    credit: oembedData.author_name || '',
-    alt: `${oembedData.title} by ${oembedData.author_name || provider}`,
-  };
-
-  // Create via content service
-  const entity = await contentService.create(config.contentType, entityData);
-
-  // Fire after hook
-  if (hooksService) {
-    await hooksService.fire('mediaLibrary.afterCreate', { entity, type: 'remote_video' });
-  }
-
-  return entity;
-}
-
-/**
- * Extract video ID from URL for common providers
- *
- * @param {string} url - Video URL
- * @param {string} provider - Provider name
- * @returns {string} Video ID or empty string
- */
-function extractVideoId(url, provider) {
-  try {
-    const urlObj = new URL(url);
-
-    // YouTube
-    if (provider.toLowerCase().includes('youtube')) {
-      // youtu.be/ID
-      if (urlObj.hostname === 'youtu.be') {
-        return urlObj.pathname.slice(1);
-      }
-      // youtube.com/watch?v=ID
-      const v = urlObj.searchParams.get('v');
-      if (v) return v;
-      // youtube.com/embed/ID or youtube.com/shorts/ID
-      const match = urlObj.pathname.match(/\/(embed|shorts)\/([^/]+)/);
-      if (match) return match[2];
-    }
-
-    // Vimeo
-    if (provider.toLowerCase().includes('vimeo')) {
-      // vimeo.com/123456
-      const match = urlObj.pathname.match(/\/(\d+)/);
-      if (match) return match[1];
-    }
-
-    return '';
-  } catch (e) {
-    return '';
-  }
 }
 
 // ============================================
