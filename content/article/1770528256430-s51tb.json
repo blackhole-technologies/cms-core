@@ -1,0 +1,12 @@
+{
+  "id": "1770528256430-s51tb",
+  "type": "article",
+  "created": "2026-02-08T05:24:16.430Z",
+  "updated": "2026-02-08T05:24:16.430Z",
+  "title": "TEST_EMAIL_120_VALID",
+  "email": "valid@example.com",
+  "website": "https://example.com",
+  "rating": 50,
+  "isDefaultRevision": true,
+  "status": "draft"
+}
