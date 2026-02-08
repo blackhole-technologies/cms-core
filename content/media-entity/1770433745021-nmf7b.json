@@ -2,7 +2,7 @@
   "id": "1770433745021-nmf7b",
   "type": "media-entity",
   "created": "2026-02-07T03:09:05.021Z",
-  "updated": "2026-02-07T03:09:05.021Z",
+  "updated": "2026-02-08T02:32:44.216Z",
   "name": "Rick Astley - Never Gonna Give You Up (Official Music Video)",
   "mediaType": "remote_video",
   "filename": "https://www.youtube.com/watch?v=dQw4w9WgXcQ",
@@ -36,5 +36,6 @@
   "credit": "Rick Astley",
   "status": "published",
   "isDefaultRevision": true,
-  "publishedAt": "2026-02-07T03:09:05.021Z"
+  "publishedAt": "2026-02-07T03:09:05.021Z",
+  "_usage": []
 }

@@ -1,169 +1,190 @@
-{{> admin-header title=item.name}}
-
-<div class="admin-content">
-  <div class="page-header">
-    <h1>{{item.name}}</h1>
-    <div class="header-actions">
-      <a href="/admin/media/library" class="btn">← Back to Library</a>
-      <a href="/admin/media/library/{{item.id}}/edit" class="btn btn-primary">Edit</a>
-    </div>
-  </div>
-
-  <div class="media-detail">
-    <div class="media-preview-large">
-      {{#if (eq item.mediaType "image")}}
-      <img src="{{url}}" alt="{{item.alt}}" />
-      {{else if (eq item.mediaType "remote_video")}}
-      <div class="video-embed">
-        <iframe src="{{item.metadata.embedUrl}}" frameborder="0" allowfullscreen></iframe>
-      </div>
-      {{else}}
-      <div class="media-placeholder">
-        <span class="media-icon-large">
-          {{#if (eq item.mediaType "video")}}🎬{{/if}}
-          {{#if (eq item.mediaType "audio")}}🎵{{/if}}
-          {{#if (eq item.mediaType "document")}}📄{{/if}}
-        </span>
-        <a href="{{url}}" class="btn" target="_blank">Download File</a>
-      </div>
-      {{/if}}
-    </div>
-
-    <div class="media-metadata">
-      <h2>Details</h2>
-      
-      <dl class="metadata-list">
-        <dt>Type</dt>
-        <dd>{{item.mediaType}}</dd>
-
-        <dt>Filename</dt>
-        <dd>{{item.filename}}</dd>
-
-        <dt>MIME Type</dt>
-        <dd>{{item.mimeType}}</dd>
-
-        {{#if item.size}}
-        <dt>File Size</dt>
-        <dd>{{formatBytes item.size}}</dd>
-        {{/if}}
-
-        {{#if item.alt}}
-        <dt>Alt Text</dt>
-        <dd>{{item.alt}}</dd>
-        {{/if}}
-
-        {{#if item.caption}}
-        <dt>Caption</dt>
-        <dd>{{item.caption}}</dd>
-        {{/if}}
-
-        {{#if item.credit}}
-        <dt>Credit</dt>
-        <dd>{{item.credit}}</dd>
-        {{/if}}
-
-        {{#if item.tags.length}}
-        <dt>Tags</dt>
-        <dd>{{join item.tags ", "}}</dd>
-        {{/if}}
-
-        <dt>Created</dt>
-        <dd>{{formatDate item.created}}</dd>
-
-        <dt>Updated</dt>
-        <dd>{{formatDate item.updated}}</dd>
-      </dl>
-
-      {{#if usage.length}}
-      <h2>Used In</h2>
-      <ul class="usage-list">
-        {{#each usage}}
-        <li>
-          <a href="/admin/content/{{contentType}}/{{contentId}}/edit">
-            {{contentType}}/{{contentId}}
-          </a>
-          <span class="usage-field">(field: {{field}})</span>
-        </li>
-        {{/each}}
-      </ul>
-      {{else}}
-      <p class="muted">Not currently used in any content.</p>
-      {{/if}}
+<div style="margin-bottom:20px">
+  <div style="display:flex;justify-content:space-between;align-items:center">
+    <h1 style="margin:0">{{item.name}}</h1>
+    <div>
+      <a href="/admin/media/library" style="padding:8px 16px;background:#f5f5f5;color:#333;text-decoration:none;border-radius:4px;border:1px solid #ddd">← Back to Library</a>
     </div>
   </div>
 </div>
 
-<style>
-.media-detail {
-  display: grid;
-  grid-template-columns: 1fr 400px;
-  gap: 2rem;
-}
-.media-preview-large {
-  background: #f5f5f5;
-  border-radius: 8px;
-  overflow: hidden;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  min-height: 400px;
-}
-.media-preview-large img {
-  max-width: 100%;
-  max-height: 600px;
-  object-fit: contain;
-}
-.video-embed {
-  width: 100%;
-  aspect-ratio: 16/9;
-}
-.video-embed iframe {
-  width: 100%;
-  height: 100%;
-}
-.media-placeholder {
-  text-align: center;
-  padding: 3rem;
-}
-.media-icon-large {
-  font-size: 5rem;
-  display: block;
-  margin-bottom: 1rem;
-}
-.media-metadata {
-  background: white;
-  padding: 1.5rem;
-  border-radius: 8px;
-  border: 1px solid #ddd;
-}
-.metadata-list {
-  display: grid;
-  grid-template-columns: 120px 1fr;
-  gap: 0.5rem 1rem;
-}
-.metadata-list dt {
-  font-weight: 600;
-  color: #666;
-}
-.metadata-list dd {
-  margin: 0;
-}
-.usage-list {
-  list-style: none;
-  padding: 0;
-}
-.usage-list li {
-  padding: 0.5rem 0;
-  border-bottom: 1px solid #eee;
-}
-.usage-field {
-  color: #666;
-  font-size: 0.875rem;
-}
-.muted {
-  color: #999;
-  font-style: italic;
-}
-</style>
+<div style="display:grid;grid-template-columns:1fr 380px;gap:24px">
+  <!-- Left: Preview -->
+  <div style="background:#f5f5f5;border-radius:8px;min-height:300px;display:flex;align-items:center;justify-content:center;overflow:hidden">
+    {{#if isImage}}
+    <img src="{{url}}" alt="{{item.alt}}" style="max-width:100%;max-height:500px;object-fit:contain">
+    {{/if}}
+    {{#if isRemoteVideo}}
+    <div style="width:100%;aspect-ratio:16/9">
+      <iframe src="{{item.metadata.embedUrl}}" frameborder="0" allowfullscreen style="width:100%;height:100%"></iframe>
+    </div>
+    {{/if}}
+    {{#if isVideo}}
+    <div style="text-align:center;padding:40px">
+      <div style="font-size:64px">🎬</div>
+      <a href="{{url}}" target="_blank" style="display:inline-block;margin-top:16px;padding:8px 16px;background:#0071b9;color:white;text-decoration:none;border-radius:4px">Download Video</a>
+    </div>
+    {{/if}}
+    {{#if isAudio}}
+    <div style="text-align:center;padding:40px">
+      <div style="font-size:64px">🎵</div>
+      <a href="{{url}}" target="_blank" style="display:inline-block;margin-top:16px;padding:8px 16px;background:#0071b9;color:white;text-decoration:none;border-radius:4px">Download Audio</a>
+    </div>
+    {{/if}}
+    {{#if isDocument}}
+    <div style="text-align:center;padding:40px">
+      <div style="font-size:64px">📄</div>
+      <a href="{{url}}" target="_blank" style="display:inline-block;margin-top:16px;padding:8px 16px;background:#0071b9;color:white;text-decoration:none;border-radius:4px">Download File</a>
+    </div>
+    {{/if}}
+  </div>
 
-{{> admin-footer}}
+  <!-- Right: Metadata + Usage -->
+  <div>
+    <!-- Metadata -->
+    <div style="background:white;border:1px solid #ddd;border-radius:8px;padding:16px;margin-bottom:16px">
+      <h2 style="margin:0 0 12px;font-size:16px">Details</h2>
+      <table style="width:100%;font-size:14px">
+        <tr>
+          <td style="padding:4px 8px 4px 0;color:#666;font-weight:600;width:100px"><strong>Type</strong></td>
+          <td style="padding:4px 0">{{item.mediaType}}</td>
+        </tr>
+        <tr>
+          <td style="padding:4px 8px 4px 0;color:#666;font-weight:600"><strong>Filename</strong></td>
+          <td style="padding:4px 0">{{item.filename}}</td>
+        </tr>
+        {{#if item.mimeType}}
+        <tr>
+          <td style="padding:4px 8px 4px 0;color:#666;font-weight:600"><strong>MIME Type</strong></td>
+          <td style="padding:4px 0">{{item.mimeType}}</td>
+        </tr>
+        {{/if}}
+        {{#if sizeFormatted}}
+        <tr>
+          <td style="padding:4px 8px 4px 0;color:#666;font-weight:600"><strong>Size</strong></td>
+          <td style="padding:4px 0">{{sizeFormatted}}</td>
+        </tr>
+        {{/if}}
+        {{#if item.alt}}
+        <tr>
+          <td style="padding:4px 8px 4px 0;color:#666;font-weight:600"><strong>Alt Text</strong></td>
+          <td style="padding:4px 0">{{item.alt}}</td>
+        </tr>
+        {{/if}}
+        {{#if item.caption}}
+        <tr>
+          <td style="padding:4px 8px 4px 0;color:#666;font-weight:600"><strong>Caption</strong></td>
+          <td style="padding:4px 0">{{item.caption}}</td>
+        </tr>
+        {{/if}}
+        {{#if item.credit}}
+        <tr>
+          <td style="padding:4px 8px 4px 0;color:#666;font-weight:600"><strong>Credit</strong></td>
+          <td style="padding:4px 0">{{item.credit}}</td>
+        </tr>
+        {{/if}}
+        {{#if hasTags}}
+        <tr>
+          <td style="padding:4px 8px 4px 0;color:#666;font-weight:600"><strong>Tags</strong></td>
+          <td style="padding:4px 0">{{tagsFormatted}}</td>
+        </tr>
+        {{/if}}
+        <tr>
+          <td style="padding:4px 8px 4px 0;color:#666;font-weight:600"><strong>Created</strong></td>
+          <td style="padding:4px 0">{{createdFormatted}}</td>
+        </tr>
+        <tr>
+          <td style="padding:4px 8px 4px 0;color:#666;font-weight:600"><strong>Updated</strong></td>
+          <td style="padding:4px 0">{{updatedFormatted}}</td>
+        </tr>
+      </table>
+    </div>
+
+    <!-- Usage Tracking -->
+    <div style="background:white;border:1px solid #ddd;border-radius:8px;padding:16px;margin-bottom:16px">
+      <h2 style="margin:0 0 12px;font-size:16px">Used In ({{usageCount}})</h2>
+      {{#if hasUsage}}
+      <div id="usageList">
+        {{#each usage}}
+        <div style="padding:8px 0;border-bottom:1px solid #eee;display:flex;justify-content:space-between;align-items:center">
+          <div>
+            <a href="{{editUrl}}" style="color:#0071b9;text-decoration:none">{{label}}</a>
+            <span style="color:#666;font-size:12px;margin-left:8px">(field: {{field}})</span>
+          </div>
+          <button onclick="removeUsage('{{contentType}}','{{contentId}}')" style="border:none;background:none;color:#d32f2f;cursor:pointer;font-size:12px;padding:4px 8px">Remove</button>
+        </div>
+        {{/each}}
+      </div>
+      {{/if}}
+      {{#if noUsage}}
+      <div id="noUsageMsg">
+        <p style="color:#999;font-style:italic;margin:8px 0">Not currently used in any content.</p>
+      </div>
+      {{/if}}
+    </div>
+
+    <!-- Add Usage Form -->
+    <div style="background:white;border:1px solid #ddd;border-radius:8px;padding:16px">
+      <h2 style="margin:0 0 12px;font-size:16px">Track Usage</h2>
+      <div style="display:flex;flex-direction:column;gap:8px">
+        <input type="text" id="usageContentType" placeholder="Content type (e.g. article)" style="padding:6px 10px;border:1px solid #ccc;border-radius:4px">
+        <input type="text" id="usageContentId" placeholder="Content ID" style="padding:6px 10px;border:1px solid #ccc;border-radius:4px">
+        <input type="text" id="usageField" placeholder="Field name (e.g. image)" style="padding:6px 10px;border:1px solid #ccc;border-radius:4px">
+        <button onclick="addUsage()" style="padding:8px 16px;border:none;background:#0071b9;color:white;border-radius:4px;cursor:pointer;font-size:14px">Add Usage Reference</button>
+      </div>
+      <div id="usageMessage" style="margin-top:8px;font-size:13px"></div>
+    </div>
+  </div>
+</div>
+
+<script>
+var mediaId = '{{item.id}}';
+
+async function addUsage() {
+  var ct = document.getElementById('usageContentType').value.trim();
+  var ci = document.getElementById('usageContentId').value.trim();
+  var f = document.getElementById('usageField').value.trim();
+  var msg = document.getElementById('usageMessage');
+
+  if (!ct || !ci || !f) {
+    msg.innerHTML = '<span style="color:#d32f2f">All fields are required</span>';
+    return;
+  }
+
+  try {
+    var resp = await fetch('/admin/media/library/' + mediaId + '/track-usage', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ contentType: ct, contentId: ci, field: f })
+    });
+    var data = await resp.json();
+    if (data.success) {
+      msg.innerHTML = '<span style="color:#4caf50">Usage tracked successfully</span>';
+      setTimeout(function() { window.location.reload(); }, 500);
+    } else {
+      msg.innerHTML = '<span style="color:#d32f2f">' + (data.error || 'Failed') + '</span>';
+    }
+  } catch(err) {
+    msg.innerHTML = '<span style="color:#d32f2f">Error: ' + err.message + '</span>';
+  }
+}
+
+async function removeUsage(ct, ci) {
+  if (!confirm('Remove this usage reference?')) return;
+
+  try {
+    var resp = await fetch('/admin/media/library/' + mediaId + '/remove-usage', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ contentType: ct, contentId: ci })
+    });
+    var data = await resp.json();
+    if (data.success) {
+      window.location.reload();
+    } else {
+      alert('Error: ' + (data.error || 'Failed to remove'));
+    }
+  } catch(err) {
+    alert('Error: ' + err.message);
+  }
+}
+</script>

@@ -1,0 +1,15 @@
+{
+  "id": "1770517226663-ed83q",
+  "type": "article",
+  "created": "2026-02-08T02:20:26.663Z",
+  "updated": "2026-02-08T02:20:32.165Z",
+  "title": "RESTART_TEST_F20",
+  "body": "Persistence test body",
+  "isDefaultRevision": true,
+  "status": "published",
+  "publishedAt": "2026-02-08T02:20:32.164Z",
+  "scheduledAt": null,
+  "_trashedAt": "2026-02-08T02:21:22.894Z",
+  "_trashedBy": null,
+  "_originalPath": "/Users/Alchemy/Projects/experiments/cms-core/content/article/1770517226663-ed83q.json"
+}

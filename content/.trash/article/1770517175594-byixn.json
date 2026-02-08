@@ -1,0 +1,15 @@
+{
+  "id": "1770517175594-byixn",
+  "type": "article",
+  "created": "2026-02-08T02:19:35.594Z",
+  "updated": "2026-02-08T02:19:41.048Z",
+  "title": "WORKFLOW_TEST_22",
+  "body": "Original content for workflow test",
+  "isDefaultRevision": true,
+  "status": "published",
+  "publishedAt": "2026-02-08T02:19:41.048Z",
+  "scheduledAt": null,
+  "_trashedAt": "2026-02-08T02:20:19.972Z",
+  "_trashedBy": null,
+  "_originalPath": "/Users/Alchemy/Projects/experiments/cms-core/content/article/1770517175594-byixn.json"
+}
