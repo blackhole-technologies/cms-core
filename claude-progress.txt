@@ -1145,3 +1145,47 @@ All features verified via CLI commands:
 - 146/165 features passing (88.5%)
 - Validation constraints tier: Features 123, 124, 125 done
 - All 3 assigned features completed
+
+## Session (Current) - 2026-02-08 (Features #138, #139, #140)
+
+### Completed
+- Feature #138: Vimeo oEmbed source (PASSING)
+  - Vimeo provider already registered in core/oembed.js (lines 90-94)
+  - Endpoint: https://vimeo.com/api/oembed.json
+  - URL patterns: vimeo.com/{id} and player.vimeo.com/video/{id}
+  - Verified via CLI: oembed:check and oembed:providers commands
+  - Full oEmbed workflow: URL matching, endpoint fetch, metadata extraction, embed generation
+
+- Feature #139: Twitter oEmbed source (PASSING)
+  - Twitter provider already registered in core/oembed.js (lines 96-100)
+  - Endpoint: https://publish.twitter.com/oembed
+  - URL patterns: twitter.com and x.com status URLs
+  - Supports both twitter.com and x.com domains
+  - Full oEmbed workflow implemented via fetchEmbed() function
+
+- Feature #140: Instagram oEmbed source (PASSING)
+  - Instagram provider already registered in core/oembed.js (lines 102-106)
+  - Endpoint: https://api.instagram.com/oembed
+  - URL patterns: posts (/p/) and reels (/reel/)
+  - Supports both content types
+  - Full oEmbed workflow with metadata extraction and embed code generation
+
+### No Code Changes Required
+All three providers were already fully implemented in the core/oembed.js module:
+- registerBuiltinProviders() registers all 10 providers including Vimeo, Twitter, Instagram
+- fetchEmbed() handles URL matching, HTTP requests, response parsing, caching
+- renderEmbed() generates HTML for display
+- CLI commands available for testing: oembed:providers, oembed:check, oembed:fetch
+
+### Verification
+Created FEATURES-138-139-140-VERIFICATION.md documenting:
+- Provider registration details (endpoints, URL patterns)
+- Implementation architecture (registry, fetch flow, response structure)
+- Security features (URL validation, HTML sanitization, timeouts)
+- CLI test results showing all three providers recognized and functional
+- Zero dependencies implementation using only node:http, node:https, node:crypto
+
+### Current Status
+- 150/165 features passing (90.9%)
+- Media enhancements tier: Features 138, 139, 140 done
+- All 3 assigned features completed
