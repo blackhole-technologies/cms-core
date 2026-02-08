@@ -1383,6 +1383,119 @@ export function registerCli(register) {
       return false;
     }
   }, 'Detect conflicts between workspace and live content');
+
+  // workspace:diff <workspaceId|machineName>
+  register('workspace:diff', async (args) => {
+    const { positional } = parseCliArgs(args);
+    const identifier = positional[0];
+
+    if (!identifier) {
+      console.log('Usage: workspace:diff <workspaceId|machineName>');
+      console.log('Show differences between workspace content and live content.');
+      return false;
+    }
+
+    try {
+      const diff = diffWorkspace(identifier);
+
+      if (diff.items.length === 0) {
+        console.log(`Workspace "${diff.workspaceLabel}" has no changes.`);
+        return true;
+      }
+
+      console.log(`Workspace "${diff.workspaceLabel}" — ${diff.summary.total} change(s):`);
+      console.log(`  Added: ${diff.summary.added}  Modified: ${diff.summary.modified}  Deleted: ${diff.summary.deleted}`);
+      console.log('\u2500'.repeat(80));
+
+      for (const item of diff.items) {
+        const opBadge = item.operation === 'added' ? '[+added]'
+          : item.operation === 'deleted' ? '[-deleted]'
+          : '[~modified]';
+
+        console.log(`\n  ${item.contentType}/${item.contentId} ${opBadge}`);
+        console.log(`    Title: ${item.title}`);
+
+        if (item.fields.length === 0) {
+          console.log(`    (no field changes)`);
+        } else {
+          for (const f of item.fields) {
+            if (f.change === 'added') {
+              const val = typeof f.newValue === 'string'
+                ? f.newValue.substring(0, 60)
+                : JSON.stringify(f.newValue).substring(0, 60);
+              console.log(`    + ${f.field}: ${val}`);
+            } else if (f.change === 'removed') {
+              const val = typeof f.oldValue === 'string'
+                ? f.oldValue.substring(0, 60)
+                : JSON.stringify(f.oldValue).substring(0, 60);
+              console.log(`    - ${f.field}: ${val}`);
+            } else if (f.change === 'modified') {
+              const oldVal = typeof f.oldValue === 'string'
+                ? f.oldValue.substring(0, 40)
+                : JSON.stringify(f.oldValue).substring(0, 40);
+              const newVal = typeof f.newValue === 'string'
+                ? f.newValue.substring(0, 40)
+                : JSON.stringify(f.newValue).substring(0, 40);
+              console.log(`    ~ ${f.field}: "${oldVal}" → "${newVal}"`);
+            }
+          }
+        }
+      }
+
+      return true;
+    } catch (err) {
+      console.error(`\u2717 Failed to generate diff: ${err.message}`);
+      return false;
+    }
+  }, 'Show differences between workspace and live content');
+
+  // workspace:activity <workspace> [--limit=N] [--action=type]
+  register('workspace:activity', async (args) => {
+    const { positional, options } = parseCliArgs(args);
+    const workspaceRef = positional[0];
+
+    if (!workspaceRef) {
+      console.log('Usage: workspace:activity <workspace-id-or-machine-name> [--limit=N] [--action=type]');
+      return false;
+    }
+
+    try {
+      const workspace = resolveWorkspace(workspaceRef);
+      if (!workspace) {
+        console.log(`Workspace not found: ${workspaceRef}`);
+        return false;
+      }
+
+      const limit = options.limit ? parseInt(options.limit, 10) : 50;
+      const log = getActivityLog(workspace.id, {
+        limit,
+        action: options.action,
+      });
+
+      console.log(`\nActivity Log: ${workspace.label} (${workspace.machineName})`);
+      console.log('='.repeat(60));
+
+      if (log.length === 0) {
+        console.log('No activity recorded.');
+        return true;
+      }
+
+      for (const entry of log) {
+        const time = new Date(entry.timestamp).toLocaleString();
+        const user = entry.user ? entry.user.name || entry.user.id : 'system';
+        const details = Object.entries(entry.details || {})
+          .map(([k, v]) => `${k}=${typeof v === 'object' ? JSON.stringify(v) : v}`)
+          .join(', ');
+        console.log(`[${time}] ${entry.action} by ${user}${details ? ' — ' + details : ''}`);
+      }
+
+      console.log(`\nShowing ${log.length} entries`);
+      return true;
+    } catch (err) {
+      console.log(`Error: ${err.message}`);
+      return false;
+    }
+  }, 'View workspace activity log');
 }
 
 /**
@@ -1975,6 +2088,135 @@ function findConflictingFields(wsCopy, liveContent) {
 }
 
 // ============================================================================
+// Workspace Diff
+// ============================================================================
+
+/**
+ * Generate a diff between workspace content and live content.
+ *
+ * WHY DIFF:
+ * Users need to see what changes exist in a workspace before publishing.
+ * Shows modified, added, and deleted content items with field-level diffs.
+ *
+ * @param {string} workspaceId - Workspace UUID or machine name
+ * @returns {Object} Diff result with items array and summary
+ * @throws {Error} If workspace not found
+ */
+export function diffWorkspace(workspaceId) {
+  const workspace = resolveWorkspace(workspaceId);
+  if (!workspace) {
+    throw new Error(`Workspace not found: ${workspaceId}`);
+  }
+
+  const associations = getAssociations(workspace.id);
+  if (!associations.items || associations.items.length === 0) {
+    return {
+      workspaceId: workspace.id,
+      workspaceLabel: workspace.label,
+      items: [],
+      summary: { added: 0, modified: 0, deleted: 0, total: 0 },
+    };
+  }
+
+  const wsPrefix = workspace.id.substring(0, 8);
+  const contentDir = join(baseDir, 'content');
+  const diffItems = [];
+  let added = 0;
+  let modified = 0;
+  let deleted = 0;
+
+  function readContentFile(type, id) {
+    const filePath = join(contentDir, type, `${id}.json`);
+    if (!existsSync(filePath)) return null;
+    try {
+      return JSON.parse(readFileSync(filePath, 'utf-8'));
+    } catch {
+      return null;
+    }
+  }
+
+  const skipFields = new Set([
+    'id', '_workspace', '_originalId', '_originalType',
+    'updated', 'created', 'revisions',
+  ]);
+
+  for (const association of associations.items) {
+    const { type: contentType, id: contentId, operation, timestamp } = association;
+
+    if (operation === 'create') {
+      const item = readContentFile(contentType, contentId);
+      const fields = [];
+      if (item) {
+        for (const [key, value] of Object.entries(item)) {
+          if (skipFields.has(key)) continue;
+          fields.push({ field: key, change: 'added', newValue: value });
+        }
+      }
+      diffItems.push({
+        contentType, contentId, operation: 'added',
+        title: item?.title || contentId, timestamp, fields,
+      });
+      added++;
+    } else if (operation === 'edit') {
+      const workspaceCopyId = `ws-${wsPrefix}-${contentId}`;
+      const wsCopy = readContentFile(contentType, workspaceCopyId);
+      const liveContent = readContentFile(contentType, contentId);
+      if (!wsCopy) continue;
+
+      const fields = [];
+      if (liveContent) {
+        const allKeys = new Set([...Object.keys(wsCopy), ...Object.keys(liveContent)]);
+        for (const key of allKeys) {
+          if (skipFields.has(key)) continue;
+          const wsVal = wsCopy[key];
+          const liveVal = liveContent[key];
+          if (JSON.stringify(wsVal) !== JSON.stringify(liveVal)) {
+            if (liveVal === undefined) {
+              fields.push({ field: key, change: 'added', newValue: wsVal });
+            } else if (wsVal === undefined) {
+              fields.push({ field: key, change: 'removed', oldValue: liveVal });
+            } else {
+              fields.push({ field: key, change: 'modified', oldValue: liveVal, newValue: wsVal });
+            }
+          }
+        }
+      } else {
+        for (const [key, value] of Object.entries(wsCopy)) {
+          if (skipFields.has(key)) continue;
+          fields.push({ field: key, change: 'added', newValue: value });
+        }
+      }
+      diffItems.push({
+        contentType, contentId, operation: 'modified',
+        title: wsCopy?.title || liveContent?.title || contentId, timestamp, fields,
+      });
+      modified++;
+    } else if (operation === 'delete') {
+      const liveContent = readContentFile(contentType, contentId);
+      const fields = [];
+      if (liveContent) {
+        for (const [key, value] of Object.entries(liveContent)) {
+          if (skipFields.has(key)) continue;
+          fields.push({ field: key, change: 'removed', oldValue: value });
+        }
+      }
+      diffItems.push({
+        contentType, contentId, operation: 'deleted',
+        title: liveContent?.title || contentId, timestamp, fields,
+      });
+      deleted++;
+    }
+  }
+
+  return {
+    workspaceId: workspace.id,
+    workspaceLabel: workspace.label,
+    items: diffItems,
+    summary: { added, modified, deleted, total: diffItems.length },
+  };
+}
+
+// ============================================================================
 // Route Registration
 // ============================================================================
 
@@ -2128,6 +2370,49 @@ export function registerRoutes(router, auth) {
       res.end(JSON.stringify({ error: err.message }));
     }
   });
+
+  // GET /api/workspaces/:id/diff - Diff workspace content against live
+  router.register('GET', '/api/workspaces/:id/diff', async (req, res) => {
+    try {
+      const workspace = resolveWorkspace(req.params.id);
+
+      if (!workspace) {
+        res.writeHead(404, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ error: 'Workspace not found' }));
+        return;
+      }
+
+      const diff = diffWorkspace(workspace.id);
+      res.writeHead(200, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ data: diff }));
+    } catch (err) {
+      res.writeHead(400, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ error: err.message }));
+    }
+  });
+
+  // GET /api/workspaces/:id/activity - Get workspace activity log
+  router.register('GET', '/api/workspaces/:id/activity', async (req, res) => {
+    try {
+      const workspace = resolveWorkspace(req.params.id);
+
+      if (!workspace) {
+        res.writeHead(404, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ error: 'Workspace not found' }));
+        return;
+      }
+
+      const limit = req.query?.limit ? parseInt(req.query.limit, 10) : 50;
+      const action = req.query?.action || null;
+
+      const log = getActivityLog(workspace.id, { limit, action });
+      res.writeHead(200, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ data: log, count: log.length, workspaceId: workspace.id, workspaceLabel: workspace.label }));
+    } catch (err) {
+      res.writeHead(400, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ error: err.message }));
+    }
+  });
 }
 
 /**
@@ -2160,6 +2445,88 @@ function parseBody(req) {
 // ============================================================================
 // Service API (for other modules)
 // ============================================================================
+
+/**
+ * Log an activity entry for a workspace.
+ *
+ * WHY PER-WORKSPACE LOGS:
+ * Follows Drupal's pattern where workspace-scoped actions are tracked
+ * independently. This enables viewing activity for a specific workspace
+ * without scanning global logs.
+ *
+ * @param {string} workspaceId - Workspace UUID
+ * @param {string} action - Action type (e.g. 'content.create', 'workspace.publish')
+ * @param {Object} [details] - Action-specific details
+ * @param {Object} [user] - User who performed the action
+ */
+export function logActivity(workspaceId, action, details = {}, user = null) {
+  if (!activityDir) return;
+
+  const entry = {
+    timestamp: new Date().toISOString(),
+    action,
+    user: user ? { id: user.id, name: user.name || user.username || user.id } : null,
+    details,
+  };
+
+  const filePath = join(activityDir, `${workspaceId}.json`);
+  let log = [];
+
+  if (existsSync(filePath)) {
+    try {
+      log = JSON.parse(readFileSync(filePath, 'utf-8'));
+    } catch {
+      log = [];
+    }
+  }
+
+  // Prepend newest entry (reverse chronological)
+  log.unshift(entry);
+
+  // Cap at 1000 entries per workspace to prevent unbounded growth
+  if (log.length > 1000) {
+    log = log.slice(0, 1000);
+  }
+
+  writeFileSync(filePath, JSON.stringify(log, null, 2) + '\n');
+}
+
+/**
+ * Get the activity log for a workspace.
+ *
+ * @param {string} workspaceId - Workspace UUID or machine name
+ * @param {Object} [options] - Filter options
+ * @param {number} [options.limit] - Max entries to return (default: 50)
+ * @param {string} [options.action] - Filter by action type
+ * @returns {Array} Activity log entries
+ */
+export function getActivityLog(workspaceId, options = {}) {
+  const workspace = resolveWorkspace(workspaceId);
+  if (!workspace) {
+    throw new Error(`Workspace not found: ${workspaceId}`);
+  }
+
+  if (!activityDir) return [];
+
+  const filePath = join(activityDir, `${workspace.id}.json`);
+  if (!existsSync(filePath)) return [];
+
+  let log;
+  try {
+    log = JSON.parse(readFileSync(filePath, 'utf-8'));
+  } catch {
+    return [];
+  }
+
+  // Filter by action type if specified
+  if (options.action) {
+    log = log.filter(entry => entry.action === options.action);
+  }
+
+  // Apply limit (default 50)
+  const limit = options.limit || 50;
+  return log.slice(0, limit);
+}
 
 /**
  * Get the count of workspaces by status.
