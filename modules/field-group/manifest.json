@@ -1,0 +1,6 @@
+{
+  "name": "field-group",
+  "version": "1.0.0",
+  "description": "Field groups, formatters, and field storage abstraction for content types",
+  "dependencies": []
+}

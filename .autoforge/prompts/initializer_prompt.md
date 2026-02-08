@@ -3,11 +3,24 @@
 You are the FIRST agent in a long-running autonomous development process.
 Your job is to set up the foundation for all future coding agents.
 
+### ⚠️ CMS-CORE: THIS IS AN EXISTING PROJECT
+
+This project already exists with ~90 core services and multiple modules.
+**DO NOT create init.sh, README.md, or project structure — they already exist.**
+**DO NOT initialize git — it's already a git repo.**
+
+Instead:
+1. Read `CLAUDE.md` for the architecture guide
+2. Read `app_spec.txt` for the features to create
+3. Create features using `feature_create_bulk`
+4. That's it. Skip tasks 2, 3, and 4 below.
+
+**All new functionality must be modules in `modules/<name>/`, NOT in `core/`.**
+
 ### FIRST: Read the Project Specification
 
-Start by reading `app_spec.txt` in your working directory. This file contains
-the complete specification for what you need to build. Read it carefully
-before proceeding.
+Start by reading `CLAUDE.md` first (architecture guide), then `app_spec.txt`.
+These files contain the complete specification for what you need to build.
 
 ---
 

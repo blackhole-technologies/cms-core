@@ -1,0 +1,460 @@
+<div class="admin-page">
+  <div class="page-header">
+    <h1>{{pageTitle}}</h1>
+    <p>Browse available tokens for use in content, templates, and configuration.</p>
+  </div>
+
+  {{#if hasFlash}}
+  <div class="flash-message flash-{{flash.type}}">
+    {{flash.message}}
+  </div>
+  {{/if}}
+
+  <div class="token-browser-container">
+    <!-- Search Box -->
+    <div class="token-search-box">
+      <label for="token-search">Search tokens:</label>
+      <input
+        type="text"
+        id="token-search"
+        placeholder="Type to filter tokens (e.g., 'title', 'user', 'date')"
+        class="token-search-input"
+        autocomplete="off"
+      >
+      <button id="clear-search" class="clear-search-btn" style="display:none;">Clear</button>
+    </div>
+
+    <!-- Token Types and Tokens -->
+    <div class="token-types-container" id="token-types">
+      {{{typesHtml}}}
+    </div>
+
+    <!-- Empty State -->
+    <div id="no-results" class="empty-state" style="display:none;">
+      <p>No tokens found matching your search.</p>
+      <p>Try a different search term or <button id="clear-from-empty" class="link-button">clear the search</button>.</p>
+    </div>
+
+    <!-- Usage Instructions -->
+    <div class="token-usage-instructions">
+      <h2>How to Use Tokens</h2>
+      <p>Tokens are placeholders that get replaced with dynamic values. Click any token below to copy it to your clipboard.</p>
+
+      <h3>Examples:</h3>
+      <ul>
+        <li><code>[site:name]</code> - Replaced with your site name</li>
+        <li><code>[current-user:name]</code> - Replaced with the logged-in user's name</li>
+        <li><code>[content:title]</code> - Replaced with the content title</li>
+        <li><code>[date:medium]</code> - Replaced with the current date</li>
+      </ul>
+
+      <h3>Chained Tokens:</h3>
+      <p>You can chain tokens to access nested properties:</p>
+      <ul>
+        <li><code>[content:author:name]</code> - Author's name from content</li>
+        <li><code>[content:author:email]</code> - Author's email from content</li>
+      </ul>
+
+      <h3>Raw Modifier:</h3>
+      <p>By default, tokens are HTML-escaped for security. Use <code>:raw</code> to disable escaping:</p>
+      <ul>
+        <li><code>[content:body:raw]</code> - Unescaped HTML content</li>
+      </ul>
+    </div>
+  </div>
+</div>
+
+<style>
+.token-browser-container {
+  max-width: 1200px;
+}
+
+.token-search-box {
+  margin-bottom: 2rem;
+  padding: 1.5rem;
+  background: #f8f9fa;
+  border-radius: 8px;
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+}
+
+.token-search-box label {
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.token-search-input {
+  flex: 1;
+  padding: 0.75rem;
+  border: 2px solid #dee2e6;
+  border-radius: 6px;
+  font-size: 1rem;
+}
+
+.token-search-input:focus {
+  outline: none;
+  border-color: #007bff;
+  box-shadow: 0 0 0 3px rgba(0, 123, 255, 0.1);
+}
+
+.clear-search-btn {
+  padding: 0.75rem 1.5rem;
+  background: #6c757d;
+  color: white;
+  border: none;
+  border-radius: 6px;
+  cursor: pointer;
+  font-size: 0.9rem;
+}
+
+.clear-search-btn:hover {
+  background: #5a6268;
+}
+
+.token-type-section {
+  margin-bottom: 2rem;
+  border: 1px solid #dee2e6;
+  border-radius: 8px;
+  overflow: hidden;
+}
+
+.token-type-header {
+  background: #e9ecef;
+  padding: 1rem 1.5rem;
+  cursor: pointer;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  user-select: none;
+}
+
+.token-type-header:hover {
+  background: #dee2e6;
+}
+
+.token-type-header h2 {
+  margin: 0;
+  font-size: 1.25rem;
+  font-weight: 600;
+}
+
+.token-type-description {
+  color: #6c757d;
+  font-size: 0.9rem;
+  margin: 0.25rem 0 0 0;
+}
+
+.toggle-icon {
+  font-size: 1.5rem;
+  color: #6c757d;
+  transition: transform 0.2s;
+}
+
+.token-type-header.collapsed .toggle-icon {
+  transform: rotate(-90deg);
+}
+
+.token-list {
+  padding: 0;
+  margin: 0;
+  list-style: none;
+  display: none;
+}
+
+.token-type-header.expanded + .token-list {
+  display: block;
+}
+
+.token-item {
+  padding: 1rem 1.5rem;
+  border-top: 1px solid #dee2e6;
+  transition: background 0.15s;
+}
+
+.token-item:hover {
+  background: #f8f9fa;
+}
+
+.token-code {
+  display: inline-block;
+  background: #e9ecef;
+  padding: 0.25rem 0.75rem;
+  border-radius: 4px;
+  font-family: 'Courier New', monospace;
+  font-size: 0.95rem;
+  color: #0056b3;
+  cursor: pointer;
+  border: 2px solid transparent;
+  transition: all 0.15s;
+}
+
+.token-code:hover {
+  background: #dee2e6;
+  border-color: #007bff;
+}
+
+.token-code.copied {
+  background: #28a745;
+  color: white;
+  border-color: #28a745;
+}
+
+.token-name {
+  font-weight: 600;
+  margin-bottom: 0.25rem;
+}
+
+.token-description {
+  color: #6c757d;
+  font-size: 0.9rem;
+  margin: 0.5rem 0;
+}
+
+.token-example {
+  color: #6c757d;
+  font-size: 0.85rem;
+  font-style: italic;
+}
+
+.empty-state {
+  text-align: center;
+  padding: 3rem 2rem;
+  color: #6c757d;
+}
+
+.link-button {
+  background: none;
+  border: none;
+  color: #007bff;
+  text-decoration: underline;
+  cursor: pointer;
+  font-size: inherit;
+}
+
+.link-button:hover {
+  color: #0056b3;
+}
+
+.token-usage-instructions {
+  margin-top: 3rem;
+  padding: 2rem;
+  background: #f8f9fa;
+  border-radius: 8px;
+}
+
+.token-usage-instructions h2 {
+  margin-top: 0;
+}
+
+.token-usage-instructions h3 {
+  margin-top: 1.5rem;
+  font-size: 1.1rem;
+}
+
+.token-usage-instructions code {
+  background: #e9ecef;
+  padding: 0.2rem 0.5rem;
+  border-radius: 3px;
+  font-family: 'Courier New', monospace;
+  color: #0056b3;
+}
+
+.token-usage-instructions ul {
+  margin: 0.5rem 0;
+}
+
+.token-usage-instructions li {
+  margin: 0.5rem 0;
+}
+
+/* Responsive */
+@media (max-width: 768px) {
+  .token-search-box {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .token-search-box label {
+    margin-bottom: 0.5rem;
+  }
+
+  .token-type-header h2 {
+    font-size: 1.1rem;
+  }
+
+  .token-item {
+    padding: 0.75rem 1rem;
+  }
+}
+</style>
+
+<script>
+(function() {
+  'use strict';
+
+  const searchInput = document.getElementById('token-search');
+  const clearBtn = document.getElementById('clear-search');
+  const clearFromEmpty = document.getElementById('clear-from-empty');
+  const typesContainer = document.getElementById('token-types');
+  const noResults = document.getElementById('no-results');
+
+  // Toggle type sections
+  document.querySelectorAll('.token-type-header').forEach(header => {
+    header.addEventListener('click', function() {
+      this.classList.toggle('expanded');
+      this.classList.toggle('collapsed');
+    });
+
+    // Start with first section expanded
+    if (header.parentElement.querySelector('.token-list').children.length > 0) {
+      header.classList.add('expanded');
+    } else {
+      header.classList.add('collapsed');
+    }
+  });
+
+  // Copy token to clipboard
+  document.querySelectorAll('.token-code').forEach(code => {
+    code.addEventListener('click', function() {
+      const token = this.textContent;
+
+      // Modern clipboard API
+      if (navigator.clipboard && navigator.clipboard.writeText) {
+        navigator.clipboard.writeText(token).then(() => {
+          showCopied(this);
+        }).catch(() => {
+          // Fallback
+          fallbackCopy(token, this);
+        });
+      } else {
+        // Fallback for older browsers
+        fallbackCopy(token, this);
+      }
+    });
+  });
+
+  function showCopied(element) {
+    const originalText = element.textContent;
+    element.classList.add('copied');
+    element.textContent = '✓ Copied!';
+
+    setTimeout(() => {
+      element.classList.remove('copied');
+      element.textContent = originalText;
+    }, 2000);
+  }
+
+  function fallbackCopy(text, element) {
+    const textarea = document.createElement('textarea');
+    textarea.value = text;
+    textarea.style.position = 'fixed';
+    textarea.style.opacity = '0';
+    document.body.appendChild(textarea);
+    textarea.select();
+
+    try {
+      document.execCommand('copy');
+      showCopied(element);
+    } catch (err) {
+      alert('Copied: ' + text);
+    }
+
+    document.body.removeChild(textarea);
+  }
+
+  // Search/filter functionality
+  searchInput.addEventListener('input', function() {
+    const query = this.value.toLowerCase().trim();
+
+    if (query) {
+      clearBtn.style.display = 'block';
+    } else {
+      clearBtn.style.display = 'none';
+    }
+
+    filterTokens(query);
+  });
+
+  clearBtn.addEventListener('click', clearSearch);
+  clearFromEmpty.addEventListener('click', clearSearch);
+
+  function clearSearch() {
+    searchInput.value = '';
+    clearBtn.style.display = 'none';
+    filterTokens('');
+    searchInput.focus();
+  }
+
+  function filterTokens(query) {
+    let visibleCount = 0;
+
+    document.querySelectorAll('.token-type-section').forEach(section => {
+      const typeHeader = section.querySelector('.token-type-header');
+      const typeName = typeHeader.querySelector('h2').textContent.toLowerCase();
+      const tokenList = section.querySelector('.token-list');
+      const tokens = tokenList.querySelectorAll('.token-item');
+
+      let sectionHasVisible = false;
+
+      tokens.forEach(token => {
+        const tokenCode = token.querySelector('.token-code').textContent.toLowerCase();
+        const tokenName = token.querySelector('.token-name').textContent.toLowerCase();
+        const tokenDesc = token.querySelector('.token-description').textContent.toLowerCase();
+
+        const matches = !query ||
+                       tokenCode.includes(query) ||
+                       tokenName.includes(query) ||
+                       tokenDesc.includes(query) ||
+                       typeName.includes(query);
+
+        if (matches) {
+          token.style.display = 'block';
+          sectionHasVisible = true;
+          visibleCount++;
+        } else {
+          token.style.display = 'none';
+        }
+      });
+
+      if (sectionHasVisible) {
+        section.style.display = 'block';
+        // Auto-expand sections when searching
+        if (query) {
+          typeHeader.classList.add('expanded');
+          typeHeader.classList.remove('collapsed');
+        }
+      } else {
+        section.style.display = 'none';
+      }
+    });
+
+    // Show/hide empty state
+    if (visibleCount === 0 && query) {
+      typesContainer.style.display = 'none';
+      noResults.style.display = 'block';
+    } else {
+      typesContainer.style.display = 'block';
+      noResults.style.display = 'none';
+    }
+  }
+
+  // Keyboard shortcuts
+  document.addEventListener('keydown', function(e) {
+    // Focus search on / key
+    if (e.key === '/' && document.activeElement !== searchInput) {
+      e.preventDefault();
+      searchInput.focus();
+    }
+
+    // Clear search on Escape
+    if (e.key === 'Escape' && document.activeElement === searchInput) {
+      clearSearch();
+    }
+  });
+
+  console.log('[tokens-browser] Initialized with',
+    document.querySelectorAll('.token-type-section').length, 'token types and',
+    document.querySelectorAll('.token-item').length, 'tokens');
+})();
+</script>

@@ -17769,6 +17769,146 @@ export function hook_routes(register, context) {
   }, 'Get editor configuration');
 
   // ========================================
+  // TOKEN SYSTEM ROUTES
+  // ========================================
+
+  /**
+   * POST /api/tokens/replace - Replace tokens in text
+   * Body: { text: string, context: object }
+   */
+  register('POST', '/api/tokens/replace', async (req, res, params, ctx) => {
+    const tokens = ctx.services.get('tokens');
+    const server = ctx.services.get('server');
+
+    if (!tokens) {
+      server.json(res, { error: 'Token service not available' }, 500);
+      return;
+    }
+
+    try {
+      const body = await parseJsonBody(req);
+      const { text, context } = body;
+
+      if (!text || typeof text !== 'string') {
+        server.json(res, { error: 'Missing or invalid "text" field' }, 400);
+        return;
+      }
+
+      const result = await tokens.replace(text, context || {});
+      server.json(res, { original: text, replaced: result });
+    } catch (error) {
+      server.json(res, { error: error.message }, 500);
+    }
+  }, 'Replace tokens in text');
+
+  /**
+   * GET /api/tokens/types - Get all registered token types
+   */
+  register('GET', '/api/tokens/types', async (req, res, params, ctx) => {
+    const tokens = ctx.services.get('tokens');
+    const server = ctx.services.get('server');
+
+    if (!tokens) {
+      server.json(res, { error: 'Token service not available' }, 500);
+      return;
+    }
+
+    const types = tokens.getTypes();
+    server.json(res, types);
+  }, 'Get all token types');
+
+  /**
+   * GET /api/tokens/browser - Get token browser data
+   */
+  register('GET', '/api/tokens/browser', async (req, res, params, ctx) => {
+    const tokens = ctx.services.get('tokens');
+    const server = ctx.services.get('server');
+
+    if (!tokens) {
+      server.json(res, { error: 'Token service not available' }, 500);
+      return;
+    }
+
+    const data = tokens.getBrowserData(ctx);
+    server.json(res, data);
+  }, 'Get token browser data');
+
+  /**
+   * GET /admin/config/development/tokens - Token browser UI
+   */
+  register('GET', '/admin/config/development/tokens', async (req, res, params, ctx) => {
+    const tokens = ctx.services.get('tokens');
+
+    if (!tokens) {
+      redirect(res, '/admin?error=' + encodeURIComponent('Token service not available'));
+      return;
+    }
+
+    // Get all token types and their tokens
+    const allTypes = tokens.getTypes();
+
+    // Build HTML for token types
+    let typesHtml = '';
+
+    for (const typeId of Object.keys(allTypes).sort()) {
+      const type = allTypes[typeId];
+      const tokenKeys = Object.keys(type.tokens).sort();
+
+      if (tokenKeys.length === 0) continue;
+
+      typesHtml += `<div class="token-type-section">`;
+      typesHtml += `<div class="token-type-header collapsed">`;
+      typesHtml += `<div>`;
+      typesHtml += `<h2>${type.name}</h2>`;
+      if (type.description) {
+        typesHtml += `<p class="token-type-description">${type.description}</p>`;
+      }
+      typesHtml += `</div>`;
+      typesHtml += `<span class="toggle-icon">▼</span>`;
+      typesHtml += `</div>`;
+
+      typesHtml += `<ul class="token-list">`;
+
+      for (const tokenName of tokenKeys) {
+        const token = type.tokens[tokenName];
+        const tokenString = `[${typeId}:${tokenName}]`;
+
+        typesHtml += `<li class="token-item">`;
+        typesHtml += `<div class="token-name">${token.name || tokenName}</div>`;
+        typesHtml += `<div><span class="token-code" title="Click to copy">${tokenString}</span></div>`;
+        if (token.description) {
+          typesHtml += `<div class="token-description">${token.description}</div>`;
+        }
+        if (token.example) {
+          typesHtml += `<div class="token-example">Example: ${token.example}</div>`;
+        }
+        typesHtml += `</li>`;
+      }
+
+      typesHtml += `</ul>`;
+      typesHtml += `</div>`;
+    }
+
+    const flash = getFlashMessage(req.url);
+
+    const html = renderAdmin('tokens-browser.html', {
+      pageTitle: 'Token Browser',
+      typesHtml,
+      flash,
+      hasFlash: !!flash,
+    }, ctx, req);
+
+    server.html(res, html);
+  }, 'Token browser UI');
+
+  /**
+   * GET /admin/tokens - Redirect to token browser
+   */
+  register('GET', '/admin/tokens', async (req, res, params, ctx) => {
+    redirect(res, '/admin/config/development/tokens');
+  }, 'Token browser redirect');
+
+  // ========================================
   // RESPONSIVE IMAGES ROUTES
   // ========================================
 

@@ -1,79 +1,118 @@
-You are a helpful project assistant and backlog manager for the "cms-core" project.
+# CMS-Core — Coding Agent Guide
 
-Your role is to help users understand the codebase, answer questions about features, and manage the project backlog. You can READ files and CREATE/MANAGE features, but you cannot modify source code.
+## ⚠️ CRITICAL: Module Structure
 
-You have MCP tools available for feature management. Use them directly by calling the tool -- do not suggest CLI commands, bash commands, or curl commands to the user. You can create features yourself using the feature_create and feature_create_bulk tools.
+**ALL new functionality MUST be created as modules in `modules/<name>/`, NOT in `core/`.**
 
-## What You CAN Do
+The `core/` directory contains only foundational services that ship with the platform.
+New features (field groups, trash, scheduler, AI, SEO, etc.) are **modules**.
 
-**Codebase Analysis (Read-Only):**
-- Read and analyze source code files
-- Search for patterns in the codebase
-- Look up documentation online
-- Check feature progress and status
+### Creating a New Module
 
-**Feature Management:**
-- Create new features/test cases in the backlog
-- Skip features to deprioritize them (move to end of queue)
-- View feature statistics and progress
+Every module lives in `modules/<module-name>/` and requires TWO files minimum:
 
-## What You CANNOT Do
+```
+modules/<module-name>/
+  manifest.json    ← module metadata, dependencies, version
+  index.js         ← module code with hook exports
+```
 
-- Modify, create, or delete source code files
-- Mark features as passing (that requires actual implementation by the coding agent)
-- Run bash commands or execute code
+#### manifest.json
+```json
+{
+  "name": "<module-name>",
+  "version": "1.0.0",
+  "description": "What this module does",
+  "dependencies": []
+}
+```
 
-If the user asks you to modify code, explain that you're a project assistant and they should use the main coding agent for implementation.
+#### index.js — Hook Pattern
+Modules export hook functions. Available hooks:
 
-## Project Specification
+```javascript
+// Called during boot — register services, config, CLI commands
+export function hook_boot(ctx) {
+  // ctx.services — service registry
+  // ctx.config — site configuration
+  // ctx.db — database helpers
+}
 
-(No app specification found)
+// Called when routes are being set up — register HTTP endpoints
+export function hook_routes(ctx) {
+  const { router } = ctx;
+  router.get('/api/<module>/items', async (req, res) => { ... });
+  router.post('/api/<module>/items', async (req, res) => { ... });
+  // Admin pages:
+  router.get('/admin/<module>', async (req, res) => { ... });
+}
 
-## Available Tools
+// Called on content events — react to content changes
+export function hook_content(ctx) { }
 
-**Code Analysis:**
-- **Read**: Read file contents
-- **Glob**: Find files by pattern (e.g., "**/*.tsx")
-- **Grep**: Search file contents with regex
-- **WebFetch/WebSearch**: Look up documentation online
+// Called on cron runs — periodic tasks
+export function hook_cron(ctx) { }
 
-**Feature Management:**
-- **feature_get_stats**: Get feature completion progress
-- **feature_get_by_id**: Get details for a specific feature
-- **feature_get_ready**: See features ready for implementation
-- **feature_get_blocked**: See features blocked by dependencies
-- **feature_create**: Create a single feature in the backlog
-- **feature_create_bulk**: Create multiple features at once
-- **feature_skip**: Move a feature to the end of the queue
+// Called during install — create database tables, seed data
+export function hook_install(ctx) { }
+```
 
-**Interactive:**
-- **ask_user**: Present structured multiple-choice questions to the user. Use this when you need to clarify requirements, offer design choices, or guide a decision. The user sees clickable option buttons and their selection is returned as your next message.
+### Enabling a Module
 
-## Creating Features
+After creating the module, add its name to `config/modules.json`:
+```json
+["admin", "users", "media", "tasks", "hello", "conscious", "curate", "webhooks", "test", "YOUR_NEW_MODULE"]
+```
 
-When a user asks to add a feature, use the `feature_create` or `feature_create_bulk` MCP tools directly:
+## Project Structure
 
-For a **single feature**, call `feature_create` with:
-- category: A grouping like "Authentication", "API", "UI", "Database"
-- name: A concise, descriptive name
-- description: What the feature should do
-- steps: List of verification/implementation steps
+```
+cms-core/
+├── index.js           # Entry point — starts HTTP server (NO arguments needed)
+├── config/
+│   ├── site.json      # Site name, port (3001), settings
+│   └── modules.json   # List of enabled module names
+├── core/              # ❌ DO NOT ADD FILES HERE — foundational services only
+│   ├── boot.js        # Module loader, service registry
+│   ├── static.js      # Static file serving
+│   ├── theme-engine.js# Theme rendering
+│   ├── database.js    # SQLite helpers
+│   ├── auth.js        # Authentication
+│   ├── content.js     # Content CRUD
+│   ├── fields.js      # Field type system
+│   └── ...            # ~90 other core services
+├── modules/           # ✅ ALL NEW CODE GOES HERE
+│   ├── admin/         # Admin panel
+│   ├── users/         # User management
+│   ├── media/         # Media library
+│   ├── conscious/     # AI consciousness engine
+│   ├── curate/        # Content curation
+│   ├── tasks/         # Task management
+│   └── <your-module>/ # YOUR NEW MODULE
+├── content/           # JSON content storage
+├── themes/            # Theme layouts and skins
+├── public/            # Static assets
+└── logs/
+```
 
-For **multiple features**, call `feature_create_bulk` with an array of feature objects.
+## Running the Server
 
-You can ask clarifying questions if the user's request is vague, or make reasonable assumptions for simple requests.
+```bash
+node index.js          # Starts on port 3001
+```
 
-**Example interaction:**
-User: "Add a feature for S3 sync"
-You: I'll create that feature now.
-[calls feature_create with appropriate parameters]
-You: Done! I've added "S3 Sync Integration" to your backlog. It's now visible on the kanban board.
+Verify: `curl http://localhost:3001/` should return JSON with site info.
 
-## Guidelines
+## Database
 
-1. Be concise and helpful
-2. When explaining code, reference specific file paths and line numbers
-3. Use the feature tools to answer questions about project progress
-4. Search the codebase to find relevant information before answering
-5. When creating features, confirm what was created
-6. If you're unsure about details, ask for clarification
+CMS-Core uses SQLite via `core/database.js`. Content is stored as JSON files in `content/`.
+Modules can create their own SQLite tables via `hook_install`.
+
+## Key Rules
+
+1. **NEVER create files in `core/`** — use `modules/<name>/` instead
+2. **ALWAYS create manifest.json** for new modules
+3. **ALWAYS add module to `config/modules.json`** after creating it
+4. **Use hook pattern** — don't modify existing files unless fixing bugs in them
+5. **Test on port 3001** — `curl` or browser automation
+6. **Commit after each feature** — descriptive message with feature ID

@@ -3,6 +3,18 @@
 You are continuing work on a long-running autonomous development task.
 This is a FRESH context window - you have no memory of previous sessions.
 
+### ⚠️ CMS-CORE MODULE RULES (READ FIRST)
+
+**ALL new functionality MUST be created as modules in `modules/<name>/`.**
+**NEVER add files to `core/` — that directory is for foundational services only.**
+
+Every new module needs:
+1. `modules/<name>/manifest.json` — metadata
+2. `modules/<name>/index.js` — hook exports (hook_boot, hook_routes, hook_content, hook_cron, hook_install)
+3. Add module name to `config/modules.json`
+
+**Read `CLAUDE.md` in the project root for the full module pattern and project structure.**
+
 ### STEP 1: GET YOUR BEARINGS (MANDATORY)
 
 Start by orienting yourself:
@@ -11,10 +23,10 @@ Start by orienting yourself:
 # 1. See your working directory
 pwd
 
-# 2. List files to understand project structure
-ls -la
+# 2. Read the project architecture guide FIRST
+cat CLAUDE.md
 
-# 3. Read the project specification to understand what you're building
+# 3. Read the project specification
 cat app_spec.txt
 
 # 4. Read progress notes from previous sessions (last 500 lines to avoid context overflow)
@@ -22,6 +34,9 @@ tail -500 claude-progress.txt
 
 # 5. Check recent git history
 git log --oneline -20
+
+# 6. Check existing modules for patterns to follow
+ls modules/
 ```
 
 Then use MCP tools to check feature status:
