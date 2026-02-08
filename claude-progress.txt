@@ -951,3 +951,59 @@ All three features were already fully implemented in core/workspaces.js:
 - Continue with remaining validation constraint features
 - Continue with remaining accessibility/SEO features
 
+## Session (Current) - 2026-02-08
+
+### Completed
+- Feature #107: View query inspection (show generated query) (PASSING)
+  - Added GET /admin/views/:id/query.json endpoint in modules/admin/index.js
+  - Implemented showQuery() JavaScript function in views-edit.html template
+  - Returns complete query structure: viewId, contentType, filters, sorts, fields, pager, contextualFilters, appliedFilters
+  - Query inspector UI already existed in template (query-inspector div)
+  - "Show Query" button calls API and displays formatted JSON
+  - Verified via CLI test: buildQuery() generates correct query structure
+  - Test results: All required fields present, query matches view configuration
+
+- Feature #108: View clone (PASSING)
+  - Added cloneView(sourceId, newId, options) to core/views.js
+  - Deep clones view configuration with JSON.parse(JSON.stringify())
+  - New view gets unique ID, updated name/label/description, fresh timestamps
+  - Preserves all configuration: filters, sorts, fields, displays, pager, contextualFilters
+  - Added views:clone CLI command with options (--name, --label, --description)
+  - Verified: clone created with different ID, configuration matches original
+  - Verified: changes to clone don't affect original view
+  - Verified: clone can be deleted independently
+
+- Feature #111: Contextual filter (argument) support (PASSING)
+  - Contextual filter infrastructure already existed in core/views.js
+  - applyContextualFilters() function resolves filters from URL params, query params, session
+  - Supports required and optional contextual filters
+  - contextualFilters array in view configuration with field, source, param, required, op
+  - Source types: 'url' (params), 'query' (query string), 'session' (session data)
+  - buildQuery() includes contextual filters in query structure
+  - executeView() applies contextual filters before querying content
+  - Required filters throw error when missing: "Required contextual filter not provided"
+  - Verified via query structure test: contextual filters applied correctly to filters
+
+### Changes Made
+1. **modules/admin/index.js**:
+   - Added GET /admin/views/:id/query.json route (calls viewsService.buildQuery())
+   - Added views:clone CLI command with argument parsing
+
+2. **modules/admin/templates/views-edit.html**:
+   - Implemented showQuery() function (fetches /admin/views/:id/query.json)
+   - Displays query structure in pre-existing query-inspector div
+   - Smooth scroll to inspector, loading/error states
+
+3. **core/views.js**:
+   - Added cloneView() function with deep clone and metadata updates
+   - Contextual filter support already existed (applyContextualFilters function)
+
+### Current Status
+- 137/165 features passing (83.0%)
+- Views UI tier: Features 107, 108, 111 done
+- All 3 assigned features completed
+
+### Verification
+- Feature #107: CLI test shows buildQuery() returns complete query structure
+- Feature #108: Clone test verifies independent configuration, no cross-contamination
+- Feature #111: Query structure test shows contextual filters applied correctly
