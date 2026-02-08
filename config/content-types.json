@@ -11,7 +11,10 @@
         "minLength": 5,
         "maxLength": 255,
         "weight": 0,
-        "label": "Title"
+        "label": "Title",
+        "constraints": {
+          "Unique": {}
+        }
       },
       "body": {
         "type": "richtext",
