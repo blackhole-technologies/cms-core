@@ -101,4 +101,128 @@ export class AccessResult {
   getReason() {
     return this[REASON];
   }
+
+  /**
+   * Combine with another result using OR logic
+   * - FORBIDDEN wins over everything
+   * - ALLOWED wins over NEUTRAL
+   * - Cache metadata is merged
+   *
+   * @param {AccessResult} other - Another access result
+   * @returns {AccessResult} Combined result
+   *
+   * @example
+   * // User can edit if they have permission OR own the content
+   * permissionCheck.orIf(ownershipCheck)
+   */
+  orIf(other) {
+    let result;
+
+    // FORBIDDEN wins over everything
+    if (this.isForbidden() || other.isForbidden()) {
+      const reason = this.isForbidden() ? this.getReason() : other.getReason();
+      result = AccessResult.forbidden(reason);
+    }
+    // ALLOWED wins over NEUTRAL
+    else if (this.isAllowed() || other.isAllowed()) {
+      result = AccessResult.allowed();
+    }
+    // Both are NEUTRAL
+    else {
+      result = AccessResult.neutral();
+    }
+
+    // Merge cache metadata from both results
+    result._cacheContexts = [...this._cacheContexts, ...other._cacheContexts];
+    result._cacheTags = [...this._cacheTags, ...other._cacheTags];
+
+    return result;
+  }
+
+  /**
+   * Combine with another result using AND logic
+   * - FORBIDDEN wins over everything
+   * - NEUTRAL wins over ALLOWED (both must be ALLOWED for result to be ALLOWED)
+   * - Cache metadata is merged
+   *
+   * @param {AccessResult} other - Another access result
+   * @returns {AccessResult} Combined result
+   *
+   * @example
+   * // User can edit if they have permission AND content is not locked
+   * permissionCheck.andIf(lockCheck)
+   */
+  andIf(other) {
+    let result;
+
+    // FORBIDDEN wins over everything
+    if (this.isForbidden() || other.isForbidden()) {
+      const reason = this.isForbidden() ? this.getReason() : other.getReason();
+      result = AccessResult.forbidden(reason);
+    }
+    // If either is NEUTRAL, result is NEUTRAL
+    else if (this.isNeutral() || other.isNeutral()) {
+      result = AccessResult.neutral();
+    }
+    // Both are ALLOWED
+    else {
+      result = AccessResult.allowed();
+    }
+
+    // Merge cache metadata from both results
+    result._cacheContexts = [...this._cacheContexts, ...other._cacheContexts];
+    result._cacheTags = [...this._cacheTags, ...other._cacheTags];
+
+    return result;
+  }
+
+  /**
+   * Add cache contexts (what makes this result vary)
+   *
+   * @param {string[]} contexts - Cache context IDs (e.g., ['user.permissions', 'url.path'])
+   * @returns {AccessResult} this (for chaining)
+   *
+   * Common contexts:
+   * - 'user' - Varies per user
+   * - 'user.permissions' - Varies when user permissions change
+   * - 'user.roles' - Varies when user roles change
+   * - 'url.path' - Varies per URL path
+   */
+  addCacheContexts(contexts) {
+    this._cacheContexts.push(...contexts);
+    return this;
+  }
+
+  /**
+   * Add cache tags (what invalidates this result)
+   *
+   * @param {string[]} tags - Cache tag IDs (e.g., ['node:42', 'user:1'])
+   * @returns {AccessResult} this (for chaining)
+   *
+   * When any of these entities change, cached access results are invalidated.
+   */
+  addCacheTags(tags) {
+    this._cacheTags.push(...tags);
+    return this;
+  }
+
+  /**
+   * Mark this result as varying per user permissions
+   * Shorthand for addCacheContexts(['user.permissions'])
+   *
+   * @returns {AccessResult} this (for chaining)
+   */
+  cachePerPermissions() {
+    return this.addCacheContexts(['user.permissions']);
+  }
+
+  /**
+   * Mark this result as varying per user
+   * Shorthand for addCacheContexts(['user'])
+   *
+   * @returns {AccessResult} this (for chaining)
+   */
+  cachePerUser() {
+    return this.addCacheContexts(['user']);
+  }
 }
