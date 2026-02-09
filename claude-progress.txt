@@ -997,3 +997,42 @@ All 42 tests passing. Symbol-based private state. Method chaining on all mutator
 
 ### Next Steps
 Next session: Implement FormBuilder (Features 4-7)
+
+## Session: 2026-02-09 (Feature #8) - FormBase and ConfirmFormBase Implementation
+
+### Completed Features
+- ✅ Feature #8: Move FormBase and ConfirmFormBase to core/lib/Form/FormBase.js
+
+### Implementation Summary
+
+Created core/lib/Form/FormBase.js with FormBase and ConfirmFormBase classes.
+
+**FormBase**:
+- Symbol-based private state (SERVICES symbol)
+- Constructor stores services, exposes via _services
+- getFormId() throws (must override)
+- buildForm() returns empty object
+- validateForm() and submitForm() are no-ops
+
+**ConfirmFormBase**:
+- Extends FormBase
+- getQuestion() and getCancelUrl() throw (must override)
+- getDescription() returns empty string (optional)
+- getConfirmText() returns 'Confirm' (optional)
+- buildForm() creates confirmation UI with question, description, confirm/cancel
+
+**Verification**: 18/18 tests passed
+
+### Project Status
+- Total: 10 features
+- Passing: 4 (40%)
+- Session: +1 feature
+
+### Next Steps
+Features 4-7: FormBuilder implementation
+Feature 9: Barrel export
+Feature 10: Integration test
+
+### Commit
+- 4c23da6: feat: implement FormBase and ConfirmFormBase classes (feature #8)
+
