@@ -23,6 +23,9 @@
  * ```
  */
 
+// WHY SYMBOL: Private field that can't be accidentally accessed or collided with
+const _resolving = Symbol('resolving');
+
 export class Container {
   constructor() {
     // Service definitions: name → {factory, deps, tags, singleton, alias}
@@ -33,6 +36,11 @@ export class Container {
 
     // Tag index: tag → Set<serviceName>
     this._tags = new Map();
+
+    // Track services currently being resolved (circular dependency detection)
+    // WHY SET: Fast O(1) lookup to detect if service is already in resolution chain
+    // WHY SYMBOL: Prevents external code from manipulating this critical safety mechanism
+    this[_resolving] = new Set();
   }
 
   /**
@@ -140,6 +148,17 @@ export class Container {
       );
     }
 
+    // Circular dependency detection
+    // WHY CHECK BEFORE RESOLUTION: If this service is already being resolved,
+    // we've hit a cycle (A → B → C → A). Show the full chain to help debugging.
+    if (this[_resolving].has(actualName)) {
+      const chain = Array.from(this[_resolving]);
+      chain.push(actualName); // Add the duplicate to show the cycle
+      throw new Error(
+        `Circular dependency detected: ${chain.join(' → ')}`
+      );
+    }
+
     const definition = this._definitions.get(actualName);
 
     // Handle aliases (redirect to target service)
@@ -149,22 +168,32 @@ export class Container {
     }
 
     // Return cached singleton if available
+    // WHY BEFORE RESOLUTION TRACKING: Cached instances don't need dependency resolution
     if (definition.singleton && this._instances.has(actualName)) {
       return this._instances.get(actualName);
     }
 
-    // Resolve dependencies recursively
-    const resolvedDeps = definition.deps.map(dep => this.get(dep));
+    // Track that we're resolving this service (for cycle detection)
+    this[_resolving].add(actualName);
 
-    // Call factory with resolved dependencies
-    const instance = definition.factory(...resolvedDeps);
+    try {
+      // Resolve dependencies recursively
+      const resolvedDeps = definition.deps.map(dep => this.get(dep));
 
-    // Cache singleton instances
-    if (definition.singleton) {
-      this._instances.set(actualName, instance);
+      // Call factory with resolved dependencies
+      const instance = definition.factory(...resolvedDeps);
+
+      // Cache singleton instances
+      if (definition.singleton) {
+        this._instances.set(actualName, instance);
+      }
+
+      return instance;
+    } finally {
+      // WHY FINALLY: Always clean up resolution tracking, even if factory throws
+      // This ensures the container remains usable after errors
+      this[_resolving].delete(actualName);
     }
-
-    return instance;
   }
 
   /**
@@ -353,5 +382,122 @@ export class Container {
     }
 
     return this;
+  }
+
+  /**
+   * Validate all registered service dependencies without instantiation.
+   *
+   * WHY STATIC ANALYSIS: Catches circular dependencies and missing services
+   * at boot time, before any service is actually created. Much safer than
+   * discovering cycles during runtime when a user action triggers resolution.
+   *
+   * @returns {Array<string>} Array of validation issues (empty if valid)
+   *
+   * @example
+   * ```javascript
+   * const issues = container.validateDependencies();
+   * if (issues.length > 0) {
+   *   console.error('Container validation failed:');
+   *   issues.forEach(issue => console.error(`  - ${issue}`));
+   *   process.exit(1);
+   * }
+   * ```
+   */
+  validateDependencies() {
+    const issues = [];
+
+    // Track visited services and current path for cycle detection
+    // WHY THREE STATES (like DFS): WHITE=unvisited, GRAY=visiting, BLACK=done
+    const WHITE = 0;
+    const GRAY = 1;
+    const BLACK = 2;
+    const state = new Map();
+
+    // Initialize all services as WHITE (unvisited)
+    for (const name of this._definitions.keys()) {
+      state.set(name, WHITE);
+    }
+
+    /**
+     * Depth-first traversal to detect cycles.
+     *
+     * WHY DFS: Can reconstruct the exact cycle path by tracking the current path.
+     * WHY NOT BFS: BFS can detect cycles but can't easily show which nodes form the cycle.
+     *
+     * @param {string} name - Service name to visit
+     * @param {string[]} path - Current resolution path
+     */
+    const visit = (name, path) => {
+      const currentState = state.get(name);
+
+      // If GRAY, we've found a cycle (back to a service on current path)
+      if (currentState === GRAY) {
+        const cycleStart = path.indexOf(name);
+        const cycle = [...path.slice(cycleStart), name];
+        issues.push(`Circular dependency: ${cycle.join(' → ')}`);
+        return;
+      }
+
+      // If BLACK, already fully processed (no cycle through here)
+      if (currentState === BLACK) {
+        return;
+      }
+
+      // Mark as GRAY (currently visiting)
+      state.set(name, GRAY);
+      path.push(name);
+
+      const definition = this._definitions.get(name);
+
+      // Check each dependency
+      for (const dep of definition.deps) {
+        // Handle optional dependencies (prefixed with '?')
+        const isOptional = dep.startsWith('?');
+        const actualDep = isOptional ? dep.slice(1) : dep;
+
+        // Skip aliases (they redirect, don't create cycles)
+        const depDef = this._definitions.get(actualDep);
+        if (depDef && depDef.alias) {
+          // Check the alias target instead
+          const target = depDef.alias;
+          if (!this._definitions.has(target)) {
+            issues.push(`Service '${name}' depends on alias '${actualDep}' which points to non-existent service '${target}'`);
+          }
+          continue;
+        }
+
+        // Validate dependency exists
+        if (!this._definitions.has(actualDep)) {
+          if (!isOptional) {
+            issues.push(`Service '${name}' depends on non-existent service '${actualDep}'`);
+          }
+          // Optional missing dependency is OK - skip visiting it
+          continue;
+        }
+
+        // Recursively visit dependency
+        visit(actualDep, path);
+      }
+
+      // Mark as BLACK (fully processed)
+      path.pop();
+      state.set(name, BLACK);
+    };
+
+    // Visit all services (graph may be disconnected)
+    for (const name of this._definitions.keys()) {
+      const definition = this._definitions.get(name);
+
+      // Skip aliases in top-level iteration (they're checked in visit())
+      if (definition.alias) {
+        continue;
+      }
+
+      if (state.get(name) === WHITE) {
+        visit(name, []);
+      }
+    }
+
+    return issues;
   }
 }
