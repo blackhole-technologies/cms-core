@@ -1,0 +1,42 @@
+<project_specification>
+
+# CMS-Core: Container Cycle Detection
+# Safety net for the dependency injection Container.
+# Prevents infinite recursion when service A depends on B and B depends on A.
+
+## Architecture Context
+Container.get() in core/lib/DependencyInjection/Container.js resolves dependencies
+recursively with no cycle detection. If service A depends on B and B depends on A,
+this infinitely recurses and crashes. The legacy core/dependencies.js has cycle detection.
+The new Container needs it too. A simple _resolving Set tracks which services are
+currently being resolved — if get() is called for a service already in the Set, it's a cycle.
+
+## Read These Files First
+- core/lib/DependencyInjection/Container.js — the existing Container implementation to modify
+- core/dependencies.js — legacy cycle detection to reference
+
+## Code Style Rules (MUST follow — match existing core/lib/ files exactly)
+- WHY comments on every non-trivial decision
+- Full JSDoc
+- Descriptive error messages that show the full dependency chain
+
+## Technology Stack
+- Runtime: Node.js (zero npm dependencies)
+- Port: 3001
+
+feature_count: 3
+
+<features>
+
+1. Add circular dependency detection to Container.get() in core/lib/DependencyInjection/Container.js. Add a private _resolving Set (Symbol-based) that tracks service names currently being resolved. At the start of get(name), check if name is in _resolving — if yes, throw an error with the message: "Circular dependency detected: {chain}" where chain shows the full resolution path (e.g., "A → B → C → A"). Add name to _resolving before resolving dependencies. Remove name from _resolving after resolution completes (in a finally block to handle errors). This must work for arbitrarily deep chains, not just direct A↔B cycles.
+   ACCEPTANCE: Register A depending on B, B depending on A. container.get('A') throws "Circular dependency detected: A → B → A". Register A→B→C→A. container.get('A') throws "Circular dependency detected: A → B → C → A". Non-circular dependencies still resolve normally. The _resolving Set is always cleaned up even if factory throws.
+
+2. Add a Container.validateDependencies() method that checks ALL registered services for circular dependencies without actually instantiating anything. Iterates through all definitions, traces dependency chains using a depth-first traversal, and returns an array of cycle descriptions (empty array if no cycles). This enables boot-time validation before any services are created. Also validates that all listed dependencies exist (or are optional with '?' prefix), returning warnings for missing required dependencies.
+   ACCEPTANCE: With A→B→A registered, validateDependencies() returns array containing the cycle description. With no cycles, returns empty array. With A depending on nonexistent 'C', returns warning about missing dependency. Optional '?C' does not warn.
+
+3. Verify cycle detection works end-to-end with both direct and indirect cycles. Register services: logger (no deps), database depending on logger, cache depending on database, node.storage depending on cache AND database (valid — no cycle). Verify all resolve correctly. Then register problematic: serviceX depending on serviceY, serviceY depending on serviceZ, serviceZ depending on serviceX. Verify get('serviceX') throws with full chain. Verify validateDependencies() catches it. Verify that after the error, non-circular services still resolve (the _resolving Set was cleaned up properly).
+   ACCEPTANCE: Non-circular chain resolves. Circular chain throws with full path. After circular error, container still works for other services. validateDependencies() reports the cycle.
+
+</features>
+
+</project_specification>
