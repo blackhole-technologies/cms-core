@@ -1459,6 +1459,21 @@ export async function boot(baseDir, options = {}) {
       log(`[boot] Routes registered from modules: ${moduleRoutes.map(r => `${r.method} ${r.path}`).join(', ')}`);
     }
 
+    // Register system health endpoint
+    // WHY: Provides a way to check if server is running and database is connected
+    router.get('/api/health', async (req, res, server) => {
+      const health = {
+        status: 'ok',
+        timestamp: new Date().toISOString(),
+        database: {
+          status: 'connected',
+          type: 'json-file-storage'
+        },
+        version: context.config?.version || 'unknown'
+      };
+      server.json(res, health);
+    });
+
     // Invoke middleware hook to let modules register middleware
     // WHY AFTER ROUTES:
     // Modules may want to register middleware for their routes.

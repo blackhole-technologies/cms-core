@@ -236,3 +236,51 @@ export class AccessResult {
     return this.addCacheContexts(['user']);
   }
 }
+
+/**
+ * Combine multiple AccessResult objects using orIf logic
+ *
+ * Short-circuits on first FORBIDDEN result (returns immediately).
+ * Otherwise reduces array using orIf() to find first ALLOWED or NEUTRAL.
+ *
+ * This is useful when checking access via multiple policies:
+ * - If ANY policy forbids access, access is denied
+ * - If ANY policy allows access (and none forbid), access is granted
+ * - If ALL policies are neutral, access is neutral
+ *
+ * @param {AccessResult[]} resultsArray - Array of AccessResult objects
+ * @returns {AccessResult} Combined result
+ *
+ * @example
+ * const results = [
+ *   permissionCheck(account, 'edit'),  // NEUTRAL
+ *   ownershipCheck(account, entity),   // ALLOWED (is owner)
+ *   statusCheck(entity),                // ALLOWED (published)
+ * ];
+ * const combined = combineAccessResults(results); // ALLOWED
+ *
+ * @example Short-circuit on forbidden:
+ * const results = [
+ *   AccessResult.allowed(),
+ *   AccessResult.forbidden('Content is locked'),
+ *   AccessResult.allowed(), // Never evaluated
+ * ];
+ * const combined = combineAccessResults(results); // FORBIDDEN (short-circuit)
+ */
+export function combineAccessResults(resultsArray) {
+  // Short-circuit: if any result is FORBIDDEN, return it immediately
+  for (const result of resultsArray) {
+    if (result.isForbidden()) {
+      return result;
+    }
+  }
+
+  // No forbidden results, reduce using orIf logic
+  // Start with NEUTRAL and combine each result
+  let combined = AccessResult.neutral();
+  for (const result of resultsArray) {
+    combined = combined.orIf(result);
+  }
+
+  return combined;
+}
