@@ -1461,7 +1461,7 @@ export async function boot(baseDir, options = {}) {
 
     // Register system health endpoint
     // WHY: Provides a way to check if server is running and database is connected
-    router.get('/api/health', async (req, res, server) => {
+    router.register('GET', '/api/health', async (req, res, params, ctx) => {
       const health = {
         status: 'ok',
         timestamp: new Date().toISOString(),
@@ -1472,7 +1472,7 @@ export async function boot(baseDir, options = {}) {
         version: context.config?.version || 'unknown'
       };
       server.json(res, health);
-    });
+    }, 'System health check');
 
     // Invoke middleware hook to let modules register middleware
     // WHY AFTER ROUTES:
