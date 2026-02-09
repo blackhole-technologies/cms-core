@@ -1,0 +1,87 @@
+<project_specification>
+
+# CMS-Core Stage 8: Advanced Subsystems
+# Layout builder, workspaces, recipes.
+# Depends on: Stage 1 (Plugins, Config), Stage 2 (Entities), Stage 4 (Render), Stage 5 (Modules)
+
+## Architecture Context
+These are Drupal's most sophisticated subsystems. Layout Builder provides
+visual page composition. Workspaces enable content staging/preview.
+Recipes package reusable site configurations.
+
+CMS-Core already has layout-builder.js (~3,951 lines) and workspaces.js.
+This stage refactors them to use the new meta-patterns.
+
+Read CLAUDE.md for architecture guide.
+
+## Technology Stack
+- Runtime: Node.js (zero npm dependencies)
+- Port: 3001
+
+feature_count: 18
+
+<features>
+
+## Phase 8.1: Layout System (Features 1-7)
+
+1. Create LayoutPluginManager in core/lib/Layout/LayoutPluginManager.js as PluginManager('layout'). Layout plugins define regions, default region, icon, category. Create default layout plugins: OneColumn (regions: content), TwoColumn (regions: first, second), ThreeColumn (regions: first, second, third).
+   ACCEPTANCE: layoutManager.getDefinitions() returns 3 layouts. Each has regions defined.
+
+2. Create Section class in core/lib/Layout/Section.js with constructor(layoutId, layoutSettings, components). Properties: layoutId, layoutSettings, components array. Methods: appendComponent(region, component) returning new Section (immutable), getComponentsByRegion(region), removeComponent(uuid), toJSON().
+   ACCEPTANCE: Section with TwoColumn layout. appendComponent('first', block). getComponentsByRegion('first') returns it. toJSON serializes.
+
+3. Create SectionComponent class in core/lib/Layout/SectionComponent.js with constructor(config). Properties: uuid (auto-generated), region, weight, pluginId, pluginConfiguration. Methods: toJSON(), getPluginId(), getConfiguration().
+   ACCEPTANCE: new SectionComponent({region:'first', pluginId:'block:system_main'}). uuid auto-generated. toJSON works.
+
+4. Create SectionStorage interface and EntitySectionStorage class in core/lib/Layout/SectionStorage.js. EntitySectionStorage stores layout sections as a field on entities (sections JSON field). Methods: getSections(entity), saveSections(entity, sections), hasSections(entity).
+   ACCEPTANCE: saveSections(node, [section1, section2]). getSections(node) returns both sections.
+
+5. Create layout rendering: LayoutBuilder class in core/lib/Layout/LayoutBuilder.js that takes sections and renders them. For each section: get layout plugin, render components into regions, pass regions to layout plugin's build() method. Returns nested render array.
+   ACCEPTANCE: LayoutBuilder.build(sections) returns render array with layout wrapper and components in correct regions.
+
+6. Implement layout plugin build() method for each default layout. TwoColumn.build(regions) returns {#type:'container', first:{...}, second:{...}} with CSS class layout--two-column. Layout CSS classes follow BEM naming.
+   ACCEPTANCE: TwoColumn.build({first:[block1], second:[block2]}) returns render array with correct structure and classes.
+
+7. Refactor existing layout-builder.js into modules/layout_builder/ using new patterns. Preserve existing layout builder functionality (drag-and-drop UI, section management, block placement) while using Section/SectionComponent data model internally.
+   ACCEPTANCE: modules/layout_builder/ exists. Layout builder admin UI works. Sections use new Section class. Layouts use plugins.
+
+## Phase 8.2: Workspace System (Features 8-13)
+
+8. Refactor existing workspaces.js: Create Workspace as ConfigEntity in modules/workspaces/. Workspace has id, label, parent (for workspace hierarchy), status. WorkspaceManager service tracks active workspace per session.
+   ACCEPTANCE: modules/workspaces/ exists. Workspace is ConfigEntity. WorkspaceManager.getActiveWorkspace() works.
+
+9. Create WorkspaceAssociation class that maps entity revisions to workspaces. When content is created/edited in a workspace, the revision is tagged with that workspace ID. Store associations in workspace_association.json or SQLite table.
+   ACCEPTANCE: Edit node in workspace 'stage'. Association recorded. Node shows edited version in 'stage', original in 'live'.
+
+10. Implement workspace publishing: WorkspacePublisher class that pushes all workspace content to the parent workspace (or live). Collect all entity revisions associated with workspace, make them the default revision in parent.
+    ACCEPTANCE: Create content in 'stage' workspace. Publish 'stage'. Content appears in 'live' with workspace revision.
+
+11. Implement workspace conflict detection: before publishing, check if any entity was modified in the target workspace after the workspace was created. ConflictDetector class returns list of conflicts with entity IDs and timestamps.
+    ACCEPTANCE: Edit node in both 'live' and 'stage'. Publish 'stage' detects conflict. Returns conflict details.
+
+12. Implement workspace-aware entity queries: EntityQuery automatically filters by active workspace. When in 'stage' workspace, queries return staged versions of entities. When in 'live', return published versions.
+    ACCEPTANCE: Create workspace 'stage'. Edit node in it. Query from 'stage' returns edited version. Query from 'live' returns original.
+
+13. Workspace access control: workspace-specific permissions (view workspace, edit in workspace, publish workspace, delete workspace). Only users with 'publish workspace' can push content live. Implement via AccessResult pattern.
+    ACCEPTANCE: User without 'publish workspace' permission gets 403 on publish. User with permission succeeds.
+
+## Phase 8.3: Recipe System (Features 14-18)
+
+14. Create Recipe class in core/lib/Recipe/Recipe.js. Constructor parses recipe definition (JSON file in recipes/{name}/recipe.json). Properties: name, description, type, install (required modules), config (config actions), content (default content). Validate structure on load.
+    ACCEPTANCE: new Recipe('recipes/blog/recipe.json'). name, install, config, content all parsed. Invalid recipe throws.
+
+15. Create RecipeRunner class in core/lib/Recipe/RecipeRunner.js with constructor(moduleInstaller, configStorage, entityStorage). Method: apply(recipe) that 1) installs required modules, 2) imports config entities, 3) executes config actions (ensure_exists, grant_permissions), 4) creates default content.
+    ACCEPTANCE: apply(blogRecipe) installs node/taxonomy/views, creates article content type, grants permissions, creates welcome post.
+
+16. Implement config actions in RecipeRunner: ensure_exists (create config entity if not present), simple_config_update (update config values), grant_permissions (add permissions to role), remove_permissions, create_if_not_exists. Each action is idempotent.
+    ACCEPTANCE: Run recipe twice. No errors (idempotent). Config entities exist. Permissions granted. No duplicates.
+
+17. Create RecipeValidator class in core/lib/Recipe/RecipeValidator.js. Validates: all required modules exist, config entity schemas are valid, no circular recipe dependencies (recipes can include other recipes), content data matches entity type fields.
+    ACCEPTANCE: Valid recipe passes validation. Recipe requiring nonexistent module fails. Circular dependency detected.
+
+18. Create core/lib/Recipe/index.js barrel export. Create sample recipes: 'blog' (article type + taxonomy + views), 'portfolio' (project type + image fields), 'documentation' (doc type + hierarchy + search). Place in recipes/ directory.
+    ACCEPTANCE: All imports work. 3 sample recipes exist. Each can be applied to a fresh install.
+
+</features>
+
+</project_specification>

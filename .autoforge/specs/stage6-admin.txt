@@ -1,0 +1,83 @@
+<project_specification>
+
+# CMS-Core Stage 6: Admin & UX Patterns
+# Form API with alter support, route-level access, admin patterns.
+# Depends on: Stage 1 (Hooks, Access), Stage 2 (Entities), Stage 4 (Render)
+
+## Architecture Context
+The Form API enables cross-module form modification — any module can add fields
+to any other module's forms. Route-level access declarations replace inline
+permission checks. These patterns make the admin UI extensible.
+
+Read CLAUDE.md for architecture guide.
+Read .autoforge/templates/form-base.js for the FormBase pattern.
+
+## Technology Stack
+- Runtime: Node.js (zero npm dependencies)
+- Port: 3001
+
+feature_count: 18
+
+<features>
+
+## Phase 6.1: Form API with Alter Support (Features 1-10)
+
+1. Create FormState class in core/lib/Form/FormState.js. Constructor takes initial values object. Methods: getValue(key), getValues(), setValue(key, value), setError(field, message), getErrors(), hasErrors(), setSubmitted(boolean), isSubmitted(), setRedirect(url), getRedirect(), setRebuild(boolean), isRebuilding().
+   ACCEPTANCE: formState.setValue('title','Test'). getValue('title')==='Test'. setError works. hasErrors reflects state.
+
+2. Create FormBuilder class in core/lib/Form/FormBuilder.js with constructor(hooks, services). Method: buildForm(formId, formState) that 1) invokes 'form:{formId}' hook to get base form definition, 2) runs hooks.alter('form', form, {formId}) for global alter, 3) runs hooks.alter('form_{formId}', form) for targeted alter. Returns modified form render array.
+   ACCEPTANCE: Module A defines form. Module B alters it via form_alter. buildForm returns combined form.
+
+3. Implement FormBuilder.processForm(formId, formData) that creates FormState from formData, builds form, runs 'form:{formId}:validate' hook, checks formState.hasErrors(), and if valid runs 'form:{formId}:submit' hook. Returns {success, errors, values, redirect}.
+   ACCEPTANCE: Valid submission: success:true, values present. Invalid: success:false, errors present.
+
+4. Create FormBase class in core/lib/Form/FormBase.js as base for form definitions. Constructor takes formId. Methods: getFormId(), buildForm(formState) returning render array with form elements, validateForm(form, formState) for validation, submitForm(form, formState) for processing. Modules extend this pattern.
+   ACCEPTANCE: class MyForm extends FormBase { buildForm() { return {title:{#type:'textfield'}} } }. Can be instantiated.
+
+5. Create ConfirmFormBase class in core/lib/Form/ConfirmFormBase.js extending FormBase. Adds getQuestion(), getCancelUrl(), getDescription(), getConfirmText() methods. buildForm() returns a confirmation dialog with question and submit/cancel buttons.
+   ACCEPTANCE: DeleteForm extends ConfirmFormBase. buildForm returns confirmation question with buttons.
+
+6. Implement form element types in FormBuilder: 'textfield', 'textarea', 'select', 'checkbox', 'checkboxes', 'radios', 'number', 'email', 'password', 'hidden', 'submit', 'button', 'details', 'fieldset'. Each renders to appropriate HTML. Support #required, #default_value, #options (for select/radios/checkboxes), #description.
+   ACCEPTANCE: {#type:'select', #title:'Color', #options:{red:'Red', blue:'Blue'}, #default_value:'red'} renders <select>.
+
+7. Implement form validation: required field check (error if empty and #required), #maxlength check, #min/#max for numbers, custom #validate array of validator functions. FormState collects all errors with field-level granularity.
+   ACCEPTANCE: Submit form with empty required field → error on that field. Over maxlength → error. Custom validator runs.
+
+8. Implement form alter end-to-end: Module A registers 'node_edit' form. Module B (SEO) adds SEO fieldset via hooks.onAlter('form_node_edit'). Module C (scheduling) adds scheduling fields via same alter. All three modules' fields appear in final form.
+   ACCEPTANCE: buildForm('node_edit') has original fields + SEO group + scheduling fields from different modules.
+
+9. Implement AJAX form behavior: form elements with #ajax property trigger async callbacks. #ajax: {callback: async (form, formState) => renderArray, wrapper: 'element-id', effect:'fade'}. The callback returns a render array that replaces the wrapper element.
+   ACCEPTANCE: Select with #ajax. Changing value triggers callback. Response contains replacement render array.
+
+10. Create core/lib/Form/index.js barrel export. Integration test: build a complex form with multiple element types, alter it from another module, submit with validation errors, fix errors, submit successfully, verify redirect.
+    ACCEPTANCE: All imports work. Full form lifecycle works: build → alter → validate (fail) → validate (pass) → submit → redirect.
+
+## Phase 6.2: Route-Level Access & Param Conversion (Features 11-18)
+
+11. Refactor route registration to support access declarations. Routes declare access requirements as objects: {_permission:'access content'}, {_role:'admin'}, {_entity_access:'node.view'}, {_custom: accessCheckFn}. Router checks access before calling handler.
+    ACCEPTANCE: Route with {_permission:'edit content'}. User without permission gets 403. User with permission gets 200.
+
+12. Create ParamConverter class in core/lib/Routing/ParamConverter.js. Route params with type declaration {node: {type:'entity:node'}} auto-load the entity from its ID before the handler runs. Handler receives the loaded entity object instead of raw ID.
+    ACCEPTANCE: Route /node/{node} with entity:node converter. Request to /node/42 → handler gets ContentEntityBase with id 42. 404 if not found.
+
+13. Implement multiple param converters: 'entity:{type}' loads entity by ID, 'config_entity:{type}' loads config entity, 'int' casts to integer, 'slug' validates slug format. Custom converters can be registered.
+    ACCEPTANCE: /admin/structure/types/{node_type} with config_entity:node_type converter loads ConfigEntity.
+
+14. Create RouteSubscriber pattern in core/lib/Routing/RouteSubscriber.js. Modules implement hook_route_alter to modify routes defined by other modules. Can change access requirements, add parameters, modify paths.
+    ACCEPTANCE: Module A defines /admin/content route. Module B alters it to add extra access requirement. Combined access checked.
+
+15. Implement admin route detection: routes with adminRoute:true property use the admin theme. Routes under /admin/* are auto-detected as admin routes. ThemeNegotiator from Stage 4 consults this.
+    ACCEPTANCE: /admin/content route uses admin theme. /node/1 uses default theme. adminRoute:true forces admin theme.
+
+16. Create route-based breadcrumb builder: BreadcrumbBuilder class in core/lib/Routing/BreadcrumbBuilder.js. Builds breadcrumb trail from route hierarchy. /admin/content → [Home, Administration, Content]. Modules can alter breadcrumbs via hook.
+    ACCEPTANCE: Request to /admin/content/add/article. Breadcrumb: Home → Admin → Content → Add article.
+
+17. Implement route-level title resolution: routes declare title as string or callback. Title callbacks receive (route, params) and return string. {title: (route, {node}) => node.label()}. Titles propagated to page template and breadcrumbs.
+    ACCEPTANCE: Route with title callback. Page title reflects entity label. Breadcrumb uses title.
+
+18. Create core/lib/Routing/index.js barrel export. Integration test: register routes with access declarations and param converters, make requests, verify access control, entity loading, breadcrumbs, and admin theme selection all work together.
+    ACCEPTANCE: All imports work. Full routing pipeline: request → param conversion → access check → handler → themed response.
+
+</features>
+
+</project_specification>

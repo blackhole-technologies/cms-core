@@ -3,17 +3,39 @@
 You are continuing work on a long-running autonomous development task.
 This is a FRESH context window - you have no memory of previous sessions.
 
-### ⚠️ CMS-CORE MODULE RULES (READ FIRST)
+### ⚠️ CMS-CORE ARCHITECTURE RULES (READ FIRST)
 
-**ALL new functionality MUST be created as modules in `modules/<name>/`.**
-**NEVER add files to `core/` — that directory is for foundational services only.**
+**1. Read `CLAUDE.md` BEFORE writing any code.** It defines the 8 meta-patterns, directory structure, and where code goes.
 
-Every new module needs:
-1. `modules/<name>/manifest.json` — metadata
-2. `modules/<name>/index.js` — hook exports (hook_boot, hook_routes, hook_content, hook_cron, hook_install)
-3. Add module name to `config/modules.json`
+**2. Read the template for whatever you're building:**
+- New plugin type? → `.autoforge/templates/plugin-manager.js` + `plugin-base.js`
+- New entity type? → `.autoforge/templates/content-entity.js` or `config-entity.js`
+- New service? → `.autoforge/templates/service-provider.js`
+- New hook? → `.autoforge/templates/hook-implementation.js`
+- New form? → `.autoforge/templates/form-base.js`
+- Access checks? → `.autoforge/templates/access-result.js`
+- Render output? → `.autoforge/templates/render-element.js`
+- Entity storage? → `.autoforge/templates/entity-storage.js`
 
-**Read `CLAUDE.md` in the project root for the full module pattern and project structure.**
+**3. Where code goes:**
+- `core/lib/` — Foundation patterns ONLY (Plugin, Entity, Config, Hook, Render, DI, Access, Form)
+- `modules/<name>/` — ALL features, content types, field types, UI, integrations
+- `core/components/` — Standalone utilities (UUID, diff, transliteration)
+- NEVER add feature code to `core/` root — those files are legacy and being migrated out
+
+**4. Every new module needs:**
+- `modules/<name>/manifest.json` — metadata
+- `modules/<name>/index.js` — hook exports (hook_boot, hook_routes, hook_content, hook_cron, hook_install)
+- Add module name to `config/modules.json`
+
+**5. Check existing patterns BEFORE creating new ones:**
+```bash
+ls modules/           # See existing module examples
+ls core/lib/          # See existing pattern implementations  
+ls .autoforge/templates/  # See pattern templates
+```
+
+**6. DO NOT invent new abstractions.** Use the 8 meta-patterns. If what you're building doesn't fit any pattern, ask why — it almost certainly does.
 
 ### STEP 1: GET YOUR BEARINGS (MANDATORY)
 

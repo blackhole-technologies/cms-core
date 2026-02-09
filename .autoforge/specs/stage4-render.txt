@@ -1,0 +1,77 @@
+<project_specification>
+
+# CMS-Core Stage 4: Render Pipeline
+# Render arrays, caching, theming — the output layer.
+# Depends on: Stage 1 (Hooks, Config), Stage 2 (Entities for view builders)
+
+## Architecture Context
+CMS-Core already has core/render.js with a RenderContext class that tracks
+cache tags, cache contexts, and attached assets. This stage refactors and
+extends it with proper cache integration, lazy builders, and theme registry.
+
+Read CLAUDE.md for architecture guide.
+Read .autoforge/templates/render-element.js for the render element pattern.
+
+## Technology Stack
+- Runtime: Node.js (zero npm dependencies)
+- Port: 3001
+
+feature_count: 16
+
+<features>
+
+## Phase 4.1: Render Array System (Features 1-8)
+
+1. Create BubbleableMetadata class in core/lib/Render/BubbleableMetadata.js. Properties: cacheTags (Set), cacheContexts (Set), cacheMaxAge (number, -1 = permanent), attachments (Map of library→assets). Methods: addCacheTags(tags), addCacheContexts(contexts), setCacheMaxAge(seconds), addAttachment(type, value), merge(otherMetadata) combining both.
+   ACCEPTANCE: metadata.addCacheTags(['node:1','node:2']). merge combines tags, contexts. MaxAge uses minimum.
+
+2. Create Renderer class in core/lib/Render/Renderer.js with constructor(elementTypes, hooks). Method: render(renderArray) that processes a render array recursively. Dispatch by #type to registered element type handlers. Collect BubbleableMetadata from children. Return {markup, metadata}.
+   ACCEPTANCE: render({#type:'markup', #markup:'<p>Hello</p>'}) returns {markup:'<p>Hello</p>', metadata:BubbleableMetadata}.
+
+3. Implement element type registry in Renderer. Method: registerElementType(type, handler) where handler is async (element, renderer) => {markup, metadata}. Register default types: 'markup' (raw HTML), 'container' (div wrapper with #attributes), 'html_tag' (any HTML tag).
+   ACCEPTANCE: render({#type:'container', #attributes:{class:['wrapper']}, content:{#type:'markup', #markup:'hi'}}).
+
+4. Register element types: 'table' (renders HTML table from #header and #rows), 'item_list' (renders ul/ol from #items), 'link' (renders <a> from #title and #url), 'details' (renders <details>/<summary> collapsible).
+   ACCEPTANCE: render({#type:'table', #header:['Name','Age'], #rows:[['Alice','30']]}) produces <table> HTML.
+
+5. Implement render array sorting by #weight property. Children elements without explicit keys are rendered in order; elements with #weight are sorted numerically (lower weight = earlier). Implement #access property — if false, skip rendering.
+   ACCEPTANCE: {a:{#weight:10}, b:{#weight:-5}} renders b before a. {#access:false, #markup:'hidden'} produces empty.
+
+6. Implement #prefix and #suffix on render arrays. Implement #theme property that delegates to ThemeRegistry for rendering. Implement #attached for asset attachment (css, js libraries).
+   ACCEPTANCE: {#prefix:'<div>', #suffix:'</div>', #markup:'content'} wraps content. #attached merges into metadata.
+
+7. Create LazyBuilder class in core/lib/Render/LazyBuilder.js. Constructor takes (callback, args). Methods: getPlaceholder() returning unique comment placeholder, resolve() calling callback with args. Renderer replaces {#type:'lazy_builder', #callback, #args} with placeholder during render, resolves after.
+   ACCEPTANCE: {#type:'lazy_builder', #callback:async()=>'<div>expensive</div>'}. Placeholder inserted, then resolved.
+
+8. Create core/lib/Render/index.js barrel export. Integrate Renderer with existing core/render.js — the new Renderer should be usable alongside existing RenderContext. Write a comprehensive render test: nested elements, weights, access, lazy builders, cache metadata bubbling.
+   ACCEPTANCE: All imports work. Complex nested render array produces correct HTML with correct merged metadata.
+
+## Phase 4.2: Theme Registry and Preprocess (Features 9-16)
+
+9. Create ThemeRegistry class in core/lib/Theme/ThemeRegistry.js with constructor(hooks). Methods: register(hook, definition) where definition has template (path), render (function), variables (defaults), module (provider). Store in internal Map.
+   ACCEPTANCE: registry.register('node', {render: fn, variables:{node:null}}). Registry has 'node' entry.
+
+10. Implement ThemeRegistry.render(hook, variables) that: 1) merges default variables, 2) invokes hooks 'preprocess' and 'preprocess_{hook}' passing variables by reference, 3) calls the render function or loads template. Return rendered HTML string.
+    ACCEPTANCE: Register 'page' with render fn. preprocess_page adds variable. render('page', {}) includes preprocessed variable.
+
+11. Register default theme hooks: 'page' (full HTML page wrapper), 'region' (page region), 'block' (block wrapper), 'node' (content entity display), 'field' (field display wrapper), 'item_list' (list of items), 'table' (HTML table), 'status_messages' (flash messages).
+    ACCEPTANCE: ThemeRegistry has all 8 hooks registered. Each has default render function.
+
+12. Create ThemeNegotiator class in core/lib/Theme/ThemeNegotiator.js that determines the active theme per request. Methods: determineActiveTheme(request) checking: 1) admin route → admin theme, 2) route-level theme override, 3) default theme from config. Returns theme name string.
+    ACCEPTANCE: Admin route returns 'admin'. Regular route returns 'default'. Custom override works.
+
+13. Implement theme suggestion system: ThemeRegistry.addSuggestion(baseHook, suffix, condition). Example: 'node' base hook gets 'node__article' suggestion when bundle is 'article'. Renderer checks suggestions in order (most specific first).
+    ACCEPTANCE: render('node', {bundle:'article'}) checks 'node__article' first, falls back to 'node'.
+
+14. Implement template override: themes can register override render functions for any hook. ThemeRegistry.addOverride(hook, renderFn, theme). Active theme's overrides take priority over module-provided render functions.
+    ACCEPTANCE: Module registers 'node' render. Theme overrides 'node' render. ThemeRegistry uses theme's version.
+
+15. Implement preprocess hook pattern end-to-end: modules register preprocess functions via hooks.on('preprocess_node', fn). Variables are mutated in-place. Multiple modules can add variables to the same template.
+    ACCEPTANCE: Module A adds readTime variable. Module B adds authorName variable. Both available in template.
+
+16. Create core/lib/Theme/index.js barrel export. Integration test: register a theme hook, add preprocessors from two modules, render with theme suggestions, verify correct template used with all preprocessed variables.
+    ACCEPTANCE: All imports work. Full theme pipeline works end-to-end.
+
+</features>
+
+</project_specification>
