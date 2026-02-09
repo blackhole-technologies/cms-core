@@ -1,80 +1,41 @@
 <project_specification>
 
-# CMS-Core: FormBuilder + FormState
-# The form processing pipeline that turns HTTP POST into validate → submit.
-# Unlocks hook_form_alter — the mechanism that lets any module modify any form.
+# CMS-Core: Container Cycle Detection
+# Safety net for the dependency injection Container.
+# Prevents infinite recursion when service A depends on B and B depends on A.
 
 ## Architecture Context
-CMS-Core has a form-base.js template that defines FormBase and ConfirmFormBase classes,
-but there is no FormBuilder (the engine that processes forms) or FormState (tracks values,
-errors, redirect). The template references formState.getValue(), formState.setError(),
-formState.setRedirect() — all undefined. FormBuilder is what connects HTTP requests to
-form classes and fires the alter hooks that make forms extensible.
+Container.get() in core/lib/DependencyInjection/Container.js resolves dependencies
+recursively with no cycle detection. If service A depends on B and B depends on A,
+this infinitely recurses and crashes. The legacy core/dependencies.js has cycle detection.
+The new Container needs it too. A simple _resolving Set tracks which services are
+currently being resolved — if get() is called for a service already in the Set, it's a cycle.
 
 ## Read These Files First
-- .autoforge/templates/form-base.js — FormBase, ConfirmFormBase, form element types, alter examples
-- core/lib/Hook/HookManager.js — hook invocation for form_alter hooks
-- core/lib/Render/Renderer.js — render array processing (forms ARE render arrays)
-- core/lib/Plugin/PluginManager.js — code style reference
-- core/form.js — existing legacy form handling (if any patterns to preserve)
-- core/forms.js — existing legacy form implementations
+- core/lib/DependencyInjection/Container.js — the existing Container implementation to modify
+- core/dependencies.js — legacy cycle detection to reference
 
 ## Code Style Rules (MUST follow — match existing core/lib/ files exactly)
-- @file JSDoc header with Drupal equivalent reference
-- const SYMBOL = Symbol('name') for ALL private/internal state at module top level
 - WHY comments on every non-trivial decision
-- Full JSDoc on every public method with @param and @return
-- Descriptive error messages that list available values
-- export class (NOT default exports)
-- return this for chaining on mutating methods
-- Zero npm dependencies — Node.js built-ins only
-- ES module syntax (import/export)
+- Full JSDoc
+- Descriptive error messages that show the full dependency chain
 
 ## Technology Stack
 - Runtime: Node.js (zero npm dependencies)
 - Port: 3001
 
-feature_count: 10
+feature_count: 3
 
 <features>
 
-## Phase 1: FormState — Form Value and Error Tracking (Features 1-3)
+1. Add circular dependency detection to Container.get() in core/lib/DependencyInjection/Container.js. Add a private _resolving Set (Symbol-based) that tracks service names currently being resolved. At the start of get(name), check if name is in _resolving — if yes, throw an error with the message: "Circular dependency detected: {chain}" where chain shows the full resolution path (e.g., "A → B → C → A"). Add name to _resolving before resolving dependencies. Remove name from _resolving after resolution completes (in a finally block to handle errors). This must work for arbitrarily deep chains, not just direct A↔B cycles.
+   ACCEPTANCE: Register A depending on B, B depending on A. container.get('A') throws "Circular dependency detected: A → B → A". Register A→B→C→A. container.get('A') throws "Circular dependency detected: A → B → C → A". Non-circular dependencies still resolve normally. The _resolving Set is always cleaned up even if factory throws.
 
-1. Create FormState class in core/lib/Form/FormState.js. Constructor takes optional initial values object. Implement getValue(key) returning value for a form field or undefined. Implement getValues() returning all values as plain object. Implement setValue(key, value) storing a value, returns this. Implement setValues(values) merging an object of values, returns this. Use Symbol-based private state for values map, errors map, redirect, entity, rebuild flag, submitted flag. Add @file JSDoc header referencing Drupal FormStateInterface.php.
-   ACCEPTANCE: new FormState({name: 'test'}).getValue('name') returns 'test'. setValue('email', 'a@b.com').getValue('email') returns 'a@b.com'. getValues() returns plain object.
+2. Add a Container.validateDependencies() method that checks ALL registered services for circular dependencies without actually instantiating anything. Iterates through all definitions, traces dependency chains using a depth-first traversal, and returns an array of cycle descriptions (empty array if no cycles). This enables boot-time validation before any services are created. Also validates that all listed dependencies exist (or are optional with '?' prefix), returning warnings for missing required dependencies.
+   ACCEPTANCE: With A→B→A registered, validateDependencies() returns array containing the cycle description. With no cycles, returns empty array. With A depending on nonexistent 'C', returns warning about missing dependency. Optional '?C' does not warn.
 
-2. Implement FormState error handling: setError(field, message) stores an error for a field, returns this. setErrorByName(field, message) as alias for setError. getError(field) returns error message or null. getErrors() returns all errors as plain object. hasErrors() returns boolean. clearErrors() resets all errors. Implement form submission state: isSubmitted() returns boolean. setSubmitted(flag) sets submitted state. isRebuilding() returns boolean (form needs re-render after submit). setRebuild(flag) sets rebuild state.
-   ACCEPTANCE: setError('email', 'Invalid').hasErrors() returns true. getError('email') returns 'Invalid'. clearErrors().hasErrors() returns false. setSubmitted(true).isSubmitted() returns true.
-
-3. Implement FormState redirect and entity handling: setRedirect(url) stores redirect URL, returns this. getRedirect() returns URL or null. setEntity(entity) stores an entity being edited, returns this. getEntity() returns entity or null. Implement setStorage(key, value) and getStorage(key) for arbitrary per-form persistent data (used by multi-step forms). Implement setTemporaryValue(key, value) and getTemporaryValue(key) for values that don't persist across requests.
-   ACCEPTANCE: setRedirect('/node/1').getRedirect() returns '/node/1'. setEntity(mockEntity).getEntity() returns mockEntity. setStorage('step', 2).getStorage('step') returns 2.
-
-## Phase 2: FormBuilder — Form Processing Engine (Features 4-7)
-
-4. Create FormBuilder class in core/lib/Form/FormBuilder.js. Constructor takes no arguments. Implement setInfrastructure(services, hooks) matching PluginManager pattern. Implement getForm(formClass) as async method that: (1) instantiates the form class passing services, (2) creates a new FormState, (3) calls form.buildForm(formState) to get the render array, (4) adds hidden #form_id field with form.getFormId() value, (5) adds #form_build_id with a unique ID for CSRF, returns {form: renderArray, formState, formInstance}. Use Symbol-based private state. Add @file JSDoc header referencing Drupal FormBuilder.php.
-   ACCEPTANCE: With a FormBase subclass that returns {name: {'#type':'textfield'}}, getForm(MyForm) returns {form, formState, formInstance} with #form_id injected.
-
-5. Implement FormBuilder form alter hook integration. After buildForm() in getForm(), fire three hooks via HookManager: (1) 'form_alter' with (form, formState, formId) — generic alter for ALL forms, (2) 'form_{formId}_alter' with (form, formState) — specific alter for this form. The altered form replaces the original. This is the mechanism that lets SEO modules add fields to content forms, scheduling modules add publish dates, etc.
-   ACCEPTANCE: Register a hook_form_alter that adds a field. Call getForm(). Returned form contains the added field. Register hook_form_contact_form_alter for specific form. Both fire correctly.
-
-6. Implement FormBuilder.processForm(formClass, submittedValues) as async method that: (1) calls getForm(formClass) to build the form, (2) populates formState with submittedValues via setValues(), (3) sets formState submitted flag, (4) calls form.validateForm(form, formState), (5) if no errors, calls form.submitForm(form, formState), (6) returns {form, formState, formInstance}. Validate and submit are only called if the form was actually submitted (submitted values are not empty).
-   ACCEPTANCE: processForm with valid values calls validateForm then submitForm. With validation errors, submitForm is NOT called. formState.hasErrors() reflects validation result.
-
-7. Implement FormBuilder.processForm error handling and rebuild support. If validateForm sets errors via formState.setError(), submitForm is skipped. If submitForm sets formState.setRebuild(true), the form is rebuilt with current values (re-calls buildForm with populated formState). The rebuilt form retains user input and displays error messages. Add method retrieveForm(formId) that looks up a form class by its form ID from a registry. Implement registerForm(formId, formClass) to populate the registry.
-   ACCEPTANCE: Form with validation error returns formState.hasErrors() true, submitForm not called. setRebuild(true) triggers re-build. registerForm('contact', ContactForm) then retrieveForm('contact') returns ContactForm.
-
-## Phase 3: FormBase Integration (Features 8-9)
-
-8. Move FormBase and ConfirmFormBase from template to core/lib/Form/FormBase.js as proper implementations. FormBase constructor takes (services) and stores it. getFormId() throws 'Subclass must implement getFormId()'. buildForm(formState) returns empty object. validateForm(form, formState) is a no-op. submitForm(form, formState) is a no-op. ConfirmFormBase extends FormBase with getQuestion(), getCancelUrl(), getDescription(), getConfirmText() methods and a buildForm() that creates the confirmation render array. Match code style exactly.
-   ACCEPTANCE: new FormBase(services).getFormId() throws. ConfirmFormBase.buildForm() returns render array with question, description, confirm and cancel actions.
-
-9. Create core/lib/Form/index.js barrel export that re-exports FormBase, ConfirmFormBase from './FormBase.js', FormState from './FormState.js', and FormBuilder from './FormBuilder.js'. Follow same pattern as core/lib/Plugin/index.js.
-   ACCEPTANCE: import { FormBase, ConfirmFormBase, FormState, FormBuilder } from './core/lib/Form/index.js' works. All four classes available.
-
-## Phase 4: Verification (Feature 10)
-
-10. End-to-end verification: Create a ContactForm extending FormBase with getFormId() returning 'contact_form', buildForm() returning name/email/message fields, validateForm() checking email contains '@', submitForm() storing values. Build it via FormBuilder.getForm(). Register a form alter hook that adds a 'phone' field. Verify alter fires. Process form with valid values — verify submitForm called. Process with invalid email — verify validateForm sets error, submitForm not called. Verify formState tracks values, errors, and redirect correctly throughout.
-   ACCEPTANCE: Full lifecycle works: build → alter → validate → submit. Alter hook adds phone field. Validation prevents submission on bad email. Good email goes through to submitForm. formState.getRedirect() returns value set in submitForm.
+3. Verify cycle detection works end-to-end with both direct and indirect cycles. Register services: logger (no deps), database depending on logger, cache depending on database, node.storage depending on cache AND database (valid — no cycle). Verify all resolve correctly. Then register problematic: serviceX depending on serviceY, serviceY depending on serviceZ, serviceZ depending on serviceX. Verify get('serviceX') throws with full chain. Verify validateDependencies() catches it. Verify that after the error, non-circular services still resolve (the _resolving Set was cleaned up properly).
+   ACCEPTANCE: Non-circular chain resolves. Circular chain throws with full path. After circular error, container still works for other services. validateDependencies() reports the cycle.
 
 </features>
 
