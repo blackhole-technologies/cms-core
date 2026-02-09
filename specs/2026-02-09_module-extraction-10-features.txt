@@ -1,0 +1,80 @@
+<project_specification>
+
+# CMS-Core: Module Extraction
+# Move feature code out of core/ into proper modules that register via hooks.
+# CLAUDE.md says "Don't put feature code in core/" but 60+ files still do.
+
+## Architecture Context
+core/ contains ~91 files. Many are genuine core services (boot.js, server.js, router.js,
+hooks.js, services.js, database.js, cache.js, auth.js, etc.). But 60+ files are feature
+code that belongs in modules/ — things like views.js, taxonomy.js, workspaces.js,
+layout-builder.js, search.js, feeds.js, comments.js, etc.
+
+This spec extracts the most impactful feature files into proper modules. Each extracted
+module registers its routes, hooks, and services through the standard module pattern
+instead of being hardcoded into the boot sequence.
+
+The boot bridge (separate spec) must be in place for this to work — modules need to
+register via hooks and the service container.
+
+## Read These Files First
+- core/boot.js — understand how core files are currently loaded
+- modules/hello/index.js — example of a proper module (hook registration pattern)
+- modules/admin/index.js — example of a complex module
+- CLAUDE.md — architecture rules including "Don't put feature code in core/"
+
+## Important Constraints
+- Do NOT delete core/ files — move them to modules/ and create a shim in core/ that imports from the module for backward compatibility
+- Each module must have: index.js (hook_boot registration), and the moved logic
+- Modules register routes via hook_routes, services via hook_services
+- Test that the CMS still boots and responds after each extraction
+
+## Technology Stack
+- Runtime: Node.js (zero npm dependencies)
+- Port: 3001
+
+feature_count: 10
+
+<features>
+
+## Phase 1: High-Value Extractions (Features 1-4)
+
+1. Extract core/views.js into modules/views/. Create modules/views/index.js with hook_boot that registers the views service and routes. Move the views logic to modules/views/views.js. Replace core/views.js with a thin shim that imports from modules/views/ and re-exports for backward compatibility. Add a console.warn deprecation notice in the shim. Enable 'views' in config/modules.json.
+   ACCEPTANCE: modules/views/index.js exists with hook_boot. core/views.js is a shim. Views functionality still works. CMS boots without errors. Deprecation warning logged when core/views.js is imported directly.
+
+2. Extract core/taxonomy.js into modules/taxonomy/. Create modules/taxonomy/index.js with hook_boot that registers taxonomy service, vocabulary storage, and routes. Move taxonomy logic to modules/taxonomy/taxonomy.js. Replace core/taxonomy.js with deprecation shim. Enable 'taxonomy' in config/modules.json.
+   ACCEPTANCE: modules/taxonomy/index.js exists with hook_boot. core/taxonomy.js is a shim. Taxonomy functionality works. CMS boots without errors.
+
+3. Extract core/search.js into modules/search/. Create modules/search/index.js with hook_boot that registers search service, search index, and routes. Move search logic to modules/search/search.js. Replace core/search.js with deprecation shim. Enable 'search' in config/modules.json.
+   ACCEPTANCE: modules/search/index.js exists with hook_boot. core/search.js is a shim. Search functionality works. CMS boots without errors.
+
+4. Extract core/comments.js into modules/comments/. Create modules/comments/index.js with hook_boot that registers comments service and routes. Move comments logic to modules/comments/comments.js. Replace core/comments.js with deprecation shim. Enable 'comments' in config/modules.json.
+   ACCEPTANCE: modules/comments/index.js exists with hook_boot. core/comments.js is a shim. Comments functionality works. CMS boots without errors.
+
+## Phase 2: Content Feature Extractions (Features 5-7)
+
+5. Extract core/feeds.js into modules/feeds/. Create modules/feeds/index.js with hook_boot. Move logic. Create shim. Enable module. Same pattern as Phase 1.
+   ACCEPTANCE: modules/feeds/ exists and works. core/feeds.js is a shim. CMS boots.
+
+6. Extract core/workspaces.js into modules/workspaces/. Create modules/workspaces/index.js with hook_boot. Move logic. Create shim. Enable module. Same pattern.
+   ACCEPTANCE: modules/workspaces/ exists and works. core/workspaces.js is a shim. CMS boots.
+
+7. Extract core/layout-builder.js into modules/layout-builder/. Create modules/layout-builder/index.js with hook_boot. Move logic. Create shim. Enable module. Same pattern.
+   ACCEPTANCE: modules/layout-builder/ exists and works. core/layout-builder.js is a shim. CMS boots.
+
+## Phase 3: Utility Feature Extractions (Features 8-9)
+
+8. Extract core/sitemap.js and core/seo.js into modules/seo/. Combine both into a single SEO module since they are related concerns. Create modules/seo/index.js with hook_boot that registers sitemap and SEO services and routes. Create shims for both core/sitemap.js and core/seo.js. Enable 'seo' in config/modules.json.
+   ACCEPTANCE: modules/seo/ exists with combined sitemap and SEO functionality. Both core shims work. CMS boots.
+
+9. Extract core/scheduler.js into modules/scheduler/. Create modules/scheduler/index.js with hook_boot. Move logic. Create shim. Enable module. Same pattern.
+   ACCEPTANCE: modules/scheduler/ exists and works. core/scheduler.js is a shim. CMS boots.
+
+## Phase 4: Verification (Feature 10)
+
+10. Full system verification after all extractions. Boot the CMS and verify: (1) All extracted modules load via config/modules.json, (2) All shims in core/ log deprecation warnings, (3) Routes registered by extracted modules respond correctly, (4) No import errors or missing module errors in boot, (5) core/ file count is reduced (should be under 70 files now), (6) The server starts and responds on port 3001. Create a summary document at docs/module-extraction-status.md listing what was moved, what remains in core/, and what should be moved next.
+   ACCEPTANCE: CMS boots and all routes work. core/ has fewer files. docs/module-extraction-status.md exists with complete status. No errors in boot log except deprecation warnings.
+
+</features>
+
+</project_specification>
