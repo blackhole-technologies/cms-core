@@ -384,6 +384,216 @@ export class HookManager {
   }
 
   /**
+   * Alter hook - chain data transformations through multiple handlers
+   *
+   * @param {string} hookName - Hook name (without '_alter' suffix)
+   * @param {*} data - Data to be modified
+   * @param {*} context - Additional context (optional)
+   * @returns {Promise<*>} - Transformed data after all handlers
+   *
+   * WHY ALTER HOOKS:
+   * Drupal's most powerful pattern. Allows modules to modify data
+   * from other modules without knowing about them. Each handler
+   * receives the accumulated changes from previous handlers.
+   *
+   * NAMING CONVENTION:
+   * alter('form', data) invokes handlers registered for 'form_alter'
+   * This matches Drupal's hook_form_alter pattern.
+   *
+   * RETURN VALUE HANDLING:
+   * - If handler returns a value, use it as new data
+   * - If handler returns undefined, keep existing data
+   * - Handlers can mutate data in place OR return new data
+   *
+   * @example Form alteration
+   * ```javascript
+   * // Module A adds a field
+   * hooks.onAlter('form', (form) => {
+   *   form.my_field = { type: 'text', label: 'My Field' };
+   *   return form;
+   * });
+   *
+   * // Module B adds another field
+   * hooks.onAlter('form', (form) => {
+   *   form.another_field = { type: 'checkbox', label: 'Another' };
+   *   return form;
+   * });
+   *
+   * // Apply all alterations
+   * let form = { title: 'My Form' };
+   * form = await hooks.alter('form', form);
+   * // Result: { title: 'My Form', my_field: {...}, another_field: {...} }
+   * ```
+   *
+   * @example Entity type alteration
+   * ```javascript
+   * hooks.onAlter('entity_type_info', (types) => {
+   *   const node = types.get('node');
+   *   if (node) {
+   *     node.baseFieldDefinitions.seo_title = {
+   *       type: 'string',
+   *       label: 'SEO Title',
+   *     };
+   *   }
+   *   return types;
+   * });
+   * ```
+   */
+  async alter(hookName, data, context = {}) {
+    // Invoke handlers for '{hookName}_alter'
+    const alterHookName = `${hookName}_alter`;
+    const handlers = this._handlers.get(alterHookName);
+
+    // No handlers registered - return data unchanged
+    if (!handlers || handlers.length === 0) {
+      return data;
+    }
+
+    let currentData = data;
+    const toRemove = [];
+
+    // Execute handlers sequentially, chaining transformations
+    for (let i = 0; i < handlers.length; i++) {
+      const { handler, once, module } = handlers[i];
+
+      try {
+        // Call handler with current data and context
+        const result = await handler(currentData, context);
+
+        // If handler returns a value, use it as new data
+        // If handler returns undefined, keep existing data
+        // This allows both mutation and immutable patterns
+        if (result !== undefined) {
+          currentData = result;
+        }
+
+        // Mark for removal if once-handler
+        if (once) {
+          toRemove.push(i);
+        }
+      } catch (error) {
+        // Log error but continue chain
+        const source = module ? ` (module: ${module})` : '';
+        console.error(`[HookManager] Error in "${alterHookName}" handler${source}:`, error.message);
+        // Don't update currentData on error - skip this handler
+      }
+    }
+
+    // Remove once-handlers (backwards to preserve indices)
+    for (let i = toRemove.length - 1; i >= 0; i--) {
+      handlers.splice(toRemove[i], 1);
+    }
+
+    // Update the handlers array if we removed any
+    if (toRemove.length > 0) {
+      this._handlers.set(alterHookName, handlers);
+    }
+
+    return currentData;
+  }
+
+  /**
+   * Shorthand for registering alter hooks
+   *
+   * @param {string} hookName - Hook name (without '_alter' suffix)
+   * @param {Function} handler - Handler function
+   * @param {Object} options - Options (priority, module, once)
+   * @returns {HookManager} - Returns this for chaining
+   *
+   * WHY THIS EXISTS:
+   * More readable: hooks.onAlter('form', fn)
+   * vs:           hooks.on('form_alter', fn)
+   *
+   * Makes intent clearer - this is an alter hook, not a regular hook.
+   *
+   * @example
+   * ```javascript
+   * hooks.onAlter('form', (form, context) => {
+   *   if (context.formId === 'node_edit') {
+   *     form.publish_on = { type: 'date', label: 'Publish on' };
+   *   }
+   *   return form;
+   * }, { module: 'scheduler', priority: 20 });
+   * ```
+   */
+  onAlter(hookName, handler, options = {}) {
+    // Register handler for '{hookName}_alter'
+    return this.on(`${hookName}_alter`, handler, options);
+  }
+
+  /**
+   * Remove a handler by module name
+   *
+   * @param {string} hookName - Hook name
+   * @param {string} moduleName - Module name to remove
+   *
+   * WHY THIS EXISTS:
+   * Allows modules to remove handlers from other modules.
+   * Example: "disable the search indexing hook from the search module"
+   *
+   * @example
+   * ```javascript
+   * // Remove all handlers from 'search' module for entity:presave
+   * hooks.remove('entity:presave', 'search');
+   * ```
+   */
+  remove(hookName, moduleName) {
+    const handlers = this._handlers.get(hookName);
+    if (!handlers) {
+      return;
+    }
+
+    // Filter out handlers from specified module
+    const filtered = handlers.filter(h => h.module !== moduleName);
+
+    // Update or delete
+    if (filtered.length > 0) {
+      this._handlers.set(hookName, filtered);
+    } else {
+      this._handlers.delete(hookName);
+    }
+  }
+
+  /**
+   * Reorder a module's handler priority
+   *
+   * @param {string} hookName - Hook name
+   * @param {string} moduleName - Module name to reorder
+   * @param {number} newPriority - New priority value
+   *
+   * WHY THIS EXISTS:
+   * Sometimes you need to change execution order without modifying code.
+   * Example: "make my validation run before the core validation"
+   *
+   * @example
+   * ```javascript
+   * // Move 'mymod' handlers to run first
+   * hooks.reorder('entity:validate', 'mymod', 1);
+   * ```
+   */
+  reorder(hookName, moduleName, newPriority) {
+    const handlers = this._handlers.get(hookName);
+    if (!handlers) {
+      return;
+    }
+
+    // Update priority for all handlers from this module
+    let updated = false;
+    for (const handler of handlers) {
+      if (handler.module === moduleName) {
+        handler.priority = newPriority;
+        updated = true;
+      }
+    }
+
+    // Re-sort if any priorities changed
+    if (updated) {
+      handlers.sort((a, b) => a.priority - b.priority);
+      this._handlers.set(hookName, handlers);
+    }
+  }
+
+  /**
    * Clear all handlers for a hook (mainly for testing)
    *
    * @param {string} hookName - Hook to clear (if null, clears all)
