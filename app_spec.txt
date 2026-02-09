@@ -1,22 +1,24 @@
 <project_specification>
 
-# CMS-Core: ConfigEntityStorage
-# Completes the config entity pattern — ConfigEntity exists but can't persist itself.
-# Adds ConfigEntityStorage that reads/writes config/active/{entityTypeId}.{id}.json
-# and integrates with EntityTypeManager for type registration.
+# CMS-Core: Renderer
+# The rendering pipeline that processes render arrays into HTML.
+# Unlocks cache metadata bubbling, lazy builders, and theme integration.
+# Replaces raw HTML string building throughout the admin module.
 
 ## Architecture Context
-CMS-Core has core/lib/Config/ConfigEntity.js implemented but it has no storage counterpart.
-The config-entity.js template shows the full pattern including ConfigEntityStorage.
-EntityTypeManager (being built separately) will use this for config entity type registration.
-The template already has a working ConfigEntityStorage — this spec refines it to match
-the core/lib/ code style and integrates it properly.
+CMS-Core's render-element.js template defines the full render array convention
+(185 lines of examples) but there is NO Renderer class to process them. The admin
+module and other code build HTML strings directly, defeating the purpose of render arrays.
+The Renderer is the most complex missing pattern — it must handle element type dispatch,
+recursive child rendering, weight sorting, access checking, cache metadata bubbling,
+lazy builder resolution, and #prefix/#suffix wrapping.
 
 ## Read These Files First
-- core/lib/Config/ConfigEntity.js — existing ConfigEntity implementation
-- .autoforge/templates/config-entity.js — full pattern with ConfigEntityStorage
-- core/lib/Plugin/PluginManager.js — code style reference
-- core/lib/Entity/EntityTypeManager.js — integration point (may be built concurrently)
+- .autoforge/templates/render-element.js — the full render array convention and examples
+- core/lib/Plugin/PluginManager.js — code style reference and plugin discovery pattern
+- core/lib/Hook/HookManager.js — hook invocation for theme/alter hooks
+- core/render.js — existing legacy render code (if any patterns to preserve)
+- core/template.js — existing template/theme code
 
 ## Code Style Rules (MUST follow — match existing core/lib/ files exactly)
 - @file JSDoc header with Drupal equivalent reference
@@ -26,47 +28,60 @@ the core/lib/ code style and integrates it properly.
 - Descriptive error messages that list available values
 - export class (NOT default exports)
 - return this for chaining on mutating methods
-- Zero npm dependencies — Node.js built-ins only, async I/O (not sync)
+- Zero npm dependencies — Node.js built-ins only
 - ES module syntax (import/export)
 
 ## Technology Stack
 - Runtime: Node.js (zero npm dependencies)
-- Storage: JSON files under config/active/ and config/staging/
 - Port: 3001
 
-feature_count: 8
+feature_count: 12
 
 <features>
 
-## Phase 1: ConfigEntityStorage Core (Features 1-4)
+## Phase 1: Render Array Utilities (Features 1-3)
 
-1. Create ConfigEntityStorage class in core/lib/Config/ConfigEntityStorage.js. Constructor takes (entityTypeId, configDir = 'config'). Store entityTypeId, compute activeDir as {configDir}/active and stagingDir as {configDir}/staging. Use async mkdir (from node:fs/promises) to ensure directories exist on first operation, NOT in constructor. Use Symbol-based private state. Add @file JSDoc header referencing Drupal ConfigEntityStorage.php.
-   ACCEPTANCE: new ConfigEntityStorage('node_type', 'config') creates instance. No directories created until first load/save. File has @file JSDoc header.
+1. Create RenderArray utility class in core/lib/Render/RenderArray.js as a static utility (no instantiation needed). Implement static method RenderArray.children(element) that returns an array of [key, child] pairs from a render array — all properties that do NOT start with '#', sorted by child's #weight (default 0, lower first). Implement static method RenderArray.isRenderArray(value) that returns true if value is a non-null object. Implement static method RenderArray.normalize(element) that ensures element has #type (defaults to 'markup' if #markup present, 'container' otherwise), #weight (defaults to 0), and #access (defaults to true).
+   ACCEPTANCE: RenderArray.children({a: {}, '#type': 'x', b: {'#weight': -10}}) returns [['b', ...], ['a', ...]] sorted by weight. RenderArray.isRenderArray({}) returns true. RenderArray.normalize({'#markup': '<p>hi</p>'}) adds #type 'markup'.
 
-2. Implement ConfigEntityStorage.save(entity) as async method. Validates entity has getConfigName() method (throws descriptive error if not). Writes JSON to config/active/{entityTypeId}.{id}.json using async writeFile. Creates active directory if missing. Caches entity in internal Map. Implement ConfigEntityStorage.load(id) as async method that reads from config/active/{entityTypeId}.{id}.json, creates new ConfigEntity from parsed JSON, caches and returns it. Returns null if file doesn't exist. Use async readFile.
-   ACCEPTANCE: save() writes JSON file to correct path. load() reads it back. load('nonexistent') returns null. Cached on second load.
+2. Create CacheMetadata class in core/lib/Render/CacheMetadata.js. Constructor takes optional {tags, contexts, max_age}. Properties: tags (Set of strings), contexts (Set of strings), maxAge (number, default -1 meaning uncacheable). Implement merge(other) that unions tags and contexts, takes minimum of maxAge values. Implement static createFromRenderArray(element) that reads element['#cache'] and returns CacheMetadata instance. Implement applyTo(element) that writes back to element['#cache']. This enables cache metadata bubbling up the render tree.
+   ACCEPTANCE: Two CacheMetadata with different tags merge correctly (union). maxAge takes minimum. createFromRenderArray reads #cache property. applyTo writes it back.
 
-3. Implement ConfigEntityStorage.delete(id) as async method that removes config/active/{entityTypeId}.{id}.json and clears cache entry. Handles missing files gracefully (no throw). Implement loadMultiple(ids) that loads array of ids, returns Map of id→entity (skips nulls). Implement loadAll() that reads all files matching {entityTypeId}.*.json in active directory, returns Map of id→entity.
-   ACCEPTANCE: delete() removes file and cache entry. delete('nonexistent') doesn't throw. loadMultiple(['a','b']) returns Map. loadAll() finds all matching files.
+3. Create Attribute class in core/lib/Render/Attribute.js for converting #attributes objects to HTML attribute strings. Constructor takes attributes object. Implement toString() that converts {class: ['a', 'b'], id: 'main', 'data-x': true} to ' class="a b" id="main" data-x'. Handles: arrays joined with spaces, booleans as presence/absence, strings escaped for HTML, null/undefined skipped. Implement addClass(classes), removeClass(class), setAttribute(name, value), hasClass(class).
+   ACCEPTANCE: new Attribute({class: ['a', 'b'], id: 'main'}).toString() returns ' class="a b" id="main"'. addClass('c') adds to class array. Boolean true renders as valueless attribute.
 
-4. Implement ConfigEntityStorage.exportToStaging() as async method that copies all active config to config/staging/ directory. Creates staging directory if missing. Returns count of exported files. Implement importFromStaging() as async method that copies all staging config to active directory, clearing cache. Returns count of imported files. This is the deployment pipeline: export on source environment, import on target.
-   ACCEPTANCE: exportToStaging() copies files from active to staging, returns count. importFromStaging() copies from staging to active, returns count.
+## Phase 2: Element Type Handlers (Features 4-7)
 
-## Phase 2: Query Support and Integration (Features 5-7)
+4. Create core/lib/Render/Element/Markup.js element handler. Export an object with type: 'markup' and async render(element, renderer) method. For #markup type: returns the #markup string directly (no processing). For safety, if #markup is not a string, convert to empty string. This is the simplest element type — raw HTML passthrough.
+   ACCEPTANCE: Markup.render({'#type': 'markup', '#markup': '<p>Hello</p>'}, renderer) returns '<p>Hello</p>'. Null #markup returns ''.
 
-5. Implement ConfigEntityStorage.executeQuery(query) to support EntityQuery. Reads query._conditions, query._sorts, query._range, query._count from EntityQuery accessors. Loads all entities via loadAll(), filters by conditions (supports =, <>, IN, STARTS_WITH, CONTAINS operators on entity values), sorts by field/direction, applies range pagination, returns array of entity IDs (or count if query._count is true). This makes ConfigEntityStorage compatible with EntityTypeManager.getQuery().
-   ACCEPTANCE: With entities saved, executeQuery with condition('status', true) returns matching IDs. With .count() returns number. Sorting and range work correctly.
+5. Create core/lib/Render/Element/HtmlTag.js element handler. Export object with type: 'html_tag' and async render(element, renderer). Renders element as <{#tag} {attributes}>{#value}{children}</{#tag}>. Uses Attribute class for #attributes. Self-closing tags (br, hr, img, input, meta, link) render without closing tag. If #value is present, render it. Then render children recursively via renderer.renderChildren(element).
+   ACCEPTANCE: HtmlTag.render({'#type':'html_tag','#tag':'div','#attributes':{class:['wrapper']},'#value':'text'}) returns '<div class="wrapper">text</div>'. Self-closing: {'#tag':'br'} returns '<br>'.
 
-6. Implement ConfigEntityStorage.create(values) that returns a new ConfigEntity instance with the entityTypeId and provided values. Does NOT save — just creates in memory. If values has no uuid, one is generated. If values has no id, entity.id remains null until set. This matches the Drupal pattern: $storage->create($values) then $entity->save().
-   ACCEPTANCE: create({id: 'article', label: 'Article'}) returns ConfigEntity with those values. create({}) returns ConfigEntity with generated uuid and null id. Entity is not persisted until save() is called.
+6. Create core/lib/Render/Element/Container.js element handler. Export object with type: 'container' and async render(element, renderer). Renders as <div {attributes}>{children}</div>. Children are rendered recursively and concatenated. If no children and no #markup, renders empty string. This is the default wrapper element.
+   ACCEPTANCE: Container with two children renders both inside a div. Empty container renders empty string.
 
-7. Create core/lib/Config/index.js barrel export that re-exports ConfigEntity from './ConfigEntity.js' and ConfigEntityStorage from './ConfigEntityStorage.js'. Follow same pattern as core/lib/Plugin/index.js.
-   ACCEPTANCE: import { ConfigEntity, ConfigEntityStorage } from './core/lib/Config/index.js' works. Both classes available.
+7. Create core/lib/Render/Element/Table.js element handler. Export object with type: 'table' and async render(element, renderer). Reads #header (array of strings or render arrays), #rows (array of arrays), #empty (string shown when no rows), #attributes. Renders as HTML table with thead/tbody. If #rows is empty, renders #empty message. Each cell can be a string or render array (rendered recursively).
+   ACCEPTANCE: Table with #header ['Name','Email'] and #rows [['Alice','alice@example.com']] renders correct HTML table. Empty #rows shows #empty message.
 
-## Phase 3: Verification (Feature 8)
+## Phase 3: Renderer Core (Features 8-10)
 
-8. End-to-end integration test: Create ConfigEntityStorage for 'node_type' entity type. Use create() to make entities for 'article' and 'page' with labels and status. Save both. Load by ID. LoadAll. Query with condition('status', true). Export to staging. Import from staging. Delete one. Verify all operations work correctly and files are created/removed at the right paths under config/active/ and config/staging/.
-   ACCEPTANCE: Full round-trip works: create → save → load → query → export → import → delete. Files exist at config/active/node_type.article.json etc. Query returns correct filtered results.
+8. Create Renderer class in core/lib/Render/Renderer.js. Constructor takes options object with optional elementTypes Map and hooks reference. Implement registerElementType(handler) that registers a handler object (must have type string and render method) in internal Map. Implement setInfrastructure(services, hooks) matching PluginManager pattern. Implement discoverElementTypes() that loads built-in element types (markup, html_tag, container, table) automatically.
+   ACCEPTANCE: new Renderer() creates instance. registerElementType(markupHandler) registers it. discoverElementTypes() loads all built-in types.
+
+9. Implement Renderer.render(element) as the main async method. Processing pipeline: (1) Normalize element via RenderArray.normalize(). (2) Check #access — if false, return ''. (3) If #type has a registered handler, call handler.render(element, this). (4) If no handler for #type, log warning and fall through to rendering children. (5) Render children via renderChildren(element). (6) Apply #prefix and #suffix wrapping. (7) Bubble cache metadata from children to parent. (8) Return HTML string.
+   ACCEPTANCE: render({'#type':'markup','#markup':'<p>hi</p>'}) returns '<p>hi</p>'. render({'#access':false}) returns ''. render with unknown #type warns and renders children. #prefix and #suffix are applied.
+
+10. Implement Renderer.renderChildren(element) as async method that gets children via RenderArray.children(element), renders each recursively via render(), concatenates results. Implement Renderer.renderRoot(element) as async method that calls render() and also returns collected CacheMetadata for the entire tree (for page-level cache headers). Implement lazy builder support: if element has '#type': 'lazy_builder', call #callback with #args, then render the returned render array.
+    ACCEPTANCE: renderChildren processes all non-# properties sorted by weight. renderRoot returns {html, cacheMetadata}. Lazy builder callback is invoked and result rendered.
+
+## Phase 4: Barrel Export and Verification (Features 11-12)
+
+11. Create core/lib/Render/index.js barrel export that re-exports Renderer, RenderArray, CacheMetadata, and Attribute. Follow same pattern as core/lib/Plugin/index.js.
+    ACCEPTANCE: import { Renderer, RenderArray, CacheMetadata, Attribute } from './core/lib/Render/index.js' works.
+
+12. End-to-end verification: Create Renderer instance, discover element types. Render a page-like structure with nested containers, markup, html_tags, a table, #weight ordering, #access false on one child, #prefix/#suffix, and #cache metadata on multiple elements. Verify: correct HTML output, correct child ordering by weight, access-denied child excluded, cache metadata bubbled to root, prefix/suffix applied.
+    ACCEPTANCE: Complex nested render array produces correct HTML. Weight ordering respected. Access-denied skipped. Cache tags from deep children appear in root CacheMetadata. Lazy builder resolved.
 
 </features>
 
