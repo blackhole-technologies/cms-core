@@ -24,6 +24,16 @@
  *   ? AccessResult.allowed()
  *   : AccessResult.neutral();
  * const combined = permCheck.orIf(ownerCheck); // ALLOWED if either passes
+ *
+ * @example Combining multiple access policies:
+ * import { combineAccessResults } from './core/lib/Access/AccessResult.js';
+ *
+ * const results = [
+ *   permissionPolicy.check(account, 'view', entity),
+ *   ownershipPolicy.check(account, 'view', entity),
+ *   statusPolicy.check(account, 'view', entity),
+ * ];
+ * const final = combineAccessResults(results); // Short-circuits on first FORBIDDEN
  */
 
 // Private symbol for storing reason (prevents external modification)
