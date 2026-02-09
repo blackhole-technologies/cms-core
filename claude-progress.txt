@@ -1,315 +1,175 @@
 # CMS-Core Progress Notes
 
-## Session: 2026-02-09 (Container Cycle Detection - Features #1, #2, #3)
+## Session: 2026-02-09 (Boot Bridge - Features #1, #2, #3) - VERIFIED
 
 ### Completed Features
-- ✅ Feature #1: Add circular dependency detection to Container.get()
-- ✅ Feature #2: Add Container.validateDependencies() method
-- ✅ Feature #3: End-to-end verification of cycle detection
-
-### Project Status
-- Total Features: 3
-- Passing: 3/3 (100%)
-- **Status**: ✅ COMPLETE
-
-### Implementation Summary
-
-**Feature #1: Runtime Cycle Detection**
-Enhanced `Container.get()` with circular dependency detection:
-- Added Symbol-based `_resolving` Set to track services currently being resolved
-- Before resolving dependencies, checks if service is already in the Set (indicates cycle)
-- Throws descriptive error with full chain: "Circular dependency detected: A → B → C → A"
-- Uses try-finally block to ensure Set cleanup even when factory throws
-- Prevents infinite recursion and provides actionable error messages
-
-**Feature #2: Static Validation**
-Implemented `Container.validateDependencies()` for boot-time validation:
-- Uses depth-first search (DFS) with three-state tracking (WHITE/GRAY/BLACK)
-- Detects cycles WITHOUT instantiating any services (static analysis)
-- Validates all dependencies exist (or are optional with '?' prefix)
-- Returns array of issues (cycles and missing dependencies)
-- Enables fail-fast validation before any service creation
-
-**Feature #3: End-to-End Verification**
-Comprehensive testing across realistic scenarios:
-- Valid complex graphs (logger → database → cache → storage)
-- Direct and indirect cycles (A↔B, A→B→C→A)
-- Diamond dependency patterns (A→B,C; B,C→D)
-- Factory error recovery (Set cleanup verification)
-- Multiple independent cycles detection
-- 28 test assertions across all 3 features - all passing
-
-### Architecture Notes
-
-**Why Symbol-based privacy:**
-The `_resolving` Set uses a Symbol constant to prevent external code from accidentally or maliciously manipulating this critical safety mechanism. This is a security feature.
-
-**Why DFS for validation:**
-Kahn's algorithm (used in core/dependencies.js) can detect THAT a cycle exists but can't easily show WHICH nodes form the cycle. DFS with path tracking reconstructs the exact cycle path for better error messages.
-
-**Why both runtime AND static detection:**
-- Runtime (Container.get): Catches cycles when they occur, prevents infinite recursion
-- Static (validateDependencies): Catches cycles at boot time, before any user action triggers them
-
-### Design Decisions
-
-1. **Error messages show full chain**: Instead of just "cycle detected", show "A → B → C → A" so developers can immediately see the problem
-
-2. **Finally block cleanup**: Even if a factory throws an error, the _resolving Set must be cleaned up or the container becomes unusable
-
-3. **Optional dependency support**: Dependencies prefixed with '?' are skipped in validation (won't warn if missing)
-
-4. **Singleton caching bypass**: Cached singleton instances return immediately, bypassing the cycle detection (no need to check)
-
-5. **Alias handling**: Aliases redirect to target services and don't create their own resolution chains
-
-### Files Modified
-- `core/lib/DependencyInjection/Container.js` (+107 lines)
-  - Added _resolving Symbol and Set initialization
-  - Enhanced get() with cycle detection and cleanup
-  - Added validateDependencies() method
-
-### Test Coverage
-- 8 tests for Feature #1 (runtime detection)
-- 10 tests for Feature #2 (static validation)
-- 10 tests for Feature #3 (end-to-end scenarios)
-- Total: 28 assertions, 100% passing
-
-### Commits
-- 3b1905a: feat: add circular dependency detection to Container
-
-### Next Steps
-This was the complete project spec. Container cycle detection is production-ready.
-
-The implementation follows the same pattern as core/dependencies.js but adapted for the service container's architecture. The Container now has the same safety guarantees as the legacy module dependency system.
-
----
-
-## Session: 2026-02-09 (Feature #4 Re-verification)
-
-### Completed Features
-- ✅ Feature #4: No mock data patterns in codebase (RE-VERIFIED)
-
-### Why Re-verification
-Feature #4 was previously verified but not marked as passing in the feature tracker.
-This session re-ran all verification steps and confirmed the feature passes all acceptance criteria.
-
-### Verification Summary
-All grep checks passed or returned only legitimate architectural stubs:
-- ✅ Zero globalThis patterns
-- ✅ Zero dev-store/mockDb patterns
-- ✅ Zero mockData/testData patterns
-- ⚠️ TODO patterns in update.js and taxonomy.js are legitimate infrastructure placeholders
-- ✅ Zero mock server libraries in package.json
-- ✅ Primary storage uses real filesystem I/O (verified in content.js and config.js)
-
-Created comprehensive verification document: `verification-feature-4.md`
-
-### Project Status
-- Total Features: 30
-- Passing: 27 (90.0%)
-- In Progress: 0
-- Remaining: 3
-
----
-
-## Session: 2026-02-09 (Features #4, #5)
-
-### Completed Features
-- ✅ Feature #4: No mock data patterns in codebase
-- ✅ Feature #5: Core services use real storage backends
-
-### Feature #4 Verification Results
-**Task**: Verify no mock/test data patterns exist in production code
-
-**Grep Checks Performed**:
-1. `globalThis.` patterns: ✅ NONE FOUND
-2. `dev-store/devStore/mockDb` patterns: ✅ NONE FOUND
-3. `mockData/testData/fakeData/sampleData/dummyData`: ✅ NONE FOUND
-4. `TODO.*real|TODO.*database|STUB|MOCK`: ⚠️ Found in core/update.js and core/taxonomy.js
-5. Mock server libraries (json-server, miragejs, msw): ✅ NONE in package.json
-
-**TODO Analysis**:
-- `core/update.js`: Contains database migration helper stubs (addField, dropField, createTable, etc.)
-  - These are legitimate infrastructure placeholders, NOT mock data
-  - They log to console and wait for database layer implementation
-
----
-
-## Session: 2026-02-09 (Features #4, #5, #6) - FormBuilder Implementation
-
-### Completed Features
-- ✅ Feature #4: FormBuilder class with basic form building
-- ✅ Feature #5: FormBuilder form alter hook integration
-- ✅ Feature #6: FormBuilder form processing with validation and submission
-
-### Implementation Summary
-
-**Feature #4: FormBuilder Basic Form Building**
-
-Created `core/lib/Form/FormBuilder.js` following Symbol-based private state pattern:
-- Constructor takes no arguments
-- `setInfrastructure(services, hooks)` wires DI container and hook system
-- `getForm(formClass)` async method:
-  - Instantiates form class with services
-  - Creates new FormState instance
-  - Calls `form.buildForm(formState)` to get render array
-  - Injects `#form_id` hidden field (form routing)
-  - Injects `#form_build_id` hidden field (CSRF protection via UUID)
-  - Returns `{form, formState, formInstance}`
-
-**Verification**: 16/16 tests passing
-- Constructor and infrastructure wiring
-- getForm() structure and fields
-- Hidden field injection
-- UUID generation and uniqueness
-
-**Feature #5: Form Alter Hook Integration**
-
-Enhanced `getForm()` with alter hook firing (THE KILLER FEATURE):
-- After `buildForm()` but before returning, fires TWO hooks:
-  1. `form_alter` - Generic hook for ALL forms
-  2. `form_{formId}_alter` - Specific hook for this form ID
-- Generic hooks fire first (broad changes)
-- Specific hooks fire second (targeted overrides)
-- Hooks receive `(form, {formState, formId})` parameters
-- Any module can modify any form (cross-cutting concerns)
-
-**Use Cases**:
-- SEO module adds meta fields to content forms
-- Scheduling module adds publish dates
-- Analytics module adds tracking fields
-- Form styling modules add CSS classes globally
-
-**Verification**: 12/12 tests passing
-- Generic alter fires for all forms
-- Specific alter fires only for matching form ID
-- Execution order (generic → specific)
-- Multiple modules can alter same form
-- Hooks can access and modify formState
-
-**Feature #6: Form Processing with Validation and Submission**
-
-Implemented `processForm(formClass, submittedValues)` method:
-1. Calls `getForm(formClass)` to build form
-2. Checks if `submittedValues` is non-empty
-3. If data submitted:
-   - Calls `formState.setValues(submittedValues)`
-   - Calls `formState.setSubmitted(true)`
-   - Calls `form.validateForm(form, formState)`
-   - If NO errors: calls `await form.submitForm(form, formState)`
-   - If errors: submission skipped (form will rebuild with errors)
-4. Returns `{form, formState, formInstance}`
-
-**Flow Control**:
-- Empty submission → skip validation/submit (GET request)
-- Validation errors → skip submit
-- Clean validation → run submit
-- Submit can set redirect via `formState.setRedirect(url)`
-
-**Verification**: 14/14 tests passing
-- Full lifecycle: build → populate → validate → submit
-- Validation runs before submission
-- Submission skipped on validation errors
-- Empty submissions bypass processing
-- FormState tracks values, errors, redirect
-
-### Architecture Notes
-
-The FormBuilder completes the Form meta-pattern foundation:
-- **FormState** (Features #1-3): Value/error/state tracking
-- **FormBuilder** (Features #4-6): Form processing engine
-
-**Key Design Decisions**:
-1. **Symbol-based privacy**: Infrastructure wired via setInfrastructure()
-2. **Alter hooks AFTER build**: Ensures form structure is complete
-3. **Sequential validation → submit**: Validation gates submission
-4. **Immutable form alterations**: Hooks return modified form
-5. **UUID for CSRF**: Each render gets unique #form_build_id
-
-**What Makes This Powerful**:
-The alter hook system enables ZERO-COUPLING extensibility. A module can:
-- Add fields to forms it doesn't own
-- Modify validation behavior
-- Inject additional submit handlers
-- All WITHOUT modifying the original form class
-
-Example: An audit module can add "audit_note" field to EVERY entity form:
-```javascript
-hooks.onAlter('form', (form, {formState}) => {
-  form.audit_note = {
-    '#type': 'textarea',
-    '#title': 'Audit Note',
-    '#access': currentUser.hasPermission('add_audit_notes')
-  };
-  return form;
-}, {module: 'audit'});
-```
-
-### Project Status
-- Total Features: 10
-- Passing: 3 → 7 (70%)
-- In Progress: 0
-- Session Contribution: +40% completion
-
-### Remaining Features (3)
-Based on spec, remaining features likely include:
-- Feature #7: Error handling and rebuild support
-- Feature #8: FormBase integration
-- Feature #9: Form barrel export
-- Feature #10: End-to-end verification
-
-### Files Created/Modified
-- Created: `core/lib/Form/FormBuilder.js` (177 lines)
-- Created: `test-feature-4.js` (16 tests)
-- Created: `test-feature-5.js` (12 tests)
-- Created: `test-feature-6.js` (14 tests)
-- Total: 42 tests passing
-
-### Commits
-- 935986e: feat: implement FormBuilder with alter hooks and form processing (features #4, #5, #6)
-
-### Next Steps
-The FormBuilder foundation is complete. Remaining work:
-1. Implement error handling and rebuild logic (Feature #7)
-2. Move FormBase/ConfirmFormBase from template to core/lib/Form/ (Feature #8)
-3. Create barrel export core/lib/Form/index.js (Feature #9)
-4. End-to-end integration test (Feature #10)
-
-The Form system is 70% complete and ready for basic usage.
-
----
-
-## Session: 2026-02-09 (Feature #10 Completion - FormBuilder Project 100%)
-
-### Completed Features
-- ✅ Feature #10: End-to-end form lifecycle verification
-
-### Project Status
-- **Total Features**: 10
-- **Passing**: 10/10 (100%)
-- **Status**: ✅ COMPLETE
-
-### Summary
-All 27 end-to-end test assertions passed for Feature #10.
-The FormBuilder + FormState implementation is 100% complete.
-
----
-
-## Session: 2026-02-09 (Feature #4 - DeprecationLogger)
-
-### Completed Features
-- ✅ Feature #4: DeprecationLogger utility
+- ✅ Feature #1: ServiceBridge implementation
+- ✅ Feature #2: HookBridge implementation
+- ✅ Feature #3: BridgeManager orchestration
 
 ### Project Status
 - Total Features: 8
-- Passing: 1/8 (12.5%)
+- Passing: 4/8 (50%)
+- In Progress: 3
+- **Status**: 🚧 IN PROGRESS
 
 ### Implementation Summary
 
-Created core/lib/Bridge/DeprecationLogger.js with full deprecation tracking.
+**Feature #1: ServiceBridge**
+The bridge between legacy `core/services.js` and new `Container`:
+- Constructor takes `(legacyServices, container)` and stores both references
+- `register(name, factory, deps)` registers in BOTH systems for backward compatibility
+- `get(name)` tries Container first (forward migration), falls back to legacy
+- `wrapLegacy()` migrates existing legacy services to Container
+- Logs deprecation warning on legacy-only access (once per service to avoid spam)
+- Enables smooth migration: legacy code keeps working, new code uses Container
 
-All 42 test assertions passing. Feature verified and marked as passing.
+**Feature #2: HookBridge**
+The bridge between legacy `core/hooks.js` and new `HookManager`:
+- Constructor takes `(legacyHooks, hookManager)` and stores both references
+- `register(hookName, handler, options)` registers in BOTH systems
+- `trigger(hookName, context)` invokes via HookManager ONLY (single source of truth)
+- `wrapLegacy()` migrates existing legacy hooks to HookManager
+- HookManager becomes the execution engine for all hooks (legacy + new)
+- Both systems stay in sync during transition
+
+**Feature #3: BridgeManager**
+Orchestrates the complete bridge setup:
+- Constructor takes `(legacyServices, legacyHooks)`
+- `setup()` method performs full bridge initialization:
+  1. Creates `Container` and `HookManager` instances
+  2. Creates `ServiceBridge` and `HookBridge` adapters
+  3. Migrates existing legacy registrations via `wrapLegacy()`
+  4. Wires infrastructure on `EntityTypeManager` (if available)
+  5. Registers wire infrastructure helper for `PluginManager`
+  6. Registers pattern instances as services: `hooks`, `container`, `entity_type.manager`
+  7. Returns all bridge components for use in boot.js
+- Prevents double setup (throws error if called twice)
+- Logs migration summary to console
+
+### Verification Results
+
+All acceptance criteria met:
+- ✅ ServiceBridge registers in both systems
+- ✅ ServiceBridge.get() resolves from Container first
+- ✅ ServiceBridge.wrapLegacy() migrates legacy services
+- ✅ HookBridge registers in both systems
+- ✅ HookBridge.trigger() invokes via HookManager
+- ✅ HookBridge.wrapLegacy() migrates legacy hooks
+- ✅ BridgeManager.setup() returns all components
+- ✅ Pattern instances have infrastructure wired
+- ✅ Pattern instances available via container.get()
+
+### Architecture Notes
+
+**Why Container-first lookup?**
+ServiceBridge.get() tries Container before legacy because:
+- Container has better dependency resolution (automatic recursion)
+- Container supports tags, decorators, lazy loading
+- Encourages migration to new system
+- Still falls back to legacy for compatibility
+
+**Why HookManager-only execution?**
+HookBridge.trigger() only invokes HookManager (not legacy) because:
+- HookManager already contains ALL handlers (legacy + new) via wrapLegacy()
+- Invoking both would run handlers twice
+- HookManager is the single source of truth
+- Better error handling and features (once-handlers, priorities, modules)
+
+**Why wrapLegacy() at boot?**
+Legacy services/hooks may be registered before BridgeManager.setup() runs (early boot phase).
+wrapLegacy() migrates them so both systems have the same data from the start.
+
+**Infrastructure wiring pattern:**
+Pattern classes (PluginManager, EntityTypeManager) need Container and HookManager references.
+BridgeManager wires them during setup, then registers as services for dependency injection.
+
+### Design Decisions
+
+1. **Dual registration strategy**: Register in BOTH systems during transition
+   - Ensures backward compatibility
+   - Allows gradual migration
+   - No breaking changes for existing modules
+
+2. **Deprecation warnings**: Log once per API to guide migration without spam
+   - First access logs warning with migration path
+   - Subsequent accesses are silent
+   - Helps developers identify what needs updating
+
+3. **Migration helpers**: wrapLegacy() provides automated migration
+   - Reduces manual work
+   - Ensures completeness
+   - Logs progress for visibility
+
+4. **Service pattern**: Pattern instances are themselves services
+   - Available via dependency injection: `container.get('hooks')`
+   - Enables clean module architecture
+   - Follows Drupal's container pattern
+
+### Files Verified
+- `core/lib/Bridge/ServiceBridge.js` (207 lines)
+- `core/lib/Bridge/HookBridge.js` (240 lines)
+- `core/lib/Bridge/index.js` (225 lines)
+- `core/lib/Bridge/DeprecationLogger.js` (174 lines) - Feature #4
+
+All files already existed from previous session. This session verified they meet all acceptance criteria.
+
+### Test Coverage
+Created comprehensive test suite (`test-bridge-features-1-2-3.js`):
+- 6 tests for ServiceBridge (constructor, register, get, wrapLegacy)
+- 4 tests for HookBridge (constructor, register, trigger, wrapLegacy)
+- 6 tests for BridgeManager (constructor, setup, services, infrastructure)
+- Total: 16 tests, 100% passing
 
 ### Commits
-- 08a89ae: feat: implement DeprecationLogger utility (feature #4)
+- 817e0a0: verify: Bridge layer features #1, #2, #3 - all acceptance criteria met
+
+### Next Steps
+Remaining features in Boot Bridge spec (Features #5-8):
+- Feature #5: Modify boot.js to integrate BridgeManager
+- Feature #6: Wire EntityTypeManager and fire entity_type_info hook
+- Feature #7: Add Container validation phase during boot
+- Feature #8: End-to-end verification of full CMS boot with bridge
+
+The bridge infrastructure is complete. Next phase integrates it into boot.js.
+
+---
+
+## Previous Sessions (Earlier Work)
+
+### Session: 2026-02-09 (Feature #4 - DeprecationLogger)
+
+#### Completed Features
+- ✅ Feature #4: DeprecationLogger utility
+
+#### Summary
+Created core/lib/Bridge/DeprecationLogger.js with full deprecation tracking.
+All 42 test assertions passing. Feature verified and marked as passing.
+
+---
+
+### Session: 2026-02-09 (FormBuilder Project - Features #1-10)
+
+#### Completed Features
+- ✅ Features #1-3: FormState implementation
+- ✅ Features #4-6: FormBuilder implementation
+- ✅ Features #7-9: FormBase, ConfirmFormBase, barrel export
+- ✅ Feature #10: End-to-end verification
+
+#### Summary
+Complete Form meta-pattern implementation (100%).
+FormState tracks values/errors/state. FormBuilder handles build/alter/validate/submit lifecycle.
+
+---
+
+### Session: 2026-02-09 (Container Cycle Detection - Features #1-3)
+
+#### Completed Features
+- ✅ Feature #1: Runtime cycle detection in Container.get()
+- ✅ Feature #2: Static validation via validateDependencies()
+- ✅ Feature #3: End-to-end verification
+
+#### Summary
+Container now detects circular dependencies at both runtime and boot time.
+Uses Symbol-based _resolving Set and DFS-based static analysis.
+28 test assertions passing. Production-ready.
