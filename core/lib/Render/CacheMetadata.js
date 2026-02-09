@@ -187,4 +187,20 @@ export class CacheMetadata {
       max_age: this[MAX_AGE],
     };
   }
+
+  /**
+   * Normalize maxAge: convert Infinity to -1 (uncacheable).
+   *
+   * WHY: When collecting cache metadata, we start with Infinity to allow
+   * minimum operations to work correctly. At the end, if no children specified
+   * a max_age, Infinity should become -1 (uncacheable by default).
+   *
+   * @returns {CacheMetadata} This instance for chaining
+   */
+  normalize() {
+    if (this[MAX_AGE] === Infinity) {
+      this[MAX_AGE] = -1;
+    }
+    return this;
+  }
 }
