@@ -74,13 +74,12 @@ export class Container {
       alias = null,
     } = options;
 
-    // Store service definition
+    // Store service definition (without alias field in the main service)
     this._definitions.set(name, {
       factory,
       deps,
       tags,
       singleton,
-      alias,
     });
 
     // Index by tags for discovery
@@ -144,7 +143,8 @@ export class Container {
     const definition = this._definitions.get(actualName);
 
     // Handle aliases (redirect to target service)
-    if (definition.alias) {
+    // WHY CHECK: Prevent infinite recursion if alias points to itself
+    if (definition.alias && definition.alias !== actualName) {
       return this.get(definition.alias);
     }
 
