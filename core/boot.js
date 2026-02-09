@@ -5119,6 +5119,42 @@ export async function boot(baseDir, options = {}) {
     await hooks.trigger('boot:register', context);
 
     // ========================================
+    // BRIDGE SETUP
+    // Wire new core/lib/ patterns into legacy systems
+    // ========================================
+    log(`\n[boot] === BRIDGE SETUP ===`);
+
+    // WHY BRIDGE HERE:
+    // At this point:
+    // - Legacy services and hooks are fully registered (REGISTER phase complete)
+    // - Modules haven't loaded yet (BOOT phase hasn't started)
+    // - Perfect time to create the bridge layer
+    //
+    // The bridge allows both legacy and new APIs to coexist:
+    // - Legacy services.get() → forwards to new Container
+    // - Legacy hooks.trigger() → forwards to new HookManager
+    // - New container.get() and hookManager.on() also work
+    // - Both APIs access the same underlying services/hooks
+    //
+    // This enables gradual migration:
+    // - Existing modules keep using legacy APIs (no breaking changes)
+    // - New modules can use new pattern APIs
+    // - Modules can access services/hooks registered in either system
+
+    const bridgeManager = new BridgeManager(services, hooks);
+    const { container, hookManager, serviceBridge, hookBridge } = await bridgeManager.setup();
+
+    // WHY STORE ON CONTEXT:
+    // Makes bridge components available to modules via the context object.
+    // Modules can access container.get() for dependency injection.
+    context.container = container;
+    context.hookManager = hookManager;
+    context.serviceBridge = serviceBridge;
+    context.hookBridge = hookBridge;
+
+    log('[boot] ✓ Bridge setup complete - both legacy and new APIs available');
+
+    // ========================================
     // PHASE: BOOT
     // Initialize all registered modules
     // ========================================
