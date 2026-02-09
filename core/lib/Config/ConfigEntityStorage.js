@@ -44,6 +44,7 @@ export class ConfigEntityStorage {
     this.entityTypeId = entityTypeId;
     this.configDir = configDir;
     this.activeDir = join(configDir, 'active');
+    this.stagingDir = join(configDir, 'staging');
 
     // In-memory cache for loaded entities
     // WHY: Reduces filesystem I/O for frequently accessed config
@@ -188,5 +189,34 @@ export class ConfigEntityStorage {
     }
 
     return entities;
+  }
+
+  /**
+   * Export all config entities to staging directory.
+   *
+   * WHY: Config management workflow for deployments. Active config is what's
+   * running in the current environment. Staging is the exportable snapshot
+   * that gets committed to version control and deployed to other environments.
+   *
+   * @returns {Promise<number>} Count of exported entities
+   */
+  async exportToStaging() {
+    // Ensure staging directory exists
+    if (!existsSync(this.stagingDir)) {
+      await mkdir(this.stagingDir, { recursive: true });
+    }
+
+    // Load all entities of this type
+    const entities = await this.loadAll();
+
+    // Export each entity to staging
+    for (const entity of entities) {
+      const filename = `${entity.getConfigName()}.json`;
+      const targetPath = join(this.stagingDir, filename);
+      const json = JSON.stringify(entity.toJSON(), null, 2);
+      await writeFile(targetPath, json, 'utf-8');
+    }
+
+    return entities.length;
   }
 }
