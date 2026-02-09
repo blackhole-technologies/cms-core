@@ -31,6 +31,7 @@ import * as discovery from './discovery.js';
 import * as dependencies from './dependencies.js';
 import * as hooks from './hooks.js';
 import * as services from './services.js';
+import { BridgeManager } from './lib/Bridge/index.js';
 import * as watcher from './watcher.js';
 import * as cli from './cli.js';
 import * as router from './router.js';
