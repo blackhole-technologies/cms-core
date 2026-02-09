@@ -156,6 +156,30 @@ export class Renderer {
       return '';
     }
 
+    // WHY: Step 2.5 - Handle lazy builders. Lazy builders are special — they return
+    // a render array from a callback that must be rendered. When encountered during
+    // render(), invoke callback and render the result. Cache metadata is NOT returned
+    // here (only in renderRoot) but the lazy builder's output is properly rendered.
+    if (element['#type'] === 'lazy_builder') {
+      const callback = element['#callback'];
+      const args = element['#args'] || [];
+
+      if (typeof callback !== 'function') {
+        console.error('Lazy builder element missing #callback function');
+        return '';
+      }
+
+      try {
+        // WHY: Invoke callback to get the actual render array
+        const renderArray = await callback(...args);
+        // WHY: Render the returned render array recursively
+        return await this.render(renderArray);
+      } catch (err) {
+        console.error('Lazy builder callback failed:', err);
+        return '';
+      }
+    }
+
     let html = '';
 
     // WHY: Step 3 - Dispatch to element type handler if registered
@@ -226,19 +250,24 @@ export class Renderer {
    * @returns {Promise<{html: string, cacheMetadata: CacheMetadata}>}
    */
   async renderRoot(element) {
-    // WHY: Create root cache metadata collector
-    const rootCache = new CacheMetadata();
+    // WHY: Create root cache metadata collector with Infinity max_age.
+    // This ensures the minimum operation during merge works correctly.
+    // If no children specify max_age, we'll convert it back to -1 (uncacheable).
+    const rootCache = new CacheMetadata({ max_age: Infinity });
 
-    // WHY: Recursively collect cache metadata from entire tree
-    this._collectCacheMetadata(element, rootCache);
+    // WHY: Recursively collect cache metadata from entire tree (now async to handle lazy builders)
+    await this._collectCacheMetadata(element, rootCache);
+
+    // WHY: Handle lazy builders if present (before rendering)
+    if (element['#type'] === 'lazy_builder') {
+      return await this._renderLazyBuilder(element);
+    }
 
     // WHY: Render the element to HTML
     const html = await this.render(element);
 
-    // WHY: Handle lazy builders if present
-    if (element['#type'] === 'lazy_builder') {
-      return await this._renderLazyBuilder(element);
-    }
+    // WHY: Normalize maxAge: convert Infinity to -1 if no children specified max_age
+    rootCache.normalize();
 
     return { html, cacheMetadata: rootCache };
   }
@@ -250,22 +279,42 @@ export class Renderer {
    * This enables efficient cache invalidation — when node:42 changes, all
    * pages containing that node are invalidated via cache tags.
    *
+   * Now async to handle lazy builders — we need to invoke their callbacks
+   * to collect metadata from the returned render arrays.
+   *
    * @param {Object} element - Render array to traverse
    * @param {CacheMetadata} collector - Cache metadata accumulator
    * @private
    */
-  _collectCacheMetadata(element, collector) {
+  async _collectCacheMetadata(element, collector) {
     // WHY: Read cache metadata from this element
     if (element['#cache']) {
       const elementCache = CacheMetadata.createFromRenderArray(element);
       collector.merge(elementCache);
     }
 
+    // WHY: Handle lazy builders — invoke callback to get the render array,
+    // then collect metadata from it. This ensures lazy builder cache tags bubble up.
+    if (element['#type'] === 'lazy_builder') {
+      const callback = element['#callback'];
+      const args = element['#args'] || [];
+
+      if (typeof callback === 'function') {
+        try {
+          const renderArray = await callback(...args);
+          await this._collectCacheMetadata(renderArray, collector);
+        } catch (err) {
+          // WHY: Log error but continue — cache metadata collection is best-effort
+          console.error('Lazy builder callback failed during cache collection:', err);
+        }
+      }
+    }
+
     // WHY: Recursively collect from all children
     const childEntries = RenderArray.children(element);
     for (const [key, child] of childEntries) {
       if (RenderArray.isRenderArray(child)) {
-        this._collectCacheMetadata(child, collector);
+        await this._collectCacheMetadata(child, collector);
       }
     }
   }
