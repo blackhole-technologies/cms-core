@@ -443,7 +443,7 @@ export class EntityTypeManager {
     // NOTE: Hook names use colons, not underscores (entity:type:info, not entity_type_info)
     const definitions = await this[HOOKS].invokeAll('entity:type:info');
 
-    // WHY: Flatten array of arrays into single array of definition objects
+    // WHY: Flatten array of objects into single array of definition objects
     const allDefs = [];
     for (const result of definitions) {
       if (result && typeof result === 'object') {

@@ -202,19 +202,19 @@ export class HookBridge {
         continue;
       }
 
-      // WHY: Create wrapper that delegates to legacy system
-      // This allows HookManager to trigger legacy handlers without
-      // needing access to legacy's private registry
-      const wrapperHandler = async (context) => {
-        await this._legacy.trigger(hookName, context);
-      };
+      // WHY: Get actual handler functions from legacy registry
+      // This preserves handler behavior including return values
+      // (needed for invokeAll() data-collection pattern)
+      const legacyHandlers = this._legacy.getHandlers(hookName);
 
-      // WHY: Register wrapper in HookManager with low priority
-      // This ensures legacy handlers run, but new handlers can override
-      this._hookManager.on(hookName, wrapperHandler, {
-        priority: 100, // WHY: Run after new handlers (high priority = late)
-        module: '__legacy__', // WHY: Mark as legacy for debugging
-      });
+      // WHY: Register each legacy handler individually in HookManager
+      // This preserves priority order and source tracking
+      for (const { handler, priority, source } of legacyHandlers) {
+        this._hookManager.on(hookName, handler, {
+          priority,
+          module: source || '__legacy__',
+        });
+      }
 
       migrated++;
     }

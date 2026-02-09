@@ -5176,7 +5176,40 @@ export async function boot(baseDir, options = {}) {
       const entityTypeManager = container.get('entity_type.manager');
       await entityTypeManager.discoverEntityTypes();
       const entityTypes = entityTypeManager.getDefinitions();
-      log(`[boot] Discovered ${Object.keys(entityTypes).length} entity type(s)`);
+      // WHY .size (not Object.keys): getDefinitions() returns a Map, not a plain object
+      log(`[boot] Discovered ${entityTypes.size} entity type(s)`);
+    }
+
+    // Validate Container dependencies
+    // WHY HERE (after all modules loaded):
+    // All services have been registered. We can now check for:
+    // - Circular dependencies (A depends on B depends on A)
+    // - Missing dependencies (service depends on non-existent service)
+    // - Invalid alias targets (alias points to non-existent service)
+    //
+    // WHY NOT CRASH ON ERRORS:
+    // Some cycles might be intentional or handled with lazy loading.
+    // Log the warning so developers can fix it, but allow boot to continue.
+    // This follows the principle: "Be liberal in what you accept, strict in what you emit"
+    log('[boot] Validating Container dependencies...');
+    try {
+      const validationIssues = container.validateDependencies();
+
+      if (validationIssues.length > 0) {
+        console.warn('\n⚠️  Container Validation Warnings:');
+        for (const issue of validationIssues) {
+          console.warn(`  - ${issue}`);
+        }
+        console.warn('\nℹ️  Boot will continue, but these issues should be addressed.\n');
+      } else {
+        log('[boot] ✓ Container validation passed (no cycles or missing dependencies)');
+      }
+    } catch (error) {
+      // WHY CATCH AND LOG (not crash):
+      // Validation is a safety check, not a hard requirement.
+      // If validation itself fails, that's a bug in Container, not user code.
+      console.warn(`[boot] Container validation failed: ${error.message}`);
+      console.warn('[boot] Continuing boot despite validation error');
     }
 
     log(`[boot] ✓ ${PHASES.BOOT} complete`);
