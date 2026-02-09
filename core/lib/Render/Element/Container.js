@@ -52,8 +52,13 @@ export default {
     // WHY: Convert attributes object to HTML attribute string.
     const attrStr = new Attribute(attributes).toString();
 
-    // WHY: Wrap children in a div with attributes.
+    // WHY: Combine #markup (if present) with rendered children.
+    // #markup provides direct HTML content alongside child render arrays.
+    const markup = element['#markup'] || '';
+    const content = markup + childrenHtml;
+
+    // WHY: Wrap content in a div with attributes.
     // Container always uses <div> — it's the most semantically neutral wrapper.
-    return `<div${attrStr}>${childrenHtml}</div>`;
+    return `<div${attrStr}>${content}</div>`;
   }
 };
