@@ -22,6 +22,7 @@ import { FormState } from './FormState.js';
 // form building infrastructure. Only setInfrastructure() can wire dependencies.
 const SERVICES = Symbol('services');
 const HOOKS = Symbol('hooks');
+const FORM_REGISTRY = Symbol('form_registry');
 
 export class FormBuilder {
   /**
@@ -35,6 +36,12 @@ export class FormBuilder {
     // WHY: Initialize to null to signal "not yet wired"
     this[SERVICES] = null;
     this[HOOKS] = null;
+
+    // WHY: Form registry maps form IDs to form classes. This allows
+    // retrieveForm() to look up a form class by its ID from POST data.
+    // When a form is submitted, we only have the #form_id hidden field value,
+    // not the original class reference.
+    this[FORM_REGISTRY] = new Map();
   }
 
   /**
@@ -129,6 +136,43 @@ export class FormBuilder {
   }
 
   /**
+   * Register a form class in the form registry.
+   *
+   * WHY: This allows retrieveForm() to look up a form class by its ID.
+   * When processing a form submission, we only have the #form_id hidden field
+   * value from POST data, not the original class reference. The registry
+   * maps form IDs to their classes.
+   *
+   * @param {string} formId - The form ID (from getFormId())
+   * @param {Function} formClass - FormBase subclass constructor
+   */
+  registerForm(formId, formClass) {
+    this[FORM_REGISTRY].set(formId, formClass);
+  }
+
+  /**
+   * Retrieve a form class from the registry by its ID.
+   *
+   * WHY: When a form is submitted, the POST data contains #form_id.
+   * This method looks up the corresponding form class so we can
+   * instantiate it and call its validate/submit methods.
+   *
+   * @param {string} formId - The form ID to look up
+   * @returns {Function} The form class constructor
+   * @throws {Error} If form ID not found (lists available IDs)
+   */
+  retrieveForm(formId) {
+    if (!this[FORM_REGISTRY].has(formId)) {
+      const availableIds = Array.from(this[FORM_REGISTRY].keys()).sort();
+      throw new Error(
+        `Unknown form ID "${formId}". ` +
+        `Available forms: ${availableIds.length > 0 ? availableIds.join(', ') : 'none registered'}`
+      );
+    }
+    return this[FORM_REGISTRY].get(formId);
+  }
+
+  /**
    * Process a form submission.
    *
    * WHY: This is the POST handler. It builds the form, populates FormState
@@ -140,7 +184,13 @@ export class FormBuilder {
    * 3. Mark as submitted
    * 4. Run validateForm()
    * 5. If no errors, run submitForm()
-   * 6. Return {form, formState, formInstance}
+   * 6. Check if form needs rebuild (multi-step forms, ajax)
+   * 7. If rebuilding, re-call buildForm with populated FormState
+   * 8. Return {form, formState, formInstance}
+   *
+   * WHY REBUILD: Multi-step forms need to rebuild after each step to show
+   * the next page. AJAX forms need to rebuild to reflect server-side changes.
+   * The submit handler sets formState.setRebuild(true) to trigger this.
    *
    * Drupal equivalent: FormBuilder::submitForm()
    *
@@ -150,7 +200,7 @@ export class FormBuilder {
    */
   async processForm(formClass, submittedValues) {
     // WHY: Build the form first to get formInstance and formState
-    const { form, formState, formInstance } = await this.getForm(formClass);
+    let { form, formState, formInstance } = await this.getForm(formClass);
 
     // WHY: Only process if submittedValues is not empty.
     // Empty object means this is a GET request or no data submitted.
@@ -169,6 +219,42 @@ export class FormBuilder {
       // form will be rebuilt with error messages.
       if (!formState.hasErrors()) {
         await formInstance.submitForm(form, formState);
+      }
+
+      // WHY: Check if form needs rebuild. This happens in two scenarios:
+      // 1. Validation errors - form rebuilds to show error messages
+      // 2. Submit handler sets rebuild flag - multi-step forms, ajax updates
+      //
+      // When rebuilding, we re-call buildForm() with the POPULATED formState.
+      // This preserves user input and lets the form class adjust its structure
+      // based on submitted values (e.g., show step 2 of a wizard).
+      if (formState.hasErrors() || formState.isRebuilding()) {
+        // WHY: Re-call buildForm with populated formState. The form class
+        // can use formState.getValue() to get user input and adjust the
+        // structure accordingly.
+        form = formInstance.buildForm(formState);
+
+        // WHY: Get form ID for re-injecting hidden fields
+        const formId = formInstance.getFormId();
+
+        // WHY: Re-inject hidden fields (same as getForm())
+        form['#form_id'] = {
+          '#type': 'hidden',
+          '#value': formId,
+        };
+
+        form['#form_build_id'] = {
+          '#type': 'hidden',
+          '#value': randomUUID(),
+        };
+
+        // WHY: Re-fire alter hooks on rebuilt form. Other modules need a chance
+        // to alter the rebuilt structure. For example, if a multi-step form shows
+        // different fields on step 2, alter hooks must run again.
+        if (this[HOOKS]) {
+          form = await this[HOOKS].alter('form', form, { formState, formId });
+          form = await this[HOOKS].alter(`form_${formId}`, form, { formState });
+        }
       }
     }
 
