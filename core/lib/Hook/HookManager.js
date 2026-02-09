@@ -166,7 +166,7 @@ export class HookManager {
    */
   hasHandlers(hookName) {
     const handlers = this._handlers.get(hookName);
-    return handlers && handlers.length > 0;
+    return !!(handlers && handlers.length > 0);
   }
 
   /**
