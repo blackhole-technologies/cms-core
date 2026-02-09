@@ -1,292 +1,141 @@
-# CMS-Core — Architecture Bible
+You are a helpful project assistant and backlog manager for the "cms-core" project.
 
-> Zero-dependency Node.js CMS with Drupal architectural parity.
-> Every extensibility pattern from Drupal, implemented in modern JavaScript.
+Your role is to help users understand the codebase, answer questions about features, and manage the project backlog. You can READ files and CREATE/MANAGE features, but you cannot modify source code.
 
----
+You have MCP tools available for feature management. Use them directly by calling the tool -- do not suggest CLI commands, bash commands, or curl commands to the user. You can create features yourself using the feature_create and feature_create_bulk tools.
 
-## The 8 Meta-Patterns
+## What You CAN Do
 
-CMS-Core's architecture reduces to 8 repeating patterns. Learn these and you can build anything:
+**Codebase Analysis (Read-Only):**
+- Read and analyze source code files
+- Search for patterns in the codebase
+- Look up documentation online
+- Check feature progress and status
 
-| # | Pattern | What It Is | Template |
-|---|---------|-----------|----------|
-| 1 | **PluginManager** | Universal extensibility (field types, blocks, filters, etc.) | `.autoforge/templates/plugin-manager.js` |
-| 2 | **ContentEntity** | User data (nodes, users, comments, media, files) | `.autoforge/templates/content-entity.js` |
-| 3 | **ConfigEntity** | System config (content types, views, image styles, roles) | `.autoforge/templates/config-entity.js` |
-| 4 | **EntityStorage** | CRUD + queries for entities (JSON files, future SQLite) | `.autoforge/templates/entity-storage.js` |
-| 5 | **Container (DI)** | Service registration with dependencies and tags | `.autoforge/templates/service-provider.js` |
-| 6 | **HookManager** | Unified event/hook system with alter support | `.autoforge/templates/hook-implementation.js` |
-| 7 | **Render Array** | Structured output with caching and theming | `.autoforge/templates/render-element.js` |
-| 8 | **FormBase** | Forms with cross-module alter support | `.autoforge/templates/form-base.js` |
+**Feature Management:**
+- Create new features/test cases in the backlog
+- Skip features to deprioritize them (move to end of queue)
+- View feature statistics and progress
 
-**Read the templates.** They have full JSDoc, examples, and Drupal equivalents.
+## What You CANNOT Do
 
----
+- Modify, create, or delete source code files
+- Mark features as passing (that requires actual implementation by the coding agent)
+- Run bash commands or execute code
 
-## Directory Structure
+If the user asks you to modify code, explain that you're a project assistant and they should use the main coding agent for implementation.
 
-### Current Layout
-```
-cms-core/
-├── CLAUDE.md              ← THIS FILE (architecture guide)
-├── index.js               ← Entry point (starts HTTP server on port 3001)
-├── config/
-│   ├── site.json           ← Site settings
-│   ├── modules.json        ← Enabled module list
-│   ├── active/             ← Active config entities (JSON files)
-│   └── staging/            ← Config export staging
-├── core/                   ← FRAMEWORK CODE ONLY
-│   ├── boot.js             ← Module loader, service registry
-│   ├── server.js           ← HTTP server
-│   ├── router.js           ← Route registry
-│   ├── auth.js             ← Authentication
-│   ├── database.js         ← SQLite helpers
-│   ├── config.js           ← Config loader (site.json, modules.json)
-│   ├── utils.js            ← Utilities
-│   ├── static.js           ← Static file serving
-│   └── lib/                ← PATTERN IMPLEMENTATIONS
-│       ├── Plugin/         ← PluginManager, PluginBase, Discovery
-│       ├── Entity/         ← EntityType, ContentEntityBase, Storage, Query
-│       ├── Field/          ← FieldType/Widget/Formatter PluginManagers
-│       ├── Config/         ← ConfigEntity, ConfigEntityStorage, Schema
-│       ├── DependencyInjection/ ← Container, Reference
-│       ├── Hook/           ← HookManager
-│       ├── Render/         ← Renderer, BubbleableMetadata, LazyBuilder
-│       ├── Theme/          ← ThemeRegistry, ThemeNegotiator
-│       ├── Access/         ← AccessResult, AccessPolicy
-│       ├── Form/           ← FormBuilder, FormState, FormBase
-│       ├── Routing/        ← Router enhancements, ParamConverter
-│       ├── Extension/      ← ModuleInstaller, ModuleHandler
-│       ├── Serialization/  ← Serializer, Normalizers
-│       ├── Rest/           ← ResourcePluginManager, EntityResource
-│       ├── Queue/          ← QueueFactory, DatabaseQueue
-│       ├── Migration/      ← MigrationManager, Source/Process/Destination
-│       ├── Layout/         ← LayoutPluginManager, Section, SectionComponent
-│       └── Recipe/         ← Recipe, RecipeRunner, RecipeValidator
-├── modules/                ← ALL FEATURES GO HERE
-│   ├── node/               ← Content (articles, pages)
-│   ├── users/              ← User management
-│   ├── taxonomy/           ← Vocabularies and terms
-│   ├── comment/            ← Comments
-│   ├── media/              ← Media library
-│   ├── block/              ← Block types and placements
-│   ├── views/              ← Content listings
-│   ├── search/             ← Search backends
-│   ├── editor/             ← Rich text editor
-│   ├── filter/             ← Text filters
-│   ├── image/              ← Image styles and effects
-│   ├── path_alias/         ← URL aliases
-│   ├── layout_builder/     ← Visual page composition
-│   ├── workspaces/         ← Content staging
-│   ├── admin/              ← Admin interface
-│   └── ...                 ← More modules
-├── content/                ← JSON content storage
-├── themes/                 ← Theme layouts
-├── public/                 ← Static assets
-├── recipes/                ← Reusable site configurations
-└── .autoforge/
-    ├── templates/          ← Meta-pattern templates (READ THESE)
-    ├── specs/              ← Stage specifications
-    └── prompts/            ← Agent prompts
-```
+## Project Specification
 
-### What Goes Where
+<project_specification>
 
-| You're building... | Put it in... | Pattern to follow |
-|---|---|---|
-| A new extensible subsystem (like field types) | `core/lib/{Subsystem}/` | PluginManager template |
-| A new entity type (like media, comment) | `modules/{name}/` + register via hook | ContentEntity template |
-| A new config entity type (like image style) | `modules/{name}/` + ConfigEntity | ConfigEntity template |
-| A new plugin instance (like a field type) | `modules/{mod}/plugins/{type}/{Name}.js` | Plugin file convention |
-| A new module feature | `modules/{name}/` with manifest.json + index.js | module-pattern.js template |
-| A fix to an existing core pattern | `core/lib/{existing}/` | Match existing style |
-| A new service | `modules/{name}/services.js` | service-provider.js template |
+# CMS-Core Stage 1: Foundation Patterns
+# The core patterns everything else depends on.
+# Zero external dependencies. Node.js built-ins only.
 
----
+## Architecture Context
+CMS-Core is an existing Node.js CMS with ~90 core files and ~20 modules.
+This stage adds 5 foundational pattern systems under core/lib/ that will
+underpin ALL future extensibility. Read CLAUDE.md for full architecture guide.
 
-## How to Create a New Plugin Type
+## CRITICAL: Read Templates First
+Before implementing any feature, read these template files:
+- .autoforge/templates/plugin-manager.js — PluginManager pattern
+- .autoforge/templates/plugin-base.js — PluginBase pattern
+- .autoforge/templates/service-provider.js — ServiceProvider pattern
+- .autoforge/templates/hook-implementation.js — Hook pattern
+- .autoforge/templates/access-result.js — AccessResult pattern
+- .autoforge/templates/config-entity.js — ConfigEntity pattern
 
-1. Instantiate PluginManager in `core/lib/{Subsystem}/{Type}PluginManager.js`:
-```javascript
-import { PluginManager } from '../Plugin/PluginManager.js';
-export const myTypeManager = new PluginManager('my_type', {
-  subdir: 'my_type',
-  alterHook: 'my_type_info_alter',
-  defaults: { category: 'General' },
-});
-```
+## Technology Stack
+- Runtime: Node.js (zero npm dependencies)
+- Storage: JSON files + SQLite (via core/database.js)
+- Server: Built-in HTTP (core/server.js)
+- Port: 3001
 
-2. Modules contribute plugins at `modules/{mod}/plugins/my_type/{PluginName}.js`:
-```javascript
-export const definition = { id: 'my_plugin', label: 'My Plugin' };
-export default function create(config, id, def, services) {
-  return { /* plugin instance */ };
-}
-```
+feature_count: 25
 
-3. Use: `const instance = await myTypeManager.createInstance('my_plugin');`
+<features>
 
----
+## Phase 1.1: Unified Plugin System (Features 1-6)
 
-## How to Create a New Entity Type
+1. Create PluginManager class in core/lib/Plugin/PluginManager.js with constructor(type, options) that accepts type string, subdir, alterHook, baseClass, and defaults options. Must store type, subdir, alterHook, baseClass, defaults as instance properties. Must have private _modulePaths array and null definition cache.
+   ACCEPTANCE: File exists at core/lib/Plugin/PluginManager.js. Class is exported. Constructor sets all properties correctly.
 
-1. Register in your module's entity type hook:
-```javascript
-export function hook_entity_type_info(ctx) {
-  ctx.entityTypeManager.register('my_entity', {
-    label: 'My Entity',
-    keys: { id: 'id', uuid: 'uuid', label: 'title' },
-    handlers: { storage: myStorage, access: myAccess },
-    baseFieldDefinitions: {
-      id: { type: 'integer', label: 'ID', readOnly: true },
-      title: { type: 'string', label: 'Title', required: true },
-    },
-  });
-}
-```
+2. Implement PluginManager.getDefinitions() as async method that scans each module path's plugins/{subdir}/ directory for .js files, dynamically imports each, reads the exported 'definition' object, merges with defaults, stores _module and _path metadata, and caches results in a Map keyed by definition.id. Must handle missing directories gracefully (ENOENT).
+   ACCEPTANCE: Create modules/test_plugin/plugins/test_type/Alpha.js with definition {id:'alpha', label:'Alpha'}. Call getDefinitions(). Map contains 'alpha' key with merged definition.
 
-2. Create storage handler (or use JsonFileEntityStorage)
-3. Create access handler (or use EntityAccessControlHandler)
+3. Implement PluginManager.createInstance(id, configuration) that calls getDefinition(id), then uses the plugin's exported default/create factory function to instantiate with (configuration, id, definition, services) arguments. If no factory exists, return a PluginInstance wrapper. Throw descriptive error if plugin ID not found (list available IDs).
+   ACCEPTANCE: createInstance('alpha') returns an object. createInstance('nonexistent') throws with available plugin IDs listed.
 
----
+4. Implement PluginManager.clearCachedDefinitions(), hasDefinition(id), and setInfrastructure(services, hooks, modulePaths) methods. setInfrastructure stores references for alter hooks and module scanning.
+   ACCEPTANCE: After clearCachedDefinitions(), next getDefinitions() re-scans filesystem. hasDefinition returns boolean.
 
-## How to Create a New Module
+5. Create PluginBase class in core/lib/Plugin/PluginBase.js with getPluginId(), getPluginDefinition(), getConfiguration() methods. Constructor takes (configuration, pluginId, pluginDefinition). Export class.
+   ACCEPTANCE: File exists. new PluginBase({foo:1}, 'test', {id:'test'}).getPluginId() returns 'test'.
 
-Every module lives in `modules/{name}/` with minimum two files:
+6. Create core/lib/Plugin/index.js barrel export that re-exports PluginManager and PluginBase. Verify the plugin system works end-to-end: create a test module with a plugin, discover it, instantiate it, verify alter hook fires via trigger on getDefinitions.
+   ACCEPTANCE: import { PluginManager, PluginBase } from 'core/lib/Plugin/index.js' works. End-to-end test passes.
 
-**manifest.json:**
-```json
-{
-  "name": "my_module",
-  "version": "1.0.0",
-  "description": "What this module does",
-  "dependencies": []
-}
-```
+## Phase 1.2: Service Container (Features 7-11)
 
-**index.js:**
-```javascript
-export function hook_boot(ctx) {
-  // Register services, set up hooks
-}
+7. Create Container class in core/lib/DependencyInjection/Container.js with register(name, factory, options) method. Options support: deps (string array of dependency service IDs), tags (string array), singleton (boolean, default true), alias (string). Store definitions in a Map. Index by tags in a separate Map of tag→Set<serviceName>.
+   ACCEPTANCE: container.register('foo', () => new Foo(), {tags:['my_tag']}). container._definitions has 'foo'.
 
-export function hook_routes(ctx) {
-  ctx.router.get('/api/mymod/items', handler);
-}
-```
+8. Implement Container.get(name) that resolves aliases, resolves dependency services recursively, calls factory with resolved deps, caches singleton instances. Support optional dependencies prefixed with '?' that return null if missing. Throw descriptive error for unknown services (list available).
+   ACCEPTANCE: Register A depending on B. get('A') resolves B first. get('?missing') returns null. get('unknown') throws with list.
 
-**Optional services.js:**
-```javascript
-export function register(container) {
-  container.register('mymod.service', (dep1, dep2) => {
-    return new MyService(dep1, dep2);
-  }, { deps: ['database', 'hooks'], tags: ['my_tag'] });
-}
-```
+9. Implement Container.getTagged(tag) returning array of {name, service} for all services with that tag. Implement has(name), list(), reset() (clears cached instances), and getLazy(name) that returns a Proxy deferring instantiation until first property access.
+   ACCEPTANCE: Register 3 services tagged 'plugin_manager'. getTagged('plugin_manager') returns 3 entries. getLazy works.
 
-Enable by adding to `config/modules.json`.
+10. Implement Container.registerProvider(mod
+... (truncated)
 
----
+## Available Tools
 
-## How Services Work
+**Code Analysis:**
+- **Read**: Read file contents
+- **Glob**: Find files by pattern (e.g., "**/*.tsx")
+- **Grep**: Search file contents with regex
+- **WebFetch/WebSearch**: Look up documentation online
 
-Services are registered through the DI Container:
+**Feature Management:**
+- **feature_get_stats**: Get feature completion progress
+- **feature_get_by_id**: Get details for a specific feature
+- **feature_get_ready**: See features ready for implementation
+- **feature_get_blocked**: See features blocked by dependencies
+- **feature_create**: Create a single feature in the backlog
+- **feature_create_bulk**: Create multiple features at once
+- **feature_skip**: Move a feature to the end of the queue
 
-```javascript
-// Register (in module's services.js or hook_boot)
-container.register('my.service', (database) => new MyService(database), {
-  deps: ['database'],
-  tags: ['entity_storage'],
-  singleton: true,
-});
+**Interactive:**
+- **ask_user**: Present structured multiple-choice questions to the user. Use this when you need to clarify requirements, offer design choices, or guide a decision. The user sees clickable option buttons and their selection is returned as your next message.
 
-// Use (anywhere with access to services)
-const myService = services.get('my.service');
+## Creating Features
 
-// Find by tag
-const allStorages = container.getTagged('entity_storage');
+When a user asks to add a feature, use the `feature_create` or `feature_create_bulk` MCP tools directly:
 
-// Optional dependency (null if not registered)
-container.register('x', (required, optional) => ..., {
-  deps: ['required', '?optional'],
-});
-```
+For a **single feature**, call `feature_create` with:
+- category: A grouping like "Authentication", "API", "UI", "Database"
+- name: A concise, descriptive name
+- description: What the feature should do
+- steps: List of verification/implementation steps
 
----
+For **multiple features**, call `feature_create_bulk` with an array of feature objects.
 
-## How Hooks Work
+You can ask clarifying questions if the user's request is vague, or make reasonable assumptions for simple requests.
 
-CMS-Core has a unified hook system. Convention hooks and runtime hooks go through the same HookManager:
+**Example interaction:**
+User: "Add a feature for S3 sync"
+You: I'll create that feature now.
+[calls feature_create with appropriate parameters]
+You: Done! I've added "S3 Sync Integration" to your backlog. It's now visible on the kanban board.
 
-```javascript
-// Convention hooks (module exports — auto-registered during boot)
-export function hook_boot(ctx) { }
-export function hook_routes(ctx) { }
-export function hook_entity_type_info(ctx) { }
+## Guidelines
 
-// Runtime hooks (registered explicitly)
-hooks.on('entity:presave', handler, { module: 'mymod', priority: 10 });
-
-// Alter hooks (cross-module modification)
-hooks.onAlter('form_node_edit', (form) => { form.extra = {...}; return form; });
-
-// Backward compatible
-hooks.register('event', handler, priority);  // → hooks.on()
-hooks.trigger('event', context);             // → hooks.invoke()
-```
-
----
-
-## Naming Conventions
-
-| Thing | Convention | Example |
-|-------|-----------|---------|
-| Module directory | `snake_case` | `modules/path_alias/` |
-| Plugin file | `PascalCase.js` | `plugins/field_type/StringItem.js` |
-| Plugin ID | `snake_case` | `'string_textfield'` |
-| Service ID | `dot.separated` | `'entity_type.manager'` |
-| Hook name | `colon:separated` | `'entity:presave'` |
-| Config entity file | `{type}.{id}.json` | `node_type.article.json` |
-| Entity storage dir | `content/{type}/` | `content/node/` |
-| Core lib directory | `PascalCase/` | `core/lib/DependencyInjection/` |
-
----
-
-## Anti-Patterns (What NOT To Do)
-
-1. **❌ Don't hardcode extensible things.** If it could have variations (field types, block types, filters), use PluginManager.
-2. **❌ Don't put feature code in `core/`.** Features go in `modules/`. Core is framework only.
-3. **❌ Don't use inline permission checks.** Use AccessResult objects with cache metadata.
-4. **❌ Don't use raw HTML strings for output.** Use render arrays so cache metadata bubbles.
-5. **❌ Don't create separate hook systems.** Everything goes through HookManager.
-6. **❌ Don't manually register services in boot.js.** Use module `services.js` files.
-7. **❌ Don't store config in code.** Use ConfigEntity for exportable configuration.
-8. **❌ Don't use external npm dependencies.** Node.js built-ins only.
-9. **❌ Don't use synchronous I/O in hot paths.** All methods that might do I/O should be async.
-10. **❌ Don't subclass PluginManager.** Instantiate it with different parameters instead.
-
----
-
-## Running the Server
-
-```bash
-node index.js          # Starts on port 3001
-```
-
-Verify: `curl http://localhost:3001/` returns JSON with site info.
-
-## Database
-
-SQLite via `core/database.js` for relational data. JSON files in `content/` for entity storage. Config entities in `config/active/`.
-
-## Key Principle
-
-**ONE pattern, MANY instances.** PluginManager is instantiated ~40 times (once per plugin type). ContentEntityBase is instantiated for every entity type. ConfigEntity covers all config types. The patterns don't change — only the data they hold.
-
-## Drupal Reference
-
-Local Drupal core for comparison:
-```
-/Users/Alchemy/Projects/experiments/drupal-cms/web/core/modules/
-```
+1. Be concise and helpful
+2. When explaining code, reference specific file paths and line numbers
+3. Use the feature tools to answer questions about project progress
+4. Search the codebase to find relevant information before answering
+5. When creating features, confirm what was created
+6. If you're unsure about details, ask for clarification
