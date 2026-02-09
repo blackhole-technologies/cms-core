@@ -15,7 +15,11 @@
   "i18n": {
     "enabled": true,
     "defaultLocale": "en",
-    "locales": ["en", "es", "fr"],
+    "locales": [
+      "en",
+      "es",
+      "fr"
+    ],
     "fallback": true
   },
   "search": {
@@ -128,7 +132,9 @@
   "notifications": {
     "enabled": true,
     "maxPerUser": 100,
-    "defaultChannels": ["app"]
+    "defaultChannels": [
+      "app"
+    ]
   },
   "backup": {
     "enabled": true,
@@ -169,12 +175,19 @@
       "v1": {
         "status": "stable",
         "releasedAt": "2024-01-01",
-        "changes": ["Initial API release", "Basic CRUD operations"]
+        "changes": [
+          "Initial API release",
+          "Basic CRUD operations"
+        ]
       },
       "v2": {
         "status": "beta",
         "releasedAt": "2024-06-01",
-        "changes": ["Added pagination metadata", "Changed error format", "Added filtering support"]
+        "changes": [
+          "Added pagination metadata",
+          "Changed error format",
+          "Added filtering support"
+        ]
       }
     }
   },
@@ -197,7 +210,9 @@
     "siteUrl": "http://localhost:3000"
   },
   "plugins": {
-    "enabled": ["seo"],
+    "enabled": [
+      "seo"
+    ],
     "directory": "./plugins",
     "autoReload": true,
     "watchDebounce": 500
@@ -207,11 +222,20 @@
   },
   "menu": {
     "enabled": true,
-    "defaultMenus": ["main", "footer", "admin"]
+    "defaultMenus": [
+      "main",
+      "footer",
+      "admin"
+    ]
   },
   "blocks": {
     "enabled": true,
-    "defaultRegions": ["header", "sidebar", "content", "footer"]
+    "defaultRegions": [
+      "header",
+      "sidebar",
+      "content",
+      "footer"
+    ]
   },
   "views": {
     "enabled": true,
@@ -313,5 +337,8 @@
     "floodInterval": 3600,
     "personalEnabled": true,
     "storeSubmissions": true
+  },
+  "server": {
+    "port": 0
   }
 }

@@ -159,3 +159,18 @@ export async function invoke(hookName, context = {}) {
 export function listHooks() {
   return Object.keys(registry);
 }
+
+/**
+ * Get all registered handlers for a specific hook
+ *
+ * WHY THIS EXISTS:
+ * The HookBridge needs access to handler functions to properly migrate them
+ * to the new HookManager. This allows the bridge to preserve handler behavior
+ * including return values (needed for invokeAll() pattern).
+ *
+ * @param {string} hookName - The hook to get handlers for
+ * @returns {Array<{handler: Function, priority: number, source: string}>} - Array of handler objects
+ */
+export function getHandlers(hookName) {
+  return registry[hookName] || [];
+}

@@ -125,6 +125,13 @@
       "schema": null,
       "locked": false,
       "registeredAt": "2026-02-07T04:01:05.959Z"
+    },
+    "server": {
+      "name": "server",
+      "file": "server.json",
+      "schema": null,
+      "locked": false,
+      "registeredAt": "2026-02-09T12:21:39.240Z"
     }
   },
   "environments": {
