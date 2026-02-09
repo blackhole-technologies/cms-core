@@ -132,8 +132,11 @@ export class PluginManager {
     }
 
     // WHY: Fire alter hook so modules can modify any plugin's definition
-    if (this._hooks) {
-      await this._hooks.invoke(this.alterHook, { definitions });
+    // Pass the Map directly to alter hook chain - hooks can add/remove/modify definitions
+    if (this._hooks && this.alterHook.endsWith('_alter')) {
+      // Remove _alter suffix since hooks.alter() adds it automatically
+      const hookName = this.alterHook.replace(/_alter$/, '');
+      await this._hooks.alter(hookName, definitions, { type: this.type });
     }
 
     // WHY: Cache for subsequent calls
