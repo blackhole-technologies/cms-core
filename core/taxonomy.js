@@ -901,9 +901,9 @@ export function searchTerms(vocabularyId, query) {
  * @returns {number} Content count
  */
 export function getTermContentCount(termId, includeChildren = false) {
-  // This requires integration with content items
-  // For now, return 0 - will be implemented when content references are added
-  // WHY STUB: Prevents breaking changes, allows incremental implementation
+  // WHY: Requires content entity integration not yet implemented
+  // WHY PLACEHOLDER: Returns 0 until content reference tracking is added
+  // Prevents breaking changes, allows incremental implementation
   return 0;
 }
 
