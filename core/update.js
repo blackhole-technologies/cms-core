@@ -11,6 +11,7 @@ import { readFile, writeFile, mkdir } from 'fs/promises';
 import { existsSync } from 'fs';
 import { join, dirname } from 'path';
 import { pathToFileURL } from 'url';
+import { Database } from './database.js';
 
 // Configuration
 const CONFIG_DIR = process.env.CMS_CONFIG_DIR || './config';
@@ -23,6 +24,16 @@ const UPDATE_LOG_FILE = join(CONFIG_DIR, 'update-log.json');
 let schemaVersionsCache = null;
 let installedModulesCache = null;
 let updateLogCache = null;
+
+// Database instance for schema operations
+// WHY: Lazy initialization - only create when schema operations are needed
+let dbInstance = null;
+function getDatabase() {
+  if (!dbInstance) {
+    dbInstance = new Database();
+  }
+  return dbInstance;
+}
 
 /**
  * Initialize configuration directory
@@ -652,115 +663,134 @@ export async function uninstallModule(module) {
 
 /**
  * Add a field to a table
+ * WHY: Used by module update hooks to add new database columns
  */
 export async function addField(table, field, spec) {
   if (!table || !field || !spec) {
     throw new Error('Table, field, and spec are required');
   }
 
-  // TODO: Implement based on database layer
-  console.log(`Adding field ${field} to table ${table}`, spec);
+  const db = getDatabase();
+  await db.schema().addField(table, field, spec);
 }
 
 /**
  * Drop a field from a table
+ * WHY: Used by module update hooks to remove obsolete database columns
  */
 export async function dropField(table, field) {
   if (!table || !field) {
     throw new Error('Table and field are required');
   }
 
-  // TODO: Implement based on database layer
-  console.log(`Dropping field ${field} from table ${table}`);
+  const db = getDatabase();
+  await db.schema().dropField(table, field);
 }
 
 /**
  * Change a field in a table
+ * WHY: Used by module update hooks to rename or modify database columns
  */
 export async function changeField(table, field, newName, spec) {
   if (!table || !field || !newName || !spec) {
     throw new Error('Table, field, newName, and spec are required');
   }
 
-  // TODO: Implement based on database layer
-  console.log(`Changing field ${field} to ${newName} in table ${table}`, spec);
+  const db = getDatabase();
+  await db.schema().changeField(table, field, newName, spec);
 }
 
 /**
  * Create a table
+ * WHY: Used by module install hooks to create new database tables
  */
 export async function createTable(table, spec) {
   if (!table || !spec) {
     throw new Error('Table and spec are required');
   }
 
-  // TODO: Implement based on database layer
-  console.log(`Creating table ${table}`, spec);
+  const db = getDatabase();
+  await db.schema().createTable(table, spec);
 }
 
 /**
  * Drop a table
+ * WHY: Used by module uninstall hooks to remove database tables
  */
 export async function dropTable(table) {
   if (!table) {
     throw new Error('Table is required');
   }
 
-  // TODO: Implement based on database layer
-  console.log(`Dropping table ${table}`);
+  const db = getDatabase();
+  await db.schema().dropTable(table);
 }
 
 /**
  * Add an index to a table
+ * WHY: Used by module update hooks to add database indexes for performance
  */
 export async function addIndex(table, name, fields) {
   if (!table || !name || !fields) {
     throw new Error('Table, name, and fields are required');
   }
 
-  // TODO: Implement based on database layer
-  console.log(`Adding index ${name} to table ${table}`, fields);
+  const db = getDatabase();
+  await db.schema().addIndex(table, name, fields);
 }
 
 /**
  * Drop an index from a table
+ * WHY: Used by module update hooks to remove obsolete database indexes
  */
 export async function dropIndex(table, name) {
   if (!table || !name) {
     throw new Error('Table and name are required');
   }
 
-  // TODO: Implement based on database layer
-  console.log(`Dropping index ${name} from table ${table}`);
+  const db = getDatabase();
+  await db.schema().dropIndex(table, name);
 }
 
 /**
  * Rename a table
+ * WHY: Manual implementation - database layer doesn't provide renameTable yet
+ * WHY APPROACH: Load from old table, create new table, save to new, delete old
  */
 export async function renameTable(oldName, newName) {
   if (!oldName || !newName) {
     throw new Error('Old name and new name are required');
   }
 
-  // TODO: Implement based on database layer
-  console.log(`Renaming table ${oldName} to ${newName}`);
+  const db = getDatabase();
+
+  // Load all rows from old table
+  const rows = await db.loadTable(oldName);
+
+  // Create new table with same data
+  await db.saveTable(newName, rows);
+
+  // Drop old table
+  await db.schema().dropTable(oldName);
 }
 
 /**
  * Execute a SQL query
+ * WHY LIMITATION: JSON-based database doesn't support raw SQL
+ * WHY APPROACH: This is a compatibility shim for Drupal-style update hooks
+ * Modules should use the Database query builder instead
  */
 export async function query(sql) {
   if (!sql) {
     throw new Error('SQL query is required');
   }
 
-  // TODO: Implement based on database layer
-  console.log('Executing query:', sql);
-  return [];
+  throw new Error('Raw SQL queries not supported. Use Database query builder instead.');
 }
 
 /**
  * Batch update helper
+ * WHY: Process large datasets in chunks to avoid memory exhaustion
  */
 export async function batchUpdate(table, callback, batchSize = 100) {
   if (!table || !callback) {
@@ -775,8 +805,21 @@ export async function batchUpdate(table, callback, batchSize = 100) {
     throw new Error('Batch size must be a positive number');
   }
 
-  // TODO: Implement based on database layer
-  console.log(`Batch updating table ${table} with batch size ${batchSize}`);
+  const db = getDatabase();
+  const rows = await db.loadTable(table);
+
+  // Process in batches
+  for (let i = 0; i < rows.length; i += batchSize) {
+    const batch = rows.slice(i, i + batchSize);
+
+    // Apply callback to each row in batch
+    for (const row of batch) {
+      await callback(row);
+    }
+  }
+
+  // Save all changes
+  await db.saveTable(table, rows);
 }
 
 /**
