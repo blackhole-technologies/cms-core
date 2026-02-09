@@ -1,0 +1,66 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Data Persistence Test</title>
+</head>
+<body>
+  <h1>Testing Data Persistence</h1>
+  <div id="output"></div>
+
+  <script>
+    const output = document.getElementById('output');
+
+    async function test() {
+      try {
+        // Create test content via API
+        const testData = {
+          type: 'article',
+          title: 'RESTART_TEST_12345',
+          body: 'Test content for persistence verification',
+          status: 'published'
+        };
+
+        output.innerHTML += '<p>Creating test article...</p>';
+        const createResponse = await fetch('http://localhost:3001/api/content/article', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(testData)
+        });
+
+        const created = await createResponse.json();
+        output.innerHTML += `<p style="color: green;">✓ Created article ID: ${created.id}</p>`;
+        output.innerHTML += `<p>Now manually restart the server, then reload this page to verify persistence.</p>`;
+
+        // Store ID for later verification
+        localStorage.setItem('testArticleId', created.id);
+
+      } catch (error) {
+        output.innerHTML += `<p style="color: red;">✗ Error: ${error.message}</p>`;
+      }
+    }
+
+    // Check if we're verifying after restart
+    const testId = localStorage.getItem('testArticleId');
+    if (testId) {
+      output.innerHTML += `<p>Checking if article ${testId} still exists after restart...</p>`;
+
+      fetch(`http://localhost:3001/api/content/article/${testId}`)
+        .then(r => r.json())
+        .then(data => {
+          if (data && data.title === 'RESTART_TEST_12345') {
+            output.innerHTML += `<p style="color: green; font-weight: bold;">✓ SUCCESS! Data persisted across restart!</p>`;
+            output.innerHTML += `<pre>${JSON.stringify(data, null, 2)}</pre>`;
+            localStorage.removeItem('testArticleId');
+          } else {
+            output.innerHTML += `<p style="color: red;">✗ FAILURE! Data was lost!</p>`;
+          }
+        })
+        .catch(err => {
+          output.innerHTML += `<p style="color: red;">✗ Error loading: ${err.message}</p>`;
+        });
+    } else {
+      test();
+    }
+  </script>
+</body>
+</html>
