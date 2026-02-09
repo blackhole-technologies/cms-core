@@ -1398,9 +1398,43 @@ export async function boot(baseDir, options = {}) {
     }, 'Site information');
 
     router.register('GET', '/health', async (req, res, params, ctx) => {
+      // Check database/storage status
+      const { access } = await import('fs/promises');
+      const { join } = await import('path');
+
+      let storageStatus = 'connected';
+      let storageDetails = {};
+
+      try {
+        // Check if storage directories exist and are accessible
+        const contentDir = join(ctx.baseDir, 'content');
+        const configDir = join(ctx.baseDir, 'config');
+        const tablesDir = join(contentDir, '_tables');
+
+        await access(contentDir);
+        await access(configDir);
+        await access(tablesDir);
+
+        storageDetails = {
+          contentDir: 'accessible',
+          configDir: 'accessible',
+          tablesDir: 'accessible',
+          type: 'json-file-storage'
+        };
+      } catch (error) {
+        storageStatus = 'error';
+        storageDetails = {
+          error: error.message
+        };
+      }
+
       server.json(res, {
         status: 'ok',
         uptime: process.uptime(),
+        database: {
+          status: storageStatus,
+          ...storageDetails
+        }
       });
     }, 'Health check');
 
