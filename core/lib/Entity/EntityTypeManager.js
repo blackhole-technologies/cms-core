@@ -440,13 +440,22 @@ export class EntityTypeManager {
     }
 
     // WHY: Collect definitions from all modules
-    const definitions = await this[HOOKS].invokeAll('entity_type_info');
+    // NOTE: Hook names use colons, not underscores (entity:type:info, not entity_type_info)
+    const definitions = await this[HOOKS].invokeAll('entity:type:info');
 
-    // WHY: Flatten array of arrays
-    const allDefs = definitions.flat();
+    // WHY: Flatten array of arrays into single array of definition objects
+    const allDefs = [];
+    for (const result of definitions) {
+      if (result && typeof result === 'object') {
+        // Each hook returns an object of {id: definition}
+        for (const [id, def] of Object.entries(result)) {
+          allDefs.push({ ...def, id });
+        }
+      }
+    }
 
     // WHY: Fire alter hook to let modules modify definitions
-    await this[HOOKS].alter('entity_type_info', allDefs);
+    await this[HOOKS].alter('entity:type:info', allDefs);
 
     // WHY: Register all discovered types
     for (const def of allDefs) {

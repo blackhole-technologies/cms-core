@@ -2,6 +2,7 @@
   "enabled": [
     "hello",
     "test",
+    "test_entity_type",
     "users",
     "webhooks",
     "media",

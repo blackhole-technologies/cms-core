@@ -5167,6 +5167,18 @@ export async function boot(baseDir, options = {}) {
     // not triggering an event. (They're the same function.)
     await hooks.invoke('boot', context);
 
+    // Discover entity types from modules
+    // WHY HERE (after module boot):
+    // Modules register entity types via hook_entity_type_info.
+    // We fire the hook after modules have booted so they can register their types.
+    // The EntityTypeManager collects all definitions and makes them available.
+    if (container.has('entity_type.manager')) {
+      const entityTypeManager = container.get('entity_type.manager');
+      await entityTypeManager.discoverEntityTypes();
+      const entityTypes = entityTypeManager.getDefinitions();
+      log(`[boot] Discovered ${Object.keys(entityTypes).length} entity type(s)`);
+    }
+
     log(`[boot] ✓ ${PHASES.BOOT} complete`);
 
     // ========================================
