@@ -1,24 +1,23 @@
 <project_specification>
 
-# CMS-Core: Renderer
-# The rendering pipeline that processes render arrays into HTML.
-# Unlocks cache metadata bubbling, lazy builders, and theme integration.
-# Replaces raw HTML string building throughout the admin module.
+# CMS-Core: FormBuilder + FormState
+# The form processing pipeline that turns HTTP POST into validate → submit.
+# Unlocks hook_form_alter — the mechanism that lets any module modify any form.
 
 ## Architecture Context
-CMS-Core's render-element.js template defines the full render array convention
-(185 lines of examples) but there is NO Renderer class to process them. The admin
-module and other code build HTML strings directly, defeating the purpose of render arrays.
-The Renderer is the most complex missing pattern — it must handle element type dispatch,
-recursive child rendering, weight sorting, access checking, cache metadata bubbling,
-lazy builder resolution, and #prefix/#suffix wrapping.
+CMS-Core has a form-base.js template that defines FormBase and ConfirmFormBase classes,
+but there is no FormBuilder (the engine that processes forms) or FormState (tracks values,
+errors, redirect). The template references formState.getValue(), formState.setError(),
+formState.setRedirect() — all undefined. FormBuilder is what connects HTTP requests to
+form classes and fires the alter hooks that make forms extensible.
 
 ## Read These Files First
-- .autoforge/templates/render-element.js — the full render array convention and examples
-- core/lib/Plugin/PluginManager.js — code style reference and plugin discovery pattern
-- core/lib/Hook/HookManager.js — hook invocation for theme/alter hooks
-- core/render.js — existing legacy render code (if any patterns to preserve)
-- core/template.js — existing template/theme code
+- .autoforge/templates/form-base.js — FormBase, ConfirmFormBase, form element types, alter examples
+- core/lib/Hook/HookManager.js — hook invocation for form_alter hooks
+- core/lib/Render/Renderer.js — render array processing (forms ARE render arrays)
+- core/lib/Plugin/PluginManager.js — code style reference
+- core/form.js — existing legacy form handling (if any patterns to preserve)
+- core/forms.js — existing legacy form implementations
 
 ## Code Style Rules (MUST follow — match existing core/lib/ files exactly)
 - @file JSDoc header with Drupal equivalent reference
@@ -35,53 +34,47 @@ lazy builder resolution, and #prefix/#suffix wrapping.
 - Runtime: Node.js (zero npm dependencies)
 - Port: 3001
 
-feature_count: 12
+feature_count: 10
 
 <features>
 
-## Phase 1: Render Array Utilities (Features 1-3)
+## Phase 1: FormState — Form Value and Error Tracking (Features 1-3)
 
-1. Create RenderArray utility class in core/lib/Render/RenderArray.js as a static utility (no instantiation needed). Implement static method RenderArray.children(element) that returns an array of [key, child] pairs from a render array — all properties that do NOT start with '#', sorted by child's #weight (default 0, lower first). Implement static method RenderArray.isRenderArray(value) that returns true if value is a non-null object. Implement static method RenderArray.normalize(element) that ensures element has #type (defaults to 'markup' if #markup present, 'container' otherwise), #weight (defaults to 0), and #access (defaults to true).
-   ACCEPTANCE: RenderArray.children({a: {}, '#type': 'x', b: {'#weight': -10}}) returns [['b', ...], ['a', ...]] sorted by weight. RenderArray.isRenderArray({}) returns true. RenderArray.normalize({'#markup': '<p>hi</p>'}) adds #type 'markup'.
+1. Create FormState class in core/lib/Form/FormState.js. Constructor takes optional initial values object. Implement getValue(key) returning value for a form field or undefined. Implement getValues() returning all values as plain object. Implement setValue(key, value) storing a value, returns this. Implement setValues(values) merging an object of values, returns this. Use Symbol-based private state for values map, errors map, redirect, entity, rebuild flag, submitted flag. Add @file JSDoc header referencing Drupal FormStateInterface.php.
+   ACCEPTANCE: new FormState({name: 'test'}).getValue('name') returns 'test'. setValue('email', 'a@b.com').getValue('email') returns 'a@b.com'. getValues() returns plain object.
 
-2. Create CacheMetadata class in core/lib/Render/CacheMetadata.js. Constructor takes optional {tags, contexts, max_age}. Properties: tags (Set of strings), contexts (Set of strings), maxAge (number, default -1 meaning uncacheable). Implement merge(other) that unions tags and contexts, takes minimum of maxAge values. Implement static createFromRenderArray(element) that reads element['#cache'] and returns CacheMetadata instance. Implement applyTo(element) that writes back to element['#cache']. This enables cache metadata bubbling up the render tree.
-   ACCEPTANCE: Two CacheMetadata with different tags merge correctly (union). maxAge takes minimum. createFromRenderArray reads #cache property. applyTo writes it back.
+2. Implement FormState error handling: setError(field, message) stores an error for a field, returns this. setErrorByName(field, message) as alias for setError. getError(field) returns error message or null. getErrors() returns all errors as plain object. hasErrors() returns boolean. clearErrors() resets all errors. Implement form submission state: isSubmitted() returns boolean. setSubmitted(flag) sets submitted state. isRebuilding() returns boolean (form needs re-render after submit). setRebuild(flag) sets rebuild state.
+   ACCEPTANCE: setError('email', 'Invalid').hasErrors() returns true. getError('email') returns 'Invalid'. clearErrors().hasErrors() returns false. setSubmitted(true).isSubmitted() returns true.
 
-3. Create Attribute class in core/lib/Render/Attribute.js for converting #attributes objects to HTML attribute strings. Constructor takes attributes object. Implement toString() that converts {class: ['a', 'b'], id: 'main', 'data-x': true} to ' class="a b" id="main" data-x'. Handles: arrays joined with spaces, booleans as presence/absence, strings escaped for HTML, null/undefined skipped. Implement addClass(classes), removeClass(class), setAttribute(name, value), hasClass(class).
-   ACCEPTANCE: new Attribute({class: ['a', 'b'], id: 'main'}).toString() returns ' class="a b" id="main"'. addClass('c') adds to class array. Boolean true renders as valueless attribute.
+3. Implement FormState redirect and entity handling: setRedirect(url) stores redirect URL, returns this. getRedirect() returns URL or null. setEntity(entity) stores an entity being edited, returns this. getEntity() returns entity or null. Implement setStorage(key, value) and getStorage(key) for arbitrary per-form persistent data (used by multi-step forms). Implement setTemporaryValue(key, value) and getTemporaryValue(key) for values that don't persist across requests.
+   ACCEPTANCE: setRedirect('/node/1').getRedirect() returns '/node/1'. setEntity(mockEntity).getEntity() returns mockEntity. setStorage('step', 2).getStorage('step') returns 2.
 
-## Phase 2: Element Type Handlers (Features 4-7)
+## Phase 2: FormBuilder — Form Processing Engine (Features 4-7)
 
-4. Create core/lib/Render/Element/Markup.js element handler. Export an object with type: 'markup' and async render(element, renderer) method. For #markup type: returns the #markup string directly (no processing). For safety, if #markup is not a string, convert to empty string. This is the simplest element type — raw HTML passthrough.
-   ACCEPTANCE: Markup.render({'#type': 'markup', '#markup': '<p>Hello</p>'}, renderer) returns '<p>Hello</p>'. Null #markup returns ''.
+4. Create FormBuilder class in core/lib/Form/FormBuilder.js. Constructor takes no arguments. Implement setInfrastructure(services, hooks) matching PluginManager pattern. Implement getForm(formClass) as async method that: (1) instantiates the form class passing services, (2) creates a new FormState, (3) calls form.buildForm(formState) to get the render array, (4) adds hidden #form_id field with form.getFormId() value, (5) adds #form_build_id with a unique ID for CSRF, returns {form: renderArray, formState, formInstance}. Use Symbol-based private state. Add @file JSDoc header referencing Drupal FormBuilder.php.
+   ACCEPTANCE: With a FormBase subclass that returns {name: {'#type':'textfield'}}, getForm(MyForm) returns {form, formState, formInstance} with #form_id injected.
 
-5. Create core/lib/Render/Element/HtmlTag.js element handler. Export object with type: 'html_tag' and async render(element, renderer). Renders element as <{#tag} {attributes}>{#value}{children}</{#tag}>. Uses Attribute class for #attributes. Self-closing tags (br, hr, img, input, meta, link) render without closing tag. If #value is present, render it. Then render children recursively via renderer.renderChildren(element).
-   ACCEPTANCE: HtmlTag.render({'#type':'html_tag','#tag':'div','#attributes':{class:['wrapper']},'#value':'text'}) returns '<div class="wrapper">text</div>'. Self-closing: {'#tag':'br'} returns '<br>'.
+5. Implement FormBuilder form alter hook integration. After buildForm() in getForm(), fire three hooks via HookManager: (1) 'form_alter' with (form, formState, formId) — generic alter for ALL forms, (2) 'form_{formId}_alter' with (form, formState) — specific alter for this form. The altered form replaces the original. This is the mechanism that lets SEO modules add fields to content forms, scheduling modules add publish dates, etc.
+   ACCEPTANCE: Register a hook_form_alter that adds a field. Call getForm(). Returned form contains the added field. Register hook_form_contact_form_alter for specific form. Both fire correctly.
 
-6. Create core/lib/Render/Element/Container.js element handler. Export object with type: 'container' and async render(element, renderer). Renders as <div {attributes}>{children}</div>. Children are rendered recursively and concatenated. If no children and no #markup, renders empty string. This is the default wrapper element.
-   ACCEPTANCE: Container with two children renders both inside a div. Empty container renders empty string.
+6. Implement FormBuilder.processForm(formClass, submittedValues) as async method that: (1) calls getForm(formClass) to build the form, (2) populates formState with submittedValues via setValues(), (3) sets formState submitted flag, (4) calls form.validateForm(form, formState), (5) if no errors, calls form.submitForm(form, formState), (6) returns {form, formState, formInstance}. Validate and submit are only called if the form was actually submitted (submitted values are not empty).
+   ACCEPTANCE: processForm with valid values calls validateForm then submitForm. With validation errors, submitForm is NOT called. formState.hasErrors() reflects validation result.
 
-7. Create core/lib/Render/Element/Table.js element handler. Export object with type: 'table' and async render(element, renderer). Reads #header (array of strings or render arrays), #rows (array of arrays), #empty (string shown when no rows), #attributes. Renders as HTML table with thead/tbody. If #rows is empty, renders #empty message. Each cell can be a string or render array (rendered recursively).
-   ACCEPTANCE: Table with #header ['Name','Email'] and #rows [['Alice','alice@example.com']] renders correct HTML table. Empty #rows shows #empty message.
+7. Implement FormBuilder.processForm error handling and rebuild support. If validateForm sets errors via formState.setError(), submitForm is skipped. If submitForm sets formState.setRebuild(true), the form is rebuilt with current values (re-calls buildForm with populated formState). The rebuilt form retains user input and displays error messages. Add method retrieveForm(formId) that looks up a form class by its form ID from a registry. Implement registerForm(formId, formClass) to populate the registry.
+   ACCEPTANCE: Form with validation error returns formState.hasErrors() true, submitForm not called. setRebuild(true) triggers re-build. registerForm('contact', ContactForm) then retrieveForm('contact') returns ContactForm.
 
-## Phase 3: Renderer Core (Features 8-10)
+## Phase 3: FormBase Integration (Features 8-9)
 
-8. Create Renderer class in core/lib/Render/Renderer.js. Constructor takes options object with optional elementTypes Map and hooks reference. Implement registerElementType(handler) that registers a handler object (must have type string and render method) in internal Map. Implement setInfrastructure(services, hooks) matching PluginManager pattern. Implement discoverElementTypes() that loads built-in element types (markup, html_tag, container, table) automatically.
-   ACCEPTANCE: new Renderer() creates instance. registerElementType(markupHandler) registers it. discoverElementTypes() loads all built-in types.
+8. Move FormBase and ConfirmFormBase from template to core/lib/Form/FormBase.js as proper implementations. FormBase constructor takes (services) and stores it. getFormId() throws 'Subclass must implement getFormId()'. buildForm(formState) returns empty object. validateForm(form, formState) is a no-op. submitForm(form, formState) is a no-op. ConfirmFormBase extends FormBase with getQuestion(), getCancelUrl(), getDescription(), getConfirmText() methods and a buildForm() that creates the confirmation render array. Match code style exactly.
+   ACCEPTANCE: new FormBase(services).getFormId() throws. ConfirmFormBase.buildForm() returns render array with question, description, confirm and cancel actions.
 
-9. Implement Renderer.render(element) as the main async method. Processing pipeline: (1) Normalize element via RenderArray.normalize(). (2) Check #access — if false, return ''. (3) If #type has a registered handler, call handler.render(element, this). (4) If no handler for #type, log warning and fall through to rendering children. (5) Render children via renderChildren(element). (6) Apply #prefix and #suffix wrapping. (7) Bubble cache metadata from children to parent. (8) Return HTML string.
-   ACCEPTANCE: render({'#type':'markup','#markup':'<p>hi</p>'}) returns '<p>hi</p>'. render({'#access':false}) returns ''. render with unknown #type warns and renders children. #prefix and #suffix are applied.
+9. Create core/lib/Form/index.js barrel export that re-exports FormBase, ConfirmFormBase from './FormBase.js', FormState from './FormState.js', and FormBuilder from './FormBuilder.js'. Follow same pattern as core/lib/Plugin/index.js.
+   ACCEPTANCE: import { FormBase, ConfirmFormBase, FormState, FormBuilder } from './core/lib/Form/index.js' works. All four classes available.
 
-10. Implement Renderer.renderChildren(element) as async method that gets children via RenderArray.children(element), renders each recursively via render(), concatenates results. Implement Renderer.renderRoot(element) as async method that calls render() and also returns collected CacheMetadata for the entire tree (for page-level cache headers). Implement lazy builder support: if element has '#type': 'lazy_builder', call #callback with #args, then render the returned render array.
-    ACCEPTANCE: renderChildren processes all non-# properties sorted by weight. renderRoot returns {html, cacheMetadata}. Lazy builder callback is invoked and result rendered.
+## Phase 4: Verification (Feature 10)
 
-## Phase 4: Barrel Export and Verification (Features 11-12)
-
-11. Create core/lib/Render/index.js barrel export that re-exports Renderer, RenderArray, CacheMetadata, and Attribute. Follow same pattern as core/lib/Plugin/index.js.
-    ACCEPTANCE: import { Renderer, RenderArray, CacheMetadata, Attribute } from './core/lib/Render/index.js' works.
-
-12. End-to-end verification: Create Renderer instance, discover element types. Render a page-like structure with nested containers, markup, html_tags, a table, #weight ordering, #access false on one child, #prefix/#suffix, and #cache metadata on multiple elements. Verify: correct HTML output, correct child ordering by weight, access-denied child excluded, cache metadata bubbled to root, prefix/suffix applied.
-    ACCEPTANCE: Complex nested render array produces correct HTML. Weight ordering respected. Access-denied skipped. Cache tags from deep children appear in root CacheMetadata. Lazy builder resolved.
+10. End-to-end verification: Create a ContactForm extending FormBase with getFormId() returning 'contact_form', buildForm() returning name/email/message fields, validateForm() checking email contains '@', submitForm() storing values. Build it via FormBuilder.getForm(). Register a form alter hook that adds a 'phone' field. Verify alter fires. Process form with valid values — verify submitForm called. Process with invalid email — verify validateForm sets error, submitForm not called. Verify formState tracks values, errors, and redirect correctly throughout.
+   ACCEPTANCE: Full lifecycle works: build → alter → validate → submit. Alter hook adds phone field. Validation prevents submission on bad email. Good email goes through to submitForm. formState.getRedirect() returns value set in submitForm.
 
 </features>
 
