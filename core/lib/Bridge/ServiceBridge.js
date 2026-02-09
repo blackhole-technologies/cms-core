@@ -56,13 +56,22 @@ export class ServiceBridge {
    * ```
    */
   register(name, factory, deps = []) {
-    // WHY: Register in legacy system with original API
-    // Legacy services.register() takes (name, factory, options)
+    // WHY: Register in legacy system FIRST with original factory
+    // Legacy system creates and caches the singleton instance
     this._legacy.register(name, factory, { singleton: true });
 
-    // WHY: Register in new Container with dependency support
-    // Container needs deps array for automatic resolution
-    this._container.register(name, factory, {
+    // WHY: Register in Container with wrapper factory that delegates to legacy
+    // This ensures BOTH systems return the SAME singleton instance
+    // Container's factory resolves deps, but delegates instance creation to legacy
+    const containerFactory = (...resolvedDeps) => {
+      // WHY: If deps exist, we need to pass them to the factory
+      // But legacy system doesn't know about Container deps
+      // So we get from legacy (which will call original factory with no args)
+      // This is a limitation: bridge doesn't support dep injection in legacy
+      return this._legacy.get(name);
+    };
+
+    this._container.register(name, containerFactory, {
       deps,
       singleton: true,
     });
