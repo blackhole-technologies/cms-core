@@ -249,8 +249,8 @@ export class ConfigEntityStorage {
    */
   async exportToStaging() {
     // Ensure staging directory exists (lazy initialization)
-    if (!existsSync(this.stagingDir)) {
-      await mkdir(this.stagingDir, { recursive: true });
+    if (!existsSync(this[STAGING_DIR])) {
+      await mkdir(this[STAGING_DIR], { recursive: true });
     }
 
     // Load all entities of this type
@@ -259,7 +259,7 @@ export class ConfigEntityStorage {
     // Export each entity to staging
     for (const [id, entity] of entities) {
       const filename = `${entity.getConfigName()}.json`;
-      const targetPath = join(this.stagingDir, filename);
+      const targetPath = join(this[STAGING_DIR], filename);
       const json = JSON.stringify(entity.toJSON(), null, 2);
       await writeFile(targetPath, json, 'utf-8');
     }
@@ -278,28 +278,28 @@ export class ConfigEntityStorage {
    */
   async importFromStaging() {
     // Ensure staging directory exists
-    if (!existsSync(this.stagingDir)) {
+    if (!existsSync(this[STAGING_DIR])) {
       return 0;
     }
 
-    // Ensure active directory exists
-    if (!existsSync(this.activeDir)) {
-      await mkdir(this.activeDir, { recursive: true });
+    // Ensure active directory exists (lazy initialization)
+    if (!existsSync(this[ACTIVE_DIR])) {
+      await mkdir(this[ACTIVE_DIR], { recursive: true });
     }
 
     // Read staging directory
-    const files = await readdir(this.stagingDir);
+    const files = await readdir(this[STAGING_DIR]);
 
     // Filter to files matching this entity type
-    const prefix = `${this.entityTypeId}.`;
+    const prefix = `${this[ENTITY_TYPE_ID]}.`;
     const matchingFiles = files.filter(f =>
       f.startsWith(prefix) && f.endsWith('.json')
     );
 
     // Copy each file from staging to active
     for (const file of matchingFiles) {
-      const sourcePath = join(this.stagingDir, file);
-      const targetPath = join(this.activeDir, file);
+      const sourcePath = join(this[STAGING_DIR], file);
+      const targetPath = join(this[ACTIVE_DIR], file);
 
       // Read from staging
       const content = await readFile(sourcePath, 'utf-8');
@@ -311,7 +311,7 @@ export class ConfigEntityStorage {
 
     // Clear cache to ensure fresh state
     // WHY: Imported config may have different values than cached entities
-    this._cache.clear();
+    this[CACHE].clear();
 
     return matchingFiles.length;
   }
