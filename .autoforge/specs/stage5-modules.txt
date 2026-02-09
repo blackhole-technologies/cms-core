@@ -1,0 +1,93 @@
+<project_specification>
+
+# CMS-Core Stage 5: Module Ecosystem
+# Module lifecycle, extraction of core features into modules.
+# Depends on: ALL of Stage 1-4
+
+## Architecture Context
+CMS-Core currently has ~30 feature files in core/ that should be modules.
+This stage implements proper module install/uninstall lifecycle, then
+extracts core features into self-contained modules following the new patterns.
+
+Read CLAUDE.md for architecture guide.
+Read .autoforge/templates/module-pattern.js for the module pattern.
+Read .autoforge/templates/service-provider.js for service registration.
+Read .autoforge/templates/hook-implementation.js for hook patterns.
+
+## Technology Stack
+- Runtime: Node.js (zero npm dependencies)
+- Port: 3001
+
+feature_count: 20
+
+<features>
+
+## Phase 5.1: Module Install/Uninstall Lifecycle (Features 1-8)
+
+1. Create ModuleHandler class in core/lib/Extension/ModuleHandler.js with constructor(modulesDir, configDir). Methods: getModuleList() reading config/modules.json, getModulePath(name) resolving to modules/{name}/, getModuleInfo(name) reading manifest.json, isEnabled(name) checking modules.json, isInstalled(name) checking installed-modules.json.
+   ACCEPTANCE: getModuleList() returns array from modules.json. getModuleInfo('admin') returns manifest data. isEnabled/isInstalled work.
+
+2. Create ModuleInstaller class in core/lib/Extension/ModuleInstaller.js with constructor(database, hooks, configDir, moduleHandler). Method: install(moduleName) that validates dependencies exist and are installed, imports default config from module's config/install/ directory, runs hook_install from module, records installation state in config/installed-modules.json with version and schemaVersion and timestamp.
+   ACCEPTANCE: install('test_module') checks deps, imports config, runs hook_install, records in installed-modules.json.
+
+3. Implement ModuleInstaller.uninstall(moduleName) that checks no other installed module depends on this one, runs hook_uninstall from module, removes module's config entities, removes from installed-modules.json. Throw descriptive error listing dependents if dependencies exist.
+   ACCEPTANCE: uninstall('test_module') runs cleanup. Uninstalling module with dependents throws listing them.
+
+4. Implement ModuleInstaller.updateModule(moduleName) that finds all hook_update_N exports where N > current schemaVersion, runs them in order, updates schemaVersion after each. Modules export numbered update functions like hook_update_8001, hook_update_8002.
+   ACCEPTANCE: Module at schemaVersion 8000 with hook_update_8001 and 8002. updateModule runs both in order, schemaVersion becomes 8002.
+
+5. Implement dependency resolution in ModuleInstaller: installWithDependencies(moduleName) that topologically sorts dependencies and installs in correct order. If A depends on B depends on C, install C→B→A.
+   ACCEPTANCE: Module A depends on B, B depends on C. installWithDependencies('A') installs C, then B, then A.
+
+6. Implement config import during install: module's config/install/ directory contains JSON files that are copied to config/active/ during installation. Support config entity files (e.g., node.type.article.json) and simple config files.
+   ACCEPTANCE: Module with config/install/node.type.page.json. After install, config/active/node.type.page.json exists.
+
+7. Create ModuleDiscovery class in core/lib/Extension/ModuleDiscovery.js that scans modules/ directory for all available modules (have manifest.json), returns discovery data including path, manifest, installed status, enabled status.
+   ACCEPTANCE: ModuleDiscovery.scan() returns array of {name, path, manifest, installed, enabled} for all modules.
+
+8. Create core/lib/Extension/index.js barrel export. Integrate with existing boot.js — ModuleHandler replaces the current module loading in boot.js. Existing modules continue to work. Fire hooks 'module:installed' and 'module:uninstalled' via HookManager.
+   ACCEPTANCE: All imports work. boot.js uses ModuleHandler. Existing modules load normally. Install/uninstall fire events.
+
+## Phase 5.2: Module Extraction — Content & Taxonomy (Features 9-13)
+
+9. Extract content system from core/content.js and core/content-types.js into modules/node/ with proper module structure. Create modules/node/manifest.json, modules/node/index.js with hook exports, modules/node/services.js registering node-related services. The 'content' service name preserved as alias for backward compatibility.
+   ACCEPTANCE: modules/node/ has manifest.json, index.js, services.js. Content CRUD works via ctx.services.get('content'). node module listed in modules.json.
+
+10. Migrate content type definitions to ConfigEntity pattern: content types stored as config/active/node.type.{id}.json files instead of hardcoded in content-types.js. Create default types (page, article) via module's config/install/ directory.
+    ACCEPTANCE: config/active/node.type.page.json and node.type.article.json exist. Content type CRUD uses ConfigEntityStorage.
+
+11. Extract taxonomy from core/taxonomy.js into modules/taxonomy/ with manifest.json, index.js, services.js. Taxonomy terms become entities via EntityTypeManager. Vocabularies become config entities.
+    ACCEPTANCE: modules/taxonomy/ exists. taxonomy_term entity type registered. Vocabulary is ConfigEntity. Existing taxonomy API works.
+
+12. Extract comments from core/comments.js into modules/comment/ with proper module structure. Comment becomes entity type with parent reference (entity_reference field to commented entity).
+    ACCEPTANCE: modules/comment/ exists with manifest.json, index.js. Comment entity type registered. Comment CRUD works.
+
+13. Extract media system from core/media.js, core/media-library.js, core/oembed.js into modules/media/ (merge with existing modules/media/ if present). Media becomes entity type. Media types become config entities.
+    ACCEPTANCE: modules/media/ has full module structure. Media entity type registered. Media types are ConfigEntity.
+
+## Phase 5.2 continued: More Extractions (Features 14-20)
+
+14. Extract blocks from core/blocks.js into modules/block/. Block types as plugins via PluginManager('block'). Block placements as config entities. Custom blocks as content entities.
+    ACCEPTANCE: modules/block/ exists. Block type plugin manager works. Block placement is ConfigEntity.
+
+15. Extract views from core/views.js into modules/views/. View definitions as config entities. View display plugins via PluginManager. This is the most complex extraction.
+    ACCEPTANCE: modules/views/ exists. View entity is ConfigEntity. Views execute queries and render results.
+
+16. Extract search from core/search.js into modules/search/. Search backends as plugins via PluginManager('search_backend'). Search index configuration as config entity.
+    ACCEPTANCE: modules/search/ exists. Search backend is plugin type. Search works end-to-end.
+
+17. Extract editor and text formats from core/editor.js and core/text-formats.js into modules/editor/ and modules/filter/. Text formats as config entities. Filter plugins via PluginManager('filter').
+    ACCEPTANCE: modules/editor/ and modules/filter/ exist. Text format is ConfigEntity. Filters are plugins.
+
+18. Extract image styles from core/image-styles.js into modules/image/. Image styles as config entities. Image effects as plugins via PluginManager('image_effect').
+    ACCEPTANCE: modules/image/ exists. ImageStyle is ConfigEntity. Image effects are discoverable plugins.
+
+19. Extract path aliases from core/path-aliases.js into modules/path_alias/. Path alias as entity type. Auto-alias patterns as config entities.
+    ACCEPTANCE: modules/path_alias/ exists. PathAlias is entity type. Pattern config works.
+
+20. Verify all extractions: core/ directory should now contain ONLY framework code (lib/, boot.js, server.js, config.js, router.js, auth.js, utils.js, static.js, database.js). All feature code lives in modules/. Run full test: server starts, all modules load, all existing functionality works.
+    ACCEPTANCE: Server starts on port 3001. All modules load. No errors. Content CRUD, taxonomy, media, blocks, views, search all functional.
+
+</features>
+
+</project_specification>

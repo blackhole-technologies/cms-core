@@ -1,0 +1,99 @@
+<project_specification>
+
+# CMS-Core Stage 7: Integration
+# REST resources, JSON:API, queue system, migration framework.
+# Depends on: Stage 1 (Plugins, Container), Stage 2 (Entities, Storage)
+
+## Architecture Context
+This stage builds the integration layer: serialization for API output,
+REST resource plugins for entity CRUD, queue processing for background
+tasks, and a migration framework for data import.
+
+Read CLAUDE.md for architecture guide.
+Read .autoforge/templates/plugin-manager.js for plugin patterns.
+
+## Technology Stack
+- Runtime: Node.js (zero npm dependencies)
+- Port: 3001
+
+feature_count: 22
+
+<features>
+
+## Phase 7.1: Serialization Framework (Features 1-6)
+
+1. Create Serializer class in core/lib/Serialization/Serializer.js with constructor(). Methods: register(format, normalizer) storing normalizer for format string, normalize(entity, format, context) delegating to registered normalizer, denormalize(data, entityTypeId, format, context) for reverse.
+   ACCEPTANCE: serializer.register('json', jsonNormalizer). normalize(entity, 'json') calls jsonNormalizer.normalize.
+
+2. Create JsonNormalizer class in core/lib/Serialization/JsonNormalizer.js. Method: normalize(entity, context) converting ContentEntityBase to plain JSON object with all fields. denormalize(data, entityTypeId, context) creating entity from JSON using EntityTypeManager.
+   ACCEPTANCE: normalize(nodeEntity) returns {nid:1, title:'Test', type:'article', ...}. denormalize reconstructs entity.
+
+3. Create JsonApiNormalizer class in core/lib/Serialization/JsonApiNormalizer.js implementing JSON:API spec (jsonapi.org). normalize(entity) returns {data:{type, id, attributes, relationships, links}}. Support included resources for relationships. Support sparse fieldsets via context.fields parameter.
+   ACCEPTANCE: normalize(node) returns JSON:API document. Relationships have {data:{type,id}}. Links include self.
+
+4. Implement JsonApiNormalizer.normalizeCollection(entities, meta) for list endpoints. Returns {data:[...], meta:{count}, links:{self, next, prev}, included:[...]}. Support pagination links.
+   ACCEPTANCE: normalizeCollection([node1, node2], {count:50}) returns JSON:API collection with pagination links.
+
+5. Implement JsonApiNormalizer.denormalize(document, entityTypeId) parsing JSON:API create/update documents. Extract attributes and relationship data. Validate document structure per JSON:API spec.
+   ACCEPTANCE: denormalize({data:{type:'node--article', attributes:{title:'New'}}}, 'node') creates entity.
+
+6. Create core/lib/Serialization/index.js barrel export. Register both normalizers with Serializer. Test: serialize entity to both JSON and JSON:API formats, deserialize back, verify round-trip integrity.
+   ACCEPTANCE: Entity → JSON → Entity roundtrip preserves data. Entity → JSON:API → Entity roundtrip preserves data.
+
+## Phase 7.2: REST Resource Plugins (Features 7-13)
+
+7. Create ResourcePluginManager in core/lib/Rest/ResourcePluginManager.js as PluginManager instance for 'rest_resource'. Default REST resource plugin pattern: definition includes entityType, operations (view, create, update, delete, collection), authentication, format.
+   ACCEPTANCE: resourceManager.type === 'rest_resource'. Plugin discovery works.
+
+8. Create EntityResource base class in core/lib/Rest/EntityResource.js that auto-generates CRUD routes for any entity type. Constructor takes (entityType, serializer, storage, accessHandler). Methods: get(id), post(data), patch(id, data), delete(id), collection(query). Each method checks access, uses serializer for I/O.
+   ACCEPTANCE: new EntityResource(nodeType, serializer, storage, access). get(1) returns serialized entity.
+
+9. Implement EntityResource.collection(queryParams) with filtering, sorting, pagination. Parse query params: filter[status]=1, sort=-created, page[limit]=10, page[offset]=0. Use EntityQuery from Stage 2 internally.
+   ACCEPTANCE: collection({filter:{status:1}, sort:'-created', page:{limit:10}}) returns paginated results.
+
+10. Create REST route registration: for each entity type with REST enabled, auto-register routes: GET /api/entity/{type}/{id}, POST /api/entity/{type}, PATCH /api/entity/{type}/{id}, DELETE /api/entity/{type}/{id}, GET /api/entity/{type} (collection). All routes use access declarations from Stage 6.
+    ACCEPTANCE: Entity type 'node' gets 5 REST routes. GET /api/entity/node/1 returns JSON. POST creates. PATCH updates. DELETE removes.
+
+11. Implement JSON:API routes alongside REST: GET /jsonapi/{type}/{bundle}/{id}, GET /jsonapi/{type}/{bundle} (collection), POST /jsonapi/{type}/{bundle}, PATCH /jsonapi/{type}/{bundle}/{id}, DELETE /jsonapi/{type}/{bundle}/{id}. Use JsonApiNormalizer for all I/O.
+    ACCEPTANCE: GET /jsonapi/node/article returns JSON:API collection. GET /jsonapi/node/article/1 returns JSON:API document.
+
+12. Implement JSON:API include parameter: GET /jsonapi/node/article/1?include=uid,field_tags. Loads and includes related entities in the 'included' section of the response. Limit include depth to 3 levels.
+    ACCEPTANCE: ?include=uid returns node with included user entity. Nested includes work up to depth 3.
+
+13. Implement JSON:API filter parameter following JSON:API spec: filter[status][value]=1, filter[type][value]=article, filter[title][operator]=CONTAINS, filter[title][value]=test. Translate to EntityQuery conditions.
+    ACCEPTANCE: filter[status][value]=1&filter[type][value]=article returns only published articles.
+
+## Phase 7.3: Queue System (Features 14-17)
+
+14. Create QueueFactory class in core/lib/Queue/QueueFactory.js with get(name) method returning a queue instance. Create MemoryQueue class implementing: createItem(data), claimItem(leaseTime), deleteItem(item), releaseItem(item), numberOfItems(). Items have id, data, created, expire.
+    ACCEPTANCE: queue.createItem({task:'email'}). claimItem(30) returns item. deleteItem removes. numberOfItems accurate.
+
+15. Create DatabaseQueue class in core/lib/Queue/DatabaseQueue.js using SQLite for persistent queues. Same interface as MemoryQueue but survives restarts. Auto-create queue table on first use. Claims use expire timestamp for lease.
+    ACCEPTANCE: createItem persists to SQLite. Server restart → items still in queue. Expired claims released.
+
+16. Create QueueWorker plugin type via PluginManager('queue_worker'). Each worker plugin defines: queue name, processing callback, cron timing. Create CronQueueProcessor that processes queue items during cron runs.
+    ACCEPTANCE: Register queue worker plugin for 'email_queue'. Cron processes queued items via worker callback.
+
+17. Integration test: create queue, add items, claim and process in worker, verify items removed. Test lease expiry: claim item, don't delete within lease time, verify it becomes claimable again.
+    ACCEPTANCE: Full queue lifecycle works. Lease expiry releases items. Multiple workers process concurrently.
+
+## Phase 7.4: Migration Framework (Features 18-22)
+
+18. Create MigrationManager class in core/lib/Migration/MigrationManager.js with constructor(pluginManagers, entityTypeManager). Methods: createMigration(config) from migration config entity, executeMigration(migrationId), getMigrationStatus(migrationId), rollbackMigration(migrationId).
+    ACCEPTANCE: createMigration from JSON config. executeMigration processes all source rows.
+
+19. Create source plugins via PluginManager('migrate_source'): JsonFileSource (reads JSON file, yields rows), CsvSource (reads CSV file), DatabaseSource (queries SQLite). Each implements async *getRows() generator and getIds() method.
+    ACCEPTANCE: JsonFileSource reads file, yields rows. CsvSource parses CSV. Each has getIds().
+
+20. Create process plugins via PluginManager('migrate_process'): Get (pass through), FormatDate (date format conversion), StaticMap (value mapping), Concat (string concatenation), EntityLookup (find entity by field value). Each takes value + config, returns transformed value.
+    ACCEPTANCE: FormatDate converts timestamps. StaticMap maps values. EntityLookup finds entities.
+
+21. Create destination plugins via PluginManager('migrate_destination'): EntityDestination for any entity type. Constructor takes entityTypeId. import(row) creates or updates entity. rollback(ids) deletes imported entities. Tracks imported IDs in migration map.
+    ACCEPTANCE: EntityDestination('node').import(row) creates node. rollback removes imported nodes.
+
+22. Create core/lib/Migration/index.js barrel export. End-to-end test: define migration from JSON file source → process transforms → entity destination. Execute migration, verify entities created. Rollback, verify entities removed.
+    ACCEPTANCE: Migration imports 5 articles from JSON. All 5 exist as nodes. Rollback removes all 5.
+
+</features>
+
+</project_specification>

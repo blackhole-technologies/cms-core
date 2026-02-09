@@ -1,0 +1,94 @@
+<project_specification>
+
+# CMS-Core Stage 3: Field System
+# Field types, widgets, formatters — all as plugins.
+# Depends on: Stage 1 Phase 1.1 (PluginManager), Stage 2 (Entities)
+
+## Architecture Context
+Fields are the building blocks of entities. Each field has three parts:
+- Field Type: defines storage schema and validation (e.g., "string", "integer", "datetime")
+- Widget: the form input for editing (e.g., "textfield", "number_input", "date_picker")
+- Formatter: the display output (e.g., "plain_text", "formatted_number", "date_format")
+
+All three are plugin types using PluginManager from Stage 1. ONE PluginManager
+instance per type, instantiated N times for N plugins.
+
+Read CLAUDE.md and .autoforge/templates/plugin-manager.js for the pattern.
+
+## Technology Stack
+- Runtime: Node.js (zero npm dependencies)
+- Port: 3001
+
+feature_count: 20
+
+<features>
+
+## Phase 3.1: Field Type Plugin System (Features 1-10)
+
+1. Create FieldTypePluginManager in core/lib/Field/FieldTypePluginManager.js as a PluginManager instance: new PluginManager('field_type', {subdir:'field_type', alterHook:'field_info_alter', defaults:{category:'General', defaultWidget:null, defaultFormatter:null, cardinality:1, constraints:[]}}). Export as fieldTypeManager.
+   ACCEPTANCE: fieldTypeManager instanceof PluginManager. fieldTypeManager.type === 'field_type'. Defaults include category:'General'.
+
+2. Create FieldItemBase class in core/lib/Field/FieldItemBase.js with constructor(definition, settings). Methods: schema() throwing 'must implement', isEmpty(value) returning true for null/undefined/'', propertyDefinitions() returning {value:{type:'string'}}, getConstraints() returning definition.constraints, settingsForm(settings) returning empty object.
+   ACCEPTANCE: new FieldItemBase(def, {}).isEmpty(null) === true. schema() throws. propertyDefinitions() returns default.
+
+3. Create FieldDefinition class in core/lib/Field/FieldDefinition.js with constructor(fieldName, definition). Properties: name, type, label, description, required, translatable, cardinality, settings, defaultValue. Methods: isBaseField(), isConfigurable(), getPropertyDefinitions().
+   ACCEPTANCE: new FieldDefinition('title', {type:'string', label:'Title', required:true}). All properties accessible.
+
+4. Create StringItem field type plugin at modules/text/plugins/field_type/StringItem.js. Export definition {id:'string', label:'Text (plain)', description:'Short plain text', defaultWidget:'string_textfield', defaultFormatter:'string', category:'Text', defaultSettings:{maxLength:255}}. Export factory that returns object with schema(), isEmpty(), propertyDefinitions(), getConstraints().
+   ACCEPTANCE: Plugin discoverable by fieldTypeManager. createInstance('string') returns object with working schema().
+
+5. Create TextItem field type at modules/text/plugins/field_type/TextItem.js for formatted/long text. Definition: {id:'text_long', label:'Text (formatted, long)', defaultWidget:'text_textarea', defaultFormatter:'text_default', defaultSettings:{allowedFormats:null}}.
+   ACCEPTANCE: fieldTypeManager.createInstance('text_long') works. schema() returns {type:'text'}.
+
+6. Create IntegerItem field type at modules/core_field_types/plugins/field_type/IntegerItem.js. Definition: {id:'integer', label:'Number (integer)', defaultWidget:'number', defaultFormatter:'number_integer', defaultSettings:{min:null, max:null}}.
+   ACCEPTANCE: createInstance('integer') works. isEmpty(0) returns false. isEmpty(null) returns true.
+
+7. Create BooleanItem field type at modules/core_field_types/plugins/field_type/BooleanItem.js. Definition: {id:'boolean', label:'Boolean', defaultWidget:'boolean_checkbox', defaultFormatter:'boolean', defaultSettings:{onLabel:'On', offLabel:'Off'}}.
+   ACCEPTANCE: createInstance('boolean') works. isEmpty(false) returns false (booleans are never "empty").
+
+8. Create EntityReferenceItem field type at modules/core_field_types/plugins/field_type/EntityReferenceItem.js. Definition: {id:'entity_reference', label:'Entity reference', defaultWidget:'entity_reference_autocomplete', defaultFormatter:'entity_reference_label', defaultSettings:{targetType:null, targetBundles:null}}.
+   ACCEPTANCE: createInstance('entity_reference', {targetType:'node'}) works. schema() includes target_id property.
+
+9. Create DateTimeItem field type at modules/datetime/plugins/field_type/DateTimeItem.js. Definition: {id:'datetime', label:'Date and time', defaultWidget:'datetime_default', defaultFormatter:'datetime_default', defaultSettings:{datetimeType:'datetime'}}. Support 'date' and 'datetime' modes.
+   ACCEPTANCE: createInstance('datetime', {datetimeType:'date'}).schema() returns date type. 'datetime' mode returns datetime.
+
+10. Create EmailItem, LinkItem, and TimestampItem field types in appropriate module directories. EmailItem validates email format, LinkItem has {uri, title} properties, TimestampItem stores Unix timestamps. Each follows the same plugin pattern.
+    ACCEPTANCE: All three discoverable. createInstance for each returns object with schema() and isEmpty().
+
+## Phase 3.2: Widget Plugin System (Features 11-15)
+
+11. Create WidgetPluginManager in core/lib/Field/WidgetPluginManager.js as PluginManager instance: new PluginManager('field_widget', {subdir:'field_widget', alterHook:'field_widget_info_alter', defaults:{fieldTypes:[], multipleValues:false, settings:{}}}). Export as widgetManager.
+    ACCEPTANCE: widgetManager.type === 'field_widget'. Defaults correct.
+
+12. Create StringTextfield widget at modules/text/plugins/field_widget/StringTextfield.js. Definition: {id:'string_textfield', label:'Textfield', fieldTypes:['string','email','telephone'], settings:{size:60, placeholder:''}}. Factory returns object with formElement(fieldDef, value, settings) returning render array with #type:'textfield', and extractValue(formValues, fieldName).
+    ACCEPTANCE: createInstance('string_textfield').formElement(def, 'hello', {}) returns {#type:'textfield', #default_value:'hello', ...}.
+
+13. Create TextTextarea widget at modules/text/plugins/field_widget/TextTextarea.js for long text. Definition: {id:'text_textarea', fieldTypes:['text_long','text_with_summary'], settings:{rows:5, placeholder:''}}. Returns render array with #type:'textarea'.
+    ACCEPTANCE: formElement returns {#type:'textarea', #rows:5, ...}.
+
+14. Create NumberInput widget at modules/core_field_types/plugins/field_widget/NumberInput.js. Definition: {id:'number', fieldTypes:['integer','float','decimal'], settings:{placeholder:''}}. Create BooleanCheckbox widget at modules/core_field_types/plugins/field_widget/BooleanCheckbox.js. Definition: {id:'boolean_checkbox', fieldTypes:['boolean']}.
+    ACCEPTANCE: Both discoverable. formElement returns correct #type for each.
+
+15. Create DateTimeWidget at modules/datetime/plugins/field_widget/DateTimeDefault.js and EntityReferenceAutocomplete at modules/core_field_types/plugins/field_widget/EntityReferenceAutocomplete.js. Each returns appropriate form elements.
+    ACCEPTANCE: Both discoverable. formElement returns render arrays with correct types.
+
+## Phase 3.3: Formatter Plugin System (Features 16-20)
+
+16. Create FormatterPluginManager in core/lib/Field/FormatterPluginManager.js as PluginManager instance: new PluginManager('field_formatter', {subdir:'field_formatter', alterHook:'field_formatter_info_alter', defaults:{fieldTypes:[], settings:{}}}). Export as formatterManager.
+    ACCEPTANCE: formatterManager.type === 'field_formatter'.
+
+17. Create StringFormatter at modules/text/plugins/field_formatter/StringFormatter.js. Definition: {id:'string', label:'Plain text', fieldTypes:['string'], settings:{linkToEntity:false}}. Factory returns object with viewElements(items, settings) returning array of render arrays with escaped HTML.
+    ACCEPTANCE: viewElements([{value:'Hello'}], {}).length === 1. Output is escaped.
+
+18. Create TextDefaultFormatter at modules/text/plugins/field_formatter/TextDefault.js for formatted text. Returns markup render arrays. Create NumberIntegerFormatter at modules/core_field_types/plugins/field_formatter/NumberInteger.js.
+    ACCEPTANCE: Both discoverable. viewElements returns render arrays.
+
+19. Create DateTimeFormatter at modules/datetime/plugins/field_formatter/DateTimeDefault.js that formats dates using Intl.DateTimeFormat (Node.js built-in). Settings: {dateFormat:'medium', timeFormat:'short'}. Create EntityReferenceLabelFormatter that renders the referenced entity's label.
+    ACCEPTANCE: DateTimeFormatter formats ISO dates. EntityReferenceLabel renders labels.
+
+20. Create BooleanFormatter at modules/core_field_types/plugins/field_formatter/BooleanFormatter.js using onLabel/offLabel settings. Create core/lib/Field/index.js barrel export for all field system classes. Verify end-to-end: field type → widget → formatter pipeline for string type.
+    ACCEPTANCE: BooleanFormatter renders 'Yes'/'No'. Full pipeline: StringItem schema → StringTextfield widget → StringFormatter output.
+
+</features>
+
+</project_specification>

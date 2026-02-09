@@ -1,0 +1,101 @@
+<project_specification>
+
+# CMS-Core Stage 2: Entity Architecture
+# Content entities, config entities, entity query, typed data.
+# Depends on: Stage 1 (Plugin, Container, Hooks, Config, Access)
+
+## Architecture Context
+This stage builds the entity system — Drupal's largest subsystem. Entities are
+the universal data model: nodes (content), users, taxonomy terms, comments, media,
+files, blocks — they're ALL entities with a shared API.
+
+Read CLAUDE.md for the full architecture guide and meta-patterns.
+Read .autoforge/templates/content-entity.js for the ContentEntityBase pattern.
+Read .autoforge/templates/entity-storage.js for the EntityStorage pattern.
+
+## Technology Stack
+- Runtime: Node.js (zero npm dependencies)
+- Storage: JSON files + SQLite
+- Port: 3001
+
+feature_count: 22
+
+<features>
+
+## Phase 2.1: Entity Type Definition System (Features 1-7)
+
+1. Create EntityType class in core/lib/Entity/EntityType.js with constructor(id, definition). Properties: id, label, pluralLabel, entityClass, keys object (id, uuid, bundle, label, langcode, revision, status, published, owner), revisionable, translatable, hasBundle, isConfigEntity. handlers object (storage, access, form, viewBuilder, listBuilder, routeProvider). links object, bundleEntityType, baseFieldDefinitions. Freeze the keys object.
+   ACCEPTANCE: new EntityType('node', {label:'Content', keys:{id:'nid',bundle:'type'}, revisionable:true}). All properties accessible. keys is frozen.
+
+2. Create EntityTypeManager class in core/lib/Entity/EntityTypeManager.js with constructor(hooks). Methods: register(id, definition) wrapping in EntityType, getDefinition(id) throwing descriptive error if unknown, getDefinitions() returning Map copy.
+   ACCEPTANCE: manager.register('node', {...}). getDefinition('node') returns EntityType. getDefinition('unknown') throws listing known types.
+
+3. Implement EntityTypeManager.getStorage(entityTypeId) returning the storage handler from the entity type's handlers. Implement getAccessControlHandler(entityTypeId), getFormObject(entityTypeId, operation), and getViewBuilder(entityTypeId) similarly.
+   ACCEPTANCE: Register 'node' with storage handler. getStorage('node') returns that handler. Missing handler throws.
+
+4. Implement EntityTypeManager.applyAlterHooks() that invokes hooks.alter('entity_type_info', types) allowing modules to modify entity type definitions after registration. This enables cross-module entity type customization.
+   ACCEPTANCE: Register 'node'. Hook alters node to add new base field. After applyAlterHooks(), getDefinition('node') has the new field.
+
+5. Create a default entity type registration hook pattern: modules export hook_entity_type_info(context) which receives {entityTypeManager} and calls register(). Write modules/node/entity_type.js (or equivalent) that registers 'node' entity type with all standard keys, handlers placeholder, and base field definitions (nid, uuid, vid, type, title, status, uid, created, changed).
+   ACCEPTANCE: Node entity type registered with correct keys. baseFieldDefinitions includes nid, title, status, uid, created.
+
+6. Register core entity types: 'user' (keys: uid, uuid, name; fields: uid, uuid, name, mail, pass, status, created, roles), 'file' (keys: fid, uuid, filename; fields: fid, uuid, uri, filename, filemime, filesize, status, created), 'taxonomy_term' (keys: tid, uuid, vid/bundle, name).
+   ACCEPTANCE: entityTypeManager.getDefinition('user'), getDefinition('file'), getDefinition('taxonomy_term') all return valid EntityType.
+
+7. Create core/lib/Entity/index.js barrel export re-exporting EntityType, EntityTypeManager. Verify end-to-end: register multiple entity types, query definitions, apply alter hooks, retrieve handlers.
+   ACCEPTANCE: All imports work. 3+ entity types registered. Alter hook modifies type. Handler retrieval works.
+
+## Phase 2.2: Content Entity Base Class (Features 8-13)
+
+8. Create ContentEntityBase class in core/lib/Entity/ContentEntityBase.js. Constructor takes (entityType, values, options). Uses Symbol for private field storage (FIELDS Map), original snapshot (ORIGINAL via structuredClone), and isNew flag (IS_NEW). Methods: id(), uuid(), bundle(), label(), getEntityTypeId(), isNew().
+   ACCEPTANCE: Entity with values {nid:1, title:'Test'}. id() returns 1. label() returns 'Test'. isNew() false when id present.
+
+9. Implement field access methods on ContentEntityBase: get(fieldName), set(fieldName, value) returning this for chaining, has(fieldName). Implement Symbol.iterator yielding [key, value] entries from the FIELDS map.
+   ACCEPTANCE: entity.set('title', 'New').get('title') === 'New'. for(const [k,v] of entity) iterates fields.
+
+10. Implement change detection on ContentEntityBase: hasChanged(fieldName) comparing current vs original (always true for new entities), getChangedFields() returning array of changed field names. Use JSON.stringify for deep comparison.
+    ACCEPTANCE: Load entity with {title:'Old'}. set('title','New'). hasChanged('title') true. hasChanged('status') false.
+
+11. Implement serialization: toJSON() converting FIELDS map to plain object, static fromStorage(entityType, data) creating entity with isNew:false. Implement getRevisionId() and isDefaultRevision() for revisionable entity types.
+    ACCEPTANCE: toJSON() returns {nid:1, title:'Test', ...}. fromStorage creates entity where isNew() is false.
+
+12. Create EntityInterface documentation in core/lib/Entity/EntityInterface.js — a JSDoc-only file documenting the interface contract (id, uuid, bundle, label, get, set, isNew, toJSON, etc.). Not a runtime class, just documentation.
+    ACCEPTANCE: File exists with comprehensive JSDoc documenting all expected methods.
+
+13. Create a FieldableEntityInterface mixin concept in core/lib/Entity/FieldableEntityInterface.js documenting how entities with configurable fields (attached via Field UI) differ from base entities. Include hasField(), getFieldDefinitions(), getFieldDefinition(name) documentation.
+    ACCEPTANCE: File exists with JSDoc. Documents the fieldable interface contract.
+
+## Phase 2.3: Entity Storage (Features 14-18)
+
+14. Create EntityStorageBase class in core/lib/Entity/EntityStorageBase.js with constructor(entityType). Abstract methods: load(id), loadMultiple(ids), save(entity), delete(id). Concrete methods: create(values) that creates a ContentEntityBase with isNew:true.
+    ACCEPTANCE: new EntityStorageBase(nodeType). create({title:'Test'}) returns ContentEntityBase with isNew true.
+
+15. Create JsonFileEntityStorage class in core/lib/Entity/JsonFileEntityStorage.js extending EntityStorageBase. Constructor takes (entityType, storageDir). Methods: save(entity) writes JSON to {storageDir}/{entityTypeId}/{id}.json (auto-generates ID if new via crypto.randomUUID), load(id) reads and returns ContentEntityBase.fromStorage(), delete(id) removes file, loadMultiple(ids), loadAll().
+    ACCEPTANCE: save new entity → file created. load(id) → returns entity. delete(id) → file removed. loadAll() lists all.
+
+16. Create EntityQuery class in core/lib/Entity/EntityQuery.js with fluent builder API. Constructor(entityTypeId, storage). Methods: condition(field, value, operator='='), sort(field, direction='ASC'), range(start, length), accessCheck(boolean), count(). execute() applies conditions/sorts/range to storage.loadAll() results.
+    ACCEPTANCE: query.condition('status', true).sort('created','DESC').range(0,10).execute() returns filtered, sorted, paginated IDs.
+
+17. Implement EntityQuery operators: '=', '!=', '>', '<', '>=', '<=', 'IN', 'NOT IN', 'CONTAINS', 'STARTS_WITH', 'ENDS_WITH', 'IS NULL', 'IS NOT NULL'. Implement count mode returning integer. Implement accessCheck that filters based on access handler.
+    ACCEPTANCE: condition('type','article','='), condition('status',null,'IS NOT NULL'), condition('tag',['a','b'],'IN') all work correctly.
+
+18. Wire EntityQuery into storage: EntityStorageBase.getQuery() returns new EntityQuery(this._entityType.id, this). Test end-to-end: create 5 entities with different values, query with conditions, verify correct results.
+    ACCEPTANCE: storage.getQuery().condition('type','article').sort('title').execute() returns correct subset.
+
+## Phase 2.4: Entity Handlers (Features 19-22)
+
+19. Create EntityAccessControlHandler class in core/lib/Entity/EntityAccessControlHandler.js. Constructor takes entityType. Methods: access(entity, operation, account) checking permissions ('administer {type}', '{operation} {type}', '{operation} own {type}' for owner match). Returns AccessResult from Phase 1.5.
+    ACCEPTANCE: Admin account gets allowed(). Regular user with 'view node' permission gets allowed() for view. No permission gets neutral().
+
+20. Create EntityViewBuilder class in core/lib/Entity/EntityViewBuilder.js. Constructor takes entityType. Methods: view(entity, viewMode='full') returning a render array structure {#type:'entity', #entity:entity, #view_mode:viewMode, #entity_type:entityTypeId}. buildMultiple(entities, viewMode) for lists.
+    ACCEPTANCE: viewBuilder.view(entity) returns render array with correct type and entity reference. buildMultiple returns array.
+
+21. Create EntityListBuilder class in core/lib/Entity/EntityListBuilder.js. Constructor takes entityType, storage. Methods: load() using storage.loadAll(), buildHeader() returning column definitions, buildRow(entity) returning cell values, render() combining header + rows into a table render array.
+    ACCEPTANCE: listBuilder.render() returns {#type:'table', #header:[...], #rows:[...]} with all entities.
+
+22. Create EntityForm class in core/lib/Entity/EntityForm.js. Constructor takes entityType. Methods: buildForm(entity, formState) returning render array with form elements for each base field, validateForm(form, formState), submitForm(form, formState) that saves entity via storage. Create core/lib/Entity/index.js updated barrel export including all new classes.
+    ACCEPTANCE: form.buildForm(entity) returns form render array. submitForm saves entity. All Entity/ classes importable from index.
+
+</features>
+
+</project_specification>
