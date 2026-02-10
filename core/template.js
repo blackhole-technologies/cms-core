@@ -62,6 +62,7 @@
 
 import { readFileSync, existsSync } from 'node:fs';
 import { join } from 'node:path';
+import { parseCvaHelper } from './lib/Twig/CvaExtension.js';
 
 /**
  * Base directory for templates (set by init)
@@ -299,11 +300,24 @@ function processIfBlocks(template, data) {
  * This prevents {{undefined}} from appearing in output.
  */
 function processVariables(template, data) {
-  // First, handle {{t "key"}} translation helper
+  // First, handle {{cva element config props}} CVA helper
+  // Matches: {{cva button buttonConfig buttonProps}} or {{cva button {...} {...}}}
+  const cvaRegex = /\{\{(cva\s+[^}]+)\}\}/g;
+
+  let result = template.replace(cvaRegex, (match, helperString) => {
+    try {
+      return parseCvaHelper(helperString, data);
+    } catch (error) {
+      console.error(`CVA helper error: ${error.message}`);
+      return ''; // Return empty string on error
+    }
+  });
+
+  // Handle {{t "key"}} translation helper
   // Matches: {{t "key"}} or {{t "key" param="value" param2="value2"}}
   const tRegex = /\{\{t\s+"([^"]+)"(?:\s+([^}]+))?\}\}/g;
 
-  let result = template.replace(tRegex, (match, key, paramsStr) => {
+  result = result.replace(tRegex, (match, key, paramsStr) => {
     if (!i18nService) {
       return key; // Return key if i18n not initialized
     }
