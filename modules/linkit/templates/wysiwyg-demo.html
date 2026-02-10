@@ -395,6 +395,8 @@
         let autocompleteContext = null; // 'inline' or 'dialog'
         let selectedLinkUrl = null;
         let selectedLinkTitle = null;
+        let savedSelection = null; // Save selection when dialog opens
+        let inlineSelection = null; // Save selection for inline autocomplete
 
         // Inline autocomplete (@ trigger)
         editor.addEventListener('keyup', (e) => {
@@ -416,6 +418,10 @@
             if (match && match[1].length >= 2) {
                 const query = match[1];
                 autocompleteContext = 'inline';
+
+                // Save selection for inline link insertion
+                inlineSelection = range.cloneRange();
+
                 performSearch(query, autocomplete);
 
                 // Position dropdown
@@ -506,11 +512,15 @@
 
         // Insert inline link
         function insertInlineLink(url, title) {
+            if (!inlineSelection) return;
+
             const selection = window.getSelection();
-            const range = selection.getRangeAt(0);
+            const range = inlineSelection.cloneRange();
             const textNode = range.startContainer;
 
             // Remove @trigger text
+            if (textNode.nodeType !== Node.TEXT_NODE) return;
+
             const text = textNode.textContent;
             const cursorPos = range.startOffset;
             const beforeCursor = text.slice(0, cursorPos);
@@ -519,6 +529,12 @@
             if (match) {
                 const startPos = cursorPos - match[0].length;
                 range.setStart(textNode, startPos);
+                range.setEnd(textNode, cursorPos);
+
+                // Restore selection
+                selection.removeAllRanges();
+                selection.addRange(range);
+
                 range.deleteContents();
 
                 // Insert link
@@ -530,18 +546,19 @@
 
                 range.insertNode(link);
 
-                // Move cursor after link
+                // Move cursor after link and add space
                 range.setStartAfter(link);
                 range.collapse(true);
-                selection.removeAllRanges();
-                selection.addRange(range);
 
-                // Insert space
                 const space = document.createTextNode(' ');
                 range.insertNode(space);
                 range.setStartAfter(space);
+
                 selection.removeAllRanges();
                 selection.addRange(range);
+
+                // Clear saved selection
+                inlineSelection = null;
             }
         }
 
@@ -584,6 +601,12 @@
 
         // Link dialog
         linkBtn.addEventListener('click', () => {
+            // Save the current selection before opening dialog
+            const selection = window.getSelection();
+            if (selection.rangeCount > 0) {
+                savedSelection = selection.getRangeAt(0).cloneRange();
+            }
+
             linkDialog.classList.add('active');
             dialogOverlay.classList.add('active');
             linkSearch.focus();
@@ -605,8 +628,14 @@
         dialogInsert.addEventListener('click', () => {
             if (!selectedLinkUrl) return;
 
+            // Restore the saved selection
             const selection = window.getSelection();
-            const range = selection.getRangeAt(0);
+            if (savedSelection) {
+                selection.removeAllRanges();
+                selection.addRange(savedSelection);
+            }
+
+            const range = savedSelection || selection.getRangeAt(0);
 
             const link = document.createElement('a');
             link.href = selectedLinkUrl;
@@ -615,8 +644,16 @@
             link.style.cssText = 'display: inline; background: #e3f2fd; color: #1976d2; padding: 2px 6px; border-radius: 4px; cursor: pointer;';
 
             range.insertNode(link);
+
+            // Move cursor after link and add space
             range.setStartAfter(link);
             range.collapse(true);
+            selection.removeAllRanges();
+            selection.addRange(range);
+
+            const space = document.createTextNode(' ');
+            range.insertNode(space);
+            range.setStartAfter(space);
             selection.removeAllRanges();
             selection.addRange(range);
 
