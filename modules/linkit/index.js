@@ -146,6 +146,91 @@ export async function hook_routes(register, context) {
     }
   });
 
+  // Substitution demo route
+  register('GET', '/linkit/substitution', async (req, res) => {
+    try {
+      const html = loadTemplate('substitution-demo.html');
+      res.writeHead(200, { 'Content-Type': 'text/html' });
+      res.end(html);
+    } catch (error) {
+      res.writeHead(404, { 'Content-Type': 'text/plain' });
+      res.end('Substitution demo page not found');
+    }
+  });
+
+  // ============================================================================
+  // SUBSTITUTION API
+  // ============================================================================
+
+  // Link substitution API endpoint
+  register('POST', '/api/linkit/substitute', async (req, res) => {
+    try {
+      let body = '';
+      req.on('data', chunk => { body += chunk; });
+      req.on('end', async () => {
+        try {
+          const { text, format = 'html', placeholder, linkClass, openInNewTab } = JSON.parse(body);
+
+          if (!text) {
+            res.writeHead(400, { 'Content-Type': 'application/json' });
+            res.end(JSON.stringify({ error: 'Missing text parameter' }));
+            return;
+          }
+
+          // Import substitution service
+          const { substituteLinks } = await import('./substitution.js');
+
+          // Perform substitution
+          const rendered = await substituteLinks(text, context.services, {
+            format,
+            placeholder,
+            linkClass,
+            openInNewTab
+          });
+
+          res.writeHead(200, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({ rendered }));
+        } catch (parseError) {
+          console.error('[linkit] Substitution error:', parseError);
+          res.writeHead(500, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({ error: 'Substitution failed' }));
+        }
+      });
+    } catch (error) {
+      console.error('[linkit] Substitution API error:', error);
+      res.writeHead(500, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ error: 'Internal server error' }));
+    }
+  });
+
+  // Link substitution demo endpoint (GET - for public demo)
+  register('GET', '/linkit/api/substitute', async (req, res) => {
+    try {
+      const url = new URL(req.url, `http://${req.headers.host}`);
+      const text = url.searchParams.get('text');
+      const format = url.searchParams.get('format') || 'html';
+
+      if (!text) {
+        res.writeHead(400, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ error: 'Missing text parameter' }));
+        return;
+      }
+
+      // Import substitution service
+      const { substituteLinks } = await import('./substitution.js');
+
+      // Perform substitution
+      const rendered = await substituteLinks(text, context.services, { format });
+
+      res.writeHead(200, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ rendered }));
+    } catch (error) {
+      console.error('[linkit] Substitution demo API error:', error);
+      res.writeHead(500, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ error: 'Internal server error', message: error.message }));
+    }
+  });
+
   // ============================================================================
   // PROFILE ADMIN ROUTES
   // ============================================================================
@@ -662,6 +747,16 @@ function escapeHtml(text) {
 }
 
 /**
+ * Check if a string is an external URL
+ *
+ * @param {string} str - String to check
+ * @returns {boolean} - True if it's an external URL
+ */
+function isExternalUrl(str) {
+  return /^https?:\/\//i.test(str);
+}
+
+/**
  * Core search function - searches across multiple entity types
  *
  * @param {string} query - Search query string
@@ -671,6 +766,23 @@ function escapeHtml(text) {
 export async function search(query, types = ['content', 'media', 'user']) {
   const results = [];
   const queryLower = query.toLowerCase();
+
+  // Check if query is an external URL
+  if (isExternalUrl(query)) {
+    // Return external URL option instead of entity search
+    results.push({
+      id: 'external_url',
+      title: 'Use as External URL',
+      type: 'external',
+      entityType: 'url',
+      url: query,
+      metadata: {
+        isExternal: true,
+        icon: '🔗'
+      }
+    });
+    return results;
+  }
 
   // Search each entity type
   for (const type of types) {

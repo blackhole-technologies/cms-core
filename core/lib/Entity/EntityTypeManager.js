@@ -12,6 +12,8 @@
  * @see .autoforge/templates/content-entity.js for entity type definition
  */
 
+import { EntityQuery } from './EntityQuery.js';
+
 // WHY: Symbol-based private state prevents external mutation
 const ID = Symbol('id');
 const LABEL = Symbol('label');
@@ -408,20 +410,10 @@ export class EntityTypeManager {
     const storage = this.getStorage(entityTypeId);
     const accessHandler = this.getHandler(entityTypeId, 'access');
 
-    // WHY: Import EntityQuery dynamically to avoid circular dependency
-    // (EntityQuery might import EntityTypeManager in the future)
-    // For now, assume storage has a getQuery() method
-    if (typeof storage.getQuery === 'function') {
-      return storage.getQuery();
-    }
-
-    // WHY: Fallback — create EntityQuery directly if storage doesn't provide it
-    // This requires lazy import to avoid circular deps
-    // For now, throw error suggesting storage implement getQuery()
-    throw new Error(
-      `Storage for "${entityTypeId}" does not provide getQuery() method. ` +
-      `Implement it in your storage handler.`
-    );
+    // WHY: Construct EntityQuery directly with storage and optional access handler.
+    // Previous approach delegated to storage.getQuery() but no storage implemented it.
+    // Direct construction is simpler and ensures consistent query behavior.
+    return new EntityQuery(entityTypeId, storage, { accessHandler });
   }
 
   /**

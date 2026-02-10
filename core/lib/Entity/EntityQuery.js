@@ -311,14 +311,18 @@ export class EntityQuery {
    * @throws {Error} If direction is invalid
    */
   sort(field, direction = 'ASC') {
+    // WHY: Normalize to uppercase for compatibility with old entity.js
+    // which uses lowercase 'asc'/'desc'. Accept both, store as uppercase.
+    const normalized = String(direction).toUpperCase();
+
     // WHY: Validate direction to fail fast
-    if (direction !== 'ASC' && direction !== 'DESC') {
+    if (normalized !== 'ASC' && normalized !== 'DESC') {
       throw new Error(
         `Invalid sort direction: "${direction}". Must be "ASC" or "DESC".`
       );
     }
 
-    this[SORTS].push({ field, direction });
+    this[SORTS].push({ field, direction: normalized });
     return this;
   }
 
