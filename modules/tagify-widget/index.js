@@ -155,9 +155,9 @@ export async function hook_routes(register, context) {
  * @param {Object} field - Field definition
  * @param {*} value - Current value (ID or array of IDs)
  * @param {Object} options - Render options
- * @returns {string} HTML string
+ * @returns {Promise<string>} HTML string
  */
-function renderTagifyWidget(field, value, options = {}) {
+async function renderTagifyWidget(field, value, options = {}) {
   const { name, id, target, vocabulary, widget, widgetSettings = {} } = field;
 
   // Only apply Tagify if explicitly requested
@@ -373,12 +373,20 @@ async function searchTaxonomyTerms(query, vocabulary, limit) {
     });
 
     // Limit results and format for Tagify
-    return results.slice(0, limit).map(term => ({
-      value: term.id,
-      label: term.name,
-      vocabularyId: term.vocabularyId,
-      slug: term.slug
-    }));
+    return results.slice(0, limit).map(term => {
+      const tagData = {
+        value: term.id,
+        label: term.name,
+        vocabularyId: term.vocabularyId,
+        slug: term.slug
+      };
+
+      // Include color and icon if present
+      if (term.color) tagData.color = term.color;
+      if (term.icon) tagData.icon = term.icon;
+
+      return tagData;
+    });
   } catch (error) {
     console.error('[tagify-widget] Error searching taxonomy terms:', error);
     return [];
@@ -430,6 +438,117 @@ async function searchNodes(query, limit) {
   } catch (error) {
     console.error('[tagify-widget] Error searching nodes:', error);
     return [];
+  }
+}
+
+/**
+ * Load tag data with labels, colors, and icons from entities
+ *
+ * @param {Array} values - Array of entity IDs
+ * @param {string} target - Entity type (taxonomy_term, node, etc.)
+ * @param {string} vocabulary - Vocabulary ID (for taxonomy terms)
+ * @param {Object} widgetSettings - Widget configuration
+ * @returns {Promise<Array>} Array of tag objects with full data
+ */
+async function loadTagData(values, target, vocabulary, widgetSettings = {}) {
+  if (!values || values.length === 0) {
+    return [];
+  }
+
+  const tags = [];
+  const colorField = widgetSettings.tagColorField;
+  const iconField = widgetSettings.tagIconField;
+
+  for (const id of values) {
+    const tagData = {
+      value: String(id),
+      label: String(id), // Default fallback
+    };
+
+    try {
+      // Load entity data
+      if (target === 'taxonomy_term' || target === 'term') {
+        const term = await loadTaxonomyTerm(id, vocabulary);
+        if (term) {
+          tagData.label = term.name;
+          tagData.vocabularyId = term.vocabularyId;
+          tagData.slug = term.slug;
+
+          // Load color if specified
+          if (colorField && term[colorField]) {
+            tagData.color = term[colorField];
+          }
+
+          // Load icon if specified
+          if (iconField && term[iconField]) {
+            tagData.icon = term[iconField];
+          }
+        }
+      } else if (target === 'node' || target === 'content') {
+        const node = await loadNode(id);
+        if (node) {
+          tagData.label = node.title || `Node ${id}`;
+          tagData.type = node.type;
+
+          // Load color if specified
+          if (colorField && node[colorField]) {
+            tagData.color = node[colorField];
+          }
+
+          // Load icon if specified
+          if (iconField && node[iconField]) {
+            tagData.icon = node[iconField];
+          }
+        }
+      }
+    } catch (error) {
+      console.error(`[tagify-widget] Error loading tag data for ${id}:`, error);
+    }
+
+    tags.push(tagData);
+  }
+
+  return tags;
+}
+
+/**
+ * Load a taxonomy term by ID
+ */
+async function loadTaxonomyTerm(id, vocabularyId) {
+  try {
+    const taxonomy = services?.get('taxonomy');
+    if (!taxonomy) return null;
+
+    if (vocabularyId) {
+      return taxonomy.getTerm(vocabularyId, id);
+    }
+
+    // Search all vocabularies
+    const vocabularies = taxonomy.listVocabularies();
+    for (const vocab of vocabularies) {
+      const term = taxonomy.getTerm(vocab.id, id);
+      if (term) return term;
+    }
+
+    return null;
+  } catch (error) {
+    console.error('[tagify-widget] Error loading term:', error);
+    return null;
+  }
+}
+
+/**
+ * Load a content node by ID
+ */
+async function loadNode(id) {
+  try {
+    const content = services?.get('content');
+    if (!content) return null;
+
+    return content.load('node', id);
+  } catch (error) {
+    console.error('[tagify-widget] Error loading node:', error);
+    return null;
   }
 }
 
@@ -616,6 +735,91 @@ function renderDemoPage() {
     <div class="output" id="output-3"></div>
   </div>
 
+  <div class="demo-section">
+    <h2>Feature #6: Custom Tag Display Templates</h2>
+
+    <h3 style="font-size: 1.1em; margin-top: 20px; margin-bottom: 10px;">Color-Coded Tags</h3>
+    <p style="color: #6b7280; margin-bottom: 15px;">
+      Tags with custom background colors based on priority or category.
+    </p>
+    <form id="demo-form-4">
+      <div class="form-group">
+        <label>Task Priorities (Color-Coded)</label>
+        <div class="tagify-widget" data-field-name="priorities-colored">
+          <input
+            type="text"
+            id="field-priorities-colored"
+            name="priorities_colored_tagify"
+            class="tagify-input"
+            data-tagify="true"
+            data-target="content"
+            data-vocabulary=""
+            data-settings='{"maxTags":10,"draggable":true,"createOnEnter":true}'
+            value='[{"value":"1","label":"Urgent","color":"#ef4444"},{"value":"2","label":"High","color":"#f59e0b"},{"value":"3","label":"Medium","color":"#3b82f6"},{"value":"4","label":"Low","color":"#6b7280"}]'
+            placeholder="Type to search or add tags..."
+          />
+          <input type="hidden" name="priorities_colored" id="field-priorities-colored_value" value='["1","2","3","4"]' />
+        </div>
+      </div>
+      <button type="submit">Submit Form</button>
+    </form>
+    <div class="output" id="output-4"></div>
+
+    <h3 style="font-size: 1.1em; margin-top: 30px; margin-bottom: 10px;">Tags with Icons</h3>
+    <p style="color: #6b7280; margin-bottom: 15px;">
+      Tags can display small icons alongside labels.
+    </p>
+    <form id="demo-form-5">
+      <div class="form-group">
+        <label>Technologies (With Icons)</label>
+        <div class="tagify-widget" data-field-name="technologies">
+          <input
+            type="text"
+            id="field-technologies"
+            name="technologies_tagify"
+            class="tagify-input"
+            data-tagify="true"
+            data-target="content"
+            data-vocabulary=""
+            data-settings='{"maxTags":10,"draggable":true,"createOnEnter":true}'
+            value='[{"value":"1","label":"JavaScript","icon":"🟨"},{"value":"2","label":"Python","icon":"🐍"},{"value":"3","label":"Ruby","icon":"💎"},{"value":"4","label":"Go","icon":"🔵"}]'
+            placeholder="Type to search or add tags..."
+          />
+          <input type="hidden" name="technologies" id="field-technologies_value" value='["1","2","3","4"]' />
+        </div>
+      </div>
+      <button type="submit">Submit Form</button>
+    </form>
+    <div class="output" id="output-5"></div>
+
+    <h3 style="font-size: 1.1em; margin-top: 30px; margin-bottom: 10px;">Custom HTML Template</h3>
+    <p style="color: #6b7280; margin-bottom: 15px;">
+      Tags using a custom HTML template with color indicators.
+    </p>
+    <form id="demo-form-6">
+      <div class="form-group">
+        <label>Status Tags (Custom Template)</label>
+        <div class="tagify-widget" data-field-name="statuses">
+          <input
+            type="text"
+            id="field-statuses"
+            name="statuses_tagify"
+            class="tagify-input"
+            data-tagify="true"
+            data-target="content"
+            data-vocabulary=""
+            data-settings='{"maxTags":10,"draggable":true,"createOnEnter":true,"tagTemplate":"<div><span style=\\"display:inline-block;width:8px;height:8px;border-radius:50%;background:{color};margin-right:6px;\\"></span><x>{label}</x><x class=\\"tagify__tag__removeBtn\\" role=\\"button\\" aria-label=\\"remove tag\\">×</x></div>"}'
+            value='[{"value":"1","label":"Active","color":"#10b981"},{"value":"2","label":"Pending","color":"#f59e0b"},{"value":"3","label":"Completed","color":"#3b82f6"},{"value":"4","label":"Archived","color":"#6b7280"}]'
+            placeholder="Type to search or add tags..."
+          />
+          <input type="hidden" name="statuses" id="field-statuses_value" value='["1","2","3","4"]' />
+        </div>
+      </div>
+      <button type="submit">Submit Form</button>
+    </form>
+    <div class="output" id="output-6"></div>
+  </div>
+
   <script src="/modules/tagify-widget/assets/tagify.min.js"></script>
   <script>
     // Handle form submissions
@@ -644,6 +848,33 @@ function renderDemoPage() {
         skills: JSON.parse(formData.get('skills'))
       };
       document.getElementById('output-3').textContent = 'Form Data:\\n' + JSON.stringify(data, null, 2);
+    });
+
+    document.getElementById('demo-form-4').addEventListener('submit', (e) => {
+      e.preventDefault();
+      const formData = new FormData(e.target);
+      const data = {
+        priorities_colored: JSON.parse(formData.get('priorities_colored'))
+      };
+      document.getElementById('output-4').textContent = 'Form Data:\\n' + JSON.stringify(data, null, 2);
+    });
+
+    document.getElementById('demo-form-5').addEventListener('submit', (e) => {
+      e.preventDefault();
+      const formData = new FormData(e.target);
+      const data = {
+        technologies: JSON.parse(formData.get('technologies'))
+      };
+      document.getElementById('output-5').textContent = 'Form Data:\\n' + JSON.stringify(data, null, 2);
+    });
+
+    document.getElementById('demo-form-6').addEventListener('submit', (e) => {
+      e.preventDefault();
+      const formData = new FormData(e.target);
+      const data = {
+        statuses: JSON.parse(formData.get('statuses'))
+      };
+      document.getElementById('output-6').textContent = 'Form Data:\\n' + JSON.stringify(data, null, 2);
     });
 
     // Listen for validation events
