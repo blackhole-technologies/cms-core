@@ -1,0 +1,6 @@
+{
+  "name": "linkit",
+  "version": "1.0.0",
+  "description": "Link autocomplete service that provides fuzzy matching for content, media, and user entities with WYSIWYG integration",
+  "dependencies": []
+}

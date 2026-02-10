@@ -1,0 +1,638 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Linkit WYSIWYG Integration Demo</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 40px 20px;
+        }
+
+        .container {
+            max-width: 900px;
+            margin: 0 auto;
+            background: white;
+            border-radius: 12px;
+            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+            padding: 40px;
+        }
+
+        h1 {
+            color: #333;
+            margin-bottom: 10px;
+            font-size: 32px;
+        }
+
+        .subtitle {
+            color: #666;
+            margin-bottom: 30px;
+            font-size: 16px;
+        }
+
+        .editor-container {
+            position: relative;
+            margin-bottom: 20px;
+        }
+
+        .editor {
+            min-height: 250px;
+            border: 2px solid #ddd;
+            border-radius: 8px;
+            padding: 16px;
+            font-size: 16px;
+            line-height: 1.6;
+            outline: none;
+            transition: border-color 0.2s;
+        }
+
+        .editor:focus {
+            border-color: #667eea;
+        }
+
+        .editor [contenteditable="false"] {
+            display: inline;
+            background: #e3f2fd;
+            color: #1976d2;
+            padding: 2px 6px;
+            border-radius: 4px;
+            cursor: pointer;
+            user-select: none;
+        }
+
+        .editor [contenteditable="false"]:hover {
+            background: #bbdefb;
+        }
+
+        .toolbar {
+            display: flex;
+            gap: 8px;
+            padding: 8px;
+            background: #f5f5f5;
+            border: 1px solid #ddd;
+            border-bottom: none;
+            border-radius: 8px 8px 0 0;
+            margin-bottom: -8px;
+            padding-bottom: 12px;
+        }
+
+        .toolbar button {
+            padding: 8px 16px;
+            border: 1px solid #ddd;
+            background: white;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 14px;
+            transition: all 0.2s;
+        }
+
+        .toolbar button:hover {
+            background: #667eea;
+            color: white;
+            border-color: #667eea;
+        }
+
+        .toolbar button.active {
+            background: #667eea;
+            color: white;
+            border-color: #667eea;
+        }
+
+        .autocomplete-dropdown {
+            position: absolute;
+            background: white;
+            border: 2px solid #667eea;
+            border-radius: 8px;
+            box-shadow: 0 8px 24px rgba(0, 0, 0, 0.15);
+            max-height: 300px;
+            overflow-y: auto;
+            z-index: 1000;
+            display: none;
+            min-width: 300px;
+        }
+
+        .autocomplete-dropdown.active {
+            display: block;
+        }
+
+        .autocomplete-item {
+            padding: 12px 16px;
+            cursor: pointer;
+            border-bottom: 1px solid #f0f0f0;
+            transition: background 0.15s;
+        }
+
+        .autocomplete-item:last-child {
+            border-bottom: none;
+        }
+
+        .autocomplete-item:hover,
+        .autocomplete-item.selected {
+            background: #f8f9ff;
+        }
+
+        .autocomplete-title {
+            font-weight: 600;
+            color: #333;
+            margin-bottom: 4px;
+        }
+
+        .autocomplete-meta {
+            display: flex;
+            gap: 8px;
+            font-size: 12px;
+            color: #666;
+        }
+
+        .autocomplete-badge {
+            padding: 2px 6px;
+            border-radius: 3px;
+            font-weight: 500;
+        }
+
+        .badge-content {
+            background: #e3f2fd;
+            color: #1976d2;
+        }
+
+        .badge-media {
+            background: #fce4ec;
+            color: #c2185b;
+        }
+
+        .badge-user {
+            background: #f3e5f5;
+            color: #7b1fa2;
+        }
+
+        .autocomplete-loading {
+            padding: 16px;
+            text-align: center;
+            color: #667eea;
+            font-size: 14px;
+        }
+
+        .autocomplete-empty {
+            padding: 16px;
+            text-align: center;
+            color: #999;
+            font-size: 14px;
+        }
+
+        .link-dialog {
+            position: fixed;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            background: white;
+            border-radius: 12px;
+            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+            padding: 30px;
+            z-index: 2000;
+            display: none;
+            min-width: 500px;
+        }
+
+        .link-dialog.active {
+            display: block;
+        }
+
+        .dialog-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: rgba(0, 0, 0, 0.5);
+            z-index: 1999;
+            display: none;
+        }
+
+        .dialog-overlay.active {
+            display: block;
+        }
+
+        .link-dialog h3 {
+            margin-bottom: 20px;
+            color: #333;
+        }
+
+        .link-dialog input {
+            width: 100%;
+            padding: 12px;
+            border: 2px solid #ddd;
+            border-radius: 6px;
+            font-size: 14px;
+            margin-bottom: 8px;
+        }
+
+        .link-dialog input:focus {
+            outline: none;
+            border-color: #667eea;
+        }
+
+        .link-dialog .buttons {
+            display: flex;
+            gap: 8px;
+            justify-content: flex-end;
+            margin-top: 20px;
+        }
+
+        .link-dialog button {
+            padding: 10px 20px;
+            border: none;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 14px;
+            transition: all 0.2s;
+        }
+
+        .link-dialog button.primary {
+            background: #667eea;
+            color: white;
+        }
+
+        .link-dialog button.primary:hover {
+            background: #5568d3;
+        }
+
+        .link-dialog button.secondary {
+            background: #f0f0f0;
+            color: #333;
+        }
+
+        .link-dialog button.secondary:hover {
+            background: #e0e0e0;
+        }
+
+        .help-text {
+            font-size: 13px;
+            color: #666;
+            margin-top: 8px;
+        }
+
+        .demo-info {
+            background: #f8f9fa;
+            border-left: 4px solid #667eea;
+            padding: 16px;
+            margin-top: 30px;
+            border-radius: 4px;
+        }
+
+        .demo-info h3 {
+            margin-bottom: 10px;
+            color: #333;
+        }
+
+        .demo-info p {
+            color: #666;
+            line-height: 1.6;
+            margin-bottom: 8px;
+        }
+
+        .demo-info ul {
+            margin-left: 20px;
+            color: #666;
+            line-height: 1.8;
+        }
+
+        .demo-info code {
+            background: #f0f0f0;
+            padding: 2px 6px;
+            border-radius: 3px;
+            font-family: monospace;
+            font-size: 12px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🔗 Linkit WYSIWYG Integration</h1>
+        <p class="subtitle">Type @ or use the Link button to insert links with autocomplete</p>
+
+        <div class="editor-container">
+            <div class="toolbar">
+                <button id="link-btn" title="Insert Link (or type @)">🔗 Insert Link</button>
+                <button id="bold-btn" title="Bold">B</button>
+                <button id="italic-btn" title="Italic">I</button>
+            </div>
+
+            <div id="editor" class="editor" contenteditable="true">
+                <p>Type <strong>@</strong> followed by a search term to insert a link with autocomplete.</p>
+                <p>Or click the 🔗 Insert Link button above.</p>
+                <p><br></p>
+                <p>Try typing: @hello or @admin</p>
+            </div>
+
+            <div id="autocomplete" class="autocomplete-dropdown"></div>
+        </div>
+
+        <div class="demo-info">
+            <h3>How it works</h3>
+            <p><strong>Inline Autocomplete (Type @):</strong></p>
+            <ul>
+                <li>Type <code>@</code> followed by search text</li>
+                <li>Autocomplete dropdown appears with matching results</li>
+                <li>Use arrow keys (↑/↓) to navigate, Enter to select</li>
+                <li>The link is inserted inline at the cursor position</li>
+            </ul>
+            <p><strong>Link Dialog (Click 🔗 button):</strong></p>
+            <ul>
+                <li>Select text and click the Link button</li>
+                <li>Dialog opens with autocomplete field</li>
+                <li>Type to search, select from results</li>
+                <li>Link is applied to selected text</li>
+            </ul>
+            <p><strong>Features:</strong></p>
+            <ul>
+                <li>Debounced search (300ms delay)</li>
+                <li>Fuzzy matching across title, body, username</li>
+                <li>Keyboard navigation (↑/↓/Enter/Esc)</li>
+                <li>Works with content, media, and users</li>
+            </ul>
+        </div>
+    </div>
+
+    <!-- Link Dialog -->
+    <div id="dialog-overlay" class="dialog-overlay"></div>
+    <div id="link-dialog" class="link-dialog">
+        <h3>Insert Link</h3>
+        <input type="text" id="link-search" placeholder="Search for content..." autocomplete="off">
+        <div id="dialog-autocomplete" class="autocomplete-dropdown active"></div>
+        <p class="help-text">Type to search for content, media, or users</p>
+        <div class="buttons">
+            <button class="secondary" id="dialog-cancel">Cancel</button>
+            <button class="primary" id="dialog-insert" disabled>Insert Link</button>
+        </div>
+    </div>
+
+    <script>
+        const editor = document.getElementById('editor');
+        const autocomplete = document.getElementById('autocomplete');
+        const linkBtn = document.getElementById('link-btn');
+        const boldBtn = document.getElementById('bold-btn');
+        const italicBtn = document.getElementById('italic-btn');
+
+        const linkDialog = document.getElementById('link-dialog');
+        const dialogOverlay = document.getElementById('dialog-overlay');
+        const linkSearch = document.getElementById('link-search');
+        const dialogAutocomplete = document.getElementById('dialog-autocomplete');
+        const dialogCancel = document.getElementById('dialog-cancel');
+        const dialogInsert = document.getElementById('dialog-insert');
+
+        let debounceTimer;
+        let currentResults = [];
+        let selectedIndex = -1;
+        let autocompleteContext = null; // 'inline' or 'dialog'
+        let selectedLinkUrl = null;
+        let selectedLinkTitle = null;
+
+        // Inline autocomplete (@ trigger)
+        editor.addEventListener('keyup', (e) => {
+            const selection = window.getSelection();
+            if (!selection.rangeCount) return;
+
+            const range = selection.getRangeAt(0);
+            const textNode = range.startContainer;
+
+            if (textNode.nodeType !== Node.TEXT_NODE) return;
+
+            const text = textNode.textContent;
+            const cursorPos = range.startOffset;
+
+            // Find @ trigger
+            const beforeCursor = text.slice(0, cursorPos);
+            const match = beforeCursor.match(/@(\w+)$/);
+
+            if (match && match[1].length >= 2) {
+                const query = match[1];
+                autocompleteContext = 'inline';
+                performSearch(query, autocomplete);
+
+                // Position dropdown
+                const rect = range.getBoundingClientRect();
+                autocomplete.style.left = `${rect.left}px`;
+                autocomplete.style.top = `${rect.bottom + window.scrollY}px`;
+            } else {
+                hideAutocomplete();
+            }
+        });
+
+        // Dialog autocomplete
+        linkSearch.addEventListener('input', (e) => {
+            clearTimeout(debounceTimer);
+            const query = e.target.value.trim();
+
+            if (query.length < 2) {
+                dialogAutocomplete.innerHTML = '';
+                return;
+            }
+
+            debounceTimer = setTimeout(() => {
+                autocompleteContext = 'dialog';
+                performSearch(query, dialogAutocomplete);
+            }, 300);
+        });
+
+        // Perform search
+        async function performSearch(query, targetElement) {
+            targetElement.innerHTML = '<div class="autocomplete-loading">Searching...</div>';
+            targetElement.classList.add('active');
+
+            try {
+                const response = await fetch(`/api/linkit/autocomplete?q=${encodeURIComponent(query)}&types=content,media,user`);
+                const results = await response.json();
+                currentResults = results;
+                selectedIndex = -1;
+                displayResults(results, targetElement);
+            } catch (error) {
+                console.error('Search error:', error);
+                targetElement.innerHTML = '<div class="autocomplete-empty">Error searching</div>';
+            }
+        }
+
+        // Display results
+        function displayResults(results, targetElement) {
+            if (results.length === 0) {
+                targetElement.innerHTML = '<div class="autocomplete-empty">No results found</div>';
+                return;
+            }
+
+            targetElement.innerHTML = results.map((result, index) => {
+                const badgeClass = `badge-${result.type}`;
+                return `
+                    <div class="autocomplete-item" data-index="${index}" data-url="${result.url}" data-title="${escapeHtml(result.title)}">
+                        <div class="autocomplete-title">${escapeHtml(result.title)}</div>
+                        <div class="autocomplete-meta">
+                            <span class="autocomplete-badge ${badgeClass}">${result.type}</span>
+                            <span class="autocomplete-badge ${badgeClass}">${result.entityType}</span>
+                        </div>
+                    </div>
+                `;
+            }).join('');
+
+            // Add click handlers
+            targetElement.querySelectorAll('.autocomplete-item').forEach(item => {
+                item.addEventListener('click', () => selectResult(item));
+            });
+        }
+
+        // Select result
+        function selectResult(item) {
+            const url = item.dataset.url;
+            const title = item.dataset.title;
+
+            if (autocompleteContext === 'inline') {
+                insertInlineLink(url, title);
+            } else if (autocompleteContext === 'dialog') {
+                selectedLinkUrl = url;
+                selectedLinkTitle = title;
+                dialogInsert.disabled = false;
+                linkSearch.value = title;
+                dialogAutocomplete.innerHTML = '';
+            }
+
+            hideAutocomplete();
+        }
+
+        // Insert inline link
+        function insertInlineLink(url, title) {
+            const selection = window.getSelection();
+            const range = selection.getRangeAt(0);
+            const textNode = range.startContainer;
+
+            // Remove @trigger text
+            const text = textNode.textContent;
+            const cursorPos = range.startOffset;
+            const beforeCursor = text.slice(0, cursorPos);
+            const match = beforeCursor.match(/@\w+$/);
+
+            if (match) {
+                const startPos = cursorPos - match[0].length;
+                range.setStart(textNode, startPos);
+                range.deleteContents();
+
+                // Insert link
+                const link = document.createElement('a');
+                link.href = url;
+                link.textContent = title;
+                link.contentEditable = 'false';
+                link.style.cssText = 'display: inline; background: #e3f2fd; color: #1976d2; padding: 2px 6px; border-radius: 4px; cursor: pointer;';
+
+                range.insertNode(link);
+
+                // Move cursor after link
+                range.setStartAfter(link);
+                range.collapse(true);
+                selection.removeAllRanges();
+                selection.addRange(range);
+
+                // Insert space
+                const space = document.createTextNode(' ');
+                range.insertNode(space);
+                range.setStartAfter(space);
+                selection.removeAllRanges();
+                selection.addRange(range);
+            }
+        }
+
+        // Hide autocomplete
+        function hideAutocomplete() {
+            autocomplete.classList.remove('active');
+            currentResults = [];
+            selectedIndex = -1;
+        }
+
+        // Keyboard navigation
+        editor.addEventListener('keydown', (e) => {
+            if (!autocomplete.classList.contains('active')) return;
+
+            if (e.key === 'ArrowDown') {
+                e.preventDefault();
+                selectedIndex = Math.min(selectedIndex + 1, currentResults.length - 1);
+                updateSelection(autocomplete);
+            } else if (e.key === 'ArrowUp') {
+                e.preventDefault();
+                selectedIndex = Math.max(selectedIndex - 1, 0);
+                updateSelection(autocomplete);
+            } else if (e.key === 'Enter') {
+                e.preventDefault();
+                if (selectedIndex >= 0) {
+                    const item = autocomplete.querySelector(`[data-index="${selectedIndex}"]`);
+                    if (item) selectResult(item);
+                }
+            } else if (e.key === 'Escape') {
+                e.preventDefault();
+                hideAutocomplete();
+            }
+        });
+
+        function updateSelection(targetElement) {
+            targetElement.querySelectorAll('.autocomplete-item').forEach((item, index) => {
+                item.classList.toggle('selected', index === selectedIndex);
+            });
+        }
+
+        // Link dialog
+        linkBtn.addEventListener('click', () => {
+            linkDialog.classList.add('active');
+            dialogOverlay.classList.add('active');
+            linkSearch.focus();
+            selectedLinkUrl = null;
+            selectedLinkTitle = null;
+            dialogInsert.disabled = true;
+        });
+
+        dialogCancel.addEventListener('click', closeDialog);
+        dialogOverlay.addEventListener('click', closeDialog);
+
+        function closeDialog() {
+            linkDialog.classList.remove('active');
+            dialogOverlay.classList.remove('active');
+            linkSearch.value = '';
+            dialogAutocomplete.innerHTML = '';
+        }
+
+        dialogInsert.addEventListener('click', () => {
+            if (!selectedLinkUrl) return;
+
+            const selection = window.getSelection();
+            const range = selection.getRangeAt(0);
+
+            const link = document.createElement('a');
+            link.href = selectedLinkUrl;
+            link.textContent = selectedLinkTitle;
+            link.contentEditable = 'false';
+            link.style.cssText = 'display: inline; background: #e3f2fd; color: #1976d2; padding: 2px 6px; border-radius: 4px; cursor: pointer;';
+
+            range.insertNode(link);
+            range.setStartAfter(link);
+            range.collapse(true);
+            selection.removeAllRanges();
+            selection.addRange(range);
+
+            closeDialog();
+        });
+
+        // Format buttons
+        boldBtn.addEventListener('click', () => document.execCommand('bold'));
+        italicBtn.addEventListener('click', () => document.execCommand('italic'));
+
+        // Escape HTML
+        function escapeHtml(text) {
+            const div = document.createElement('div');
+            div.textContent = text;
+            return div.innerHTML;
+        }
+    </script>
+</body>
+</html>
