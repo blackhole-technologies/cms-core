@@ -47,6 +47,7 @@ import * as ratelimit from './ratelimit.js';
 import * as plugins from './plugins.js';
 import * as pluginTypeManager from './plugin-type-manager.js';
 import * as typedData from './typed-data.js';
+import * as conditions from './conditions.js';
 import * as search from './search.js';
 import * as i18n from './i18n.js';
 import * as comments from './comments.js';
@@ -1592,6 +1593,10 @@ export async function boot(baseDir, options = {}) {
     // Initialize typed data service
     typedData.register(services, context.container);
     log('[boot] Typed data service registered');
+
+    // Initialize conditions service
+    conditions.register(services, context.container);
+    log('[boot] Conditions service registered');
 
     // Load all plugins
     const pluginResults = await plugins.loadAllPlugins(context);
@@ -4920,6 +4925,93 @@ export async function boot(baseDir, options = {}) {
         throw error;
       }
     }, 'Validate data against a schema (JSON format)');
+
+    // ==================================================
+    // Conditions Commands
+    // ==================================================
+
+    // conditions:evaluate <condition_json> <context_json> - Evaluate a condition
+    cli.register('conditions:evaluate', async (args, ctx) => {
+      if (args.length < 2) {
+        console.error('Usage: conditions:evaluate <condition_json> <context_json>');
+        console.error('Example: conditions:evaluate \'{"type":"hasRole","role":"admin"}\' \'{"user":{"roles":["admin"]}}\'');
+        throw new Error('Condition and context required');
+      }
+
+      const conditionJson = args[0];
+      const contextJson = args[1];
+
+      try {
+        const condition = JSON.parse(conditionJson);
+        const context = JSON.parse(contextJson);
+
+        const conditionsService = ctx.services.get('conditions');
+
+        // Enable debug mode if requested
+        const debugFlag = args.includes('--debug') || args.includes('-d');
+        if (debugFlag) {
+          conditionsService.setDebugMode(true);
+        }
+
+        const result = conditionsService.evaluateCondition(condition, context);
+
+        console.log('\nCondition Evaluation Result:\n');
+        console.log(`  Passes: ${result.passes ? '✓' : '✗'}`);
+
+        if (result.trace && result.trace.length > 0) {
+          console.log('  Trace:');
+          for (const line of result.trace) {
+            console.log(`    ${line}`);
+          }
+        }
+
+        console.log('');
+
+        // Reset debug mode
+        if (debugFlag) {
+          conditionsService.setDebugMode(false);
+        }
+      } catch (error) {
+        console.error(`Error: ${error.message}`);
+        throw error;
+      }
+    }, 'Evaluate a condition with context (JSON format, --debug for trace)');
+
+    // conditions:list - List all registered condition types
+    cli.register('conditions:list', async (args, ctx) => {
+      const conditionsService = ctx.services.get('conditions');
+      const types = conditionsService.listConditionTypes();
+
+      if (types.length === 0) {
+        console.log('\nNo condition types registered yet.\n');
+        return;
+      }
+
+      console.log('\nRegistered Condition Types:\n');
+
+      const builtins = ['hasRole', 'hasPermission', 'fieldEquals', 'fieldEmpty'];
+      const custom = types.filter(t => !builtins.includes(t));
+
+      if (builtins.some(t => types.includes(t))) {
+        console.log('  Built-in:');
+        for (const type of builtins) {
+          if (types.includes(type)) {
+            console.log(`    • ${type}`);
+          }
+        }
+        console.log('');
+      }
+
+      if (custom.length > 0) {
+        console.log('  Custom:');
+        for (const type of custom) {
+          console.log(`    • ${type}`);
+        }
+        console.log('');
+      }
+
+      console.log(`Total: ${types.length} condition type(s)\n`);
+    }, 'List all registered condition types');
 
     // ==================================================
     // Hot-Swap Plugin Commands
