@@ -12,19 +12,19 @@
 
 ---
 
-## TIER 1: TOKEN FALLBACK (Features 0-4)
+## TIER 1: CLASS VARIANCE AUTHORITY (Features 0-4)
 
 These must pass before any functional features.
 
 ### Features
 
-### Feature 0: Token OR fallback logic service
+### Feature 0: CVA Twig function (html_cva) implementation
 
-### Feature 1: Chained token evaluation with fallbacks
+### Feature 1: Variant definition schema
 
-### Feature 2: Default value support for empty tokens
+### Feature 2: Compound variant support
 
-### Feature 3: Integration with token replacement pipeline
+### Feature 3: Default variant configuration
 
-### Feature 4: Token OR syntax documentation and examples
+### Feature 4: CSS class merging and deduplication
 
