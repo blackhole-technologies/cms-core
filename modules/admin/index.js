@@ -6371,6 +6371,29 @@ export function hook_middleware(use, context) {
       return;
     }
 
+    // Skip JSON requests - they send CSRF in headers, not body
+    // The route handler will parse JSON body itself
+    if (contentType.includes('application/json')) {
+      const token = req.headers['x-csrf-token'];
+
+      if (!token) {
+        console.warn(`[csrf] Missing token for ${method} ${req.url}`);
+        res.writeHead(403, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ error: 'Missing CSRF token' }));
+        return;
+      }
+
+      if (!auth.validateCSRFToken(req, token)) {
+        console.warn(`[csrf] Invalid token for ${method} ${req.url}`);
+        res.writeHead(403, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ error: 'Invalid CSRF token' }));
+        return;
+      }
+
+      await next();
+      return;
+    }
+
     // Parse URL-encoded body and store in context
     try {
       const body = await parseFormBodyOnce(req);
