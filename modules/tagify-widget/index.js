@@ -255,6 +255,9 @@ function renderDefaultReference(field, value, options = {}) {
  */
 async function handleAutocomplete(req, res) {
   try {
+    // Get server helper for JSON responses
+    const server = services?.get('server');
+
     // Parse URL query parameters
     const url = new URL(req.url, 'http://localhost');
     const params = url.searchParams;
@@ -266,7 +269,12 @@ async function handleAutocomplete(req, res) {
 
     // Validate query length
     if (!query || query.trim().length < 1) {
-      return res.json([]);
+      if (server && server.json) {
+        return server.json(res, []);
+      } else {
+        res.writeHead(200, { 'Content-Type': 'application/json' });
+        return res.end('[]');
+      }
     }
 
     // Validate limit (prevent abuse)
@@ -283,10 +291,21 @@ async function handleAutocomplete(req, res) {
     }
 
     // Return results
-    res.json(results);
+    if (server && server.json) {
+      server.json(res, results);
+    } else {
+      res.writeHead(200, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify(results));
+    }
   } catch (error) {
     console.error('[tagify-widget] Autocomplete error:', error);
-    res.status(500).json({ error: 'Autocomplete failed' });
+    const server = services?.get('server');
+    if (server && server.json) {
+      server.json(res, { error: 'Autocomplete failed' }, 500);
+    } else {
+      res.writeHead(500, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ error: 'Autocomplete failed' }));
+    }
   }
 }
 
@@ -411,9 +430,44 @@ async function searchNodes(query, limit) {
 
     // Search nodes by title (case-insensitive)
     const queryLower = query.toLowerCase();
-    const allNodes = content.list('node', { limit: 1000 });
 
-    const filtered = allNodes.items.filter(node => {
+    // Get all content types - try different methods
+    let types = [];
+    if (content.listTypes && typeof content.listTypes === 'function') {
+      types = content.listTypes();
+    } else if (services?.get('contentTypes')) {
+      const contentTypes = services.get('contentTypes');
+      if (contentTypes.list && typeof contentTypes.list === 'function') {
+        types = contentTypes.list().map(t => ({ type: t.type || t }));
+      }
+    }
+
+    // Fallback to common content types if listTypes not available
+    if (!types || types.length === 0) {
+      types = [
+        { type: 'article' },
+        { type: 'page' },
+        { type: 'media-entity' }
+      ];
+    }
+
+    let allNodes = [];
+
+    // Search across all content types
+    for (const typeInfo of types) {
+      try {
+        const typeName = typeInfo.type || typeInfo;
+        const result = content.list(typeName, { limit: 1000 });
+        if (result && result.items) {
+          allNodes = allNodes.concat(result.items);
+        }
+      } catch (err) {
+        // Skip types that can't be listed
+        continue;
+      }
+    }
+
+    const filtered = allNodes.filter(node => {
       const title = (node.title || '').toLowerCase();
       return title.includes(queryLower);
     });
@@ -898,6 +952,9 @@ function renderDemoPage() {
  */
 async function handleCreateTag(req, res) {
   try {
+    // Get server helper for JSON responses
+    const server = services?.get('server');
+
     // Parse request body
     let body = '';
     for await (const chunk of req) {
@@ -909,31 +966,31 @@ async function handleCreateTag(req, res) {
 
     // Validate inputs
     if (!label || typeof label !== 'string' || label.trim().length === 0) {
-      return res.status(400).json({ error: 'Label is required' });
+      return server ? server.json(res, { error: 'Label is required' }, 400) : res.end(JSON.stringify({ error: 'Label is required' }));
     }
 
     if (!vocabulary || typeof vocabulary !== 'string') {
-      return res.status(400).json({ error: 'Vocabulary is required' });
+      return server ? server.json(res, { error: 'Vocabulary is required' }, 400) : res.end(JSON.stringify({ error: 'Vocabulary is required' }));
     }
 
     const trimmedLabel = label.trim();
 
     // Validate label length
     if (trimmedLabel.length > 255) {
-      return res.status(400).json({ error: 'Label is too long (max 255 characters)' });
+      return server ? server.json(res, { error: 'Label is too long (max 255 characters)' }, 400) : res.end(JSON.stringify({ error: 'Label is too long (max 255 characters)' }));
     }
 
     // Get taxonomy service
     const taxonomy = services?.get('taxonomy');
     if (!taxonomy) {
       console.error('[tagify-widget] Taxonomy service not available');
-      return res.status(500).json({ error: 'Taxonomy service unavailable' });
+      return server ? server.json(res, { error: 'Taxonomy service unavailable' }, 500) : res.end(JSON.stringify({ error: 'Taxonomy service unavailable' }));
     }
 
     // Check if vocabulary exists
     const vocab = taxonomy.getVocabulary(vocabulary);
     if (!vocab) {
-      return res.status(404).json({ error: `Vocabulary "${vocabulary}" not found` });
+      return server ? server.json(res, { error: `Vocabulary "${vocabulary}" not found` }, 404) : res.end(JSON.stringify({ error: `Vocabulary "${vocabulary}" not found` }));
     }
 
     // Check for duplicates (case-insensitive)
@@ -944,12 +1001,13 @@ async function handleCreateTag(req, res) {
 
     if (duplicate) {
       // Return existing term instead of creating duplicate
-      return res.json({
+      const response = {
         value: duplicate.id,
         label: duplicate.name,
         slug: duplicate.slug,
         existing: true
-      });
+      };
+      return server ? server.json(res, response) : res.end(JSON.stringify(response));
     }
 
     // Create new term
@@ -963,15 +1021,18 @@ async function handleCreateTag(req, res) {
     console.log(`[tagify-widget] Created new term: "${newTerm.name}" (ID: ${newTerm.id}) in vocabulary "${vocabulary}"`);
 
     // Return new term
-    res.json({
+    const response = {
       value: newTerm.id,
       label: newTerm.name,
       slug: newTerm.slug,
       existing: false
-    });
+    };
+    server ? server.json(res, response) : res.end(JSON.stringify(response));
   } catch (error) {
     console.error('[tagify-widget] Error creating tag:', error);
-    res.status(500).json({ error: 'Failed to create tag: ' + error.message });
+    const server = services?.get('server');
+    const errorResponse = { error: 'Failed to create tag: ' + error.message };
+    server ? server.json(res, errorResponse, 500) : res.end(JSON.stringify(errorResponse));
   }
 }
 
