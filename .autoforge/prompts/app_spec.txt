@@ -8,23 +8,25 @@
 
 ## Feature Count
 
-**feature_count: 5**
+**feature_count: 6**
 
 ---
 
-## TIER 1: TOKEN FALLBACK (Features 0-4)
+## TIER 1: DEVELOPER UTILITIES (CTOOLS) (Features 0-5)
 
 These must pass before any functional features.
 
 ### Features
 
-### Feature 0: Token OR fallback logic service
+### Feature 0: Plugin type manager utilities
 
-### Feature 1: Chained token evaluation with fallbacks
+### Feature 1: Typed data resolver service
 
-### Feature 2: Default value support for empty tokens
+### Feature 2: Condition plugin enhancements
 
-### Feature 3: Integration with token replacement pipeline
+### Feature 3: Entity view builder utilities
 
-### Feature 4: Token OR syntax documentation and examples
+### Feature 4: Block plugin variants support
+
+### Feature 5: Math expression evaluation service
 

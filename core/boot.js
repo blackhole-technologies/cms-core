@@ -45,6 +45,7 @@ import * as scheduler from './scheduler.js';
 import * as transfer from './transfer.js';
 import * as ratelimit from './ratelimit.js';
 import * as plugins from './plugins.js';
+import * as pluginTypeManager from './plugin-type-manager.js';
 import * as search from './search.js';
 import * as i18n from './i18n.js';
 import * as comments from './comments.js';
@@ -1582,6 +1583,10 @@ export async function boot(baseDir, options = {}) {
     plugins.init(baseDir, pluginsConfig, context.config.site.version);
     plugins.initAutoReload(pluginsConfig);
     services.register('plugins', () => plugins);
+
+    // Initialize plugin type manager
+    pluginTypeManager.register(services, context.container);
+    log('[boot] Plugin type manager registered');
 
     // Load all plugins
     const pluginResults = await plugins.loadAllPlugins(context);
@@ -4821,6 +4826,51 @@ export async function boot(baseDir, options = {}) {
       }
       console.log('');
     }, 'Validate a plugin manifest and permissions');
+
+    // ==================================================
+    // Plugin Type Manager Commands
+    // ==================================================
+
+    // plugin-types:list - List all registered plugin types
+    cli.register('plugin-types:list', async (args, ctx) => {
+      const manager = ctx.services.get('plugin_type.manager');
+      const types = manager.listPluginTypes();
+
+      if (types.length === 0) {
+        console.log('\nNo plugin types registered yet.');
+        console.log('Plugin types are registered during boot by modules and plugins.\n');
+        return;
+      }
+
+      // Group by category
+      const byCategory = {};
+      for (const type of types) {
+        const category = type.category || 'general';
+        if (!byCategory[category]) {
+          byCategory[category] = [];
+        }
+        byCategory[category].push(type);
+      }
+
+      console.log('\nRegistered Plugin Types:\n');
+
+      for (const [category, catTypes] of Object.entries(byCategory)) {
+        console.log(`  ${category}:`);
+        for (const type of catTypes) {
+          const desc = type.description ? ` - ${type.description}` : '';
+          console.log(`    • ${type.name} (${type.label})${desc}`);
+          if (type.baseClass) {
+            console.log(`      Base: ${type.baseClass}`);
+          }
+          if (type.parentType) {
+            console.log(`      Extends: ${type.parentType}`);
+          }
+        }
+        console.log('');
+      }
+
+      console.log(`Total: ${types.length} plugin type(s)\n`);
+    }, 'List all registered plugin types');
 
     // ==================================================
     // Hot-Swap Plugin Commands
