@@ -302,16 +302,65 @@ function processIfBlocks(template, data) {
 function processVariables(template, data) {
   // First, handle {{cva element config props}} CVA helper
   // Matches: {{cva button buttonConfig buttonProps}} or {{cva button {...} {...}}}
-  const cvaRegex = /\{\{(cva\s+[^}]+)\}\}/g;
+  // NOTE: We need to handle nested braces in JSON objects, so we can't use a simple regex
+  let result = template;
+  let match;
+  const cvaStartRegex = /\{\{cva\s+/g;
 
-  let result = template.replace(cvaRegex, (match, helperString) => {
-    try {
-      return parseCvaHelper(helperString, data);
-    } catch (error) {
-      console.error(`CVA helper error: ${error.message}`);
-      return ''; // Return empty string on error
+  while ((match = cvaStartRegex.exec(result)) !== null) {
+    const startIndex = match.index;
+    const contentStart = match.index + 2; // After {{
+
+    // Find the matching }} by tracking brace depth
+    let depth = 2; // Start with {{
+    let i = contentStart;
+    let inString = false;
+    let stringChar = null;
+
+    while (i < result.length && depth > 0) {
+      const char = result[i];
+      const prevChar = i > 0 ? result[i - 1] : '';
+
+      // Track string boundaries
+      if ((char === '"' || char === "'") && prevChar !== '\\') {
+        if (!inString) {
+          inString = true;
+          stringChar = char;
+        } else if (char === stringChar) {
+          inString = false;
+          stringChar = null;
+        }
+      }
+
+      // Track brace depth (only outside strings)
+      if (!inString) {
+        if (char === '{') depth++;
+        if (char === '}') depth--;
+      }
+
+      i++;
     }
-  });
+
+    if (depth === 0) {
+      const endIndex = i;
+      const fullMatch = result.substring(startIndex, endIndex);
+      const helperString = result.substring(contentStart, endIndex - 2).trim();
+
+      try {
+        const replacement = parseCvaHelper(helperString, data);
+        result = result.substring(0, startIndex) + replacement + result.substring(endIndex);
+        // Reset regex position after replacement
+        cvaStartRegex.lastIndex = startIndex + replacement.length;
+      } catch (error) {
+        console.error(`CVA helper error: ${error.message}`);
+        // Remove the failed helper from output
+        result = result.substring(0, startIndex) + result.substring(endIndex);
+        cvaStartRegex.lastIndex = startIndex;
+      }
+    } else {
+      break; // Malformed template
+    }
+  }
 
   // Handle {{t "key"}} translation helper
   // Matches: {{t "key"}} or {{t "key" param="value" param2="value2"}}
