@@ -994,6 +994,310 @@ export function registerEntityProviders() {
   }
 }
 
+/**
+ * ==================================================================
+ * TOKEN FALLBACK SYSTEM (Features #1, #2, #3)
+ * ==================================================================
+ * Supports OR-separated fallback chains in tokens:
+ * - {field:title|field:name|"Untitled"}
+ * - Evaluates each option until a non-empty value is found
+ * - Supports both token references and literal strings (quoted)
+ * - Returns first non-empty value or empty string if all fail
+ */
+
+/**
+ * Parse token string with fallback options
+ *
+ * @param {string} tokenString - Token string like '{field:title|field:name|"Default"}'
+ * @returns {Array} - Array of fallback options, each either a token or literal
+ *
+ * Feature #1: Token OR fallback logic parsing
+ *
+ * WHY PIPE SEPARATOR:
+ * The pipe character | is the standard OR operator in many systems.
+ * Allows intuitive syntax like {A|B|C} meaning "try A, else B, else C".
+ *
+ * SYNTAX SUPPORT:
+ * - Token references: field:title, content:author:name
+ * - Literal strings: "Default value" or 'Default value'
+ * - Mixed chains: field:title|"Untitled"|field:name
+ */
+export function parseTokenWithFallbacks(tokenString) {
+  if (!tokenString || typeof tokenString !== 'string') {
+    return [];
+  }
+
+  // Remove curly braces if present (support both {} and [])
+  let inner = tokenString.trim();
+  if (inner.startsWith('{') && inner.endsWith('}')) {
+    inner = inner.slice(1, -1);
+  } else if (inner.startsWith('[') && inner.endsWith(']')) {
+    inner = inner.slice(1, -1);
+  }
+
+  // Split by pipe, but respect quotes
+  const fallbacks = [];
+  let current = '';
+  let inQuotes = false;
+  let quoteChar = null;
+
+  for (let i = 0; i < inner.length; i++) {
+    const char = inner[i];
+    const prevChar = i > 0 ? inner[i - 1] : '';
+
+    // Check for quote start/end
+    if ((char === '"' || char === "'") && prevChar !== '\\') {
+      if (!inQuotes) {
+        inQuotes = true;
+        quoteChar = char;
+      } else if (char === quoteChar) {
+        inQuotes = false;
+        quoteChar = null;
+      }
+      current += char;
+    }
+    // Split on pipe only if outside quotes
+    else if (char === '|' && !inQuotes) {
+      if (current.trim()) {
+        fallbacks.push(current.trim());
+      }
+      current = '';
+    }
+    // Normal character
+    else {
+      current += char;
+    }
+  }
+
+  // Add final option
+  if (current.trim()) {
+    fallbacks.push(current.trim());
+  }
+
+  return fallbacks;
+}
+
+/**
+ * Check if a fallback option is a literal string (quoted)
+ *
+ * @param {string} option - Fallback option
+ * @returns {boolean} - True if option is a quoted literal
+ *
+ * Feature #3: Default value support - literal detection
+ *
+ * WHY DETECT LITERALS:
+ * Literal values should not be evaluated as tokens.
+ * They're final fallback defaults, not references to resolve.
+ */
+export function isLiteral(option) {
+  if (!option || typeof option !== 'string') {
+    return false;
+  }
+
+  const trimmed = option.trim();
+
+  // Check if starts and ends with matching quotes
+  if (trimmed.length < 2) {
+    return false;
+  }
+
+  const firstChar = trimmed[0];
+  const lastChar = trimmed[trimmed.length - 1];
+
+  return (
+    (firstChar === '"' && lastChar === '"') ||
+    (firstChar === "'" && lastChar === "'")
+  );
+}
+
+/**
+ * Extract literal value from quoted string
+ *
+ * @param {string} option - Quoted string like '"Hello"' or "'World'"
+ * @returns {string} - Unquoted and unescaped string
+ *
+ * Feature #3: Default value support - literal extraction
+ *
+ * WHY UNESCAPE:
+ * Users may include escaped quotes within literals: "Say \"Hello\""
+ * We need to convert these back to actual quotes in the output.
+ */
+export function extractLiteral(option) {
+  if (!isLiteral(option)) {
+    return option;
+  }
+
+  const trimmed = option.trim();
+  // Remove surrounding quotes
+  let value = trimmed.slice(1, -1);
+
+  // Unescape common escape sequences
+  value = value
+    .replace(/\\"/g, '"')
+    .replace(/\\'/g, "'")
+    .replace(/\\\\/g, '\\')
+    .replace(/\\n/g, '\n')
+    .replace(/\\t/g, '\t');
+
+  return value;
+}
+
+/**
+ * Check if a value is considered "empty" for fallback purposes
+ *
+ * @param {*} value - Value to check
+ * @returns {boolean} - True if value is empty
+ *
+ * Feature #2: Chained token evaluation - empty value detection
+ *
+ * EMPTY VALUES:
+ * - null, undefined
+ * - empty string ''
+ * - whitespace-only strings '   '
+ * - These trigger fallback to next option
+ *
+ * NON-EMPTY VALUES:
+ * - Number 0 (valid value)
+ * - Boolean false (valid value)
+ * - String '0' (valid value)
+ */
+function isEmpty(value) {
+  // Null or undefined
+  if (value === null || value === undefined) {
+    return true;
+  }
+
+  // Empty or whitespace-only string
+  if (typeof value === 'string') {
+    return value.trim() === '';
+  }
+
+  // All other values (0, false, objects, arrays) are non-empty
+  return false;
+}
+
+/**
+ * Evaluate fallback chain, returning first non-empty value
+ *
+ * @param {Array} fallbackOptions - Array of options (tokens or literals)
+ * @param {Object} context - Context object for token resolution
+ * @returns {Promise<string>} - First non-empty value or empty string
+ *
+ * Feature #2: Chained token evaluation with fallbacks
+ *
+ * EVALUATION STRATEGY:
+ * 1. Process fallbacks left to right
+ * 2. For each option:
+ *    - If literal: use directly (skip if empty, continue to next)
+ *    - If token: resolve via replaceToken()
+ * 3. Return first non-empty value
+ * 4. If all fail, return empty string
+ *
+ * WHY ASYNC:
+ * Token resolution may require database/API calls.
+ * Async allows proper handling without blocking.
+ *
+ * EARLY TERMINATION:
+ * Stops at first non-empty value for performance.
+ * No point evaluating remaining options once we have a value.
+ */
+export async function evaluateFallbackChain(fallbackOptions, context = {}) {
+  if (!Array.isArray(fallbackOptions) || fallbackOptions.length === 0) {
+    return '';
+  }
+
+  // Try each fallback option in sequence
+  for (const option of fallbackOptions) {
+    // Check if it's a literal string
+    if (isLiteral(option)) {
+      const literalValue = extractLiteral(option);
+      if (!isEmpty(literalValue)) {
+        return literalValue;
+      }
+      // Empty literal, continue to next option
+      continue;
+    }
+
+    // It's a token reference - parse and resolve it
+    // Support both bracket formats: [field:title] and field:title
+    let tokenStr = option.trim();
+    if (!tokenStr.startsWith('[')) {
+      tokenStr = `[${tokenStr}]`;
+    }
+
+    try {
+      const value = await replaceToken(tokenStr, context);
+      if (!isEmpty(value)) {
+        return value;
+      }
+    } catch (error) {
+      // Token resolution failed, continue to next option
+      console.debug(`[tokens] Fallback option "${option}" failed:`, error.message);
+      continue;
+    }
+  }
+
+  // All fallbacks failed
+  return '';
+}
+
+/**
+ * Replace tokens with fallback support in text
+ *
+ * @param {string} text - Text containing tokens with fallbacks
+ * @param {Object} context - Context object for token resolution
+ * @returns {Promise<string>} - Text with tokens replaced
+ *
+ * Feature #3: Integration with token replacement pipeline
+ *
+ * ENHANCED TOKEN PATTERN:
+ * - Standard tokens: [site:name]
+ * - Fallback tokens: {field:title|field:name|"Untitled"}
+ * - Mixed: Can use both in same text
+ *
+ * BACKWARD COMPATIBILITY:
+ * - Existing replace() function unchanged
+ * - This function adds fallback support
+ * - Use replaceWithFallbacks() for new features
+ * - Use replace() for simple tokens
+ */
+export async function replaceWithFallbacks(text, context = {}) {
+  if (!text || typeof text !== 'string') {
+    return text;
+  }
+
+  // Pattern to match tokens with fallbacks: {field:title|field:name|"Default"}
+  // Also supports nested expressions
+  const fallbackPattern = /{([^{}]+)}/g;
+
+  let result = text;
+  const matches = [...text.matchAll(fallbackPattern)];
+
+  for (const match of matches) {
+    const fullToken = match[0]; // e.g., {field:title|field:name|"Untitled"}
+    const innerContent = match[1]; // e.g., field:title|field:name|"Untitled"
+
+    try {
+      // Parse fallback chain
+      const fallbacks = parseTokenWithFallbacks(fullToken);
+
+      // Evaluate chain
+      const value = await evaluateFallbackChain(fallbacks, context);
+
+      // Replace in text (handle multiple occurrences)
+      result = result.split(fullToken).join(value);
+    } catch (error) {
+      console.error(`[tokens] Error replacing fallback token ${fullToken}:`, error.message);
+      // Keep original token on error
+    }
+  }
+
+  // Also handle standard tokens without fallbacks
+  result = await replace(result, context);
+
+  return result;
+}
+
 // Auto-initialize with defaults
 init();
 registerEntityProviders();

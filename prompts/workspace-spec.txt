@@ -1,0 +1,290 @@
+<project_specification>
+
+# CMS-Core Workspace Specification
+
+## Project Overview
+
+**Name:** CMS-Core Agent Workspace
+**Type:** Zero-dependency Node.js CMS extensions
+**Version Target:** 1.2.0
+**Existing Codebase:** /Users/Alchemy/Projects/experiments/cms-core (v0.0.81)
+
+This specification adds multisite support and a forge workbench module to CMS-Core, turning it into a shared workspace for AI agents and their human. Two agents (Sy and Hex) and one human (Ernie) collaborate through the CMS — designing specs, managing markdown files, tracking versions, and handing work off to AutoForge for code generation.
+
+## Technology Stack
+
+- **Runtime:** Node.js 20+ (ES modules)
+- **Dependencies:** ZERO npm packages (all built from node: built-ins)
+- **Storage:** Flat-file JSON
+- **Server:** node:http
+- **Architecture:** Service pattern (init/register exports)
+
+## Core Constraint
+
+**CRITICAL:** This project has NO npm dependencies by design. All functionality must be built using only Node.js built-in modules.
+
+## Feature Count
+
+**feature_count: 80**
+
+---
+
+## TIER 1: MULTISITE CORE (Features 1-20)
+
+CMS-Core becomes a multisite CMS. One installation, multiple sites. Each site has its own content, config, theme, and users — but shares the core codebase and modules.
+
+### Core Concept
+- Sites are isolated by site ID (e.g. "sy", "hex", "shared")
+- Each site has its own content/, config/, and themes/ directories
+- Requests are routed to sites by hostname, path prefix, or header
+- A "default" site handles unmatched requests
+- Shared content can be referenced across sites
+
+### Features
+
+1. Site registry service (register, list, get, remove sites)
+2. Site config isolation (each site has own config/site.json with overrides)
+3. Site content isolation (each site has own content/ directory tree)
+4. Site theme isolation (each site can set own layout + skin)
+5. Request-to-site routing by hostname (sy.localhost, hex.localhost)
+6. Request-to-site routing by path prefix (/sy/*, /hex/*)
+7. Request-to-site routing by X-Site header (for API calls)
+8. Site context middleware (req.site available to all handlers)
+9. Default site fallback when no route matches
+10. Site-scoped content API (CRUD operations respect site boundary)
+11. Site-scoped config API (get/set config per site)
+12. Cross-site content references (link to content on another site)
+13. Shared site ("shared") for cross-site content visible to all
+14. Site creation CLI command (node index.js site:create <id> --name)
+15. Site listing CLI command (node index.js site:list)
+16. Site switching CLI command (node index.js site:use <id>)
+17. Admin UI: site switcher dropdown in admin header
+18. Admin UI: site management page (list, create, configure sites)
+19. Per-site user roles (admin on one site doesn't mean admin on another)
+20. Site-aware hooks (modules receive site context in all hook calls)
+
+---
+
+## TIER 2: FORGE WORKBENCH (Features 21-50)
+
+The forge module becomes a full workbench for managing markdown files, design specs, and AutoForge integration. This is where agents and humans collaborate on what to build.
+
+### Core Concept
+- Browse, view, edit, and create .md files through the CMS UI
+- Files organised into workspaces (one per agent + shared)
+- Full version history on every file change
+- Diff view between versions
+- Hand off spec files to AutoForge for code generation
+- Track AutoForge progress from the CMS
+
+### Features — File Management
+
+21. Workspace file browser (tree view of .md files in a workspace directory)
+22. File viewer with markdown rendering (read .md files with formatted display)
+23. File editor with live preview (edit .md files, see rendered markdown alongside)
+24. File creation (new .md file with name, optional template)
+25. File deletion (soft delete, moves to trash)
+26. File rename / move within workspace
+27. File search (full-text search across all .md files in workspace)
+28. File tagging (add tags/categories to files for organisation)
+
+### Features — Version Control
+
+29. File version on every save (store previous content as a version)
+30. Version history list (show all versions of a file with timestamps and summary)
+31. Version diff view (side-by-side or unified diff between any two versions)
+32. Version restore (revert file to a previous version, creating a new version)
+33. Version comparison across files (diff two different files)
+34. Change summary on save (user provides short description of what changed)
+35. Version storage as flat JSON files (versions/ directory alongside content)
+36. Bulk version history (show recent changes across all files in workspace)
+
+### Features — Agent Workspaces
+
+37. Agent workspace mapping (each agent ID maps to a workspace directory)
+38. Sy workspace view (browse/edit Sy's .md files: SOUL.md, AGENTS.md, memory/, designs/)
+39. Hex workspace view (browse/edit Hex's .md files)
+40. Shared workspace view (files both agents can see and edit)
+41. Workspace activity feed (recent changes across a workspace, who changed what)
+42. Cross-workspace suggestions (agent can propose a change to another agent's file)
+43. Suggestion review UI (accept/reject/modify suggested changes)
+44. Workspace templates (predefined .md file structures: SOUL.md, AGENTS.md, spec files)
+
+### Features — AutoForge Integration
+
+45. Spec file export (export a .md spec file as app_spec.txt for AutoForge)
+46. AutoForge project linking (associate a CMS workspace with an AutoForge project dir)
+47. AutoForge status display (show feature progress from .autoforge/features.db)
+48. AutoForge feature list view (all features with status: passing/failing/pending)
+49. AutoForge launch from CMS (start AutoForge run on a linked project)
+50. AutoForge results import (sync completed features back as CMS content)
+
+---
+
+## TIER 3: FORGE UI COMPONENTS (Features 51-65)
+
+The frontend components that make the workbench usable.
+
+### Features
+
+51. Markdown editor component (textarea with toolbar: bold, italic, headers, lists, code blocks)
+52. Markdown preview component (render markdown to HTML in real-time)
+53. Split-pane editor (editor left, preview right, resizable divider)
+54. File tree component (collapsible directory tree with icons for .md, folders)
+55. Diff viewer component (side-by-side with additions/deletions highlighted)
+56. Version timeline component (vertical timeline of file versions)
+57. Activity feed component (stream of recent changes with agent avatars)
+58. Suggestion card component (proposed change with accept/reject buttons and diff)
+59. Workspace switcher component (tabs or dropdown for Sy / Hex / Shared workspaces)
+60. Breadcrumb navigation (workspace > folder > file)
+61. Search results component (file matches with highlighted snippets)
+62. AutoForge progress dashboard (feature counts, pass rates, charts)
+63. Agent status indicators (show which agent last edited a file, when)
+64. Dark theme for forge UI (consistent with consciousness-dark skin)
+65. Mobile-responsive forge layout (usable on tablet/phone for reviewing)
+
+---
+
+## TIER 4: COLLABORATION (Features 66-80)
+
+Features that make the workspace collaborative between Sy, Hex, and Ernie.
+
+### Features
+
+66. File comments (add comments to specific lines or sections of a .md file)
+67. Comment threads (reply to comments, resolve threads)
+68. @mentions in comments (notify an agent or human)
+69. File lock indicator (show when another agent is editing a file)
+70. Conflict resolution (when two agents edit the same file, show merge UI)
+71. Approval workflow (file changes can require approval before saving)
+72. Review requests (agent marks a file for review by another agent or human)
+73. Decision log (structured record of decisions made about a file or spec)
+74. Decision log linked to file versions (which decision led to which change)
+75. Notification feed (new comments, suggestions, review requests)
+76. Agent-to-agent notes (short messages between agents, visible in UI)
+77. Pinned files (pin important files to workspace dashboard)
+78. Workspace dashboard (overview: pinned files, recent activity, pending reviews)
+79. Export workspace as ZIP (backup all .md files + versions)
+80. Import workspace from ZIP (restore from backup)
+
+---
+
+## Implementation Notes
+
+### Multisite Directory Structure
+
+```
+cms-core/
+├── sites/
+│   ├── default/          # Default site (backward compatible)
+│   │   ├── config/
+│   │   ├── content/
+│   │   └── themes/
+│   ├── sy/               # Sy's site
+│   │   ├── config/
+│   │   ├── content/
+│   │   └── workspace/    # Sy's .md files
+│   ├── hex/              # Hex's site
+│   │   ├── config/
+│   │   ├── content/
+│   │   └── workspace/    # Hex's .md files
+│   └── shared/           # Shared content + workspace
+│       ├── content/
+│       └── workspace/
+├── core/                 # Shared core (unchanged)
+├── modules/              # Shared modules (unchanged)
+└── config/
+    └── sites.json        # Site registry
+```
+
+### Version Storage
+
+```
+workspace/
+├── SOUL.md
+├── AGENTS.md
+├── designs/
+│   └── hexagonal-decision-panel.md
+└── .versions/
+    ├── SOUL.md/
+    │   ├── 001.json      # { content, timestamp, author, summary }
+    │   ├── 002.json
+    │   └── latest.json   # Points to current version number
+    └── designs/
+        └── hexagonal-decision-panel.md/
+            ├── 001.json
+            └── latest.json
+```
+
+### API Patterns
+
+All forge APIs are site-scoped:
+
+```
+GET    /api/forge/files?path=/designs     # List files in directory
+GET    /api/forge/file?path=/SOUL.md      # Get file content
+PUT    /api/forge/file?path=/SOUL.md      # Save file (creates version)
+POST   /api/forge/file                    # Create new file
+DELETE /api/forge/file?path=/SOUL.md      # Soft delete
+
+GET    /api/forge/versions?path=/SOUL.md  # List versions
+GET    /api/forge/version?path=/SOUL.md&v=2  # Get specific version
+POST   /api/forge/restore?path=/SOUL.md&v=2  # Restore version
+GET    /api/forge/diff?path=/SOUL.md&a=1&b=2 # Diff two versions
+
+GET    /api/forge/search?q=hexagonal      # Full-text search
+GET    /api/forge/activity                 # Recent changes feed
+
+POST   /api/forge/suggest                 # Propose change to another workspace
+GET    /api/forge/suggestions             # List pending suggestions
+POST   /api/forge/suggestions/:id/accept  # Accept suggestion
+POST   /api/forge/suggestions/:id/reject  # Reject suggestion
+
+GET    /api/forge/autoforge/status        # AutoForge project status
+POST   /api/forge/autoforge/export        # Export spec for AutoForge
+POST   /api/forge/autoforge/launch        # Start AutoForge run
+```
+
+### Site Context
+
+Every request carries site context. Modules access it via:
+
+```javascript
+// In route handlers
+const site = req.site; // { id: 'sy', name: 'Sy 🌀', config: {...} }
+
+// In hooks
+function onContentSave(context) {
+  const site = context.site;
+}
+
+// In services
+const siteConfig = services.site.getConfig('sy');
+```
+
+### Backward Compatibility
+
+- Existing single-site installs continue to work (default site)
+- No migration required — sites/ directory is created when first site is added
+- Existing content/ and config/ become the "default" site automatically
+
+## Priority Order
+
+1. **Multisite core** (1-10) — foundation everything else needs
+2. **File management** (21-28) — see and edit .md files
+3. **Version control** (29-36) — track changes
+4. **Agent workspaces** (37-44) — Sy and Hex have homes
+5. **UI components** (51-65) — make it usable
+6. **Multisite extras** (11-20) — admin UI, cross-site refs
+7. **AutoForge integration** (45-50) — connect to build pipeline
+8. **Collaboration** (66-80) — comments, reviews, decisions
+
+## Success Criteria
+
+- Two sites (sy, hex) running on same CMS instance
+- Ernie can view/edit .md files for both agents through the browser
+- Every file edit creates a version with diff available
+- Agents can see each other's workspaces and propose changes
+- AutoForge project linked and status visible from CMS
+
+</project_specification>
