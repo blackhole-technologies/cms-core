@@ -71,7 +71,7 @@ export async function hook_boot(context) {
 }
 
 /**
- * Ready hook — registers API routes for autocomplete
+ * Ready hook — registers API routes for autocomplete and tag creation
  */
 export async function hook_ready(context) {
   const router = context.services?.get('router');
@@ -80,38 +80,73 @@ export async function hook_ready(context) {
     // Autocomplete endpoint
     router.get('/api/tagify/autocomplete', handleAutocomplete);
     console.log('[tagify-widget] Registered autocomplete API route');
+
+    // Create tag endpoint
+    if (typeof router.post === 'function') {
+      router.post('/api/tagify/create-tag', handleCreateTag);
+      console.log('[tagify-widget] Registered create-tag API route');
+    }
   }
 
   initialized = true;
 }
 
 /**
- * Routes hook — provides API endpoints for Tagify
+ * Routes hook — provides API endpoints and demo page for Tagify
  */
-export function hook_routes() {
-  return [
-    {
-      method: 'GET',
-      path: '/api/tagify/autocomplete',
-      handler: handleAutocomplete
+export async function hook_routes(register, context) {
+  const server = context.services?.get('server');
+  const { readFile } = await import('fs/promises');
+  const { join, dirname } = await import('path');
+  const { fileURLToPath } = await import('url');
+
+  const __filename = fileURLToPath(import.meta.url);
+  const __dirname = dirname(__filename);
+  const assetsPath = join(__dirname, 'assets');
+
+  // Serve static CSS
+  register('GET', '/modules/tagify-widget/assets/tagify.min.css', async (req, res) => {
+    try {
+      const content = await readFile(join(assetsPath, 'tagify.min.css'), 'utf-8');
+      res.writeHead(200, { 'Content-Type': 'text/css' });
+      res.end(content);
+    } catch (err) {
+      res.writeHead(404);
+      res.end('Not Found');
     }
-  ];
-}
+  }, 'Tagify CSS');
 
-/**
- * Content hook — provides HTML pages for testing
- */
-export function hook_content(req) {
-  const { pathname } = new URL(req.url, 'http://localhost');
+  // Serve static JS
+  register('GET', '/modules/tagify-widget/assets/tagify.min.js', async (req, res) => {
+    try {
+      const content = await readFile(join(assetsPath, 'tagify.min.js'), 'utf-8');
+      res.writeHead(200, { 'Content-Type': 'application/javascript' });
+      res.end(content);
+    } catch (err) {
+      res.writeHead(404);
+      res.end('Not Found');
+    }
+  }, 'Tagify JS');
 
-  if (pathname === '/tagify/demo') {
-    return {
-      content: renderDemoPage(),
-      contentType: 'text/html'
-    };
-  }
+  // API endpoint for autocomplete
+  register('GET', '/api/tagify/autocomplete', async (req, res) => {
+    await handleAutocomplete(req, res);
+  }, 'Tagify autocomplete API');
 
-  return null;
+  // API endpoint for creating tags
+  register('POST', '/api/tagify/create-tag', async (req, res) => {
+    await handleCreateTag(req, res);
+  }, 'Create new tag');
+
+  // Demo/test page
+  register('GET', '/tagify/demo', async (req, res) => {
+    if (server && typeof server.html === 'function') {
+      server.html(res, renderDemoPage());
+    } else {
+      res.writeHead(200, { 'Content-Type': 'text/html' });
+      res.end(renderDemoPage());
+    }
+  }, 'Tagify widget demo page');
 }
 
 /**
@@ -145,12 +180,8 @@ function renderTagifyWidget(field, value, options = {}) {
     }
   }
 
-  // Convert IDs to tag objects (for now, just use ID as label)
-  // In production, would fetch entity labels from database
-  const tags = values.map(v => ({
-    value: String(v),
-    label: String(v) // TODO: Fetch actual entity label
-  }));
+  // Convert IDs to tag objects with entity data
+  const tags = await loadTagData(values, target, vocabulary, widgetSettings);
 
   // Tagify settings
   const settings = {
@@ -162,6 +193,10 @@ function renderTagifyWidget(field, value, options = {}) {
       maxItems: 10,
       closeOnSelect: true
     },
+    // Custom template support (Feature #6)
+    tagTemplate: widgetSettings.tagTemplate || null,
+    tagColorField: widgetSettings.tagColorField || null,
+    tagIconField: widgetSettings.tagIconField || null,
     ...widgetSettings
   };
 
@@ -219,14 +254,35 @@ function renderDefaultReference(field, value, options = {}) {
  * Returns matching entities based on search query
  */
 async function handleAutocomplete(req, res) {
-  const { query, target, vocabulary, limit = 10 } = req.query;
-
-  if (!query || query.length < 1) {
-    return res.json([]);
-  }
-
   try {
-    const results = await searchEntities(query, target, vocabulary, limit);
+    // Parse URL query parameters
+    const url = new URL(req.url, 'http://localhost');
+    const params = url.searchParams;
+
+    const query = params.get('query') || params.get('q') || '';
+    const target = params.get('target') || 'taxonomy_term';
+    const vocabulary = params.get('vocabulary') || params.get('vocab') || '';
+    const limit = parseInt(params.get('limit') || '15', 10);
+
+    // Validate query length
+    if (!query || query.trim().length < 1) {
+      return res.json([]);
+    }
+
+    // Validate limit (prevent abuse)
+    const safeLimit = Math.min(Math.max(1, limit), 20);
+
+    // Search entities
+    const startTime = Date.now();
+    const results = await searchEntities(query, target, vocabulary, safeLimit);
+    const duration = Date.now() - startTime;
+
+    // Log performance warning if slow
+    if (duration > 10) {
+      console.warn(`[tagify-widget] Slow autocomplete: ${duration}ms for query "${query}"`);
+    }
+
+    // Return results
     res.json(results);
   } catch (error) {
     console.error('[tagify-widget] Autocomplete error:', error);
@@ -244,28 +300,137 @@ async function handleAutocomplete(req, res) {
  * @returns {Promise<Array>} Array of {value, label} objects
  */
 async function searchEntities(query, target, vocabulary, limit) {
-  // TODO: Implement actual entity search
-  // For now, return mock data for demonstration
+  // Validate inputs
+  if (!query || typeof query !== 'string') {
+    return [];
+  }
 
-  const mockData = [
-    { value: '1', label: 'JavaScript' },
-    { value: '2', label: 'TypeScript' },
-    { value: '3', label: 'Node.js' },
-    { value: '4', label: 'React' },
-    { value: '5', label: 'Vue.js' },
-    { value: '6', label: 'Angular' },
-    { value: '7', label: 'Python' },
-    { value: '8', label: 'Django' },
-    { value: '9', label: 'Flask' },
-    { value: '10', label: 'Ruby' }
-  ];
+  const trimmedQuery = query.trim();
+  if (trimmedQuery.length === 0) {
+    return [];
+  }
 
-  const queryLower = query.toLowerCase();
-  const filtered = mockData.filter(item =>
-    item.label.toLowerCase().includes(queryLower)
-  );
+  // Handle different entity types
+  if (target === 'taxonomy_term' || target === 'term') {
+    return await searchTaxonomyTerms(trimmedQuery, vocabulary, limit);
+  } else if (target === 'node' || target === 'content') {
+    return await searchNodes(trimmedQuery, limit);
+  }
 
-  return filtered.slice(0, limit);
+  // Unsupported target type
+  console.warn(`[tagify-widget] Unsupported target type: ${target}`);
+  return [];
+}
+
+/**
+ * Search taxonomy terms
+ *
+ * @param {string} query - Search term
+ * @param {string} vocabulary - Vocabulary ID
+ * @param {number} limit - Maximum results
+ * @returns {Promise<Array>} Matching terms
+ */
+async function searchTaxonomyTerms(query, vocabulary, limit) {
+  try {
+    // Get taxonomy service
+    const taxonomy = services?.get('taxonomy');
+    if (!taxonomy) {
+      console.error('[tagify-widget] Taxonomy service not available');
+      return [];
+    }
+
+    // If no vocabulary specified, search all vocabularies
+    let results = [];
+
+    if (vocabulary) {
+      // Search specific vocabulary
+      results = taxonomy.searchTerms(vocabulary, query);
+    } else {
+      // Search all vocabularies
+      const vocabularies = taxonomy.listVocabularies();
+      for (const vocab of vocabularies) {
+        const terms = taxonomy.searchTerms(vocab.id, query);
+        results = results.concat(terms);
+      }
+    }
+
+    // Sort by relevance (exact match first, then starts-with, then contains)
+    const queryLower = query.toLowerCase();
+    results.sort((a, b) => {
+      const aName = a.name.toLowerCase();
+      const bName = b.name.toLowerCase();
+
+      // Exact match
+      if (aName === queryLower) return -1;
+      if (bName === queryLower) return 1;
+
+      // Starts with
+      if (aName.startsWith(queryLower) && !bName.startsWith(queryLower)) return -1;
+      if (!aName.startsWith(queryLower) && bName.startsWith(queryLower)) return 1;
+
+      // Alphabetical
+      return aName.localeCompare(bName);
+    });
+
+    // Limit results and format for Tagify
+    return results.slice(0, limit).map(term => ({
+      value: term.id,
+      label: term.name,
+      vocabularyId: term.vocabularyId,
+      slug: term.slug
+    }));
+  } catch (error) {
+    console.error('[tagify-widget] Error searching taxonomy terms:', error);
+    return [];
+  }
+}
+
+/**
+ * Search content nodes
+ *
+ * @param {string} query - Search term
+ * @param {number} limit - Maximum results
+ * @returns {Promise<Array>} Matching nodes
+ */
+async function searchNodes(query, limit) {
+  try {
+    // Get content service
+    const content = services?.get('content');
+    if (!content) {
+      console.error('[tagify-widget] Content service not available');
+      return [];
+    }
+
+    // Search nodes by title (case-insensitive)
+    const queryLower = query.toLowerCase();
+    const allNodes = content.list('node', { limit: 1000 });
+
+    const filtered = allNodes.items.filter(node => {
+      const title = (node.title || '').toLowerCase();
+      return title.includes(queryLower);
+    });
+
+    // Sort by relevance
+    filtered.sort((a, b) => {
+      const aTitle = (a.title || '').toLowerCase();
+      const bTitle = (b.title || '').toLowerCase();
+
+      if (aTitle.startsWith(queryLower) && !bTitle.startsWith(queryLower)) return -1;
+      if (!aTitle.startsWith(queryLower) && bTitle.startsWith(queryLower)) return 1;
+
+      return aTitle.localeCompare(bTitle);
+    });
+
+    // Limit and format
+    return filtered.slice(0, limit).map(node => ({
+      value: node.id,
+      label: node.title || `Node ${node.id}`,
+      type: node.type
+    }));
+  } catch (error) {
+    console.error('[tagify-widget] Error searching nodes:', error);
+    return [];
+  }
 }
 
 /**
@@ -494,6 +659,89 @@ function renderDemoPage() {
   </script>
 </body>
 </html>`;
+}
+
+/**
+ * Create Tag API handler
+ * Creates a new taxonomy term on-the-fly
+ */
+async function handleCreateTag(req, res) {
+  try {
+    // Parse request body
+    let body = '';
+    for await (const chunk of req) {
+      body += chunk;
+    }
+
+    const data = JSON.parse(body);
+    const { label, vocabulary } = data;
+
+    // Validate inputs
+    if (!label || typeof label !== 'string' || label.trim().length === 0) {
+      return res.status(400).json({ error: 'Label is required' });
+    }
+
+    if (!vocabulary || typeof vocabulary !== 'string') {
+      return res.status(400).json({ error: 'Vocabulary is required' });
+    }
+
+    const trimmedLabel = label.trim();
+
+    // Validate label length
+    if (trimmedLabel.length > 255) {
+      return res.status(400).json({ error: 'Label is too long (max 255 characters)' });
+    }
+
+    // Get taxonomy service
+    const taxonomy = services?.get('taxonomy');
+    if (!taxonomy) {
+      console.error('[tagify-widget] Taxonomy service not available');
+      return res.status(500).json({ error: 'Taxonomy service unavailable' });
+    }
+
+    // Check if vocabulary exists
+    const vocab = taxonomy.getVocabulary(vocabulary);
+    if (!vocab) {
+      return res.status(404).json({ error: `Vocabulary "${vocabulary}" not found` });
+    }
+
+    // Check for duplicates (case-insensitive)
+    const existing = taxonomy.searchTerms(vocabulary, trimmedLabel);
+    const duplicate = existing.find(
+      term => term.name.toLowerCase() === trimmedLabel.toLowerCase()
+    );
+
+    if (duplicate) {
+      // Return existing term instead of creating duplicate
+      return res.json({
+        value: duplicate.id,
+        label: duplicate.name,
+        slug: duplicate.slug,
+        existing: true
+      });
+    }
+
+    // Create new term
+    const newTerm = await taxonomy.createTerm({
+      vocabularyId: vocabulary,
+      name: trimmedLabel,
+      description: `Created via Tagify widget`
+    });
+
+    // Log creation
+    console.log(`[tagify-widget] Created new term: "${newTerm.name}" (ID: ${newTerm.id}) in vocabulary "${vocabulary}"`);
+
+    // Return new term
+    res.json({
+      value: newTerm.id,
+      label: newTerm.name,
+      slug: newTerm.slug,
+      existing: false
+    });
+  } catch (error) {
+    console.error('[tagify-widget] Error creating tag:', error);
+    res.status(500).json({ error: 'Failed to create tag: ' + error.message });
+  }
 }
 
 export const name = 'tagify-widget';
