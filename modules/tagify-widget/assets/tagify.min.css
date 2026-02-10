@@ -227,6 +227,28 @@
   animation: tagifyFadeIn 0.2s ease-out;
 }
 
+/* Newly Created Tag Indicator */
+.tagify__tag--new {
+  background: #dcfce7 !important;
+  color: #166534 !important;
+  border: 1px solid #86efac;
+  position: relative;
+}
+
+.tagify__tag--new::after {
+  content: 'NEW';
+  position: absolute;
+  top: -6px;
+  right: -6px;
+  background: #22c55e;
+  color: white;
+  font-size: 9px;
+  font-weight: bold;
+  padding: 1px 4px;
+  border-radius: 3px;
+  line-height: 1;
+}
+
 /* Dark Mode Support */
 @media (prefers-color-scheme: dark) {
   .tagify {
@@ -251,4 +273,60 @@
   .tagify__dropdown__item:hover {
     background-color: #374151;
   }
+
+  .tagify__tag--new {
+    background: #064e3b !important;
+    color: #d1fae5 !important;
+    border-color: #059669;
+  }
+}
+
+/* Custom tag templates - Feature #6 */
+
+/* Colored tags support */
+.tagify__tag--colored {
+  background: var(--tag-bg) !important;
+  color: #fff;
+}
+
+/* Ensure text is readable on colored backgrounds */
+.tagify__tag--colored x:first-child {
+  color: inherit;
+}
+
+/* Icon support */
+.tagify__tag-icon {
+  display: inline-flex;
+  align-items: center;
+  margin-right: 6px;
+  font-size: 1.1em;
+}
+
+.tagify__tag-icon svg,
+.tagify__tag-icon img {
+  width: 16px;
+  height: 16px;
+  display: block;
+}
+
+/* Vocabulary-specific styling (examples) */
+.tagify__tag--vocab-tags {
+  border-left: 3px solid #3b82f6;
+}
+
+.tagify__tag--vocab-categories {
+  border-left: 3px solid #10b981;
+}
+
+.tagify__tag--vocab-skills {
+  border-left: 3px solid #f59e0b;
+}
+
+/* Entity type styling */
+.tagify__tag--type-taxonomy_term {
+  font-style: italic;
+}
+
+.tagify__tag--type-node {
+  font-weight: 500;
 }
