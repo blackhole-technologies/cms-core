@@ -48,6 +48,7 @@ import * as plugins from './plugins.js';
 import * as pluginTypeManager from './plugin-type-manager.js';
 import * as typedData from './typed-data.js';
 import * as conditions from './conditions.js';
+import * as entityViewBuilder from './entity-view-builder.js';
 import * as search from './search.js';
 import * as i18n from './i18n.js';
 import * as comments from './comments.js';
@@ -1586,6 +1587,42 @@ export async function boot(baseDir, options = {}) {
     plugins.initAutoReload(pluginsConfig);
     services.register('plugins', () => plugins);
 
+    // ========================================
+    // BRIDGE SETUP
+    // Wire new core/lib/ patterns into legacy systems
+    // ========================================
+    log(`\n[boot] === BRIDGE SETUP ===`);
+
+    // WHY BRIDGE HERE:
+    // At this point:
+    // - Legacy services and hooks are registered (before new services need container)
+    // - New services that require container can now be registered
+    // - Perfect time to create the bridge layer
+    //
+    // The bridge allows both legacy and new APIs to coexist:
+    // - Legacy services.get() → forwards to new Container
+    // - Legacy hooks.trigger() → forwards to new HookManager
+    // - New container.get() and hookManager.on() also work
+    // - Both APIs access the same underlying services/hooks
+    //
+    // This enables gradual migration:
+    // - Existing modules keep using legacy APIs (no breaking changes)
+    // - New modules can use new pattern APIs
+    // - Modules can access services/hooks registered in either system
+
+    const bridgeManager = new BridgeManager(services, hooks);
+    const { container, hookManager, serviceBridge, hookBridge } = await bridgeManager.setup();
+
+    // WHY STORE ON CONTEXT:
+    // Makes bridge components available to modules via the context object.
+    // Modules can access container.get() for dependency injection.
+    context.container = container;
+    context.hookManager = hookManager;
+    context.serviceBridge = serviceBridge;
+    context.hookBridge = hookBridge;
+
+    log('[boot] ✓ Bridge setup complete - both legacy and new APIs available');
+
     // Initialize plugin type manager
     pluginTypeManager.register(services, context.container);
     log('[boot] Plugin type manager registered');
@@ -1597,6 +1634,10 @@ export async function boot(baseDir, options = {}) {
     // Initialize conditions service
     conditions.register(services, context.container);
     log('[boot] Conditions service registered');
+
+    // Initialize entity view builder service
+    entityViewBuilder.register(services, context.container);
+    log('[boot] Entity view builder service registered');
 
     // Load all plugins
     const pluginResults = await plugins.loadAllPlugins(context);
@@ -5013,6 +5054,95 @@ export async function boot(baseDir, options = {}) {
       console.log(`Total: ${types.length} condition type(s)\n`);
     }, 'List all registered condition types');
 
+    // entity:view-build <entity_type> <entity_id> [--mode=<displayMode>] - Build entity view
+    cli.register('entity:view-build', async (args, ctx) => {
+      if (args.length < 2) {
+        console.error('Usage: entity:view-build <entity_type> <entity_id> [--mode=<displayMode>]');
+        console.error('Example: entity:view-build content article-1 --mode=teaser');
+        throw new Error('Missing required arguments');
+      }
+
+      const entityType = args[0];
+      const entityId = args[1];
+
+      // Parse display mode from args
+      let displayMode = 'full';
+      for (const arg of args) {
+        if (arg.startsWith('--mode=')) {
+          displayMode = arg.substring(7);
+        }
+      }
+
+      try {
+        const viewBuilder = ctx.services.get('entity_view_builder');
+
+        // Define display modes for article bundle to match default
+        viewBuilder.defineDisplayMode('content', 'article', 'full', {
+          fields: {
+            title: { visible: true, weight: 0, formatter: 'plain' },
+            body: { visible: true, weight: 10, formatter: 'html' },
+            created: { visible: true, weight: 20, formatter: 'date', settings: { format: 'medium' } },
+            updated: { visible: true, weight: 30, formatter: 'date', settings: { format: 'medium' } },
+            author: { visible: true, weight: 40, formatter: 'plain' },
+          },
+        });
+
+        viewBuilder.defineDisplayMode('content', 'article', 'teaser', {
+          fields: {
+            title: { visible: true, weight: 0, formatter: 'plain' },
+            body: { visible: true, weight: 10, formatter: 'truncate', settings: { maxLength: 200 } },
+            created: { visible: true, weight: 20, formatter: 'date', settings: { format: 'short' } },
+          },
+        });
+
+        // Get the entity (for now, mock a simple entity for testing)
+        // In production, this would load from the entity storage
+        const entity = {
+          entityType: entityType,
+          bundle: entityType === 'content' ? 'article' : 'default',
+          type: 'article',
+          id: entityId,
+          label: 'Test Article',
+          title: 'Test Article Title',
+          fields: {
+            title: 'Test Article Title',
+            body: 'This is the body content of the test article. It contains some text that should be truncated in teaser mode but shown fully in full mode. Lorem ipsum dolor sit amet, consectetur adipiscing elit. Sed do eiusmod tempor incididunt ut labore et dolore magna aliqua.',
+            created: new Date('2024-01-15T12:00:00Z'),
+            updated: new Date('2024-02-10T09:00:00Z'),
+            author: 'admin',
+          },
+        };
+
+        const viewBuilder = ctx.services.get('entity_view_builder');
+
+        // Build the view
+        const view = viewBuilder.buildView(entity, displayMode);
+
+        console.log(`\n=== Entity View: ${entityType}/${entity.bundle} (${displayMode}) ===\n`);
+        console.log(`Entity ID: ${entityId}`);
+        console.log(`Label: ${entity.label}`);
+        console.log(`\nFields (${view.fields.length}):\n`);
+
+        for (const field of view.fields) {
+          console.log(`  ${field.name}:`);
+          console.log(`    Formatter: ${field.formatter}`);
+          console.log(`    Value: ${JSON.stringify(field.value)}`);
+          console.log(`    Formatted: ${field.formatted}`);
+          console.log(`    Weight: ${field.weight}`);
+          console.log('');
+        }
+
+        // Also render to HTML
+        const html = viewBuilder.renderView(view);
+        console.log('Rendered HTML:\n');
+        console.log(html);
+        console.log('');
+      } catch (error) {
+        console.error(`Error: ${error.message}`);
+        throw error;
+      }
+    }, 'Build entity view with display mode and formatters');
+
     // ==================================================
     // Hot-Swap Plugin Commands
     // ==================================================
@@ -5308,42 +5438,6 @@ export async function boot(baseDir, options = {}) {
 
     // Trigger hook for modules that need to run after registration
     await hooks.trigger('boot:register', context);
-
-    // ========================================
-    // BRIDGE SETUP
-    // Wire new core/lib/ patterns into legacy systems
-    // ========================================
-    log(`\n[boot] === BRIDGE SETUP ===`);
-
-    // WHY BRIDGE HERE:
-    // At this point:
-    // - Legacy services and hooks are fully registered (REGISTER phase complete)
-    // - Modules haven't loaded yet (BOOT phase hasn't started)
-    // - Perfect time to create the bridge layer
-    //
-    // The bridge allows both legacy and new APIs to coexist:
-    // - Legacy services.get() → forwards to new Container
-    // - Legacy hooks.trigger() → forwards to new HookManager
-    // - New container.get() and hookManager.on() also work
-    // - Both APIs access the same underlying services/hooks
-    //
-    // This enables gradual migration:
-    // - Existing modules keep using legacy APIs (no breaking changes)
-    // - New modules can use new pattern APIs
-    // - Modules can access services/hooks registered in either system
-
-    const bridgeManager = new BridgeManager(services, hooks);
-    const { container, hookManager, serviceBridge, hookBridge } = await bridgeManager.setup();
-
-    // WHY STORE ON CONTEXT:
-    // Makes bridge components available to modules via the context object.
-    // Modules can access container.get() for dependency injection.
-    context.container = container;
-    context.hookManager = hookManager;
-    context.serviceBridge = serviceBridge;
-    context.hookBridge = hookBridge;
-
-    log('[boot] ✓ Bridge setup complete - both legacy and new APIs available');
 
     // ========================================
     // PHASE: BOOT
