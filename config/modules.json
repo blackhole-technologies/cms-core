@@ -12,6 +12,7 @@
     "curate",
     "forge",
     "field-group",
-    "cva_test"
+    "cva_test",
+    "tagify-widget"
   ]
 }

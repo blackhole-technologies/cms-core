@@ -1,0 +1,243 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Tagify Widget Demo - CMS-Core</title>
+  <link rel="stylesheet" href="/public/modules/tagify-widget/assets/tagify.min.css">
+  <style>
+    body {
+      font-family: system-ui, -apple-system, sans-serif;
+      max-width: 800px;
+      margin: 40px auto;
+      padding: 20px;
+      background: #f9fafb;
+    }
+    h1 {
+      color: #1f2937;
+      margin-bottom: 30px;
+    }
+    .demo-section {
+      background: white;
+      padding: 20px;
+      border-radius: 8px;
+      margin-bottom: 30px;
+      box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+    }
+    .demo-section h2 {
+      color: #374151;
+      font-size: 1.2em;
+      margin-bottom: 15px;
+    }
+    .form-group {
+      margin-bottom: 20px;
+    }
+    label {
+      display: block;
+      margin-bottom: 8px;
+      font-weight: 500;
+      color: #374151;
+    }
+    button {
+      background: #3b82f6;
+      color: white;
+      border: none;
+      padding: 10px 20px;
+      border-radius: 6px;
+      cursor: pointer;
+      font-size: 1em;
+    }
+    button:hover {
+      background: #2563eb;
+    }
+    .output {
+      margin-top: 20px;
+      padding: 15px;
+      background: #f3f4f6;
+      border-radius: 6px;
+      font-family: monospace;
+      font-size: 0.9em;
+      white-space: pre-wrap;
+    }
+    .status {
+      padding: 10px;
+      margin: 10px 0;
+      border-radius: 6px;
+      font-weight: 500;
+    }
+    .status.success {
+      background: #d1fae5;
+      color: #065f46;
+    }
+    .status.error {
+      background: #fee2e2;
+      color: #991b1b;
+    }
+  </style>
+</head>
+<body>
+  <h1>🏷️ Tagify Widget Demo</h1>
+
+  <div class="demo-section">
+    <h2>Feature #1: Basic Tag Input Widget</h2>
+    <p style="color: #6b7280; margin-bottom: 15px;">
+      Type to search for programming languages. The widget displays selected items as removable chips.
+    </p>
+    <form id="demo-form-1">
+      <div class="form-group">
+        <label>Programming Languages (Multiple Tags)</label>
+        <div class="tagify-widget" data-field-name="languages">
+          <input
+            type="text"
+            id="field-languages"
+            name="languages_tagify"
+            class="tagify-input"
+            data-tagify="true"
+            data-target="content"
+            data-vocabulary=""
+            data-settings='{"maxTags":100,"draggable":true,"createOnEnter":true}'
+            value='[]'
+            placeholder="Type to search or add tags..."
+          />
+          <input
+            type="hidden"
+            name="languages"
+            id="field-languages_value"
+            value='[]'
+          />
+        </div>
+      </div>
+      <button type="submit">Submit Form</button>
+    </form>
+    <div class="output" id="output-1"></div>
+  </div>
+
+  <div class="demo-section">
+    <h2>Feature #4: Drag-and-Drop Reordering</h2>
+    <p style="color: #6b7280; margin-bottom: 15px;">
+      The tags below are pre-populated. Try dragging them to reorder. The order is preserved in the form data.
+    </p>
+    <form id="demo-form-2">
+      <div class="form-group">
+        <label>Priorities (Draggable Tags)</label>
+        <div class="tagify-widget" data-field-name="priorities">
+          <input
+            type="text"
+            id="field-priorities"
+            name="priorities_tagify"
+            class="tagify-input"
+            data-tagify="true"
+            data-target="content"
+            data-vocabulary=""
+            data-settings='{"maxTags":10,"draggable":true,"createOnEnter":true}'
+            value='[{"value":"1","label":"Security"},{"value":"2","label":"Performance"},{"value":"3","label":"UX"}]'
+            placeholder="Type to search or add tags..."
+          />
+          <input
+            type="hidden"
+            name="priorities"
+            id="field-priorities_value"
+            value='["1","2","3"]'
+          />
+        </div>
+      </div>
+      <button type="submit">Submit Form</button>
+    </form>
+    <div class="output" id="output-2"></div>
+  </div>
+
+  <div class="demo-section">
+    <h2>Feature #5: Validation Rules (Max 3 Tags)</h2>
+    <p style="color: #6b7280; margin-bottom: 15px;">
+      Try to add more than 3 tags - you'll see a validation error. Also try adding the same tag twice.
+    </p>
+    <form id="demo-form-3">
+      <div class="form-group">
+        <label>Top 3 Skills (Max 3 Tags, No Duplicates)</label>
+        <div class="tagify-widget" data-field-name="skills">
+          <input
+            type="text"
+            id="field-skills"
+            name="skills_tagify"
+            class="tagify-input"
+            data-tagify="true"
+            data-target="content"
+            data-vocabulary=""
+            data-settings='{"maxTags":3,"draggable":true,"createOnEnter":true,"duplicates":false}'
+            value='[]'
+            placeholder="Type to search or add tags..."
+          />
+          <input
+            type="hidden"
+            name="skills"
+            id="field-skills_value"
+            value='[]'
+          />
+        </div>
+        <small style="color: #6b7280;">Maximum 3 tags allowed, duplicates prevented</small>
+      </div>
+      <button type="submit">Submit Form</button>
+    </form>
+    <div id="validation-status"></div>
+    <div class="output" id="output-3"></div>
+  </div>
+
+  <script src="/public/modules/tagify-widget/assets/tagify.min.js"></script>
+  <script>
+    // Handle form submissions
+    document.getElementById('demo-form-1').addEventListener('submit', (e) => {
+      e.preventDefault();
+      const formData = new FormData(e.target);
+      const data = {
+        languages: JSON.parse(formData.get('languages'))
+      };
+      document.getElementById('output-1').textContent = 'Form Data:\n' + JSON.stringify(data, null, 2);
+    });
+
+    document.getElementById('demo-form-2').addEventListener('submit', (e) => {
+      e.preventDefault();
+      const formData = new FormData(e.target);
+      const data = {
+        priorities: JSON.parse(formData.get('priorities'))
+      };
+      document.getElementById('output-2').textContent = 'Form Data (ordered):\n' + JSON.stringify(data, null, 2);
+    });
+
+    document.getElementById('demo-form-3').addEventListener('submit', (e) => {
+      e.preventDefault();
+      const formData = new FormData(e.target);
+      const data = {
+        skills: JSON.parse(formData.get('skills'))
+      };
+      document.getElementById('output-3').textContent = 'Form Data:\n' + JSON.stringify(data, null, 2);
+    });
+
+    // Listen for validation events
+    const validationStatus = document.getElementById('validation-status');
+
+    document.querySelectorAll('.tagify').forEach(tagify => {
+      tagify.addEventListener('maxTagsExceeded', (e) => {
+        validationStatus.innerHTML = '<div class="status error">⚠️ Maximum tags limit reached (' + e.detail.maxTags + ' tags)</div>';
+        setTimeout(() => { validationStatus.innerHTML = ''; }, 3000);
+      });
+
+      tagify.addEventListener('duplicate', (e) => {
+        validationStatus.innerHTML = '<div class="status error">⚠️ Duplicate tag: "' + (e.detail.label || e.detail.value) + '" already exists</div>';
+        setTimeout(() => { validationStatus.innerHTML = ''; }, 3000);
+      });
+
+      tagify.addEventListener('add', (e) => {
+        console.log('[Tagify] Tag added:', e.detail.data);
+      });
+
+      tagify.addEventListener('remove', (e) => {
+        console.log('[Tagify] Tag removed:', e.detail.data);
+      });
+
+      tagify.addEventListener('change', (e) => {
+        console.log('[Tagify] Value changed:', e.detail.value);
+      });
+    });
+  </script>
+</body>
+</html>

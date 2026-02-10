@@ -1,0 +1,254 @@
+/**
+ * Tagify CSS Styles
+ * Lightweight tag input styling for CMS-Core
+ */
+
+.tagify {
+  --tag-bg: #e5e7eb;
+  --tag-hover-bg: #d1d5db;
+  --tag-text-color: #1f2937;
+  --tag-remove-btn-color: #6b7280;
+  --tag-remove-btn-hover: #ef4444;
+  --tag-border-radius: 4px;
+  --tag-pad: 0.3em 0.5em;
+  --tag-inset-shadow-size: 1.1em;
+
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  gap: 6px;
+  padding: 8px;
+  border: 1px solid #d1d5db;
+  border-radius: 6px;
+  background: #fff;
+  cursor: text;
+  min-height: 42px;
+  position: relative;
+  transition: border-color 0.2s;
+}
+
+.tagify:hover {
+  border-color: #9ca3af;
+}
+
+.tagify:focus-within {
+  border-color: #3b82f6;
+  outline: 2px solid #3b82f620;
+  outline-offset: 0;
+}
+
+.tagify__tag {
+  display: inline-flex;
+  align-items: center;
+  padding: var(--tag-pad);
+  background: var(--tag-bg);
+  color: var(--tag-text-color);
+  border-radius: var(--tag-border-radius);
+  font-size: 0.9em;
+  user-select: none;
+  transition: all 0.15s ease;
+  max-width: 300px;
+}
+
+.tagify__tag:hover {
+  background: var(--tag-hover-bg);
+}
+
+.tagify__tag--dragging {
+  opacity: 0.5;
+  transform: scale(0.95);
+}
+
+.tagify__tag[draggable="true"] {
+  cursor: move;
+}
+
+.tagify__tag > div {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.tagify__tag > div > x:first-child {
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.tagify__tag__removeBtn {
+  font-size: 1.2em;
+  line-height: 1;
+  font-weight: bold;
+  color: var(--tag-remove-btn-color);
+  cursor: pointer;
+  padding: 0 4px;
+  border-radius: 2px;
+  transition: color 0.15s;
+  margin-left: 4px;
+}
+
+.tagify__tag__removeBtn:hover {
+  color: var(--tag-remove-btn-hover);
+  background: rgba(0, 0, 0, 0.05);
+}
+
+.tagify__input {
+  flex: 1;
+  min-width: 120px;
+  padding: 0.3em 0.5em;
+  outline: none;
+  line-height: 1.5;
+  color: #1f2937;
+}
+
+.tagify__input:empty:before {
+  content: attr(data-placeholder);
+  color: #9ca3af;
+  opacity: 1;
+  pointer-events: none;
+}
+
+.tagify__input:focus:before {
+  content: '';
+}
+
+/* Dropdown Styles */
+.tagify__dropdown {
+  position: absolute;
+  z-index: 1000;
+  background: white;
+  border: 1px solid #d1d5db;
+  border-radius: 6px;
+  box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
+  max-height: 200px;
+  overflow-y: auto;
+  margin-top: 4px;
+}
+
+.tagify__dropdown__item {
+  padding: 8px 12px;
+  cursor: pointer;
+  transition: background-color 0.15s;
+  border-bottom: 1px solid #f3f4f6;
+}
+
+.tagify__dropdown__item:last-child {
+  border-bottom: none;
+}
+
+.tagify__dropdown__item:hover {
+  background-color: #f3f4f6;
+}
+
+.tagify__dropdown__item--active {
+  background-color: #e5e7eb;
+}
+
+/* Validation States */
+.tagify--invalid {
+  border-color: #ef4444;
+}
+
+.tagify--invalid:focus-within {
+  outline-color: #ef444420;
+}
+
+/* Loading State */
+.tagify--loading {
+  opacity: 0.6;
+  pointer-events: none;
+}
+
+/* Empty State */
+.tagify:empty .tagify__input:before {
+  content: 'Add tags...';
+  color: #9ca3af;
+}
+
+/* Color Variants */
+.tagify--primary .tagify__tag {
+  background: #dbeafe;
+  color: #1e40af;
+}
+
+.tagify--success .tagify__tag {
+  background: #d1fae5;
+  color: #065f46;
+}
+
+.tagify--warning .tagify__tag {
+  background: #fef3c7;
+  color: #92400e;
+}
+
+.tagify--danger .tagify__tag {
+  background: #fee2e2;
+  color: #991b1b;
+}
+
+/* Disabled State */
+.tagify[disabled] {
+  background-color: #f9fafb;
+  cursor: not-allowed;
+  opacity: 0.6;
+}
+
+.tagify[disabled] .tagify__tag {
+  cursor: not-allowed;
+}
+
+.tagify[disabled] .tagify__input {
+  cursor: not-allowed;
+  pointer-events: none;
+}
+
+/* Responsive */
+@media (max-width: 640px) {
+  .tagify__tag {
+    max-width: 100%;
+  }
+}
+
+/* Animation */
+@keyframes tagifyFadeIn {
+  from {
+    opacity: 0;
+    transform: scale(0.8);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+.tagify__tag {
+  animation: tagifyFadeIn 0.2s ease-out;
+}
+
+/* Dark Mode Support */
+@media (prefers-color-scheme: dark) {
+  .tagify {
+    --tag-bg: #374151;
+    --tag-hover-bg: #4b5563;
+    --tag-text-color: #f3f4f6;
+    --tag-remove-btn-color: #9ca3af;
+
+    background: #1f2937;
+    border-color: #4b5563;
+  }
+
+  .tagify__input {
+    color: #f3f4f6;
+  }
+
+  .tagify__dropdown {
+    background: #1f2937;
+    border-color: #4b5563;
+  }
+
+  .tagify__dropdown__item:hover {
+    background-color: #374151;
+  }
+}

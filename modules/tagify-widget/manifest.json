@@ -1,0 +1,6 @@
+{
+  "name": "tagify-widget",
+  "version": "1.0.0",
+  "description": "Tagify-based tag input widget for entity reference fields with autocomplete, drag-and-drop reordering, and validation",
+  "dependencies": []
+}
