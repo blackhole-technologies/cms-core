@@ -866,6 +866,37 @@ export async function boot(baseDir, options = {}) {
     services.register('blocks', () => blocks);
     log('[boot] Block system enabled');
 
+    // Register example block variants
+    // WHY HERE: After blocks are initialized and registered
+    blocks.registerBlockVariant('html', 'compact', {
+      label: 'Compact',
+      description: 'A compact version with minimal padding',
+      defaults: {
+        body: '<p>Compact HTML content.</p>',
+        cssClass: 'block-compact',
+      },
+    });
+
+    blocks.registerBlockVariant('html', 'highlighted', {
+      label: 'Highlighted',
+      description: 'Highlighted version with special styling',
+      defaults: {
+        body: '<p>Important highlighted content!</p>',
+        cssClass: 'block-highlighted',
+      },
+    });
+
+    blocks.registerBlockVariant('menu', 'compact', {
+      label: 'Compact Menu',
+      description: 'Compact menu for sidebars',
+      defaults: {
+        maxDepth: 1,
+        cssClass: 'menu-compact',
+      },
+    });
+
+    log('[boot] Registered 3 block variant(s)');
+
     // Phase 2 Systems
     // WHY HERE: After core taxonomy/menu/blocks initialization
 
@@ -5140,6 +5171,65 @@ export async function boot(baseDir, options = {}) {
         throw error;
       }
     }, 'Build entity view with display mode and formatters');
+
+    // blocks:variants <block_type> - List variants for a block type
+    cli.register('blocks:variants', async (args, ctx) => {
+      if (args.length < 1) {
+        console.error('Usage: blocks:variants <block_type>');
+        console.error('Example: blocks:variants search');
+        throw new Error('Missing required argument: block_type');
+      }
+
+      const blockType = args[0];
+
+      try {
+        const blocksService = ctx.services.get('blocks');
+
+        // Check if block type exists
+        const type = blocksService.getBlockType(blockType);
+        if (!type) {
+          console.error(`\nError: Block type "${blockType}" does not exist.\n`);
+          throw new Error(`Block type not found: ${blockType}`);
+        }
+
+        const variants = blocksService.listBlockVariants(blockType);
+
+        console.log(`\n=== Block Variants: ${blockType} ===\n`);
+        console.log(`Block Type: ${type.label}`);
+        console.log(`Description: ${type.description || 'N/A'}`);
+        console.log('');
+
+        if (variants.length === 0) {
+          console.log('No variants registered for this block type.\n');
+          return;
+        }
+
+        console.log(`Variants (${variants.length}):\n`);
+
+        for (const variant of variants) {
+          console.log(`  ${variant.name}:`);
+          console.log(`    Label: ${variant.label}`);
+          if (variant.description) {
+            console.log(`    Description: ${variant.description}`);
+          }
+          if (variant.preview_image) {
+            console.log(`    Preview: ${variant.preview_image}`);
+          }
+          const schemaFields = Object.keys(variant.schema);
+          if (schemaFields.length > 0) {
+            console.log(`    Schema fields: ${schemaFields.join(', ')}`);
+          }
+          const defaultFields = Object.keys(variant.defaults);
+          if (defaultFields.length > 0) {
+            console.log(`    Defaults: ${defaultFields.join(', ')}`);
+          }
+          console.log('');
+        }
+      } catch (error) {
+        console.error(`Error: ${error.message}`);
+        throw error;
+      }
+    }, 'List all variants for a block type');
 
     // ==================================================
     // Hot-Swap Plugin Commands

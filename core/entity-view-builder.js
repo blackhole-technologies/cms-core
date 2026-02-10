@@ -249,7 +249,11 @@ export function buildView(entity, displayMode = 'full') {
 
   // Build field list based on configuration
   const fields = [];
-  const entityFields = entity.fields || {};
+
+  // WHY CHECK entity.fields THEN entity:
+  // Some entities wrap fields in entity.fields, others have fields directly.
+  // Try entity.fields first (structured format), fall back to entity itself.
+  const entityFields = entity.fields || entity;
 
   for (const [fieldName, fieldConfig] of Object.entries(config.fields)) {
     // Skip hidden fields
@@ -306,10 +310,28 @@ export function buildView(entity, displayMode = 'full') {
  */
 function buildDefaultView(entity, entityType, bundle, displayMode) {
   const fields = [];
-  const entityFields = entity.fields || {};
+
+  // WHY CHECK entity.fields THEN entity:
+  // Some entities wrap fields in entity.fields, others have fields directly.
+  // Try entity.fields first (structured format), fall back to entity itself.
+  const entityFields = entity.fields || entity;
 
   // Build field list with all fields visible
+  // WHY FILTER METADATA FIELDS:
+  // Skip internal metadata like id, type, bundle, entityType, etc.
+  const metadataFields = new Set(['id', 'type', 'bundle', 'entityType', 'created', 'updated', 'status', 'isDefaultRevision', 'publishedAt', 'scheduledAt', '_layout']);
+
   for (const [fieldName, fieldValue] of Object.entries(entityFields)) {
+    // Skip metadata fields in default view
+    if (metadataFields.has(fieldName)) {
+      continue;
+    }
+
+    // Skip undefined/null values
+    if (fieldValue === undefined || fieldValue === null) {
+      continue;
+    }
+
     fields.push({
       name: fieldName,
       value: fieldValue,
