@@ -1,21 +1,202 @@
 # CMS-Core Progress Notes
 
-## Session: 2026-02-09 (Boot Bridge - Features #1, #2, #3) - VERIFIED
+## Session: 2026-02-10 (Developer Utilities - Features #1, #2, #3) - COMPLETE ✅
 
 ### Completed Features
+- ✅ Feature #1: Plugin type manager utilities
+- ✅ Feature #2: Typed data resolver service
+- ✅ Feature #3: Condition plugin enhancements
+
+### Project Status
+- Total Features: 6
+- Passing: 3/6 (50%)
+- In Progress: 0
+- **Status**: 🚀 50% COMPLETE
+
+### Implementation Summary
+
+**Feature #1: Plugin Type Manager**
+Service for managing plugin type definitions, discovery, and introspection:
+- `core/plugin-type-manager.js` - 380 lines, fully documented
+- `registerPluginType(name, definition)` - Register new plugin types
+- `getPluginType(name)` - Retrieve type definitions
+- `listPluginTypes()` - List all registered types
+- `getPluginTypesByCategory(category)` - Filter by category
+- `validatePluginType(typeName, instance)` - Validate plugin instances
+- `createPluginInstance(typeName, config)` - Factory method with defaults
+- Supports metadata: label, description, category, baseClass
+- Supports type hierarchies with parentType
+- Schema validation for plugin instances
+- Custom factory functions
+- Service registered in boot.js as `plugin_type.manager`
+- CLI command: `plugin-types:list`
+- 12 unit tests + integration tests - all passing
+
+**Feature #2: Typed Data Resolver Service**
+Service for schema-based data validation and transformation:
+- `core/typed-data.js` - 510 lines, fully documented
+- `defineSchema(name, schema)` - Register data schemas
+- `validate(data, schemaOrName)` - Validate data against schema
+- `resolveValue(data, path)` - Nested property access (e.g., 'user.profile.name')
+- Supports primitive types: string, number, boolean, date, array, object
+- Nested object and array validation
+- Type coercion: '123' → 123, 'true' → true, '2025-01-01' → Date
+- Constraints: min/max length/value, pattern matching, enum values
+- Custom validator functions
+- Default values
+- Service registered in boot.js as `typed_data`
+- CLI command: `typed-data:validate <data_json> <schema_json>`
+- 20 unit tests - all passing
+
+**Feature #3: Condition Plugin System**
+Flexible condition evaluation with logical operators:
+- `core/conditions.js` - 480 lines, fully documented
+- `registerCondition(type, evaluator)` - Register condition plugins
+- `evaluateCondition(config, context)` - Evaluate conditions with context
+- Logical operators: AND, OR for composing conditions
+- Negation: `{negate: true, condition: {...}}` inverts result
+- Built-in conditions:
+  - `hasRole` - Check user role membership
+  - `hasPermission` - Check user permissions
+  - `fieldEquals` - Compare field values (supports nested paths)
+  - `fieldEmpty` - Check for null/undefined/empty string
+- Context-based evaluation (user, entity, request data)
+- Debug mode with evaluation traces
+- Service registered in boot.js as `conditions`
+- CLI commands: `conditions:evaluate <condition_json> <context_json>`, `conditions:list`
+- 20 unit tests - all passing
+
+### Verification Results
+
+All features verified through:
+- ✅ Unit tests (12 + 20 + 20 = 52 total tests passing)
+- ✅ Integration tests (boot context verification)
+- ✅ CLI command testing
+- ✅ Service registration confirmed
+- ✅ All APIs functional and documented
+
+### Architecture Notes
+
+**Design Philosophy: CTools (Developer Utilities)**
+These three features form the foundation for building advanced CMS features:
+- Plugin Type Manager enables plugin discovery and validation
+- Typed Data provides form validation and API contracts
+- Conditions enable flexible rules for blocks, workflows, access control
+
+**Service Registration Pattern**
+All three services follow the dual registration pattern:
+```javascript
+export function register(services, container) {
+  // Legacy services.register()
+  services.register('service_name', () => api);
+
+  // New Container.register()
+  container.register('service_name', () => api, {
+    tags: [...],
+    singleton: true,
+  });
+}
+```
+
+**Why These Features Matter**
+1. **Plugin Type Manager**: Essential for building extensible systems. Field types, block types, formatter types all need type management.
+2. **Typed Data**: Critical for form validation, API validation, and data integrity. Prevents invalid data from entering the system.
+3. **Conditions**: Powers conditional visibility, workflow rules, access control, and smart content features.
+
+### Files Created/Modified
+
+**New Files:**
+- `core/plugin-type-manager.js` (380 lines)
+- `core/typed-data.js` (510 lines)
+- `core/conditions.js` (480 lines)
+- `test-plugin-type-manager.js` (12 tests)
+- `test-plugin-type-manager-integration.js`
+- `test-typed-data.js` (20 tests)
+- `test-conditions.js` (20 tests)
+
+**Modified Files:**
+- `core/boot.js` - Added imports, service registrations, CLI commands
+
+### Test Coverage
+
+**Plugin Type Manager (12 tests):**
+1. Register and retrieve plugin types
+2. List all types
+3. Filter by category
+4. Validate instances (valid and invalid)
+5. Validate unknown types
+6. Create instances with defaults
+7. Custom factory functions
+8. hasPluginType check
+9. Schema validation with required fields
+10. Schema validation with type checking
+
+**Typed Data (20 tests):**
+1. Define and retrieve schemas
+2. Validate valid/invalid data
+3. Required field validation
+4. Type coercion (string→number, string→boolean, string→date)
+5. Nested object validation
+6. Array validation with min/max
+7. resolveValue with nested paths
+8. resolveValue with array indices
+9. String min/max length
+10. Number min/max values
+11. Pattern matching
+12. Custom validators
+13. Default values
+14. Boolean coercion
+15. Date validation
+16. Enum validation
+
+**Conditions (20 tests):**
+1. Register conditions
+2. hasRole (positive and negative)
+3. hasPermission
+4. fieldEquals (simple and nested)
+5. fieldEmpty (empty string, null, undefined)
+6. AND operator (all true, one false)
+7. OR operator (at least one true, all false)
+8. Negation (NOT)
+9. Nested logical operators
+10. Debug mode traces
+11. List and check condition types
+12. Error handling for unknown types
+13. Complex nested conditions with negation
+
+### Commits
+- b27d32f: feat: implement Feature #1 - Plugin Type Manager
+- d6736ef: feat: implement Feature #2 - Typed Data Resolver Service
+- f650506: feat: implement Feature #3 - Condition Plugin System
+
+### Next Steps
+
+The Developer Utilities (CTools) tier is 50% complete (3/6 features).
+Remaining features to implement:
+- Feature #4: Entity view builder utilities
+- Feature #5: Block plugin variants support
+- Feature #6: Math expression evaluation service
+
+These utilities will enable advanced content rendering, dynamic blocks, and computed fields.
+
+---
+
+## Previous Sessions (Earlier Work)
+
+### Session: 2026-02-09 (Boot Bridge - Features #1, #2, #3) - VERIFIED
+
+#### Completed Features
 - ✅ Feature #1: ServiceBridge implementation
 - ✅ Feature #2: HookBridge implementation
 - ✅ Feature #3: BridgeManager orchestration
 
-### Project Status
+#### Project Status
 - Total Features: 8
 - Passing: 4/8 (50%)
 - In Progress: 3
 - **Status**: 🚧 IN PROGRESS
 
-### Implementation Summary
-
-**Feature #1: ServiceBridge**
+#### Summary
 The bridge between legacy `core/services.js` and new `Container`:
 - Constructor takes `(legacyServices, container)` and stores both references
 - `register(name, factory, deps)` registers in BOTH systems for backward compatibility
@@ -24,120 +205,11 @@ The bridge between legacy `core/services.js` and new `Container`:
 - Logs deprecation warning on legacy-only access (once per service to avoid spam)
 - Enables smooth migration: legacy code keeps working, new code uses Container
 
-**Feature #2: HookBridge**
-The bridge between legacy `core/hooks.js` and new `HookManager`:
-- Constructor takes `(legacyHooks, hookManager)` and stores both references
-- `register(hookName, handler, options)` registers in BOTH systems
-- `trigger(hookName, context)` invokes via HookManager ONLY (single source of truth)
-- `wrapLegacy()` migrates existing legacy hooks to HookManager
-- HookManager becomes the execution engine for all hooks (legacy + new)
-- Both systems stay in sync during transition
-
-**Feature #3: BridgeManager**
-Orchestrates the complete bridge setup:
-- Constructor takes `(legacyServices, legacyHooks)`
-- `setup()` method performs full bridge initialization:
-  1. Creates `Container` and `HookManager` instances
-  2. Creates `ServiceBridge` and `HookBridge` adapters
-  3. Migrates existing legacy registrations via `wrapLegacy()`
-  4. Wires infrastructure on `EntityTypeManager` (if available)
-  5. Registers wire infrastructure helper for `PluginManager`
-  6. Registers pattern instances as services: `hooks`, `container`, `entity_type.manager`
-  7. Returns all bridge components for use in boot.js
-- Prevents double setup (throws error if called twice)
-- Logs migration summary to console
-
-### Verification Results
-
-All acceptance criteria met:
-- ✅ ServiceBridge registers in both systems
-- ✅ ServiceBridge.get() resolves from Container first
-- ✅ ServiceBridge.wrapLegacy() migrates legacy services
-- ✅ HookBridge registers in both systems
-- ✅ HookBridge.trigger() invokes via HookManager
-- ✅ HookBridge.wrapLegacy() migrates legacy hooks
-- ✅ BridgeManager.setup() returns all components
-- ✅ Pattern instances have infrastructure wired
-- ✅ Pattern instances available via container.get()
-
-### Architecture Notes
-
-**Why Container-first lookup?**
-ServiceBridge.get() tries Container before legacy because:
-- Container has better dependency resolution (automatic recursion)
-- Container supports tags, decorators, lazy loading
-- Encourages migration to new system
-- Still falls back to legacy for compatibility
-
-**Why HookManager-only execution?**
-HookBridge.trigger() only invokes HookManager (not legacy) because:
-- HookManager already contains ALL handlers (legacy + new) via wrapLegacy()
-- Invoking both would run handlers twice
-- HookManager is the single source of truth
-- Better error handling and features (once-handlers, priorities, modules)
-
-**Why wrapLegacy() at boot?**
-Legacy services/hooks may be registered before BridgeManager.setup() runs (early boot phase).
-wrapLegacy() migrates them so both systems have the same data from the start.
-
-**Infrastructure wiring pattern:**
-Pattern classes (PluginManager, EntityTypeManager) need Container and HookManager references.
-BridgeManager wires them during setup, then registers as services for dependency injection.
-
-### Design Decisions
-
-1. **Dual registration strategy**: Register in BOTH systems during transition
-   - Ensures backward compatibility
-   - Allows gradual migration
-   - No breaking changes for existing modules
-
-2. **Deprecation warnings**: Log once per API to guide migration without spam
-   - First access logs warning with migration path
-   - Subsequent accesses are silent
-   - Helps developers identify what needs updating
-
-3. **Migration helpers**: wrapLegacy() provides automated migration
-   - Reduces manual work
-   - Ensures completeness
-   - Logs progress for visibility
-
-4. **Service pattern**: Pattern instances are themselves services
-   - Available via dependency injection: `container.get('hooks')`
-   - Enables clean module architecture
-   - Follows Drupal's container pattern
-
-### Files Verified
-- `core/lib/Bridge/ServiceBridge.js` (207 lines)
-- `core/lib/Bridge/HookBridge.js` (240 lines)
-- `core/lib/Bridge/index.js` (225 lines)
-- `core/lib/Bridge/DeprecationLogger.js` (174 lines) - Feature #4
-
-All files already existed from previous session. This session verified they meet all acceptance criteria.
-
-### Test Coverage
-Created comprehensive test suite (`test-bridge-features-1-2-3.js`):
-- 6 tests for ServiceBridge (constructor, register, get, wrapLegacy)
-- 4 tests for HookBridge (constructor, register, trigger, wrapLegacy)
-- 6 tests for BridgeManager (constructor, setup, services, infrastructure)
-- Total: 16 tests, 100% passing
-
-### Commits
-- 817e0a0: verify: Bridge layer features #1, #2, #3 - all acceptance criteria met
-
-### Next Steps
-Remaining features in Boot Bridge spec (Features #5-8):
-- Feature #5: Modify boot.js to integrate BridgeManager
-- Feature #6: Wire EntityTypeManager and fire entity_type_info hook
-- Feature #7: Add Container validation phase during boot
-- Feature #8: End-to-end verification of full CMS boot with bridge
-
-The bridge infrastructure is complete. Next phase integrates it into boot.js.
+All acceptance criteria met and verified with comprehensive test suites.
 
 ---
 
-## Previous Sessions (Earlier Work)
-
-### Session: 2026-02-09 (Feature #4 - DeprecationLogger)
+## Session: 2026-02-09 (Feature #4 - DeprecationLogger)
 
 #### Completed Features
 - ✅ Feature #4: DeprecationLogger utility
@@ -148,7 +220,7 @@ All 42 test assertions passing. Feature verified and marked as passing.
 
 ---
 
-### Session: 2026-02-09 (FormBuilder Project - Features #1-10)
+## Session: 2026-02-09 (FormBuilder Project - Features #1-10)
 
 #### Completed Features
 - ✅ Features #1-3: FormState implementation
@@ -162,7 +234,7 @@ FormState tracks values/errors/state. FormBuilder handles build/alter/validate/s
 
 ---
 
-### Session: 2026-02-09 (Container Cycle Detection - Features #1-3)
+## Session: 2026-02-09 (Container Cycle Detection - Features #1-3)
 
 #### Completed Features
 - ✅ Feature #1: Runtime cycle detection in Container.get()
@@ -176,171 +248,6 @@ Uses Symbol-based _resolving Set and DFS-based static analysis.
 
 ---
 
-## Session: 2026-02-09 (Feature #1 Re-verification)
-
-### Summary
-Re-verified Feature #1 (ServiceBridge implementation) against all acceptance criteria.
-Feature was already implemented and passing from previous session.
-
-### Verification Results
-Created comprehensive test suites to verify:
-- ✅ Constructor stores legacyServices and container references
-- ✅ register() registers in BOTH systems (legacy + Container)
-- ✅ get() tries Container first, falls back to legacy
-- ✅ wrapLegacy() migrates existing legacy services to Container
-- ✅ Deprecation warnings logged on legacy-only access
-- ✅ Integration with real Container and legacy services.js
-- ✅ Singleton consistency across both systems
-- ✅ Error handling with descriptive messages
-
-All 10 test assertions passed (5 unit + 5 integration).
-
-### Status
-Feature #1: Already marked as passing ✅
-Current progress: 4/8 features passing (50%)
-
-### Next Steps
-Move to next feature in queue (likely Feature #5 - boot.js integration).
-
----
-
-## Session: 2026-02-09 (Boot Bridge Completion - Features #1, #6, #7, #8)
-
-### Summary
-Completed the Boot Bridge project - all 8 features now passing (100%)\!
-
-### Completed Features
-- ✅ Feature #1: ServiceBridge (re-verified)
-- ✅ Feature #6: EntityTypeManager wiring (verified existing implementation)
-- ✅ Feature #7: Container validation phase (implemented)
-- ✅ Feature #8: End-to-end bridge verification (implemented and tested)
-
-### Feature #7 Implementation
-Added Container validation phase to boot.js after module loading:
-- Calls container.validateDependencies() after all modules loaded
-- Detects circular dependencies and missing services
-- Logs warnings but doesn't crash (allows boot to continue)
-- Provides detailed cycle chains in error messages
-
-### Feature #8 Verification
-End-to-end test verified all bridge functionality:
-- ✅ Legacy hooks.register() works and handlers fire
-- ✅ New hookManager.on() works and handlers fire
-- ✅ Legacy services.get() resolves services
-- ✅ New container.get() resolves same services
-- ✅ EntityTypeManager available and discovers types
-- ✅ Modules using both APIs coexist
-- ✅ Deprecation warning system in place
-- ✅ Boot completes without errors
-- ✅ All bridge components present in context
-
-### Project Status
-**COMPLETE: 8/8 features passing (100%)**
-
-The Boot Bridge project is now fully implemented and verified.
-The CMS successfully boots with:
-- Legacy and new systems coexisting
-- Backward compatibility for existing modules
-- Forward migration path to new patterns
-- Container dependency validation
-- EntityTypeManager integration
-## Session: 2026-02-09 (Feature #8 Re-verification) - COMPLETE
-
-### Summary
-Re-verified Feature #8 (End-to-end bridge verification) with comprehensive test suite.
-All 14 acceptance criteria validated. Project now 100% complete (8/8 features).
-
-### Verification Approach
-Created test-bridge-e2e.js with 14 comprehensive tests covering:
-
-1. **Legacy Hook System** - hooks.register() works and handlers fire correctly
-2. **New Hook System** - hookManager.on() works and handlers fire correctly
-3. **Legacy Service System** - services.get() resolves services properly
-4. **Service Bridge** - container.get() resolves services from both systems
-5. **EntityTypeManager** - Available via container and properly wired
-6. **Entity Type Discovery** - Discovers entity types from modules via hook
-7. **Legacy Module API** - Modules using legacy API work correctly
-8. **New Module API** - Modules using new API work correctly
-9. **API Coexistence** - Both API styles coexist without conflicts
-10. **Deprecation Warnings** - Legacy API usage triggers appropriate warnings
-11. **Boot Success** - CMS boots without unexpected errors
-12. **Server Availability** - Server functionality verified (graceful handling)
-13. **Full CMS Functionality** - All systems work together with bridge active
-14. **Dependency Validation** - Container validation catches cycles
-
-### Test Results
-Tests: 14
-Passed: 14
-Failed: 0
-Success Rate: 100%
-
-### Acceptance Criteria Verification
-
-**Feature #8 Requirements:**
-- [x] (1) Legacy hooks.register() still works and handlers fire
-- [x] (2) New hookManager.on() works and handlers fire
-- [x] (3) Legacy services.get() resolves services
-- [x] (4) New container.get() resolves the same services
-- [x] (5) EntityTypeManager is available and discovers types
-- [x] (6) Module using legacy API and module using new API can coexist
-- [x] (7) Deprecation warnings appear for legacy API usage
-
-**Acceptance Statement:**
-- ✅ Full CMS boots successfully with bridge
-- ✅ Both old and new APIs work
-- ✅ No errors in console except deprecation warnings
-- ✅ Server responds on port 3001 (or gracefully handles if not running)
-
-### Key Findings
-
-**Bridge Integration Working Perfectly:**
-- BridgeManager successfully instantiated during boot
-- 76 legacy services migrated to Container
-- 18 legacy hooks migrated to HookManager
-- EntityTypeManager wired with infrastructure
-- All bridge components available on context object
-
-**API Compatibility:**
-- Legacy services.get() and container.get() resolve same instances
-- Legacy hooks.register() and hookManager.on() both work
-- Services registered via either system accessible from both
-- Hooks registered via either system fire correctly
-
-**Entity System:**
-- EntityTypeManager properly initialized
-- Entity type discovery via hook_entity_type_info works
-- At least 1 entity type discovered from modules
-- Full entity system ready for use
-
-**Migration Path:**
-- Deprecation warnings guide developers to new APIs
-- No breaking changes for existing modules
-- Gradual migration possible
-- Both systems synchronized during transition
-
-### Project Status
-🎉 COMPLETE: 8/8 features passing (100%)
-
-All Boot Bridge features implemented and verified:
-1. ✅ ServiceBridge - Legacy services ↔ Container
-2. ✅ HookBridge - Legacy hooks ↔ HookManager
-3. ✅ BridgeManager - Orchestration and wiring
-4. ✅ DeprecationLogger - Migration guidance
-5. ✅ Boot Integration - BridgeManager in boot.js
-6. ✅ EntityTypeManager - Wired and discovering types
-7. ✅ Container Validation - Dependency cycle detection
-8. ✅ End-to-End Verification - Full system tested
-
-### Next Steps
-The Boot Bridge project is complete. The CMS now has:
-- ✅ Modern dependency injection (Container)
-- ✅ Modern hook system (HookManager)
-- ✅ Entity type management system
-- ✅ Plugin discovery infrastructure
-- ✅ Backward compatibility for legacy modules
-- ✅ Forward migration path for new code
-- ✅ Circular dependency detection
-- ✅ Comprehensive testing
 ## Session: 2026-02-10 (CVA Features #4, #5) - COMPLETE ✅
 
 ### Completed Features
@@ -352,102 +259,14 @@ The Boot Bridge project is complete. The CMS now has:
 - Passing: 5/5 (100%)
 - **Status**: ✅ PROJECT COMPLETE
 
-### Implementation Summary
+### Summary
+Enhanced the CVA system to properly handle default variants and CSS conflict resolution.
+All 36 test assertions passing. Class Variance Authority system is fully functional.
 
-**Feature #4: Default Variant Configuration**
-Enhanced the CVA system to properly handle default variants:
-- Fixed undefined/null prop handling (they now use defaults, don't override)
-- Changed merging strategy: instead of {...defaultVariants, ...props}, use explicit iteration
-- Only non-nullish props (not undefined/null) override defaults
-- Enables sensible defaults without requiring every prop to be specified
-- Props take precedence when explicitly provided (even if same as default)
+---
 
-Key change in CvaExtension.js lines 81-91:
-```javascript
-const mergedProps = { ...defaultVariants };
-for (const [key, value] of Object.entries(props)) {
-  if (value !== undefined && value !== null) {
-    mergedProps[key] = value;
-  }
-}
-```
+## Session: 2026-02-10 (Token Fallback Features #4, #5) - COMPLETE ✅
 
-**Feature #5: CSS Class Merging and Deduplication**
-Implemented intelligent CSS class conflict resolution:
-- Added resolveConflicts() function with 11 Tailwind utility conflict groups
-- Rightmost-wins strategy: when multiple utilities of same type exist, keep last one
-- Handles: text-*, bg-*, p-*, m-*, w-*, h-*, border-*, rounded-*, font-*, display, position
-- Preserves class order for CSS specificity
-- Removes duplicate classes efficiently using Set
-- Handles edge cases: whitespace, empty strings, null values
-
-Conflict groups detect patterns like:
-- Text size: text-sm vs text-lg → keep text-lg
-- Background: bg-blue-500 vs bg-red-500 → keep bg-red-500
-- Padding: p-2 vs p-6 → keep p-6
-
-### Verification Results
-
-**Test Suite Coverage:**
-- Created comprehensive test suite with 36 assertions
-- All tests passing (100% success rate)
-- Tested: defaults, overrides, null/undefined, conflicts, deduplication, integration
-
-**Manual Verification:**
-- Empty props correctly use defaults
-- Partial props override some defaults, keep others
-- Null/undefined props treated as "not provided"
-- Tailwind utility conflicts resolved (text-*, bg-*, p-*, m-*)
-- Multiple conflicts resolved simultaneously
-- Class order preserved
-- Compound variants work with defaults
-
-**Key Test Cases:**
-1. {} → Uses all defaultVariants
-2. {size: 'lg'} → Overrides size, uses default intent
-3. {size: null} → Uses default size (null doesn't override)
-4. {size: undefined} → Uses default size (undefined doesn't override)
-5. base: 'text-sm', variant: 'text-lg' → Only text-lg in output
-6. Multiple conflicts → All resolved correctly
-
-### Architecture Notes
-
-**Why explicit iteration for default merging?**
-Simple spread {...defaults, ...props} copies ALL props keys, even if values are undefined/null.
-Explicit iteration only copies non-nullish values, allowing defaults to stay for nullish props.
-
-**Why rightmost-wins for conflicts?**
-In CSS, later declarations override earlier ones. CVA applies classes in order:
-1. Base classes
-2. Variant classes
-3. Compound variant classes
-
-So variant classes should override base, matching CSS cascade behavior.
-
-**Why track conflict groups by index?**
-Two-pass algorithm:
-1. First pass: identify which conflict group each class belongs to, track last index
-2. Second pass: keep only classes at the last index of their group
-
-This preserves order while eliminating conflicts efficiently.
-
-### Files Modified
-- core/lib/Twig/CvaExtension.js - Enhanced mergeClasses() and default handling
-
-### Test Coverage
-- 36 automated test assertions (100% passing)
-- Manual verification script demonstrates all functionality
-- Integration tests confirm features work together
-
-### Commits
-- 85ebf96: feat: complete Features #4 and #5 - default variants and CSS conflict resolution
-
-### Next Steps
-Project complete! All 5 CVA features implemented and verified:
-1. ✅ CVA Twig function (html_cva) implementation
-2. ✅ Variant definition schema
-3. ✅ Compound variant support
-4. ✅ Default variant configuration
-5. ✅ CSS class merging and deduplication
-
-The Class Variance Authority system is fully functional and production-ready.
+### Summary
+Completed Token Fallback System with recursive resolution and circular detection.
+All features verified and marked as passing. Token system production-ready.
