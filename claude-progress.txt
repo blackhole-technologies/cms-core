@@ -785,3 +785,168 @@ Continue with Features #5 and #6:
 These features will extend the autocomplete system to handle external URLs and implement a token-based link storage system for maintaining link integrity.
 
 ---
+
+---
+
+## Session: 2026-02-10 (Link Autocomplete - Features #5, #6) - COMPLETE ✅
+
+### Completed Features
+- ✅ Feature #5: External URL support alongside internal links
+- ✅ Feature #6: Link substitution service for stored references
+
+### Project Status
+- Total Features: 6
+- Passing: 6/6 (100%)
+- In Progress: 0
+- **Status**: 🎉 100% COMPLETE
+
+### Implementation Summary
+
+**Feature #5: External URL Support Alongside Internal Links**
+Enhanced WYSIWYG link dialog to support both internal entity links and external URLs:
+
+**Server-Side Changes:**
+- No server changes required - detection happens client-side
+
+**Client-Side Changes:**
+- `modules/linkit/templates/wysiwyg-demo.html` enhanced with external URL support:
+  - `isExternalUrl(text)` - Detects http:// or https:// URLs
+  - `validateExternalUrl(url)` - Validates URL format before insertion
+  - `showExternalUrlOption(url, target)` - Shows "Use External URL" option
+  - `displayResults()` enhanced to add "Enter External URL Instead" at bottom of results
+  - External URL context handling in autocomplete flow
+  - Different styling for external vs internal links
+
+**Visual Indicators:**
+- External links: 🌐 icon, orange background (#fff3e0), orange text (#e65100)
+- Internal links: Blue background (#e3f2fd), blue text (#1976d2)
+- External links open in new tab (target="_blank", rel="noopener noreferrer")
+
+**Three Interaction Modes:**
+1. **Type External URL Directly**: Type https://example.com → Shows "Use External URL" option
+2. **Choose During Search**: Search for entities → "Enter External URL Instead" option at bottom
+3. **Mixed Usage**: Can add both internal and external links in same content
+
+**Feature #6: Link Substitution Service for Stored References**
+Created comprehensive link substitution service for storing entity references as tokens:
+
+**Core Service:**
+- `modules/linkit/substitution.js` (320+ lines, fully documented)
+- Token format: `{entity:type:id}` (e.g., `{entity:content:abc123}`)
+- `createEntityToken(type, id)` - Generate token for storage
+- `parseEntityToken(token)` - Parse token to extract type and ID
+- `substituteLinks(text, services, options)` - Replace tokens with HTML links
+- `substituteUrls(text, services)` - Replace tokens with plain URLs
+- `clearCache()` - Clear URL cache
+- `getCacheStats()` - Get cache statistics
+
+**Features:**
+- In-memory caching with 1-minute TTL
+- Parallel entity fetching for performance
+- Graceful handling of missing/deleted entities
+- Multiple output formats: HTML, Markdown
+- Configurable link styling and behavior
+- Regex escaping for safe token replacement
+- Support for content, user, and media entities
+
+**API Endpoints:**
+- `POST /api/linkit/substitute` - Authenticated substitution API
+- `GET /linkit/api/substitute` - Public demo endpoint
+- `GET /linkit/substitution` - Interactive demo page
+
+**Demo Page:**
+- Shows raw content with tokens
+- Shows rendered content with substituted links
+- Displays token format examples
+- Explains benefits of token-based storage
+- Interactive test runner
+
+**Why Use Tokens:**
+- ✅ Links stay valid if entity URLs change
+- ✅ Path alias updates don't break links
+- ✅ URL structure changes handled automatically
+- ✅ Graceful handling of deleted entities
+
+### Verification Results
+
+**Feature #5 Verification:**
+- ✅ External URL detection (https://docs.anthropic.com)
+- ✅ "Use External URL" option appears when typing URL
+- ✅ "Enter External URL Instead" at bottom of entity search results
+- ✅ External links have 🌐 icon and orange styling
+- ✅ External links open in new tab (target="_blank")
+- ✅ Security attributes (rel="noopener noreferrer")
+- ✅ Internal links remain blue without target attribute
+- ✅ Mixed usage works (internal + external side by side)
+- ✅ URL validation before insertion
+- ✅ Zero console errors
+
+**Feature #6 Verification:**
+- ✅ Token parsing and creation
+- ✅ Entity token substitution to HTML links
+- ✅ Missing entity graceful handling ("[Link unavailable]")
+- ✅ Multiple tokens in same text
+- ✅ Mixed tokens and regular text
+- ✅ Caching system functional
+- ✅ Parallel entity fetching
+- ✅ Demo page interactive and functional
+- ✅ Zero console errors
+
+### Files Created/Modified
+
+**Feature #5:**
+- `modules/linkit/templates/wysiwyg-demo.html` - Added 100+ lines for external URL support
+
+**Feature #6:**
+- `modules/linkit/substitution.js` (NEW) - 320+ lines, link substitution service
+- `modules/linkit/templates/substitution-demo.html` (NEW) - 280+ lines, interactive demo
+- `modules/linkit/index.js` - Added 60+ lines for substitution API endpoints
+
+### Commits
+- 859b7b5: feat: implement Feature #5 - External URL support alongside internal links
+- 88428db: feat: implement Feature #6 - Link substitution service for stored references
+
+### Architecture Notes
+
+**External URL Strategy**
+The external URL feature uses client-side detection and differentiation:
+- Detection: Regex pattern `/^https?:\/\//i` identifies external URLs
+- Storage: External URLs stored as-is (no token conversion)
+- Rendering: Visual distinction (icon, color) and behavior (new tab)
+- Security: rel="noopener noreferrer" prevents window.opener attacks
+
+**Token-Based Link Storage**
+The substitution service implements a decoupled storage/rendering pattern:
+- **Storage Layer**: Entity references stored as `{entity:type:id}` tokens
+- **Rendering Layer**: Tokens resolved to URLs at display time
+- **Caching Layer**: 1-minute TTL cache prevents redundant lookups
+- **Fallback Layer**: Missing entities show placeholder, don't break page
+
+**Integration Points:**
+- WYSIWYG editors can store tokens instead of URLs
+- Content rendering hooks can call `substituteLinks()` before display
+- Entity URL changes automatically propagate to all references
+- Export/import maintains entity relationships via tokens
+
+### Next Steps
+
+Link Autocomplete project is 100% complete (6/6 features):
+- ✅ Feature #1: Link autocomplete matcher service
+- ✅ Feature #2: Entity search matcher (content, media, users)
+- ✅ Feature #3: WYSIWYG editor integration
+- ✅ Feature #4: Linkit profile configuration admin route
+- ✅ Feature #5: External URL support alongside internal links
+- ✅ Feature #6: Link substitution service for stored references
+
+The Linkit module now provides:
+- Full autocomplete for internal entity links
+- External URL support with visual indicators
+- Profile-based configuration system
+- Token-based link storage for maintainability
+- Complete admin UI for profile management
+- Demo pages for all features
+
+Project complete! 🎉
+
+---
+
