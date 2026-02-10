@@ -487,6 +487,9 @@ export function hook_middleware(use, context) {
       '/api/conscious/interpret',
       '/api/conscious/recent',
       '/api/health',
+      '/api/tagify/autocomplete',
+      '/api/tagify/create-tag',
+      '/api/linkit/autocomplete',
     ];
     
     if (publicPaths.some(p => path.startsWith(p))) {

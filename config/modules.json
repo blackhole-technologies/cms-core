@@ -13,6 +13,7 @@
     "forge",
     "field-group",
     "cva_test",
-    "tagify-widget"
+    "tagify-widget",
+    "linkit"
   ]
 }
