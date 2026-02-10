@@ -5113,8 +5113,6 @@ export async function boot(baseDir, options = {}) {
           },
         };
 
-        const viewBuilder = ctx.services.get('entity_view_builder');
-
         // Build the view
         const view = viewBuilder.buildView(entity, displayMode);
 
