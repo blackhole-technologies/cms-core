@@ -12,21 +12,21 @@
 
 ---
 
-## TIER 1: TAG INPUT WIDGET (Features 0-5)
+## TIER 1: LINK AUTOCOMPLETE (Features 0-5)
 
 These must pass before any functional features.
 
 ### Features
 
-### Feature 0: Tagify widget for entity reference fields
+### Feature 0: Link autocomplete matcher service
 
-### Feature 1: Autocomplete suggestion service
+### Feature 1: Entity search matcher (content, media, users)
 
-### Feature 2: Tag creation on-the-fly support
+### Feature 2: WYSIWYG editor integration
 
-### Feature 3: Drag-and-drop tag reordering
+### Feature 3: Linkit profile configuration admin route
 
-### Feature 4: Maximum tags and validation rules
+### Feature 4: External URL support alongside internal links
 
-### Feature 5: Custom tag display templates
+### Feature 5: Link substitution service for stored references
 

@@ -1,0 +1,36 @@
+{
+  "id": "default",
+  "name": "Default Profile",
+  "description": "Standard configuration for link autocomplete",
+  "entity_types": [
+    "content",
+    "media",
+    "user"
+  ],
+  "matchers": {
+    "content": {
+      "enabled": true,
+      "maxResults": 10,
+      "minSearchLength": 2
+    },
+    "media": {
+      "enabled": true,
+      "maxResults": 10,
+      "minSearchLength": 2
+    },
+    "user": {
+      "enabled": true,
+      "maxResults": 10,
+      "minSearchLength": 2
+    }
+  },
+  "permissions": {
+    "roles": [
+      "authenticated",
+      "editor",
+      "admin"
+    ]
+  },
+  "created": "2026-02-10T11:27:08.831Z",
+  "updated": "2026-02-10T11:27:08.831Z"
+}
