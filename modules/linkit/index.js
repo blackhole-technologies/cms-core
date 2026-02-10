@@ -624,8 +624,8 @@ function renderProfileFormPage(profile, csrfToken = '') {
           headers['X-CSRF-Token'] = csrfToken;
         }
 
-        const res = await fetch('${submitUrl}', {
-          method: '${method}',
+        const res = await fetch(\`${submitUrl}\`, {
+          method: \`${method}\`,
           headers: headers,
           body: JSON.stringify(formData)
         });

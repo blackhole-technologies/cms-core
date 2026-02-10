@@ -174,6 +174,11 @@
             color: #7b1fa2;
         }
 
+        .badge-external {
+            background: #fff3e0;
+            color: #e65100;
+        }
+
         .autocomplete-loading {
             padding: 16px;
             text-align: center;
@@ -358,6 +363,8 @@
                 <li>Fuzzy matching across title, body, username</li>
                 <li>Keyboard navigation (↑/↓/Enter/Esc)</li>
                 <li>Works with content, media, and users</li>
+                <li><strong>External URLs:</strong> Type http:// or https:// to link externally 🌐</li>
+                <li>External links open in new tab with 🌐 indicator</li>
             </ul>
         </div>
     </div>
@@ -443,11 +450,58 @@
                 return;
             }
 
+            // Set context for dialog
+            autocompleteContext = 'dialog';
+
+            // Check if query is an external URL
+            if (isExternalUrl(query)) {
+                // Show "Use External URL" option instead of searching
+                showExternalUrlOption(query, dialogAutocomplete);
+                return;
+            }
+
             debounceTimer = setTimeout(() => {
-                autocompleteContext = 'dialog';
                 performSearch(query, dialogAutocomplete);
             }, 300);
         });
+
+        // Check if text is an external URL
+        function isExternalUrl(text) {
+            return /^https?:\/\//i.test(text);
+        }
+
+        // Validate external URL format
+        function validateExternalUrl(url) {
+            try {
+                const urlObj = new URL(url);
+                return urlObj.protocol === 'http:' || urlObj.protocol === 'https:';
+            } catch {
+                return false;
+            }
+        }
+
+        // Show external URL option
+        function showExternalUrlOption(url, targetElement) {
+            targetElement.innerHTML = `
+                <div class="autocomplete-item external-url-option" data-url="${escapeHtml(url)}" data-title="${escapeHtml(url)}" data-external="true">
+                    <div class="autocomplete-title">🌐 Use External URL</div>
+                    <div class="autocomplete-meta">
+                        <span class="autocomplete-badge badge-external">${escapeHtml(url)}</span>
+                    </div>
+                </div>
+            `;
+            targetElement.classList.add('active');
+
+            // Add click handler
+            const item = targetElement.querySelector('.external-url-option');
+            item.addEventListener('click', () => {
+                if (validateExternalUrl(url)) {
+                    selectResult(item);
+                } else {
+                    alert('Invalid URL format. URL must start with http:// or https://');
+                }
+            });
+        }
 
         // Perform search
         async function performSearch(query, targetElement) {
@@ -459,7 +513,7 @@
                 const results = await response.json();
                 currentResults = results;
                 selectedIndex = -1;
-                displayResults(results, targetElement);
+                displayResults(results, targetElement, query);
             } catch (error) {
                 console.error('Search error:', error);
                 targetElement.innerHTML = '<div class="autocomplete-empty">Error searching</div>';
@@ -467,13 +521,13 @@
         }
 
         // Display results
-        function displayResults(results, targetElement) {
+        function displayResults(results, targetElement, query = '') {
             if (results.length === 0) {
                 targetElement.innerHTML = '<div class="autocomplete-empty">No results found</div>';
                 return;
             }
 
-            targetElement.innerHTML = results.map((result, index) => {
+            let html = results.map((result, index) => {
                 const badgeClass = `badge-${result.type}`;
                 return `
                     <div class="autocomplete-item" data-index="${index}" data-url="${result.url}" data-title="${escapeHtml(result.title)}">
@@ -486,19 +540,46 @@
                 `;
             }).join('');
 
+            // Add "External URL" option at bottom if not already an external URL
+            if (query && !isExternalUrl(query)) {
+                html += `
+                    <div class="autocomplete-item external-url-option" data-external="true" style="border-top: 2px solid #f0f0f0;">
+                        <div class="autocomplete-title">🌐 Enter External URL Instead</div>
+                        <div class="autocomplete-meta">
+                            <span class="autocomplete-badge badge-external">Type http:// or https:// to link externally</span>
+                        </div>
+                    </div>
+                `;
+            }
+
+            targetElement.innerHTML = html;
+
             // Add click handlers
-            targetElement.querySelectorAll('.autocomplete-item').forEach(item => {
+            targetElement.querySelectorAll('.autocomplete-item:not(.external-url-option)').forEach(item => {
                 item.addEventListener('click', () => selectResult(item));
             });
+
+            // External URL option click handler
+            const externalOption = targetElement.querySelector('.external-url-option');
+            if (externalOption) {
+                externalOption.addEventListener('click', () => {
+                    // Clear search and show helper text
+                    linkSearch.value = 'https://';
+                    linkSearch.focus();
+                    linkSearch.setSelectionRange(8, 8); // Position cursor after https://
+                    dialogAutocomplete.innerHTML = '';
+                });
+            }
         }
 
         // Select result
         function selectResult(item) {
             const url = item.dataset.url;
-            const title = item.dataset.title;
+            const title = item.dataset.title || url; // Use URL as title for external links
+            const isExternal = item.dataset.external === 'true';
 
             if (autocompleteContext === 'inline') {
-                insertInlineLink(url, title);
+                insertInlineLink(url, title, isExternal);
             } else if (autocompleteContext === 'dialog') {
                 selectedLinkUrl = url;
                 selectedLinkTitle = title;
@@ -511,7 +592,7 @@
         }
 
         // Insert inline link
-        function insertInlineLink(url, title) {
+        function insertInlineLink(url, title, isExternal = false) {
             if (!inlineSelection) return;
 
             const selection = window.getSelection();
@@ -537,12 +618,20 @@
 
                 range.deleteContents();
 
-                // Insert link
+                // Insert link with external indicator
                 const link = document.createElement('a');
                 link.href = url;
-                link.textContent = title;
+                link.textContent = isExternal ? `🌐 ${title}` : title;
                 link.contentEditable = 'false';
-                link.style.cssText = 'display: inline; background: #e3f2fd; color: #1976d2; padding: 2px 6px; border-radius: 4px; cursor: pointer;';
+
+                // Different styling for external links
+                if (isExternal) {
+                    link.style.cssText = 'display: inline; background: #fff3e0; color: #e65100; padding: 2px 6px; border-radius: 4px; cursor: pointer;';
+                    link.target = '_blank'; // Open in new tab
+                    link.rel = 'noopener noreferrer'; // Security best practice
+                } else {
+                    link.style.cssText = 'display: inline; background: #e3f2fd; color: #1976d2; padding: 2px 6px; border-radius: 4px; cursor: pointer;';
+                }
 
                 range.insertNode(link);
 
@@ -628,20 +717,40 @@
         dialogInsert.addEventListener('click', () => {
             if (!selectedLinkUrl) return;
 
-            // Restore the saved selection
+            // Restore the saved selection or create one at the end of editor
             const selection = window.getSelection();
+            let range;
+
             if (savedSelection) {
                 selection.removeAllRanges();
                 selection.addRange(savedSelection);
+                range = savedSelection;
+            } else {
+                // No saved selection - insert at end of editor
+                editor.focus();
+                range = document.createRange();
+                range.selectNodeContents(editor);
+                range.collapse(false); // Collapse to end
+                selection.removeAllRanges();
+                selection.addRange(range);
             }
 
-            const range = savedSelection || selection.getRangeAt(0);
+            // Determine if this is an external link
+            const isExternal = isExternalUrl(selectedLinkUrl);
 
             const link = document.createElement('a');
             link.href = selectedLinkUrl;
-            link.textContent = selectedLinkTitle;
+            link.textContent = isExternal ? `🌐 ${selectedLinkTitle}` : selectedLinkTitle;
             link.contentEditable = 'false';
-            link.style.cssText = 'display: inline; background: #e3f2fd; color: #1976d2; padding: 2px 6px; border-radius: 4px; cursor: pointer;';
+
+            // Different styling for external links
+            if (isExternal) {
+                link.style.cssText = 'display: inline; background: #fff3e0; color: #e65100; padding: 2px 6px; border-radius: 4px; cursor: pointer;';
+                link.target = '_blank'; // Open in new tab
+                link.rel = 'noopener noreferrer'; // Security best practice
+            } else {
+                link.style.cssText = 'display: inline; background: #e3f2fd; color: #1976d2; padding: 2px 6px; border-radius: 4px; cursor: pointer;';
+            }
 
             range.insertNode(link);
 
