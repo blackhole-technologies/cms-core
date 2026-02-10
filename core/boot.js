@@ -46,6 +46,7 @@ import * as transfer from './transfer.js';
 import * as ratelimit from './ratelimit.js';
 import * as plugins from './plugins.js';
 import * as pluginTypeManager from './plugin-type-manager.js';
+import * as typedData from './typed-data.js';
 import * as search from './search.js';
 import * as i18n from './i18n.js';
 import * as comments from './comments.js';
@@ -1587,6 +1588,10 @@ export async function boot(baseDir, options = {}) {
     // Initialize plugin type manager
     pluginTypeManager.register(services, context.container);
     log('[boot] Plugin type manager registered');
+
+    // Initialize typed data service
+    typedData.register(services, context.container);
+    log('[boot] Typed data service registered');
 
     // Load all plugins
     const pluginResults = await plugins.loadAllPlugins(context);
@@ -4871,6 +4876,50 @@ export async function boot(baseDir, options = {}) {
 
       console.log(`Total: ${types.length} plugin type(s)\n`);
     }, 'List all registered plugin types');
+
+    // ==================================================
+    // Typed Data Commands
+    // ==================================================
+
+    // typed-data:validate <data> <schema> - Validate data against schema
+    cli.register('typed-data:validate', async (args, ctx) => {
+      if (args.length < 2) {
+        console.error('Usage: typed-data:validate <data_json> <schema_json>');
+        console.error('Example: typed-data:validate \'{"name":"Alice","age":"30"}\' \'{"type":"object","properties":{"name":{"type":"string"},"age":{"type":"number"}}}\'');
+        throw new Error('Data and schema required');
+      }
+
+      const dataJson = args[0];
+      const schemaJson = args[1];
+
+      try {
+        const data = JSON.parse(dataJson);
+        const schema = JSON.parse(schemaJson);
+
+        const typedDataService = ctx.services.get('typed_data');
+        const result = typedDataService.validate(data, schema);
+
+        console.log('\nValidation Result:\n');
+        console.log(`  Valid: ${result.valid ? '✓' : '✗'}`);
+
+        if (result.errors.length > 0) {
+          console.log('  Errors:');
+          for (const error of result.errors) {
+            console.log(`    - ${error}`);
+          }
+        }
+
+        if (result.valid && JSON.stringify(data) !== JSON.stringify(result.coerced)) {
+          console.log('  Coerced:');
+          console.log('    ' + JSON.stringify(result.coerced, null, 2).replace(/\n/g, '\n    '));
+        }
+
+        console.log('');
+      } catch (error) {
+        console.error(`Error: ${error.message}`);
+        throw error;
+      }
+    }, 'Validate data against a schema (JSON format)');
 
     // ==================================================
     // Hot-Swap Plugin Commands
