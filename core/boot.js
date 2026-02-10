@@ -49,6 +49,7 @@ import * as pluginTypeManager from './plugin-type-manager.js';
 import * as typedData from './typed-data.js';
 import * as conditions from './conditions.js';
 import * as entityViewBuilder from './entity-view-builder.js';
+import * as mathEvaluator from './math-evaluator.js';
 import * as search from './search.js';
 import * as i18n from './i18n.js';
 import * as comments from './comments.js';
@@ -895,7 +896,28 @@ export async function boot(baseDir, options = {}) {
       },
     });
 
-    log('[boot] Registered 3 block variant(s)');
+    blocks.registerBlockVariant('search', 'compact', {
+      label: 'Compact Search',
+      description: 'Compact search form for sidebars',
+      defaults: {
+        placeholder: 'Search',
+        showButton: false,
+        cssClass: 'search-compact',
+      },
+    });
+
+    blocks.registerBlockVariant('search', 'full', {
+      label: 'Full Search',
+      description: 'Full-featured search form with button',
+      defaults: {
+        placeholder: 'What are you looking for?',
+        showButton: true,
+        buttonText: 'Search',
+        cssClass: 'search-full',
+      },
+    });
+
+    log('[boot] Registered 5 block variant(s)');
 
     // Phase 2 Systems
     // WHY HERE: After core taxonomy/menu/blocks initialization
@@ -1669,6 +1691,10 @@ export async function boot(baseDir, options = {}) {
     // Initialize entity view builder service
     entityViewBuilder.register(services, context.container);
     log('[boot] Entity view builder service registered');
+
+    // Initialize math evaluator service
+    mathEvaluator.register(services, context.container);
+    log('[boot] Math evaluator service registered');
 
     // Load all plugins
     const pluginResults = await plugins.loadAllPlugins(context);
@@ -5230,6 +5256,64 @@ export async function boot(baseDir, options = {}) {
         throw error;
       }
     }, 'List all variants for a block type');
+
+    // math:eval <expression> [--var name=value ...] - Evaluate math expression
+    cli.register('math:eval', async (args, ctx) => {
+      if (args.length < 1) {
+        console.error('Usage: math:eval <expression> [--var name=value ...]');
+        console.error('Example: math:eval "sqrt(16) + (3 * 4)"');
+        console.error('Example: math:eval "price * quantity" --var price=10 --var quantity=3');
+        throw new Error('Missing required argument: expression');
+      }
+
+      const expression = args[0];
+
+      // Parse variables from --var flags
+      const variables = {};
+      for (let i = 1; i < args.length; i++) {
+        if (args[i] === '--var' && args[i + 1]) {
+          const varDef = args[i + 1];
+          const [name, value] = varDef.split('=');
+          if (name && value) {
+            variables[name] = parseFloat(value);
+          }
+          i++;
+        }
+      }
+
+      try {
+        const mathService = ctx.services.get('math_evaluator');
+
+        // Evaluate the expression
+        const result = mathService.evaluate(expression, variables);
+
+        console.log(`\n=== Math Expression Evaluation ===\n`);
+        console.log(`Expression: ${expression}`);
+        if (Object.keys(variables).length > 0) {
+          console.log(`Variables:  ${JSON.stringify(variables)}`);
+        }
+        console.log(`Result:     ${result}`);
+        console.log('');
+      } catch (error) {
+        console.error(`\nError: ${error.message}\n`);
+        throw error;
+      }
+    }, 'Evaluate a mathematical expression');
+
+    // math:functions - List available math functions
+    cli.register('math:functions', async (args, ctx) => {
+      const mathService = ctx.services.get('math_evaluator');
+      const functions = mathService.listFunctions();
+
+      console.log('\n=== Available Math Functions ===\n');
+      console.log('Functions:\n');
+
+      for (const func of functions) {
+        console.log(`  • ${func}`);
+      }
+
+      console.log(`\nTotal: ${functions.length} function(s)\n`);
+    }, 'List all available math functions');
 
     // ==================================================
     // Hot-Swap Plugin Commands

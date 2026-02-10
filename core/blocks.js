@@ -1386,6 +1386,52 @@ function registerBuiltinTypes() {
     },
     source: 'core',
   });
+
+  // Search Block - Search form and results
+  registerBlockType({
+    id: 'search',
+    label: 'Search',
+    description: 'Search form for content',
+    category: 'content',
+    schema: {
+      placeholder: {
+        type: 'string',
+        label: 'Placeholder Text',
+        defaultValue: 'Search...',
+      },
+      showButton: {
+        type: 'boolean',
+        label: 'Show Search Button',
+        defaultValue: true,
+      },
+      buttonText: {
+        type: 'string',
+        label: 'Button Text',
+        defaultValue: 'Search',
+      },
+    },
+    defaults: {
+      placeholder: 'Search...',
+      showButton: true,
+      buttonText: 'Search',
+    },
+    render: async (block) => {
+      const placeholder = escapeHtml(block.config.placeholder || 'Search...');
+      const buttonText = escapeHtml(block.config.buttonText || 'Search');
+      const showButton = block.config.showButton !== false;
+
+      let html = '<form action="/search" method="get" class="search-form">';
+      html += `<input type="text" name="q" placeholder="${placeholder}" class="search-input" />`;
+
+      if (showButton) {
+        html += `<button type="submit" class="search-button">${buttonText}</button>`;
+      }
+
+      html += '</form>';
+      return html;
+    },
+    source: 'core',
+  });
 }
 
 /**
