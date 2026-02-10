@@ -41,7 +41,34 @@ cms-core/
 - JSON:API and GraphQL
 - Theme engine (layouts + skins)
 - Taxonomy, Comments, Search
+- **Token system with fallback chains** (see below)
 - 300+ CLI commands
+
+### Token Fallback System
+
+Smart token replacement with OR-separated fallback chains for graceful handling of missing data:
+
+```javascript
+// Basic fallback: use field:title, or "Untitled" if empty
+{field:title|"Untitled"}
+
+// Multi-level fallback: try multiple sources
+{field:title|field:name|"No Title"}
+
+// URL generation with fallbacks
+<a href="/articles/{field:slug|field:title|"article"}">Read more</a>
+
+// SEO meta tags
+<title>{field:metaTitle|field:title|"Untitled"} | [site:name]</title>
+```
+
+**Features:**
+- Left-to-right evaluation (stops at first non-empty value)
+- Mixed with standard tokens: `{fallback|"default"}` and `[standard:token]`
+- Quoted literals: `"double"` or `'single'` with escape support
+- Performance: <5ms per token, early termination
+
+**See:** [docs/token-fallback.md](docs/token-fallback.md) for full documentation
 
 ## Key APIs
 

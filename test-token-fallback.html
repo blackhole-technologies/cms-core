@@ -1,0 +1,260 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Token Fallback Test - Features 1, 2, 3</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 800px;
+            margin: 50px auto;
+            padding: 20px;
+            background: #f5f5f5;
+        }
+        h1 {
+            color: #333;
+        }
+        .test-section {
+            background: white;
+            padding: 20px;
+            margin: 20px 0;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        .test-case {
+            margin: 15px 0;
+            padding: 10px;
+            background: #f9f9f9;
+            border-left: 4px solid #4CAF50;
+        }
+        .test-case.fail {
+            border-left-color: #f44336;
+        }
+        .label {
+            font-weight: bold;
+            color: #555;
+        }
+        .result {
+            margin-top: 5px;
+            padding: 8px;
+            background: #e8f5e9;
+            border-radius: 4px;
+            font-family: monospace;
+        }
+        .fail .result {
+            background: #ffebee;
+        }
+        .status {
+            display: inline-block;
+            padding: 2px 8px;
+            border-radius: 3px;
+            font-size: 12px;
+            font-weight: bold;
+        }
+        .status.pass {
+            background: #4CAF50;
+            color: white;
+        }
+        .status.fail {
+            background: #f44336;
+            color: white;
+        }
+        #summary {
+            text-align: center;
+            font-size: 24px;
+            font-weight: bold;
+            padding: 20px;
+        }
+        #summary.all-pass {
+            color: #4CAF50;
+        }
+        #summary.has-fail {
+            color: #f44336;
+        }
+    </style>
+</head>
+<body>
+    <h1>Token Fallback System - Visual Verification</h1>
+    <p>Testing Features 1, 2, and 3 for regression</p>
+
+    <div class="test-section">
+        <h2>Feature 1: Token OR Fallback Logic Service</h2>
+        <div id="feature1-tests"></div>
+    </div>
+
+    <div class="test-section">
+        <h2>Feature 2: Chained Token Evaluation</h2>
+        <div id="feature2-tests"></div>
+    </div>
+
+    <div class="test-section">
+        <h2>Feature 3: Default Value Support</h2>
+        <div id="feature3-tests"></div>
+    </div>
+
+    <div id="summary"></div>
+
+    <script type="module">
+        // Import token functions
+        import {
+            parseTokenWithFallbacks,
+            isLiteral,
+            extractLiteral,
+            evaluateFallbackChain,
+            replaceWithFallbacks,
+            registerToken
+        } from './core/tokens.js';
+
+        let totalTests = 0;
+        let passedTests = 0;
+
+        function runTest(containerId, testName, actualValue, expectedValue) {
+            totalTests++;
+            const container = document.getElementById(containerId);
+            const testCase = document.createElement('div');
+
+            const passed = JSON.stringify(actualValue) === JSON.stringify(expectedValue);
+            if (passed) passedTests++;
+
+            testCase.className = passed ? 'test-case' : 'test-case fail';
+            testCase.innerHTML = `
+                <div class="label">
+                    <span class="status ${passed ? 'pass' : 'fail'}">${passed ? 'PASS' : 'FAIL'}</span>
+                    ${testName}
+                </div>
+                <div class="result">
+                    Expected: ${JSON.stringify(expectedValue)}<br>
+                    Actual: ${JSON.stringify(actualValue)}
+                </div>
+            `;
+            container.appendChild(testCase);
+        }
+
+        // Feature 1 Tests
+        function testFeature1() {
+            runTest('feature1-tests', 'Parse 2-option fallback',
+                parseTokenWithFallbacks('{field:title|field:name}'),
+                ['field:title', 'field:name']);
+
+            runTest('feature1-tests', 'Parse 3-option with literal',
+                parseTokenWithFallbacks('{field:title|field:name|"Untitled"}'),
+                ['field:title', 'field:name', '"Untitled"']);
+
+            runTest('feature1-tests', 'Parse with single quotes',
+                parseTokenWithFallbacks("{field:title|'Default'}"),
+                ['field:title', "'Default'"]);
+
+            runTest('feature1-tests', 'Parse single option',
+                parseTokenWithFallbacks('{field:title}'),
+                ['field:title']);
+
+            runTest('feature1-tests', 'Parse empty string',
+                parseTokenWithFallbacks(''),
+                []);
+        }
+
+        // Feature 3 Tests (literal handling)
+        function testFeature3() {
+            runTest('feature3-tests', 'Detect double-quoted literal',
+                isLiteral('"Hello"'),
+                true);
+
+            runTest('feature3-tests', 'Detect single-quoted literal',
+                isLiteral("'World'"),
+                true);
+
+            runTest('feature3-tests', 'Reject non-quoted string',
+                isLiteral('field:title'),
+                false);
+
+            runTest('feature3-tests', 'Extract double-quoted literal',
+                extractLiteral('"Hello World"'),
+                'Hello World');
+
+            runTest('feature3-tests', 'Extract single-quoted literal',
+                extractLiteral("'Test Value'"),
+                'Test Value');
+
+            runTest('feature3-tests', 'Extract with escaped quotes',
+                extractLiteral('"Say \\"Hi\\""'),
+                'Say "Hi"');
+        }
+
+        // Feature 2 Tests (chained evaluation)
+        async function testFeature2() {
+            // Register test tokens
+            registerToken('field', 'title', (ctx) => ctx.entity?.title || null);
+            registerToken('field', 'name', (ctx) => ctx.entity?.name || null);
+            registerToken('field', 'empty', () => '');
+            registerToken('field', 'zero', () => '0');
+
+            const test1 = await evaluateFallbackChain(
+                ['[field:title]', '[field:name]', '"Default"'],
+                { entity: { title: 'My Title' } }
+            );
+            runTest('feature2-tests', 'First option has value',
+                test1,
+                'My Title');
+
+            const test2 = await evaluateFallbackChain(
+                ['[field:title]', '[field:name]', '"Default"'],
+                { entity: { name: 'My Name' } }
+            );
+            runTest('feature2-tests', 'First empty, use second',
+                test2,
+                'My Name');
+
+            const test3 = await evaluateFallbackChain(
+                ['[field:title]', '[field:name]', '"Untitled"'],
+                { entity: {} }
+            );
+            runTest('feature2-tests', 'All tokens empty, use literal',
+                test3,
+                'Untitled');
+
+            const test4 = await evaluateFallbackChain(
+                ['[field:zero]', '"Fallback"'],
+                {}
+            );
+            runTest('feature2-tests', 'Zero is NOT empty',
+                test4,
+                '0');
+
+            const test5 = await evaluateFallbackChain(
+                ['[field:title]', '[field:name]', '[field:empty]', '"Final"'],
+                { entity: {} }
+            );
+            runTest('feature2-tests', 'Multi-level fallback',
+                test5,
+                'Final');
+
+            // Integration test
+            const test6 = await replaceWithFallbacks(
+                'Title: {field:title|field:name|"Untitled"}',
+                { entity: { title: 'My Article' } }
+            );
+            runTest('feature2-tests', 'replaceWithFallbacks integration',
+                test6,
+                'Title: My Article');
+
+            updateSummary();
+        }
+
+        function updateSummary() {
+            const summary = document.getElementById('summary');
+            const allPass = passedTests === totalTests;
+            summary.className = allPass ? 'all-pass' : 'has-fail';
+            summary.innerHTML = `
+                ${allPass ? '✓ ALL TESTS PASSED' : '✗ SOME TESTS FAILED'}<br>
+                <span style="font-size: 18px;">${passedTests} / ${totalTests} tests passed</span>
+            `;
+        }
+
+        // Run all tests
+        testFeature1();
+        testFeature3();
+        await testFeature2();
+    </script>
+</body>
+</html>
