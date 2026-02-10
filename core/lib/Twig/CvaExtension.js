@@ -79,8 +79,16 @@ export function applyCva(element, config, props = {}) {
   classes.push(config.base);
 
   // 2. Merge defaultVariants with props (props override defaults)
+  // NOTE: undefined and null values in props should NOT override defaults
   const defaultVariants = config.defaultVariants || {};
-  const mergedProps = { ...defaultVariants, ...props };
+  const mergedProps = { ...defaultVariants };
+
+  // Only override defaults with non-nullish prop values
+  for (const [key, value] of Object.entries(props)) {
+    if (value !== undefined && value !== null) {
+      mergedProps[key] = value;
+    }
+  }
 
   // 3. Apply variant classes based on props
   const variants = config.variants || {};
@@ -141,9 +149,17 @@ function matchesCompoundVariant(compound, props) {
  * Compound variants and overlapping configs can produce duplicate classes.
  * Deduplication keeps HTML clean and prevents specificity issues.
  *
+ * WHY CONFLICT RESOLUTION:
+ * Tailwind CSS uses utility classes that can conflict (e.g., text-sm vs text-lg).
+ * When multiple utilities of the same type are present, keep only the LAST one
+ * (rightmost wins) to match Tailwind's expected behavior.
+ *
  * @example
  * mergeClasses(['btn btn-primary', 'btn-sm', 'btn btn-primary']);
  * // Returns: 'btn btn-primary btn-sm'
+ *
+ * mergeClasses(['btn text-sm', 'text-lg']);
+ * // Returns: 'btn text-lg' (text-lg overrides text-sm)
  */
 function mergeClasses(classLists) {
   const allClasses = classLists
@@ -151,10 +167,93 @@ function mergeClasses(classLists) {
     .flatMap(classList => classList.split(/\s+/))
     .filter(Boolean);
 
-  // Use Set for deduplication while preserving order
-  const uniqueClasses = [...new Set(allClasses)];
+  // Resolve conflicts for Tailwind utility classes
+  // For each utility prefix, keep only the LAST occurrence (rightmost wins)
+  const resolved = resolveConflicts(allClasses);
 
-  return uniqueClasses.join(' ');
+  return resolved.join(' ');
+}
+
+/**
+ * Resolve conflicting Tailwind utility classes
+ *
+ * Tailwind utilities like text-*, bg-*, p-*, m-* can conflict.
+ * When multiple utilities of the same type exist, keep only the last one.
+ *
+ * @param {string[]} classes - Array of class names
+ * @returns {string[]} - Classes with conflicts resolved
+ */
+function resolveConflicts(classes) {
+  // Define utility prefixes that conflict with each other
+  const conflictGroups = [
+    // Text size: text-xs, text-sm, text-base, text-lg, text-xl, etc.
+    /^text-(xs|sm|base|lg|xl|2xl|3xl|4xl|5xl|6xl|7xl|8xl|9xl)$/,
+    // Background color: bg-{color}-{shade}
+    /^bg-/,
+    // Text color: text-{color}-{shade}
+    /^text-/,
+    // Padding: p-*, px-*, py-*, pt-*, pr-*, pb-*, pl-*
+    /^p[xytrlb]?-/,
+    // Margin: m-*, mx-*, my-*, mt-*, mr-*, mb-*, ml-*
+    /^m[xytrlb]?-/,
+    // Width: w-*
+    /^w-/,
+    // Height: h-*
+    /^h-/,
+    // Border: border-*, border-{side}-*
+    /^border-/,
+    // Rounded: rounded-*, rounded-{corner}-*
+    /^rounded-/,
+    // Font weight: font-{weight}
+    /^font-(thin|extralight|light|normal|medium|semibold|bold|extrabold|black)$/,
+    // Display: block, inline, flex, grid, etc.
+    /^(block|inline|inline-block|flex|inline-flex|grid|inline-grid|hidden)$/,
+    // Position: static, fixed, absolute, relative, sticky
+    /^(static|fixed|absolute|relative|sticky)$/
+  ];
+
+  // Track the last index where each utility group appeared
+  const lastIndexByGroup = new Map();
+  const classToGroup = new Map();
+
+  // First pass: identify which group each class belongs to
+  classes.forEach((cls, index) => {
+    for (let groupIndex = 0; groupIndex < conflictGroups.length; groupIndex++) {
+      if (conflictGroups[groupIndex].test(cls)) {
+        lastIndexByGroup.set(groupIndex, index);
+        classToGroup.set(index, groupIndex);
+        break;
+      }
+    }
+  });
+
+  // Second pass: keep only classes that are:
+  // 1. Not in any conflict group (always keep)
+  // 2. In a conflict group AND are the last occurrence of that group
+  const result = [];
+  const seen = new Set();
+
+  classes.forEach((cls, index) => {
+    const groupIndex = classToGroup.get(index);
+
+    if (groupIndex === undefined) {
+      // Not in any conflict group - keep if not duplicate
+      if (!seen.has(cls)) {
+        result.push(cls);
+        seen.add(cls);
+      }
+    } else {
+      // In a conflict group - keep only if this is the last occurrence
+      if (lastIndexByGroup.get(groupIndex) === index) {
+        if (!seen.has(cls)) {
+          result.push(cls);
+          seen.add(cls);
+        }
+      }
+    }
+  });
+
+  return result;
 }
 
 /**
