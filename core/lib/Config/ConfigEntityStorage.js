@@ -333,9 +333,11 @@ export class ConfigEntityStorage {
     // Convert Map to array for filtering
     const entities = Array.from(entitiesMap.values());
 
-    // Apply conditions
+    // WHY: Use _matchesGroup on the full root group to support nested AND/OR
+    // condition groups. Previously only read query._conditions (flat list),
+    // silently ignoring conditions in nested groups.
     let filtered = entities.filter(entity => {
-      return this._matchesConditions(entity, query._conditions);
+      return this._matchesGroup(entity, query._rootGroup);
     });
 
     // Apply sorting
@@ -361,10 +363,109 @@ export class ConfigEntityStorage {
   }
 
   /**
-   * Check if an entity matches all query conditions.
+   * Recursively evaluate a condition group (with nested sub-groups).
    *
-   * WHY: Private helper for executeQuery. Supports common operators used in
-   * config entity queries (=, <>, IN, STARTS_WITH, CONTAINS).
+   * WHY: Supports complex queries like (A OR B) AND (C OR D).
+   * The root group is always AND. Sub-groups can be AND or OR.
+   * Evaluates flat conditions in the group plus all nested sub-groups,
+   * then combines results using the group's conjunction.
+   *
+   * @param {ConfigEntity} entity - Entity to check
+   * @param {ConditionGroup} group - Condition group with conjunction
+   * @returns {boolean} True if entity matches the group's logic
+   * @private
+   */
+  _matchesGroup(entity, group) {
+    const conjunction = group.getConjunction();
+    const results = [];
+
+    // WHY: Evaluate each flat condition in this group
+    for (const condition of group.getConditions()) {
+      results.push(this._matchesSingleCondition(entity, condition));
+    }
+
+    // WHY: Recursively evaluate nested sub-groups
+    for (const subGroup of group.getGroups()) {
+      results.push(this._matchesGroup(entity, subGroup));
+    }
+
+    // WHY: Empty group matches everything (no constraints = no filtering)
+    if (results.length === 0) {
+      return true;
+    }
+
+    // WHY: Combine results using conjunction
+    if (conjunction === 'OR') {
+      return results.some(r => r);
+    }
+
+    // Default: AND
+    return results.every(r => r);
+  }
+
+  /**
+   * Check if an entity matches a single condition.
+   *
+   * WHY: Extracted from _matchesConditions for use by _matchesGroup.
+   * Supports all operators in VALID_OPERATORS.
+   *
+   * @param {ConfigEntity} entity - Entity to check
+   * @param {{field: string, value: *, operator: string}} condition - Single condition
+   * @returns {boolean} True if condition matches
+   * @private
+   */
+  _matchesSingleCondition(entity, { field, value, operator }) {
+    const entityValue = entity.get(field);
+
+    switch (operator) {
+      case '=':
+        return entityValue === value;
+      case '<>':
+      case '!=':
+        return entityValue !== value;
+      case '>':
+        return entityValue > value;
+      case '>=':
+        return entityValue >= value;
+      case '<':
+        return entityValue < value;
+      case '<=':
+        return entityValue <= value;
+      case 'IN':
+        return Array.isArray(value) && value.includes(entityValue);
+      case 'NOT IN':
+        return Array.isArray(value) && !value.includes(entityValue);
+      case 'BETWEEN':
+        // WHY: Value should be [min, max] array for range checks
+        return Array.isArray(value) && value.length === 2 &&
+               entityValue >= value[0] && entityValue <= value[1];
+      case 'STARTS_WITH':
+        return typeof entityValue === 'string' &&
+               typeof value === 'string' &&
+               entityValue.startsWith(value);
+      case 'CONTAINS':
+        return typeof entityValue === 'string' &&
+               typeof value === 'string' &&
+               entityValue.includes(value);
+      case 'ENDS_WITH':
+        return typeof entityValue === 'string' &&
+               typeof value === 'string' &&
+               entityValue.endsWith(value);
+      case 'IS NULL':
+        return entityValue === null || entityValue === undefined;
+      case 'IS NOT NULL':
+        return entityValue !== null && entityValue !== undefined;
+      default:
+        // WHY: Unknown operator — fail the match to avoid false positives
+        return false;
+    }
+  }
+
+  /**
+   * Check if an entity matches all query conditions (flat AND).
+   *
+   * WHY: Kept for backward compatibility. New code should use _matchesGroup()
+   * which supports nested AND/OR groups.
    *
    * @param {ConfigEntity} entity - Entity to check
    * @param {Array} conditions - Array of condition objects
