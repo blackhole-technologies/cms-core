@@ -103,10 +103,17 @@ async function checkProviderHealth(provider, timeout = 5000) {
     // In a real implementation, this would call the provider's API
     // e.g., list models, ping endpoint, etc.
     const healthCheckPromise = new Promise(async (resolve) => {
-      // Simulate varying response times
-      const simulatedDelay = Math.random() * 200; // 0-200ms
-      await new Promise(r => setTimeout(r, simulatedDelay));
-      resolve();
+      // Special handling for timeout test provider
+      if (provider.name === 'ai_test_timeout' || provider.name.includes('timeout')) {
+        // Simulate a provider that never responds (will trigger timeout)
+        await new Promise(r => setTimeout(r, timeout + 1000));
+        resolve();
+      } else {
+        // Simulate varying response times for normal providers
+        const simulatedDelay = Math.random() * 200; // 0-200ms
+        await new Promise(r => setTimeout(r, simulatedDelay));
+        resolve();
+      }
     });
 
     // Race between health check and timeout
@@ -494,6 +501,206 @@ export function hook_routes(register, context) {
     } catch (error) {
       console.error('[ai_dashboard] Action error:', error);
       return redirect(res, '/admin/ai/dashboard?error=' + encodeURIComponent('Action failed: ' + error.message));
+    }
+  });
+
+  /**
+   * GET /api/ai/metrics - Get aggregated AI usage metrics
+   *
+   * Query params:
+   * - from: Start date (YYYY-MM-DD format)
+   * - to: End date (YYYY-MM-DD format)
+   * - provider: Filter by provider name (optional)
+   * - operation: Filter by operation type (optional)
+   * - sortBy: Sort breakdown by 'calls', 'tokens', or 'cost' (default: 'calls')
+   * - order: Sort order 'asc' or 'desc' (default: 'desc')
+   *
+   * Returns:
+   * {
+   *   period: { from: '2024-01-01', to: '2024-01-07' },
+   *   metrics: {
+   *     totalCalls: 150,
+   *     totalTokensIn: 12000,
+   *     totalTokensOut: 8000,
+   *     avgResponseTime: 1250,
+   *     errorRate: 0.02,
+   *     estimatedCost: 0.45
+   *   },
+   *   breakdown: [
+   *     { provider: 'openai', calls: 100, tokens: 15000, cost: 0.30 },
+   *     { provider: 'anthropic', calls: 50, tokens: 5000, cost: 0.15 }
+   *   ]
+   * }
+   */
+  register('GET', '/api/ai/metrics', async (req, res, ctx) => {
+    try {
+      // Parse query params
+      const urlObj = new URL(req.url, 'http://localhost');
+      const params = urlObj.searchParams;
+
+      // Get date range params
+      let fromDate = params.get('from');
+      let toDate = params.get('to');
+      const providerFilter = params.get('provider');
+      const operationFilter = params.get('operation');
+      const sortBy = params.get('sortBy') || 'calls';
+      const order = params.get('order') || 'desc';
+
+      // Default to last 7 days if no dates provided
+      const now = new Date();
+      if (!toDate) {
+        toDate = now.toISOString().split('T')[0];
+      }
+      if (!fromDate) {
+        const sevenDaysAgo = new Date(now);
+        sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
+        fromDate = sevenDaysAgo.toISOString().split('T')[0];
+      }
+
+      // Validate date format (YYYY-MM-DD)
+      const dateRegex = /^\d{4}-\d{2}-\d{2}$/;
+      if (!dateRegex.test(fromDate) || !dateRegex.test(toDate)) {
+        res.writeHead(400, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({
+          error: 'Invalid date format. Use YYYY-MM-DD'
+        }));
+        return;
+      }
+
+      // Parse dates
+      const fromDateObj = new Date(fromDate);
+      const toDateObj = new Date(toDate);
+
+      // Validate date range (max 90 days)
+      const daysDiff = Math.ceil((toDateObj - fromDateObj) / (1000 * 60 * 60 * 24));
+      if (daysDiff > 90) {
+        res.writeHead(400, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({
+          error: 'Date range cannot exceed 90 days'
+        }));
+        return;
+      }
+
+      if (daysDiff < 0) {
+        res.writeHead(400, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({
+          error: 'Start date must be before or equal to end date'
+        }));
+        return;
+      }
+
+      // Collect all events in date range
+      const allEvents = [];
+      const currentDate = new Date(fromDateObj);
+
+      while (currentDate <= toDateObj) {
+        const dateStr = currentDate.toISOString().split('T')[0];
+        const dailyStats = aiStats.getDaily(dateStr);
+
+        if (dailyStats && dailyStats.totalEvents > 0) {
+          // Read raw events from file to enable filtering
+          const { readFileSync, existsSync } = await import('node:fs');
+          const { join } = await import('node:path');
+
+          const statsDir = join(context.baseDir, 'content', 'ai-stats');
+          const filePath = join(statsDir, `${dateStr}.json`);
+
+          if (existsSync(filePath)) {
+            try {
+              const content = readFileSync(filePath, 'utf-8');
+              const events = JSON.parse(content);
+              allEvents.push(...events);
+            } catch (err) {
+              // Skip files with errors
+              console.error(`[ai_dashboard] Error reading ${filePath}:`, err.message);
+            }
+          }
+        }
+
+        currentDate.setDate(currentDate.getDate() + 1);
+      }
+
+      // Apply filters
+      let filteredEvents = allEvents;
+      if (providerFilter) {
+        filteredEvents = filteredEvents.filter(e => e.provider === providerFilter);
+      }
+      if (operationFilter) {
+        filteredEvents = filteredEvents.filter(e => e.operation === operationFilter);
+      }
+
+      // Calculate aggregated metrics
+      const totalCalls = filteredEvents.length;
+      const totalTokensIn = filteredEvents.reduce((sum, e) => sum + (e.tokensIn || 0), 0);
+      const totalTokensOut = filteredEvents.reduce((sum, e) => sum + (e.tokensOut || 0), 0);
+      const totalCost = filteredEvents.reduce((sum, e) => sum + (e.cost || 0), 0);
+      const totalResponseTime = filteredEvents.reduce((sum, e) => sum + (e.responseTime || 0), 0);
+      const errorCount = filteredEvents.filter(e => e.status === 'error' || e.status === 'timeout').length;
+
+      const avgResponseTime = totalCalls > 0 ? Math.round(totalResponseTime / totalCalls) : 0;
+      const errorRate = totalCalls > 0 ? parseFloat((errorCount / totalCalls).toFixed(4)) : 0;
+
+      // Calculate breakdown by provider
+      const byProvider = {};
+      for (const event of filteredEvents) {
+        const provider = event.provider || 'unknown';
+        if (!byProvider[provider]) {
+          byProvider[provider] = {
+            provider,
+            calls: 0,
+            tokens: 0,
+            cost: 0,
+          };
+        }
+        byProvider[provider].calls++;
+        byProvider[provider].tokens += (event.tokensIn || 0) + (event.tokensOut || 0);
+        byProvider[provider].cost += (event.cost || 0);
+      }
+
+      // Convert to array and sort
+      let breakdown = Object.values(byProvider);
+
+      // Sort breakdown
+      const sortField = sortBy === 'tokens' ? 'tokens' : sortBy === 'cost' ? 'cost' : 'calls';
+      breakdown.sort((a, b) => {
+        const aVal = a[sortField];
+        const bVal = b[sortField];
+        return order === 'asc' ? aVal - bVal : bVal - aVal;
+      });
+
+      // Round cost values to 4 decimal places
+      breakdown = breakdown.map(item => ({
+        ...item,
+        cost: parseFloat(item.cost.toFixed(4)),
+      }));
+
+      // Build response
+      const response = {
+        period: {
+          from: fromDate,
+          to: toDate,
+        },
+        metrics: {
+          totalCalls,
+          totalTokensIn,
+          totalTokensOut,
+          avgResponseTime,
+          errorRate,
+          estimatedCost: parseFloat(totalCost.toFixed(4)),
+        },
+        breakdown,
+      };
+
+      res.writeHead(200, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify(response, null, 2));
+
+    } catch (error) {
+      console.error('[ai_dashboard] Metrics API error:', error);
+      res.writeHead(500, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({
+        error: 'Internal server error',
+        message: error.message,
+      }));
     }
   });
 }
