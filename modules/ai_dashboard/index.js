@@ -33,6 +33,14 @@ function loadTemplate(name) {
 }
 
 /**
+ * HTTP redirect helper
+ */
+function redirect(res, url) {
+  res.writeHead(302, { Location: url });
+  res.end();
+}
+
+/**
  * Parse URL-encoded form data from request body
  */
 function parseFormBody(req) {
@@ -141,6 +149,93 @@ export function hook_boot(context) {
 }
 
 /**
+ * hook_cli - Register CLI commands
+ */
+export function hook_cli(register, context) {
+  const aiStats = context.services.get('ai-stats');
+  const aiRegistry = context.services.get('ai-registry');
+
+  /**
+   * ai:stats:log - Log sample AI operations
+   */
+  register('ai:stats:log', async (args) => {
+    console.log('Logging sample AI operations...\n');
+
+    // Log 10 sample operations
+    for (let i = 0; i < 10; i++) {
+      aiStats.log({
+        provider: i % 2 === 0 ? 'anthropic' : 'openai',
+        operation: 'chat.completion',
+        tokensIn: 100 + Math.floor(Math.random() * 100),
+        tokensOut: 50 + Math.floor(Math.random() * 50),
+        cost: 0.001 + (Math.random() * 0.005),
+        responseTime: 500 + Math.floor(Math.random() * 1500),
+        status: Math.random() > 0.9 ? 'error' : 'success',
+      });
+    }
+
+    // Force flush to disk
+    aiStats.flush();
+
+    console.log('✓ Logged 10 AI operations');
+    console.log(`✓ Saved to content/ai-stats/${new Date().toISOString().split('T')[0]}.json`);
+  });
+
+  /**
+   * ai:stats:daily - Show daily statistics
+   */
+  register('ai:stats:daily', async (args) => {
+    const date = args[0] || new Date().toISOString().split('T')[0];
+    const stats = aiStats.getDaily(date);
+
+    if (!stats || stats.totalEvents === 0) {
+      console.log(`No stats found for ${date}`);
+      return;
+    }
+
+    console.log(`\nAI Stats for ${date}:`);
+    console.log(`  Total Events: ${stats.totalEvents}`);
+    console.log(`  Total Tokens In: ${stats.totalTokensIn.toLocaleString()}`);
+    console.log(`  Total Tokens Out: ${stats.totalTokensOut.toLocaleString()}`);
+    console.log(`  Total Cost: $${stats.totalCost.toFixed(4)}`);
+    console.log(`  Avg Response Time: ${Math.round(stats.avgResponseTime)}ms`);
+    console.log(`\nBy Provider:`);
+    for (const [provider, pstats] of Object.entries(stats.byProvider)) {
+      console.log(`  ${provider}: ${pstats.count} events, $${pstats.cost.toFixed(4)}`);
+    }
+    console.log(`\nBy Status:`);
+    console.log(`  Success: ${stats.byStatus.success}`);
+    console.log(`  Error: ${stats.byStatus.error}`);
+    console.log(`  Timeout: ${stats.byStatus.timeout}`);
+  });
+
+  /**
+   * ai:stats:cost - Show total cost
+   */
+  register('ai:stats:cost', async (args) => {
+    const days = parseInt(args[0]) || 30;
+    const totalCost = aiStats.getTotalCost(days);
+
+    console.log(`\nTotal AI Cost (last ${days} days): $${totalCost.toFixed(4)}`);
+  });
+
+  /**
+   * ai:stats:dates - List available dates
+   */
+  register('ai:stats:dates', async () => {
+    const dates = aiStats.getAvailableDates();
+
+    if (dates.length === 0) {
+      console.log('No stats data available');
+      return;
+    }
+
+    console.log(`\nAvailable stats dates (${dates.length}):`);
+    dates.forEach(date => console.log(`  ${date}`));
+  });
+}
+
+/**
  * hook_routes - Register AI dashboard routes
  */
 export function hook_routes(register, context) {
@@ -148,6 +243,7 @@ export function hook_routes(register, context) {
   const template = context.services.get('template');
   const auth = context.services.get('auth');
   const aiRegistry = context.services.get('ai-registry');
+  const aiStats = context.services.get('ai-stats');
 
   /**
    * Render an admin page with layout
@@ -303,6 +399,19 @@ export function hook_routes(register, context) {
     // Perform health checks on all providers in parallel
     const healthChecks = providers.map(provider => checkProviderHealth(provider));
     const results = await Promise.all(healthChecks);
+
+    // Log stats for each health check
+    for (const result of results) {
+      aiStats.log({
+        provider: result.name,
+        operation: 'health.check',
+        tokensIn: 0,
+        tokensOut: 0,
+        cost: 0,
+        responseTime: result.responseTime,
+        status: result.status === 'ok' ? 'success' : result.status,
+      });
+    }
 
     // Build response
     const response = {

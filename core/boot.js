@@ -100,6 +100,7 @@ import * as contact from './contact.js';
 import * as ban from './ban.js';
 import * as history from './history.js';
 import * as aiRegistry from './ai-registry.js';
+import * as aiStats from './ai-stats.js';
 
 /**
  * Boot phase definitions
@@ -561,6 +562,12 @@ export async function boot(baseDir, options = {}) {
     aiRegistry.init(baseDir);
     services.register('ai-registry', () => aiRegistry);
     log('[boot] AI registry initialized');
+
+    // Initialize AI stats tracking service
+    // Logs AI operations for monitoring, billing, and optimization.
+    aiStats.init(baseDir);
+    services.register('ai-stats', () => aiStats);
+    log('[boot] AI stats service initialized');
 
     // Register media as a service
     // WHY A SERVICE:

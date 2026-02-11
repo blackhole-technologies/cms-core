@@ -467,3 +467,26 @@ Created 3 test AI modules:
 **Browser Testing:** Manual verification via Playwright automation
 **Result:** Feature #2 marked as passing, fully functional AI dashboard
 
+
+
+# Session: 2026-02-11 (Feature #4 - AI Stats Service) - COMPLETE ✅
+
+## Feature #4: Usage statistics tracking service - ✅ COMPLETE
+
+**Core Service (core/ai-stats.js):** 470+ lines, service pattern, registered in boot.js
+
+**Data Structure:** timestamp, provider, operation, tokensIn, tokensOut, cost, responseTime, status, error
+
+**Storage:** Daily JSON files (content/ai-stats/YYYY-MM-DD.json), 30-day retention
+
+**Buffer:** In-memory (100 events), batch write every 10 seconds
+
+**CLI Commands:** ai:stats:log, ai:stats:daily, ai:stats:cost, ai:stats:dates
+
+**Test Suite:** 21/21 tests passed (100%)
+
+**Integration:** Health check endpoint logs stats automatically
+
+**Files:** core/ai-stats.js (NEW 470 lines), test-ai-stats.js (NEW 350 lines), boot.js (MODIFIED), ai_dashboard/index.js (MODIFIED)
+
+**Result:** Feature #4 complete, all requirements verified, 50% progress (4/8 features)
