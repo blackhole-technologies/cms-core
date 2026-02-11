@@ -53,18 +53,111 @@ export function hook_boot(context) {
  */
 export function hook_routes(register, context) {
   // POST /api/ai/alt-text/generate - Generate alt text for an uploaded image
+  // REQUIRES: Authentication (session or API token)
+  // RATE LIMIT: 100 requests per hour per user
   register('POST', '/api/ai/alt-text/generate', async (req, res) => {
+    const startTime = Date.now();
+
     try {
+      // ========================================
+      // STEP 1: AUTHENTICATION
+      // ========================================
+      const auth = context.services.get('auth');
+      const session = auth.getSession(req);
+
+      // Check session authentication
+      if (!session || !session.userId) {
+        // Try API token authentication (Authorization: Bearer <token>)
+        const authHeader = req.headers['authorization'];
+        if (!authHeader || !authHeader.startsWith('Bearer ')) {
+          res.writeHead(401, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({
+            error: 'Unauthorized',
+            message: 'Authentication required. Provide session cookie or Authorization: Bearer <token> header.'
+          }));
+          return;
+        }
+
+        const token = authHeader.substring(7); // Remove 'Bearer '
+        const content = context.services.get('content');
+
+        // Verify API token
+        const tokens = content.list('apitoken').items || [];
+        const validToken = tokens.find(t => t.token === token);
+
+        if (!validToken) {
+          res.writeHead(401, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({
+            error: 'Unauthorized',
+            message: 'Invalid API token'
+          }));
+          return;
+        }
+
+        // Set userId from token for rate limiting
+        session.userId = validToken.userId;
+      }
+
+      const userId = session.userId;
+
+      // ========================================
+      // STEP 2: RATE LIMITING
+      // ========================================
+      const ratelimit = context.services.get('ratelimit');
+      const rateLimitKey = `ai-alt-text:${userId}`;
+      const rateLimitResult = ratelimit.checkLimit(rateLimitKey, {
+        points: 100,          // 100 requests
+        duration: 3600,       // per hour (3600 seconds)
+        reason: 'ai-alt-text'
+      });
+
+      if (!rateLimitResult.allowed) {
+        const retryAfter = rateLimitResult.retryAfter || 60;
+        res.writeHead(429, {
+          'Content-Type': 'application/json',
+          'X-RateLimit-Limit': '100',
+          'X-RateLimit-Remaining': '0',
+          'X-RateLimit-Reset': rateLimitResult.resetAt ? Math.floor(rateLimitResult.resetAt / 1000) : '',
+          'Retry-After': retryAfter.toString()
+        });
+        res.end(JSON.stringify({
+          error: 'Too Many Requests',
+          message: 'Rate limit exceeded. Maximum 100 requests per hour.',
+          retryAfter: retryAfter,
+          limit: 100,
+          resetAt: rateLimitResult.resetAt
+        }));
+        return;
+      }
+
+      // Add rate limit headers to success response
+      const rateLimitHeaders = {
+        'X-RateLimit-Limit': '100',
+        'X-RateLimit-Remaining': rateLimitResult.remaining.toString(),
+        'X-RateLimit-Reset': rateLimitResult.resetAt ? Math.floor(rateLimitResult.resetAt / 1000).toString() : ''
+      };
+
+      // ========================================
+      // STEP 3: PARSE AND VALIDATE INPUT
+      // ========================================
       // Parse multipart form data
       const formData = await parseMultipartFormData(req);
 
       if (!formData.file) {
-        res.writeHead(400, { 'Content-Type': 'application/json' });
-        res.end(JSON.stringify({ error: 'No image file provided' }));
+        res.writeHead(400, {
+          'Content-Type': 'application/json',
+          ...rateLimitHeaders
+        });
+        res.end(JSON.stringify({
+          error: 'Bad Request',
+          message: 'No image file provided. Send image as multipart/form-data with field name "file".'
+        }));
         return;
       }
 
-      // Save temp file
+      // ========================================
+      // STEP 4: SAVE TEMP FILE
+      // ========================================
       const { writeFileSync, mkdirSync } = await import('node:fs');
       const { join } = await import('node:path');
       const tmpDir = '/tmp/claude/ai-alt-text';
@@ -76,19 +169,70 @@ export function hook_routes(register, context) {
       const tmpPath = join(tmpDir, formData.file.filename);
       writeFileSync(tmpPath, formData.file.data);
 
-      // Generate alt text
+      // ========================================
+      // STEP 5: GENERATE ALT TEXT
+      // ========================================
       const result = await generateAltText(tmpPath, context.services);
 
       // Clean up temp file
       const { unlinkSync } = await import('node:fs');
       unlinkSync(tmpPath);
 
-      res.writeHead(200, { 'Content-Type': 'application/json' });
-      res.end(JSON.stringify(result));
+      // ========================================
+      // STEP 6: LOG API USAGE FOR ANALYTICS
+      // ========================================
+      const processingTime = Date.now() - startTime;
+
+      // Log usage (you can enhance this to store in database)
+      console.log(`[ai_image_alt] API usage - User: ${userId}, File: ${formData.file.filename}, Time: ${processingTime}ms, Score: ${result.qualityScore}/100`);
+
+      // ========================================
+      // STEP 7: RETURN ENHANCED RESPONSE
+      // ========================================
+      res.writeHead(200, {
+        'Content-Type': 'application/json',
+        ...rateLimitHeaders
+      });
+
+      res.end(JSON.stringify({
+        success: true,
+        data: {
+          text: result.altText,
+          score: result.qualityScore,
+          confidence: result.confidence,
+          processingTime: processingTime,
+          metadata: {
+            provider: result.provider,
+            grade: result.qualityGrade,
+            timestamp: result.timestamp
+          }
+        },
+        rateLimit: {
+          limit: 100,
+          remaining: rateLimitResult.remaining,
+          resetAt: rateLimitResult.resetAt
+        }
+      }));
     } catch (error) {
       console.error('[ai_image_alt] Generate error:', error);
-      res.writeHead(500, { 'Content-Type': 'application/json' });
-      res.end(JSON.stringify({ error: error.message }));
+
+      // Determine error type and status code
+      let statusCode = 500;
+      let errorMessage = error.message;
+
+      if (error.message.includes('Unsupported image format')) {
+        statusCode = 400;
+      } else if (error.message.includes('Image too large')) {
+        statusCode = 400;
+      } else if (error.message.includes('not found')) {
+        statusCode = 400;
+      }
+
+      res.writeHead(statusCode, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({
+        error: statusCode === 400 ? 'Bad Request' : 'Internal Server Error',
+        message: errorMessage
+      }));
     }
   });
 
