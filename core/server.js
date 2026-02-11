@@ -165,8 +165,8 @@ export function start(port, context) {
       }
     });
 
-    // Start listening
-    server.listen(port, () => {
+    // Start listening on localhost only (127.0.0.1 instead of 0.0.0.0)
+    server.listen(port, '127.0.0.1', () => {
       resolve();
     });
   });
