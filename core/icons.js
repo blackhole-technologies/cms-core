@@ -90,7 +90,7 @@ export function init(iconConfig, baseDirPath) {
   packs.clear();
   searchIndex.clear();
 
-  // Register icon packs
+  // Register icon packs from config
   if (config.packs && Array.isArray(config.packs)) {
     for (const pack of config.packs) {
       if (pack.enabled !== false) {
@@ -98,6 +98,9 @@ export function init(iconConfig, baseDirPath) {
       }
     }
   }
+
+  // Note: Plugin packs are registered later via discoverPluginPacks()
+  // This allows module hooks to be wired first
 
   // Discover icons if configured
   if (config.discovery?.scanOnBoot !== false) {
@@ -112,7 +115,41 @@ export function init(iconConfig, baseDirPath) {
 }
 
 /**
- * Register an icon pack
+ * Discover and register icon packs from plugins
+ *
+ * WHY SEPARATE FROM INIT:
+ * - Module hooks are wired after icons.init() is called
+ * - This function is called after modules are fully loaded
+ * - Allows plugins to register packs via hook_icon_packs_info
+ *
+ * @param {Function} hooksService - Hooks service for triggering plugin hook
+ */
+export async function discoverPluginPacks(hooksService) {
+  if (!initialized) {
+    throw new Error('[icons] Service must be initialized before discovering plugin packs');
+  }
+
+  if (!hooksService) {
+    return;
+  }
+
+  // Trigger hook to let modules register icon packs
+  // Hook name: hook_icon_packs_info → 'icon:packs:info'
+  const context = { registerPack: registerPackExternal, baseDir };
+  await hooksService.trigger('icon:packs:info', context);
+
+  // Re-discover icons to include plugin packs
+  if (config.discovery?.scanOnBoot !== false) {
+    discoverIcons();
+  }
+
+  const packCount = packs.size;
+  const iconCount = registry.size;
+  console.log(`[icons] Discovered plugin packs (${packCount} total packs, ${iconCount} total icons)`);
+}
+
+/**
+ * Register an icon pack (internal)
  *
  * WHY VALIDATE PACK:
  * - Fail fast if pack configuration is invalid
@@ -135,6 +172,12 @@ function registerPack(pack) {
     throw new Error(`[icons] Pack path is required for pack "${pack.id}"`);
   }
 
+  // Check for duplicate pack IDs
+  if (packs.has(pack.id)) {
+    console.warn(`[icons] Pack "${pack.id}" already registered, skipping`);
+    return;
+  }
+
   // Store pack metadata
   packs.set(pack.id, {
     id: pack.id,
@@ -145,8 +188,46 @@ function registerPack(pack) {
     path: pack.path,
     prefix: pack.prefix || pack.id,
     enabled: pack.enabled !== false,
+    source: pack.source || 'config',
     iconCount: 0,
   });
+}
+
+/**
+ * Register an icon pack from external modules (plugin API)
+ *
+ * WHY SEPARATE FROM INTERNAL:
+ * - Provides a stable public API for modules
+ * - Can add additional validation or hooks later
+ * - Tracks source for debugging (config vs module)
+ *
+ * USAGE (in a module's hook_icon_packs_info):
+ *   export function hook_icon_packs_info(context) {
+ *     context.registerPack({
+ *       id: 'mypack',
+ *       name: 'My Icon Pack',
+ *       description: 'Custom icon pack',
+ *       path: 'modules/mymodule/icons',
+ *       prefix: 'mypack',
+ *       type: 'svg'
+ *     });
+ *   }
+ *
+ * @param {Object} pack - Pack configuration
+ */
+function registerPackExternal(pack) {
+  // Add source tracking for plugin packs
+  const packWithSource = {
+    ...pack,
+    source: 'plugin',
+  };
+
+  try {
+    registerPack(packWithSource);
+    console.log(`[icons] Registered icon pack "${pack.id}" from plugin`);
+  } catch (error) {
+    console.error(`[icons] Failed to register plugin pack "${pack.id}":`, error.message);
+  }
 }
 
 /**
@@ -618,7 +699,8 @@ export function registerCli(register) {
     console.log('====================\n');
 
     for (const pack of packsList) {
-      console.log(`${pack.name} (${pack.id})`);
+      const sourceLabel = pack.source === 'plugin' ? ' [plugin]' : '';
+      console.log(`${pack.name} (${pack.id})${sourceLabel}`);
       console.log(`  Description: ${pack.description}`);
       console.log(`  Version: ${pack.version}`);
       console.log(`  Type: ${pack.type}`);
@@ -630,6 +712,44 @@ export function registerCli(register) {
 
     console.log(`Total: ${packsList.length} packs\n`);
   }, 'List all icon pack details');
+
+  register('icons:register-pack', async (args, context) => {
+    const [path, format = 'svg'] = args;
+
+    if (!path) {
+      console.error('Usage: icons:register-pack <path> [format]');
+      console.error('Example: icons:register-pack public/icons/custom svg');
+      return;
+    }
+
+    // Extract pack ID from path
+    const pathParts = path.split('/');
+    const packId = pathParts[pathParts.length - 1];
+
+    const packConfig = {
+      id: packId,
+      name: packId.charAt(0).toUpperCase() + packId.slice(1),
+      description: `Custom icon pack registered via CLI`,
+      type: format,
+      path: path,
+      prefix: packId,
+      source: 'cli',
+    };
+
+    try {
+      registerPackExternal(packConfig);
+
+      // Re-discover icons
+      discoverIcons();
+
+      console.log(`\n✓ Registered icon pack "${packId}"`);
+      console.log(`  Path: ${path}`);
+      console.log(`  Format: ${format}`);
+      console.log(`  Icons found: ${packs.get(packId)?.iconCount || 0}\n`);
+    } catch (error) {
+      console.error(`\n✗ Failed to register pack: ${error.message}\n`);
+    }
+  }, 'Register a new icon pack from a directory');
 }
 
 // Export for name tracking
