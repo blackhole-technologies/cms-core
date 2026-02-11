@@ -11,6 +11,7 @@
     "ai_test",
     "ai_test_provider2",
     "ai_test_tool",
-    "ai_dashboard"
+    "ai_dashboard",
+    "ai_image_alt"
   ]
 }
