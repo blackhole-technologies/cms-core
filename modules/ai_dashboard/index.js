@@ -351,13 +351,19 @@ export function hook_routes(register, context) {
     try {
       switch (action) {
         case 'enable':
-          // Update module status to active
-          module.status = 'active';
+          // Update module status to active using ai-registry service
+          const enableSuccess = aiRegistry.updateStatus(moduleName, 'active');
+          if (!enableSuccess) {
+            return redirect(res, '/admin/ai/dashboard?error=' + encodeURIComponent(`Failed to enable module "${moduleName}"`));
+          }
           return redirect(res, '/admin/ai/dashboard?success=' + encodeURIComponent(`Module "${moduleName}" enabled`));
 
         case 'disable':
-          // Update module status to inactive
-          module.status = 'inactive';
+          // Update module status to inactive using ai-registry service
+          const disableSuccess = aiRegistry.updateStatus(moduleName, 'inactive');
+          if (!disableSuccess) {
+            return redirect(res, '/admin/ai/dashboard?error=' + encodeURIComponent(`Failed to disable module "${moduleName}"`));
+          }
           return redirect(res, '/admin/ai/dashboard?success=' + encodeURIComponent(`Module "${moduleName}" disabled`));
 
         case 'refresh':

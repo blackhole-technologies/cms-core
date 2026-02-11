@@ -233,6 +233,31 @@ export function getStats() {
 }
 
 /**
+ * Update the status of a registered AI module
+ *
+ * @param {string} name - Module name
+ * @param {string} status - New status: active|inactive|error
+ * @returns {boolean} - True if updated, false if module not found or invalid status
+ */
+export function updateStatus(name, status) {
+  const module = registry.get(name);
+  if (!module) {
+    console.error(`[ai-registry] Cannot update status: module "${name}" not found`);
+    return false;
+  }
+
+  const validStatuses = ['active', 'inactive', 'error'];
+  if (!validStatuses.includes(status)) {
+    console.error(`[ai-registry] Invalid status "${status}". Must be one of: ${validStatuses.join(', ')}`);
+    return false;
+  }
+
+  module.status = status;
+  console.log(`[ai-registry] Updated module "${name}" status to "${status}"`);
+  return true;
+}
+
+/**
  * Check if a module is registered
  *
  * @param {string} name - Module name
