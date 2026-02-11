@@ -1,0 +1,20 @@
+{
+  "id": "1770600000074-test74",
+  "type": "media-entity",
+  "created": "2026-02-11T14:06:59.379Z",
+  "updated": "2026-02-11T14:06:59.379Z",
+  "name": "Test Image 74 - No Alt Text",
+  "mediaType": "image",
+  "filename": "test74.png",
+  "path": "/tmp/claude/test-images/test74.png",
+  "mimeType": "image/png",
+  "size": 68,
+  "metadata": {},
+  "tags": [],
+  "alt": "",
+  "caption": "",
+  "credit": "",
+  "status": "published",
+  "isDefaultRevision": true,
+  "publishedAt": "2026-02-11T14:06:59.379Z"
+}

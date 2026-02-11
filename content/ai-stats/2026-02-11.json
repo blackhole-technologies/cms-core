@@ -405,5 +405,16 @@
     "responseTime": 5001,
     "status": "timeout",
     "error": null
+  },
+  {
+    "timestamp": "2026-02-11T14:13:14.052Z",
+    "provider": "ai_test",
+    "operation": "generate-alt-text",
+    "tokensIn": 501,
+    "tokensOut": 48,
+    "cost": 0.0042782176861707,
+    "responseTime": 184,
+    "status": "success",
+    "error": null
   }
 ]

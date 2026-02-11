@@ -1,0 +1,20 @@
+{
+  "id": "1770600000059-test59",
+  "type": "media-entity",
+  "created": "2026-02-11T14:06:59.377Z",
+  "updated": "2026-02-11T14:06:59.377Z",
+  "name": "Test Image 59 - No Alt Text",
+  "mediaType": "image",
+  "filename": "test59.png",
+  "path": "/tmp/claude/test-images/test59.png",
+  "mimeType": "image/png",
+  "size": 68,
+  "metadata": {},
+  "tags": [],
+  "alt": "",
+  "caption": "",
+  "credit": "",
+  "status": "published",
+  "isDefaultRevision": true,
+  "publishedAt": "2026-02-11T14:06:59.377Z"
+}

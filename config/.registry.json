@@ -132,6 +132,13 @@
       "schema": null,
       "locked": false,
       "registeredAt": "2026-02-11T11:57:03.940Z"
+    },
+    "ai_image_alt": {
+      "name": "ai_image_alt",
+      "file": "ai_image_alt.json",
+      "schema": null,
+      "locked": false,
+      "registeredAt": "2026-02-11T14:17:57.532Z"
     }
   },
   "environments": {

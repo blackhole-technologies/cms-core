@@ -1,0 +1,20 @@
+{
+  "id": "1770600000093-test93",
+  "type": "media-entity",
+  "created": "2026-02-11T14:06:59.383Z",
+  "updated": "2026-02-11T14:06:59.383Z",
+  "name": "Test Image 93 - No Alt Text",
+  "mediaType": "image",
+  "filename": "test93.png",
+  "path": "/tmp/claude/test-images/test93.png",
+  "mimeType": "image/png",
+  "size": 68,
+  "metadata": {},
+  "tags": [],
+  "alt": "",
+  "caption": "",
+  "credit": "",
+  "status": "published",
+  "isDefaultRevision": true,
+  "publishedAt": "2026-02-11T14:06:59.383Z"
+}
