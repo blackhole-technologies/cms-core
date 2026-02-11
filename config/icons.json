@@ -1,0 +1,45 @@
+{
+  "enabled": true,
+  "packs": [
+    {
+      "id": "heroicons",
+      "name": "Heroicons",
+      "description": "Beautiful hand-crafted SVG icons by the makers of Tailwind CSS",
+      "version": "2.0",
+      "type": "svg",
+      "path": "public/icons/heroicons",
+      "prefix": "hero",
+      "enabled": true
+    },
+    {
+      "id": "bootstrap-icons",
+      "name": "Bootstrap Icons",
+      "description": "Official open source SVG icon library for Bootstrap",
+      "version": "1.11",
+      "type": "svg",
+      "path": "public/icons/bootstrap-icons",
+      "prefix": "bi",
+      "enabled": true
+    },
+    {
+      "id": "custom",
+      "name": "Custom Icons",
+      "description": "Project-specific custom icons",
+      "version": "1.0",
+      "type": "svg",
+      "path": "public/icons/custom",
+      "prefix": "custom",
+      "enabled": true
+    }
+  ],
+  "defaultPack": "heroicons",
+  "cache": {
+    "enabled": true,
+    "ttl": 3600
+  },
+  "discovery": {
+    "scanOnBoot": true,
+    "extensions": [".svg"],
+    "excludePatterns": ["node_modules", ".git", "dist"]
+  }
+}

@@ -139,6 +139,13 @@
       "schema": null,
       "locked": false,
       "registeredAt": "2026-02-11T07:50:41.105Z"
+    },
+    "icons": {
+      "name": "icons",
+      "file": "icons.json",
+      "schema": null,
+      "locked": false,
+      "registeredAt": "2026-02-11T08:15:45.249Z"
     }
   },
   "environments": {
