@@ -18,12 +18,12 @@
  *
  * This function is called during hook_boot to modify the image field renderer
  *
- * @param {Object} fieldRegistry - The field type registry
+ * @param {Object} fields - The fields service
  * @param {Object} services - Service container
  */
-export function enhanceImageWidget(fieldRegistry, services) {
+export function enhanceImageWidget(fields, services) {
   // Get the original image field renderer
-  const originalImageField = fieldRegistry.get('image');
+  const originalImageField = fields.getFieldType('image');
 
   if (!originalImageField) {
     console.warn('[ai_image_alt] Image field type not found, cannot enhance');
@@ -31,7 +31,7 @@ export function enhanceImageWidget(fieldRegistry, services) {
   }
 
   // Store original widget renderer
-  const originalWidget = originalImageField.widget;
+  const originalWidget = originalImageField.render;
 
   // Create enhanced widget renderer
   const enhancedWidget = (field, value, options = {}) => {
@@ -114,10 +114,10 @@ export function enhanceImageWidget(fieldRegistry, services) {
   };
 
   // Update the field type with enhanced widget
-  fieldRegistry.register('image', {
+  fields.registerFieldType('image', {
     ...originalImageField,
-    widget: enhancedWidget,
-    _originalWidget: originalWidget
+    render: enhancedWidget,
+    _originalRender: originalWidget
   });
 
   console.log('[ai_image_alt] Image field widget enhanced with AI alt text');
