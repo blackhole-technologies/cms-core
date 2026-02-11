@@ -27,7 +27,19 @@ export function hook_routes(register, context) {
    */
   register('POST', '/api/icons/render', async (req, res) => {
     try {
-      const { name, options = {} } = req.body;
+      // Parse request body
+      const body = await new Promise((resolve, reject) => {
+        if (req.body) { resolve(req.body); return; }
+        let data = '';
+        req.on('data', chunk => { data += chunk; });
+        req.on('end', () => {
+          try { resolve(data ? JSON.parse(data) : {}); }
+          catch (e) { reject(new Error('Invalid JSON body')); }
+        });
+        req.on('error', reject);
+      });
+
+      const { name, options = {} } = body;
 
       if (!name) {
         res.writeHead(400, { 'Content-Type': 'application/json' });
