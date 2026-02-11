@@ -1017,4 +1017,246 @@ export function hook_routes(register, context) {
       res.end(JSON.stringify({ error: error.message }));
     }
   });
+
+  /**
+   * GET /admin/ai/logs - AI Activity Log Viewer
+   *
+   * Shows searchable, filterable table of all AI operations with pagination,
+   * sorting, and export functionality.
+   */
+  register('GET', '/admin/ai/logs', async (req, res, ctx) => {
+    try {
+      // Parse query parameters
+      const urlObj = new URL(req.url, 'http://localhost');
+      const params = Object.fromEntries(urlObj.searchParams.entries());
+
+      const {
+        provider: selectedProvider = '',
+        status: selectedStatus = '',
+        dateFrom = '',
+        dateTo = '',
+        search: searchQuery = '',
+        sortBy = 'timestamp',
+        sortOrder = 'desc',
+        page = '1',
+        export: exportFormat = ''
+      } = params;
+
+      const currentPage = parseInt(page, 10) || 1;
+      const perPage = 50;
+
+      // Determine date range (default: last 7 days)
+      let fromDate = dateFrom;
+      let toDate = dateTo;
+
+      if (!fromDate || !toDate) {
+        const now = new Date();
+        const sevenDaysAgo = new Date(now);
+        sevenDaysAgo.setDate(now.getDate() - 7);
+
+        fromDate = fromDate || sevenDaysAgo.toISOString().split('T')[0];
+        toDate = toDate || now.toISOString().split('T')[0];
+      }
+
+      // Collect all logs from date range
+      const allLogs = [];
+      const currentDate = new Date(fromDate);
+      const endDate = new Date(toDate);
+
+      while (currentDate <= endDate) {
+        const dateStr = currentDate.toISOString().split('T')[0];
+        const dailyStats = aiStats.getDaily(dateStr);
+
+        if (dailyStats && dailyStats.totalEvents > 0) {
+          const { readFileSync, existsSync } = await import('node:fs');
+          const { join } = await import('node:path');
+
+          const statsDir = join(context.baseDir, 'content', 'ai-stats');
+          const filePath = join(statsDir, `${dateStr}.json`);
+
+          if (existsSync(filePath)) {
+            try {
+              const content = readFileSync(filePath, 'utf-8');
+              const events = JSON.parse(content);
+              allLogs.push(...events);
+            } catch (err) {
+              console.error(`[ai_dashboard] Error reading ${dateStr}.json:`, err);
+            }
+          }
+        }
+
+        currentDate.setDate(currentDate.getDate() + 1);
+      }
+
+      // Get unique providers for filter dropdown
+      const providersSet = new Set();
+      allLogs.forEach(log => providersSet.add(log.provider));
+      const providersArray = Array.from(providersSet).sort();
+      const providers = providersArray.map(p => ({
+        value: p,
+        selected: p === selectedProvider
+      }));
+
+      // Apply filters
+      let filteredLogs = allLogs;
+
+      if (selectedProvider) {
+        filteredLogs = filteredLogs.filter(log => log.provider === selectedProvider);
+      }
+
+      if (selectedStatus) {
+        filteredLogs = filteredLogs.filter(log => log.status === selectedStatus);
+      }
+
+      if (searchQuery) {
+        const query = searchQuery.toLowerCase();
+        filteredLogs = filteredLogs.filter(log =>
+          log.operation?.toLowerCase().includes(query) ||
+          log.provider?.toLowerCase().includes(query)
+        );
+      }
+
+      // Get counts before sorting/pagination
+      const totalLogs = allLogs.length;
+      const filteredCount = filteredLogs.length;
+
+      // Apply sorting
+      filteredLogs.sort((a, b) => {
+        let aVal = a[sortBy];
+        let bVal = b[sortBy];
+
+        // Handle different data types
+        if (sortBy === 'timestamp') {
+          aVal = new Date(aVal).getTime();
+          bVal = new Date(bVal).getTime();
+        } else if (typeof aVal === 'string') {
+          aVal = aVal.toLowerCase();
+          bVal = bVal.toLowerCase();
+        }
+
+        if (sortOrder === 'asc') {
+          return aVal > bVal ? 1 : aVal < bVal ? -1 : 0;
+        } else {
+          return aVal < bVal ? 1 : aVal > bVal ? -1 : 0;
+        }
+      });
+
+      // Handle export
+      if (exportFormat === 'json' || exportFormat === 'csv') {
+        if (exportFormat === 'json') {
+          res.writeHead(200, {
+            'Content-Type': 'application/json',
+            'Content-Disposition': `attachment; filename="ai-logs-${fromDate}-to-${toDate}.json"`
+          });
+          res.end(JSON.stringify(filteredLogs, null, 2));
+        } else if (exportFormat === 'csv') {
+          // Generate CSV
+          const csvHeaders = ['Timestamp', 'Provider', 'Operation', 'Tokens In', 'Tokens Out', 'Response Time (ms)', 'Status', 'Cost', 'Error'];
+          const csvRows = filteredLogs.map(log => [
+            log.timestamp,
+            log.provider,
+            log.operation,
+            log.tokensIn,
+            log.tokensOut,
+            log.responseTime,
+            log.status,
+            log.cost,
+            log.error || ''
+          ]);
+
+          const csvContent = [
+            csvHeaders.join(','),
+            ...csvRows.map(row => row.map(cell =>
+              typeof cell === 'string' && cell.includes(',') ? `"${cell}"` : cell
+            ).join(','))
+          ].join('\n');
+
+          res.writeHead(200, {
+            'Content-Type': 'text/csv',
+            'Content-Disposition': `attachment; filename="ai-logs-${fromDate}-to-${toDate}.csv"`
+          });
+          res.end(csvContent);
+        }
+        return;
+      }
+
+      // Apply pagination
+      const totalPages = Math.ceil(filteredCount / perPage);
+      const offset = (currentPage - 1) * perPage;
+      const paginatedLogs = filteredLogs.slice(offset, offset + perPage);
+
+      // Format logs for display
+      const formattedLogs = paginatedLogs.map(log => ({
+        ...log,
+        timestampFormatted: new Date(log.timestamp).toLocaleString('en-US', {
+          year: 'numeric',
+          month: 'short',
+          day: 'numeric',
+          hour: '2-digit',
+          minute: '2-digit',
+          second: '2-digit'
+        }),
+        cost: log.cost?.toFixed(4) || '0.0000'
+      }));
+
+      // Build pagination URLs
+      const buildPageUrl = (page) => {
+        const params = new URLSearchParams({
+          page: page.toString(),
+          ...(selectedProvider && { provider: selectedProvider }),
+          ...(selectedStatus && { status: selectedStatus }),
+          ...(dateFrom && { dateFrom }),
+          ...(dateTo && { dateTo }),
+          ...(searchQuery && { search: searchQuery }),
+          ...(sortBy && { sortBy }),
+          ...(sortOrder && { sortOrder })
+        });
+        return `?${params.toString()}`;
+      };
+
+      // Render template
+      const html = renderAdmin('logs.html', {
+        providers,
+        selectedProvider,
+        selectedStatus,
+        statusIsSuccess: selectedStatus === 'success',
+        statusIsError: selectedStatus === 'error',
+        statusIsTimeout: selectedStatus === 'timeout',
+        dateFrom: fromDate,
+        dateTo: toDate,
+        searchQuery,
+        sortBy,
+        sortOrder,
+        sortTimestamp: sortBy === 'timestamp',
+        sortProvider: sortBy === 'provider',
+        sortOperation: sortBy === 'operation',
+        sortTokensIn: sortBy === 'tokensIn',
+        sortTokensOut: sortBy === 'tokensOut',
+        sortResponseTime: sortBy === 'responseTime',
+        sortStatus: sortBy === 'status',
+        sortIndicator: sortOrder === 'asc' ? '↑' : '↓',
+        logs: formattedLogs,
+        hasLogs: formattedLogs.length > 0,
+        totalLogs,
+        filteredCount,
+        currentPage,
+        totalPages,
+        showPagination: totalPages > 1,
+        hasPrevPage: currentPage > 1,
+        hasNextPage: currentPage < totalPages,
+        prevPageUrl: buildPageUrl(currentPage - 1),
+        nextPageUrl: buildPageUrl(currentPage + 1),
+        startEntry: offset + 1,
+        endEntry: Math.min(offset + perPage, filteredCount),
+        hasFilters: !!(selectedProvider || selectedStatus || searchQuery)
+      }, ctx, req);
+
+      res.writeHead(200, { 'Content-Type': 'text/html' });
+      res.end(html);
+    } catch (error) {
+      console.error('[ai_dashboard] Logs page error:', error);
+      res.writeHead(500, { 'Content-Type': 'text/html' });
+      res.end(`<h1>500 Internal Server Error</h1><p>${error.message}</p>`);
+    }
+  });
 }

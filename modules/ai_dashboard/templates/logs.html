@@ -1,0 +1,289 @@
+<div class="admin-breadcrumb">
+  <a href="/admin">Home</a> <span>&rsaquo;</span> <a href="/admin/reports">Reports</a> <span>&rsaquo;</span> <a href="/admin/ai/dashboard">AI Dashboard</a> <span>&rsaquo;</span> Activity Logs
+</div>
+
+<h1 class="admin-page-title">AI Activity Logs</h1>
+<p class="admin-page-description">Searchable, filterable log of all AI operations</p>
+
+<!-- Filters and Search -->
+<div class="admin-panel">
+  <div class="admin-panel-header">
+    <h2>Filters</h2>
+  </div>
+  <div class="admin-panel-body">
+    <form id="filtersForm" method="GET" action="/admin/ai/logs" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 1rem; align-items: end;">
+
+      <!-- Provider Filter -->
+      <div>
+        <label for="provider" style="display: block; margin-bottom: 0.5rem; font-weight: 500;">Provider</label>
+        <select name="provider" id="provider" style="width: 100%; padding: 0.5rem; border: 1px solid #d1d5db; border-radius: 4px;">
+          <option value="">All Providers</option>
+          {{#each providers}}
+          <option value="{{value}}" {{#if selected}}selected{{/if}}>{{value}}</option>
+          {{/each}}
+        </select>
+      </div>
+
+      <!-- Status Filter -->
+      <div>
+        <label for="status" style="display: block; margin-bottom: 0.5rem; font-weight: 500;">Status</label>
+        <select name="status" id="status" style="width: 100%; padding: 0.5rem; border: 1px solid #d1d5db; border-radius: 4px;">
+          <option value="">All Statuses</option>
+          <option value="success" {{#if statusIsSuccess}}selected{{/if}}>Success</option>
+          <option value="error" {{#if statusIsError}}selected{{/if}}>Error</option>
+          <option value="timeout" {{#if statusIsTimeout}}selected{{/if}}>Timeout</option>
+        </select>
+      </div>
+
+      <!-- Date Range -->
+      <div>
+        <label for="dateFrom" style="display: block; margin-bottom: 0.5rem; font-weight: 500;">From Date</label>
+        <input type="date" name="dateFrom" id="dateFrom" value="{{dateFrom}}" style="width: 100%; padding: 0.5rem; border: 1px solid #d1d5db; border-radius: 4px;">
+      </div>
+
+      <div>
+        <label for="dateTo" style="display: block; margin-bottom: 0.5rem; font-weight: 500;">To Date</label>
+        <input type="date" name="dateTo" id="dateTo" value="{{dateTo}}" style="width: 100%; padding: 0.5rem; border: 1px solid #d1d5db; border-radius: 4px;">
+      </div>
+
+      <!-- Search -->
+      <div>
+        <label for="search" style="display: block; margin-bottom: 0.5rem; font-weight: 500;">Search</label>
+        <input type="text" name="search" id="search" value="{{searchQuery}}" placeholder="Search operation..." style="width: 100%; padding: 0.5rem; border: 1px solid #d1d5db; border-radius: 4px;">
+      </div>
+
+      <!-- Filter Button -->
+      <div>
+        <button type="submit" style="width: 100%; padding: 0.5rem 1rem; background: #3b82f6; color: white; border: none; border-radius: 4px; cursor: pointer; font-weight: 500;">
+          Apply Filters
+        </button>
+      </div>
+
+      <!-- Reset Button -->
+      <div>
+        <a href="/admin/ai/logs" style="display: block; text-align: center; width: 100%; padding: 0.5rem 1rem; background: #6b7280; color: white; text-decoration: none; border-radius: 4px; font-weight: 500;">
+          Reset
+        </a>
+      </div>
+
+      <!-- Export Buttons -->
+      <div>
+        <button type="button" onclick="exportLogs('json')" style="width: 100%; padding: 0.5rem 1rem; background: #10b981; color: white; border: none; border-radius: 4px; cursor: pointer; font-weight: 500;">
+          Export JSON
+        </button>
+      </div>
+
+      <div>
+        <button type="button" onclick="exportLogs('csv')" style="width: 100%; padding: 0.5rem 1rem; background: #059669; color: white; border: none; border-radius: 4px; cursor: pointer; font-weight: 500;">
+          Export CSV
+        </button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<!-- Summary Stats -->
+<div class="admin-stats">
+  <div class="admin-stat-card">
+    <div class="admin-stat-value">{{totalLogs}}</div>
+    <div class="admin-stat-label">Total Logs</div>
+  </div>
+  <div class="admin-stat-card">
+    <div class="admin-stat-value">{{filteredCount}}</div>
+    <div class="admin-stat-label">Filtered Results</div>
+  </div>
+  <div class="admin-stat-card">
+    <div class="admin-stat-value">{{currentPage}}/{{totalPages}}</div>
+    <div class="admin-stat-label">Page</div>
+  </div>
+</div>
+
+<!-- Activity Logs Table -->
+<div class="admin-panel">
+  <div class="admin-panel-header">
+    <h2>Activity Logs ({{filteredCount}} entries)</h2>
+  </div>
+  <div class="admin-panel-body">
+    {{#if hasLogs}}
+    <div style="overflow-x: auto;">
+      <table class="admin-table" style="width: 100%; border-collapse: collapse;">
+        <thead>
+          <tr style="background: #f9fafb; border-bottom: 2px solid #e5e7eb;">
+            <th style="padding: 0.75rem; text-align: left; font-weight: 600; cursor: pointer;" onclick="sortBy('timestamp')">
+              Timestamp {{#if sortTimestamp}}{{sortIndicator}}{{/if}}
+            </th>
+            <th style="padding: 0.75rem; text-align: left; font-weight: 600; cursor: pointer;" onclick="sortBy('provider')">
+              Provider {{#if sortProvider}}{{sortIndicator}}{{/if}}
+            </th>
+            <th style="padding: 0.75rem; text-align: left; font-weight: 600; cursor: pointer;" onclick="sortBy('operation')">
+              Operation {{#if sortOperation}}{{sortIndicator}}{{/if}}
+            </th>
+            <th style="padding: 0.75rem; text-align: right; font-weight: 600; cursor: pointer;" onclick="sortBy('tokensIn')">
+              Tokens In {{#if sortTokensIn}}{{sortIndicator}}{{/if}}
+            </th>
+            <th style="padding: 0.75rem; text-align: right; font-weight: 600; cursor: pointer;" onclick="sortBy('tokensOut')">
+              Tokens Out {{#if sortTokensOut}}{{sortIndicator}}{{/if}}
+            </th>
+            <th style="padding: 0.75rem; text-align: right; font-weight: 600; cursor: pointer;" onclick="sortBy('responseTime')">
+              Response Time {{#if sortResponseTime}}{{sortIndicator}}{{/if}}
+            </th>
+            <th style="padding: 0.75rem; text-align: left; font-weight: 600; cursor: pointer;" onclick="sortBy('status')">
+              Status {{#if sortStatus}}{{sortIndicator}}{{/if}}
+            </th>
+            <th style="padding: 0.75rem; text-align: center; font-weight: 600;">Actions</th>
+          </tr>
+        </thead>
+        <tbody>
+          {{#each logs}}
+          <tr style="border-bottom: 1px solid #e5e7eb;" data-log-index="{{@index}}">
+            <td style="padding: 0.75rem; font-size: 0.875rem;">{{timestampFormatted}}</td>
+            <td style="padding: 0.75rem; font-size: 0.875rem;">{{provider}}</td>
+            <td style="padding: 0.75rem; font-size: 0.875rem;">{{operation}}</td>
+            <td style="padding: 0.75rem; text-align: right; font-size: 0.875rem;">{{tokensIn}}</td>
+            <td style="padding: 0.75rem; text-align: right; font-size: 0.875rem;">{{tokensOut}}</td>
+            <td style="padding: 0.75rem; text-align: right; font-size: 0.875rem;">{{responseTime}}ms</td>
+            <td style="padding: 0.75rem;">
+              <span class="status-badge status-badge--{{status}}" style="font-size: 0.75rem; padding: 0.25rem 0.5rem; border-radius: 4px; text-transform: uppercase;">
+                {{status}}
+              </span>
+            </td>
+            <td style="padding: 0.75rem; text-align: center;">
+              <button onclick="toggleDetails({{@index}})" style="padding: 0.25rem 0.5rem; background: #3b82f6; color: white; border: none; border-radius: 4px; cursor: pointer; font-size: 0.75rem;">
+                Details
+              </button>
+            </td>
+          </tr>
+          <tr id="details-{{@index}}" style="display: none; background: #f9fafb;">
+            <td colspan="8" style="padding: 1rem;">
+              <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem;">
+                <div>
+                  <strong>Full Timestamp:</strong> {{timestamp}}
+                </div>
+                <div>
+                  <strong>Cost:</strong> ${{cost}}
+                </div>
+                {{#if error}}
+                <div style="grid-column: 1 / -1;">
+                  <strong style="color: #dc2626;">Error:</strong> {{error}}
+                </div>
+                {{/if}}
+              </div>
+            </td>
+          </tr>
+          {{/each}}
+        </tbody>
+      </table>
+    </div>
+
+    <!-- Pagination -->
+    {{#if showPagination}}
+    <div style="display: flex; justify-content: space-between; align-items: center; margin-top: 1rem; padding: 1rem; background: #f9fafb; border-radius: 4px;">
+      <div style="color: #6b7280; font-size: 0.875rem;">
+        Showing {{startEntry}} to {{endEntry}} of {{filteredCount}} entries
+      </div>
+      <div style="display: flex; gap: 0.5rem;">
+        {{#if hasPrevPage}}
+        <a href="{{prevPageUrl}}"
+           style="padding: 0.5rem 1rem; background: #3b82f6; color: white; text-decoration: none; border-radius: 4px; font-size: 0.875rem;">
+          ← Previous
+        </a>
+        {{else}}
+        <span style="padding: 0.5rem 1rem; background: #e5e7eb; color: #9ca3af; border-radius: 4px; font-size: 0.875rem;">
+          ← Previous
+        </span>
+        {{/if}}
+
+        <span style="padding: 0.5rem 1rem; background: white; border: 1px solid #e5e7eb; border-radius: 4px; font-size: 0.875rem;">
+          Page {{currentPage}} of {{totalPages}}
+        </span>
+
+        {{#if hasNextPage}}
+        <a href="{{nextPageUrl}}"
+           style="padding: 0.5rem 1rem; background: #3b82f6; color: white; text-decoration: none; border-radius: 4px; font-size: 0.875rem;">
+          Next →
+        </a>
+        {{else}}
+        <span style="padding: 0.5rem 1rem; background: #e5e7eb; color: #9ca3af; border-radius: 4px; font-size: 0.875rem;">
+          Next →
+        </span>
+        {{/if}}
+      </div>
+    </div>
+    {{/if}}
+
+    {{else}}
+    <div style="text-align: center; padding: 3rem; color: #6b7280;">
+      <p style="font-size: 1.125rem; margin-bottom: 0.5rem;">No activity logs found</p>
+      <p style="font-size: 0.875rem;">{{#if hasFilters}}Try adjusting your filters.{{else}}Activity logs will appear here as AI operations are performed.{{/if}}</p>
+    </div>
+    {{/if}}
+  </div>
+</div>
+
+<style>
+.status-badge {
+  display: inline-block;
+  padding: 0.25rem 0.5rem;
+  border-radius: 4px;
+  font-size: 0.75rem;
+  font-weight: 600;
+  text-transform: uppercase;
+}
+
+.status-badge--success {
+  background: #d1fae5;
+  color: #065f46;
+}
+
+.status-badge--error {
+  background: #fee2e2;
+  color: #991b1b;
+}
+
+.status-badge--timeout {
+  background: #fed7aa;
+  color: #92400e;
+}
+
+.admin-table th:hover {
+  background: #f3f4f6;
+}
+</style>
+
+<script>
+// Toggle details row
+function toggleDetails(index) {
+  const detailsRow = document.getElementById('details-' + index);
+  if (detailsRow.style.display === 'none') {
+    detailsRow.style.display = 'table-row';
+  } else {
+    detailsRow.style.display = 'none';
+  }
+}
+
+// Sort functionality
+function sortBy(column) {
+  const urlParams = new URLSearchParams(window.location.search);
+  const currentSort = urlParams.get('sortBy');
+  const currentOrder = urlParams.get('sortOrder') || 'desc';
+
+  // Toggle order if same column, otherwise default to desc
+  let newOrder = 'desc';
+  if (currentSort === column) {
+    newOrder = currentOrder === 'desc' ? 'asc' : 'desc';
+  }
+
+  urlParams.set('sortBy', column);
+  urlParams.set('sortOrder', newOrder);
+  urlParams.set('page', '1'); // Reset to first page
+
+  window.location.search = urlParams.toString();
+}
+
+// Export functionality
+function exportLogs(format) {
+  const urlParams = new URLSearchParams(window.location.search);
+  urlParams.set('export', format);
+  window.location.href = '/admin/ai/logs?' + urlParams.toString();
+}
+</script>
