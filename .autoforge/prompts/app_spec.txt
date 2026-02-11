@@ -12,21 +12,21 @@
 
 ---
 
-## TIER 1: MENU LINK ATTRIBUTES (Features 0-5)
+## TIER 1: ICON SYSTEM (Features 0-5)
 
 These must pass before any functional features.
 
 ### Features
 
-### Feature 0: Custom attribute fields on menu links
+### Feature 0: Icon discovery and registry service
 
-### Feature 1: CSS class attribute support
+### Feature 1: Icon autocomplete form element
 
-### Feature 2: Target attribute (new window) support
+### Feature 2: Icon pack plugin system
 
-### Feature 3: Rel attribute configuration
+### Feature 3: SVG icon rendering service
 
-### Feature 4: Icon class attribute for menu items
+### Feature 4: Icon preview in admin UI
 
-### Feature 5: Admin config: available attributes list
+### Feature 5: Twig function for icon rendering
 

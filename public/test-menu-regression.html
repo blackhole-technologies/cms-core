@@ -1,0 +1,82 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Menu Attributes Regression Test</title>
+  <style>
+    body { font-family: sans-serif; margin: 20px; }
+    .test-result { margin: 20px 0; padding: 15px; border: 1px solid #ddd; }
+    .pass { background: #d4edda; border-color: #c3e6cb; }
+    .fail { background: #f8d7da; border-color: #f5c6cb; }
+    pre { background: #f5f5f5; padding: 10px; overflow-x: auto; }
+  </style>
+</head>
+<body>
+  <h1>Menu Attributes Regression Test</h1>
+
+  <div id="results"></div>
+
+  <script>
+    async function runTests() {
+      const results = document.getElementById('results');
+
+      // Fetch menu data
+      const response = await fetch('http://localhost:3001/api/content/menu-item');
+      const menuItems = await response.json();
+
+      // Test results
+      const tests = [];
+
+      // Feature 1: Custom attribute fields
+      const hasAttributes = menuItems.some(item =>
+        item.attributes && Object.keys(item.attributes).length > 0
+      );
+      tests.push({
+        name: 'Feature 1: Custom attribute fields on menu links',
+        pass: hasAttributes,
+        details: `Found ${menuItems.filter(i => i.attributes && Object.keys(i.attributes).length > 0).length} items with attributes`
+      });
+
+      // Feature 2: CSS class attribute
+      const hasClasses = menuItems.some(item =>
+        item.attributes && item.attributes.class
+      );
+      tests.push({
+        name: 'Feature 2: CSS class attribute support',
+        pass: hasClasses,
+        details: `Found ${menuItems.filter(i => i.attributes?.class).length} items with class attribute`
+      });
+
+      // Feature 3: Target attribute
+      const hasTarget = menuItems.some(item =>
+        item.attributes && item.attributes.target
+      );
+      tests.push({
+        name: 'Feature 3: Target attribute (new window) support',
+        pass: hasTarget,
+        details: `Found ${menuItems.filter(i => i.attributes?.target).length} items with target attribute`
+      });
+
+      // Render results
+      results.innerHTML = tests.map(test => `
+        <div class="test-result ${test.pass ? 'pass' : 'fail'}">
+          <h2>${test.pass ? '✓' : '✗'} ${test.name}</h2>
+          <p>${test.details}</p>
+        </div>
+      `).join('');
+
+      // Show sample data
+      const sampleItem = menuItems.find(i => i.attributes && Object.keys(i.attributes).length > 0);
+      if (sampleItem) {
+        results.innerHTML += `
+          <div class="test-result">
+            <h2>Sample Menu Item Data</h2>
+            <pre>${JSON.stringify(sampleItem, null, 2)}</pre>
+          </div>
+        `;
+      }
+    }
+
+    runTests();
+  </script>
+</body>
+</html>

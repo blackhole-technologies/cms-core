@@ -75,6 +75,7 @@ import * as feeds from './feeds.js';
 import * as sitemap from './sitemap.js';
 import * as taxonomy from './taxonomy.js';
 import * as menu from './menu.js';
+import * as icons from './icons.js';
 import * as blocks from './blocks.js';
 import * as views from './views.js';
 import * as regions from './regions.js';
@@ -201,10 +202,12 @@ export async function boot(baseDir, options = {}) {
     // until something explicitly requests them.
     const siteConfig = config.load('site');
     const modulesConfig = config.load('modules');
+    const iconsConfig = config.load('icons');
 
     context.config = {
       site: siteConfig,
       modules: modulesConfig,
+      icons: iconsConfig,
     };
 
     log(`[boot] Site: ${siteConfig.name} v${siteConfig.version}`);
@@ -859,6 +862,13 @@ export async function boot(baseDir, options = {}) {
     menu.init(menuConfig, content, router, baseDir);
     services.register('menu', () => menu);
     log('[boot] Menu system enabled');
+
+    // Initialize icon system
+    // WHY AFTER MENU: Icons may be used in menus and blocks
+    const iconConfig = context.config.icons || { enabled: true };
+    icons.init(iconConfig, baseDir);
+    services.register('icons', () => icons);
+    icons.registerCli(cli.createModuleRegister('icons'));
 
     // Initialize blocks
     // WHY AFTER MENU: Block types include menu blocks
