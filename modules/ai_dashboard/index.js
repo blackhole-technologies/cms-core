@@ -240,6 +240,178 @@ export function hook_cli(register, context) {
     console.log(`\nAvailable stats dates (${dates.length}):`);
     dates.forEach(date => console.log(`  ${date}`));
   });
+
+  /**
+   * ai:dashboard:status - Display AI module status with recent activity
+   *
+   * Flags:
+   *   --provider=name  : Show only specific provider
+   *   --detailed       : Include per-module configuration and errors
+   *   --json           : Output raw JSON instead of table
+   */
+  register('ai:dashboard:status', async (args) => {
+    // Parse flags
+    const providerArg = args.find(a => a.startsWith('--provider='));
+    const providerFilter = providerArg ? providerArg.split('=')[1] : null;
+    const detailed = args.includes('--detailed');
+    const jsonOutput = args.includes('--json');
+
+    // Get all AI modules
+    let modules = aiRegistry.listAll();
+
+    // Filter by provider if specified
+    if (providerFilter) {
+      modules = modules.filter(m => m.name === providerFilter);
+    }
+
+    // Get recent stats (last 24 hours)
+    const today = new Date().toISOString().split('T')[0];
+    const dailyStats = aiStats.getDaily(today);
+
+    // Build data for each module
+    const tableData = [];
+    for (const mod of modules) {
+      const stats = dailyStats?.byProvider?.[mod.name] || { count: 0, cost: 0 };
+
+      // Calculate average response time for this provider
+      let avgResponse = 0;
+      if (stats.count > 0 && dailyStats?.events) {
+        const providerEvents = dailyStats.events.filter(e => e.provider === mod.name);
+        const totalTime = providerEvents.reduce((sum, e) => sum + (e.responseTime || 0), 0);
+        avgResponse = providerEvents.length > 0 ? Math.round(totalTime / providerEvents.length) : 0;
+      }
+
+      // Get last error (if any)
+      let lastError = '';
+      if (dailyStats?.events) {
+        const errorEvents = dailyStats.events
+          .filter(e => e.provider === mod.name && (e.status === 'error' || e.status === 'timeout'))
+          .sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp));
+
+        if (errorEvents.length > 0) {
+          lastError = errorEvents[0].error || errorEvents[0].status;
+        }
+      }
+
+      const row = {
+        module: mod.name,
+        type: mod.type,
+        status: mod.status,
+        calls24h: stats.count || 0,
+        avgResponse: avgResponse ? `${avgResponse}ms` : 'N/A',
+        lastError: lastError || 'None',
+      };
+
+      // Add detailed fields
+      if (detailed) {
+        row.version = mod.version || 'N/A';
+        row.registered = mod.registered ? new Date(mod.registered).toISOString().split('T')[0] : 'N/A';
+        row.capabilities = mod.capabilities ? JSON.stringify(mod.capabilities).substring(0, 50) : 'N/A';
+      }
+
+      tableData.push(row);
+    }
+
+    // JSON output
+    if (jsonOutput) {
+      console.log(JSON.stringify({
+        timestamp: new Date().toISOString(),
+        filter: providerFilter || 'all',
+        modules: tableData,
+        summary: {
+          total: modules.length,
+          active: modules.filter(m => m.status === 'active').length,
+          inactive: modules.filter(m => m.status === 'inactive').length,
+        },
+      }, null, 2));
+      return;
+    }
+
+    // Table output with ANSI colors
+    const colors = {
+      green: '\x1b[32m',
+      red: '\x1b[31m',
+      yellow: '\x1b[33m',
+      gray: '\x1b[90m',
+      reset: '\x1b[0m',
+    };
+
+    // Color helper
+    const colorize = (text, color) => {
+      return `${colors[color] || ''}${text}${colors.reset}`;
+    };
+
+    // Header
+    console.log('\n' + colorize('AI Dashboard Status', 'green'));
+    console.log(colorize('='.repeat(80), 'gray'));
+    console.log('');
+
+    // Check if no modules
+    if (modules.length === 0) {
+      if (providerFilter) {
+        console.log(colorize(`No AI module found with name: ${providerFilter}`, 'yellow'));
+      } else {
+        console.log(colorize('No AI modules registered', 'yellow'));
+        console.log('Create a module with "ai": true in manifest.json to register it.');
+      }
+      console.log('');
+      return;
+    }
+
+    // Build table rows
+    const headers = detailed
+      ? ['Module', 'Type', 'Status', 'Calls (24h)', 'Avg Response', 'Last Error', 'Version', 'Registered']
+      : ['Module', 'Type', 'Status', 'Calls (24h)', 'Avg Response', 'Last Error'];
+
+    // Calculate column widths
+    const colWidths = headers.map((h, i) => {
+      const values = tableData.map(row => String(Object.values(row)[i] || ''));
+      return Math.max(h.length, ...values.map(v => v.length));
+    });
+
+    // Print header row
+    const headerRow = headers.map((h, i) => h.padEnd(colWidths[i])).join('  ');
+    console.log(colorize(headerRow, 'gray'));
+    console.log(colorize('-'.repeat(headerRow.length), 'gray'));
+
+    // Print data rows with color coding
+    for (const row of tableData) {
+      const values = Object.values(row);
+      const statusColor = row.status === 'active' ? 'green'
+                        : row.status === 'error' ? 'red'
+                        : row.status === 'inactive' ? 'gray'
+                        : 'yellow';
+
+      const cells = values.slice(0, headers.length).map((val, i) => {
+        const str = String(val).padEnd(colWidths[i]);
+        // Color the status column
+        if (i === 2) { // Status column
+          return colorize(str, statusColor);
+        }
+        // Color errors red
+        if (i === 5 && val !== 'None') { // Last Error column
+          return colorize(str, 'red');
+        }
+        return str;
+      });
+
+      console.log(cells.join('  '));
+    }
+
+    // Summary
+    console.log('');
+    console.log(colorize('Summary:', 'gray'));
+    const activeCount = modules.filter(m => m.status === 'active').length;
+    const inactiveCount = modules.filter(m => m.status === 'inactive').length;
+    const errorCount = modules.filter(m => m.status === 'error').length;
+
+    console.log(`  Total: ${modules.length} modules`);
+    console.log(`  ${colorize('Active', 'green')}: ${activeCount} | ${colorize('Inactive', 'gray')}: ${inactiveCount} | ${colorize('Error', 'red')}: ${errorCount}`);
+
+    const totalCalls = tableData.reduce((sum, row) => sum + row.calls24h, 0);
+    console.log(`  Total calls (24h): ${totalCalls}`);
+    console.log('');
+  }, 'Display AI module status and recent activity');
 }
 
 /**

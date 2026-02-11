@@ -174,5 +174,137 @@
     "responseTime": 193,
     "status": "success",
     "error": null
+  },
+  {
+    "timestamp": "2026-02-11T12:55:10.390Z",
+    "provider": "ai_test",
+    "operation": "health.check",
+    "tokensIn": 0,
+    "tokensOut": 0,
+    "cost": 0,
+    "responseTime": 54,
+    "status": "success",
+    "error": null
+  },
+  {
+    "timestamp": "2026-02-11T12:55:10.390Z",
+    "provider": "ai_test_provider2",
+    "operation": "health.check",
+    "tokensIn": 0,
+    "tokensOut": 0,
+    "cost": 0,
+    "responseTime": 57,
+    "status": "success",
+    "error": null
+  },
+  {
+    "timestamp": "2026-02-11T12:55:10.390Z",
+    "provider": "ai_test_timeout",
+    "operation": "health.check",
+    "tokensIn": 0,
+    "tokensOut": 0,
+    "cost": 0,
+    "responseTime": 143,
+    "status": "success",
+    "error": null
+  },
+  {
+    "timestamp": "2026-02-11T12:56:05.212Z",
+    "provider": "ai_test",
+    "operation": "health.check",
+    "tokensIn": 0,
+    "tokensOut": 0,
+    "cost": 0,
+    "responseTime": 1,
+    "status": "success",
+    "error": null
+  },
+  {
+    "timestamp": "2026-02-11T12:56:05.212Z",
+    "provider": "ai_test_provider2",
+    "operation": "health.check",
+    "tokensIn": 0,
+    "tokensOut": 0,
+    "cost": 0,
+    "responseTime": 148,
+    "status": "success",
+    "error": null
+  },
+  {
+    "timestamp": "2026-02-11T12:56:05.212Z",
+    "provider": "ai_test_timeout",
+    "operation": "health.check",
+    "tokensIn": 0,
+    "tokensOut": 0,
+    "cost": 0,
+    "responseTime": 7,
+    "status": "success",
+    "error": null
+  },
+  {
+    "timestamp": "2026-02-11T12:57:54.112Z",
+    "provider": "ai_test",
+    "operation": "health.check",
+    "tokensIn": 0,
+    "tokensOut": 0,
+    "cost": 0,
+    "responseTime": 161,
+    "status": "success",
+    "error": null
+  },
+  {
+    "timestamp": "2026-02-11T12:57:54.112Z",
+    "provider": "ai_test_provider2",
+    "operation": "health.check",
+    "tokensIn": 0,
+    "tokensOut": 0,
+    "cost": 0,
+    "responseTime": 151,
+    "status": "success",
+    "error": null
+  },
+  {
+    "timestamp": "2026-02-11T12:57:54.112Z",
+    "provider": "ai_test_timeout",
+    "operation": "health.check",
+    "tokensIn": 0,
+    "tokensOut": 0,
+    "cost": 0,
+    "responseTime": 5000,
+    "status": "timeout",
+    "error": null
+  },
+  {
+    "timestamp": "2026-02-11T12:58:03.449Z",
+    "provider": "ai_test",
+    "operation": "health.check",
+    "tokensIn": 0,
+    "tokensOut": 0,
+    "cost": 0,
+    "responseTime": 96,
+    "status": "success",
+    "error": null
+  },
+  {
+    "timestamp": "2026-02-11T12:58:03.449Z",
+    "provider": "ai_test_provider2",
+    "operation": "health.check",
+    "tokensIn": 0,
+    "tokensOut": 0,
+    "cost": 0,
+    "responseTime": 146,
+    "status": "success",
+    "error": null
+  },
+  {
+    "timestamp": "2026-02-11T12:58:03.449Z",
+    "provider": "ai_test_timeout",
+    "operation": "health.check",
+    "tokensIn": 0,
+    "tokensOut": 0,
+    "cost": 0,
+    "responseTime": 5001,
+    "status": "timeout",
+    "error": null
   }
 ]
