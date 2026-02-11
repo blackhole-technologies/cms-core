@@ -124,7 +124,7 @@ async function runTests() {
     }
   });
 
-  test('Can register a tool module', () => {
+  await test('Can register a tool module', () => {
     const result = aiRegistry.register({
       name: 'test-tool',
       type: 'tool',
@@ -139,7 +139,7 @@ async function runTests() {
   });
 
   // Test 6: Query functions
-  test('listAll returns registered modules', () => {
+  await test('listAll returns registered modules', () => {
     const all = aiRegistry.listAll();
     if (!Array.isArray(all)) {
       throw new Error('listAll did not return an array');
@@ -149,7 +149,7 @@ async function runTests() {
     }
   });
 
-  test('getByType returns provider modules', () => {
+  await test('getByType returns provider modules', () => {
     const providers = aiRegistry.getByType('provider');
     if (!Array.isArray(providers)) {
       throw new Error('getByType did not return an array');
@@ -162,7 +162,7 @@ async function runTests() {
     }
   });
 
-  test('getByType returns tool modules', () => {
+  await test('getByType returns tool modules', () => {
     const tools = aiRegistry.getByType('tool');
     if (!Array.isArray(tools)) {
       throw new Error('getByType did not return an array');
@@ -172,7 +172,7 @@ async function runTests() {
     }
   });
 
-  test('getModule returns specific module', () => {
+  await test('getModule returns specific module', () => {
     const module = aiRegistry.getModule('test-provider');
     if (!module) {
       throw new Error('Module not found');
@@ -185,7 +185,7 @@ async function runTests() {
     }
   });
 
-  test('getModule returns null for non-existent module', () => {
+  await test('getModule returns null for non-existent module', () => {
     const module = aiRegistry.getModule('non-existent-module');
     if (module !== null) {
       throw new Error('Expected null for non-existent module');
@@ -193,14 +193,14 @@ async function runTests() {
   });
 
   // Test 7: Check test modules exist
-  test('ai_test module exists in modules/', () => {
+  await test('ai_test module exists in modules/', () => {
     const path = join(__dirname, 'modules', 'ai_test', 'manifest.json');
     if (!existsSync(path)) {
       throw new Error('ai_test module does not exist');
     }
   });
 
-  test('ai_test manifest has AI metadata', async () => {
+  await test('ai_test manifest has AI metadata', async () => {
     const manifestPath = join(__dirname, 'modules', 'ai_test', 'manifest.json');
     const { readFileSync } = await import('node:fs');
     const manifest = JSON.parse(readFileSync(manifestPath, 'utf8'));
@@ -215,7 +215,7 @@ async function runTests() {
 
   // Test 8: Discovery integration
   let aiTestDiscovered = false;
-  test('discoverAIModules processes modules correctly', async () => {
+  await test('discoverAIModules processes modules correctly', async () => {
     const { readFileSync } = await import('node:fs');
     const manifestPath = join(__dirname, 'modules', 'ai_test', 'manifest.json');
     const manifest = JSON.parse(readFileSync(manifestPath, 'utf8'));
@@ -238,7 +238,7 @@ async function runTests() {
     aiTestDiscovered = true;
   });
 
-  test('Discovered module is registered correctly', () => {
+  await test('Discovered module is registered correctly', () => {
     if (!aiTestDiscovered) {
       throw new Error('Previous test did not run');
     }
