@@ -67,7 +67,7 @@
     <p>All registered AI modules with status and capabilities</p>
   </div>
   <div class="admin-panel-body">
-    {{#if modules}}
+    {{#if hasModules}}
     <div style="display: grid; grid-template-columns: repeat(auto-fill, minmax(350px, 1fr)); gap: 1rem;">
       {{#each modules}}
       <div class="admin-card" style="border: 1px solid #e5e7eb; border-radius: 8px; padding: 1rem; background: white;">
@@ -80,14 +80,18 @@
             </div>
           </div>
           <div>
-            {{#if (eq status "active")}}
+            {{#if isActive}}
             <span style="display: inline-block; width: 12px; height: 12px; border-radius: 50%; background-color: #10b981;" title="Active"></span>
-            {{else if (eq status "inactive")}}
+            {{else}}
+            {{#if isInactive}}
             <span style="display: inline-block; width: 12px; height: 12px; border-radius: 50%; background-color: #9ca3af;" title="Inactive"></span>
-            {{else if (eq status "error")}}
+            {{else}}
+            {{#if isError}}
             <span style="display: inline-block; width: 12px; height: 12px; border-radius: 50%; background-color: #ef4444;" title="Error"></span>
             {{else}}
             <span style="display: inline-block; width: 12px; height: 12px; border-radius: 50%; background-color: #f59e0b;" title="Warning"></span>
+            {{/if}}
+            {{/if}}
             {{/if}}
           </div>
         </div>
@@ -104,45 +108,49 @@
         </div>
 
         <!-- Capabilities -->
-        {{#if capabilities}}
+        {{#if hasAnyCapability}}
         <div style="margin-bottom: 0.75rem; padding: 0.5rem; background: #f9fafb; border-radius: 4px; font-size: 0.875rem;">
           <strong style="display: block; margin-bottom: 0.25rem;">Capabilities:</strong>
           <div style="color: #6b7280; font-family: monospace; font-size: 0.75rem;">
-            {{#if capabilities.models}}
-            <div>Models: {{capabilities.models}}</div>
+            {{#if hasModels}}
+            <div>Models: {{modelsJson}}</div>
             {{/if}}
-            {{#if capabilities.operations}}
-            <div>Operations: {{capabilities.operations}}</div>
+            {{#if hasOperations}}
+            <div>Operations: {{operationsJson}}</div>
             {{/if}}
-            {{#if capabilities.streaming}}
-            <div>Streaming: {{capabilities.streaming}}</div>
+            {{#if hasStreaming}}
+            <div>Streaming: true</div>
             {{/if}}
-            {{#unless (or capabilities.models capabilities.operations capabilities.streaming)}}
-            <div style="font-style: italic;">No specific capabilities defined</div>
-            {{/unless}}
+          </div>
+        </div>
+        {{else}}
+        <div style="margin-bottom: 0.75rem; padding: 0.5rem; background: #f9fafb; border-radius: 4px; font-size: 0.875rem;">
+          <strong style="display: block; margin-bottom: 0.25rem;">Capabilities:</strong>
+          <div style="color: #6b7280; font-family: monospace; font-size: 0.75rem; font-style: italic;">
+            No specific capabilities defined
           </div>
         </div>
         {{/if}}
 
         <!-- Quick Actions -->
         <div style="display: flex; gap: 0.5rem; flex-wrap: wrap;">
-          {{#if (eq status "active")}}
+          {{#if isActive}}
           <form method="POST" action="/admin/ai/dashboard/action" style="display: inline;">
-            {{csrfField}}
+            <input type="hidden" name="_csrf" value="{{csrfToken}}">
             <input type="hidden" name="module" value="{{name}}">
             <input type="hidden" name="action" value="disable">
             <button type="submit" class="btn btn-small" style="font-size: 0.75rem;">Disable</button>
           </form>
           {{else}}
           <form method="POST" action="/admin/ai/dashboard/action" style="display: inline;">
-            {{csrfField}}
+            <input type="hidden" name="_csrf" value="{{csrfToken}}">
             <input type="hidden" name="module" value="{{name}}">
             <input type="hidden" name="action" value="enable">
             <button type="submit" class="btn btn-small btn-primary" style="font-size: 0.75rem;">Enable</button>
           </form>
           {{/if}}
           <form method="POST" action="/admin/ai/dashboard/action" style="display: inline;">
-            {{csrfField}}
+            <input type="hidden" name="_csrf" value="{{csrfToken}}">
             <input type="hidden" name="module" value="{{name}}">
             <input type="hidden" name="action" value="refresh">
             <button type="submit" class="btn btn-small" style="font-size: 0.75rem;">Refresh</button>
