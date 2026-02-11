@@ -12,21 +12,21 @@
 
 ---
 
-## TIER 1: LINK AUTOCOMPLETE (Features 0-5)
+## TIER 1: MENU LINK ATTRIBUTES (Features 0-5)
 
 These must pass before any functional features.
 
 ### Features
 
-### Feature 0: Link autocomplete matcher service
+### Feature 0: Custom attribute fields on menu links
 
-### Feature 1: Entity search matcher (content, media, users)
+### Feature 1: CSS class attribute support
 
-### Feature 2: WYSIWYG editor integration
+### Feature 2: Target attribute (new window) support
 
-### Feature 3: Linkit profile configuration admin route
+### Feature 3: Rel attribute configuration
 
-### Feature 4: External URL support alongside internal links
+### Feature 4: Icon class attribute for menu items
 
-### Feature 5: Link substitution service for stored references
+### Feature 5: Admin config: available attributes list
 

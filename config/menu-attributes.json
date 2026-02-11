@@ -1,0 +1,60 @@
+{
+  "availableAttributes": {
+    "class": {
+      "enabled": true,
+      "label": "CSS Classes",
+      "description": "Space-separated CSS class names for styling",
+      "type": "text",
+      "placeholder": "e.g., nav-link btn btn-primary"
+    },
+    "target": {
+      "enabled": true,
+      "label": "Target",
+      "description": "Where to open the link (_blank for new tab)",
+      "type": "select",
+      "options": ["", "_blank", "_self", "_parent", "_top"]
+    },
+    "rel": {
+      "enabled": true,
+      "label": "Rel Attribute",
+      "description": "Link relationship (nofollow, noopener, noreferrer, etc.)",
+      "type": "text",
+      "placeholder": "e.g., noopener noreferrer"
+    },
+    "icon": {
+      "enabled": true,
+      "label": "Icon Class",
+      "description": "Icon class names (Font Awesome, Material Icons, etc.)",
+      "type": "text",
+      "placeholder": "e.g., fa fa-home"
+    },
+    "data-toggle": {
+      "enabled": false,
+      "label": "Data Toggle",
+      "description": "Bootstrap data-toggle attribute",
+      "type": "text",
+      "placeholder": "e.g., dropdown"
+    },
+    "data-target": {
+      "enabled": false,
+      "label": "Data Target",
+      "description": "Bootstrap data-target attribute",
+      "type": "text",
+      "placeholder": "e.g., #myModal"
+    },
+    "aria-label": {
+      "enabled": false,
+      "label": "ARIA Label",
+      "description": "Accessible label for screen readers",
+      "type": "text",
+      "placeholder": "e.g., Go to homepage"
+    },
+    "title": {
+      "enabled": false,
+      "label": "Title Attribute",
+      "description": "Tooltip text shown on hover",
+      "type": "text",
+      "placeholder": "e.g., Click to go home"
+    }
+  }
+}

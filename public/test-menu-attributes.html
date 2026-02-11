@@ -1,0 +1,208 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Menu Link Attributes Test</title>
+  <style>
+    body {
+      font-family: system-ui, -apple-system, sans-serif;
+      max-width: 1200px;
+      margin: 2rem auto;
+      padding: 0 1rem;
+      line-height: 1.6;
+    }
+    h1 {
+      color: #111827;
+      border-bottom: 2px solid #2563eb;
+      padding-bottom: 0.5rem;
+    }
+    .test-section {
+      margin: 2rem 0;
+      padding: 1.5rem;
+      background: #f9fafb;
+      border: 1px solid #d1d5db;
+      border-radius: 8px;
+    }
+    .test-section h2 {
+      margin-top: 0;
+      color: #374151;
+    }
+    .menu {
+      list-style: none;
+      padding: 0;
+      margin: 1rem 0;
+    }
+    .menu li {
+      margin: 0.5rem 0;
+    }
+    .menu a {
+      color: #2563eb;
+      text-decoration: none;
+      padding: 0.5rem 1rem;
+      display: inline-block;
+      border-radius: 4px;
+    }
+    .menu a:hover {
+      background: #eff6ff;
+    }
+    .menu a.btn {
+      background: #2563eb;
+      color: white;
+    }
+    .menu a.btn:hover {
+      background: #1d4ed8;
+    }
+    .menu a i {
+      margin-right: 0.5rem;
+    }
+    .code-block {
+      background: #1f2937;
+      color: #e5e7eb;
+      padding: 1rem;
+      border-radius: 4px;
+      overflow-x: auto;
+      font-size: 0.9rem;
+      margin: 1rem 0;
+    }
+    .badge {
+      display: inline-block;
+      padding: 0.25rem 0.5rem;
+      background: #10b981;
+      color: white;
+      border-radius: 4px;
+      font-size: 0.85rem;
+      margin-left: 0.5rem;
+    }
+    .instructions {
+      background: #fef3c7;
+      border-left: 4px solid #f59e0b;
+      padding: 1rem;
+      margin: 1rem 0;
+    }
+  </style>
+</head>
+<body>
+  <h1>Menu Link Attributes Test Page</h1>
+
+  <div class="instructions">
+    <strong>Test Instructions:</strong>
+    <ol>
+      <li>Navigate to <a href="/admin/menus/main">/admin/menus/main</a></li>
+      <li>Click "Add Item" and create a menu link with attributes</li>
+      <li>Return to this page to see how the attributes are rendered</li>
+    </ol>
+  </div>
+
+  <div class="test-section">
+    <h2>Feature #1: Custom Attributes on Menu Links <span class="badge">Test Ready</span></h2>
+    <p>Menu items should render with custom HTML attributes defined in the admin interface.</p>
+
+    <h3>Expected Attributes:</h3>
+    <ul>
+      <li><code>class</code> - CSS class names</li>
+      <li><code>target</code> - Link target (_blank, _self, etc.)</li>
+      <li><code>rel</code> - Relationship attribute (nofollow, noopener, etc.)</li>
+      <li><code>icon</code> - Icon class (stored in attributes, can be rendered with CSS)</li>
+    </ul>
+
+    <h3>Test Menu (Main Navigation):</h3>
+    <div id="menu-container">
+      <p>Loading menu...</p>
+    </div>
+
+    <h3>HTML Source Code:</h3>
+    <pre id="html-source" class="code-block">Loading...</pre>
+  </div>
+
+  <div class="test-section">
+    <h2>Feature #2: CSS Class Attribute Support <span class="badge">Test Ready</span></h2>
+    <p>Menu links should accept and render CSS classes.</p>
+    <p><strong>Test:</strong> Create a menu item with class="btn btn-primary" and verify the link has those classes in HTML.</p>
+  </div>
+
+  <div class="test-section">
+    <h2>Feature #3: Target Attribute Support <span class="badge">Test Ready</span></h2>
+    <p>Menu links should support the target attribute for controlling link behavior.</p>
+    <p><strong>Test:</strong> Create a menu item with target="_blank" and verify:</p>
+    <ul>
+      <li>The HTML contains <code>target="_blank"</code></li>
+      <li>Clicking the link opens in a new tab</li>
+    </ul>
+  </div>
+
+  <script>
+    async function loadMenu() {
+      try {
+        // Fetch the main menu data from the API
+        const response = await fetch('/api/menu/main/render');
+        if (!response.ok) {
+          throw new Error('Failed to load menu');
+        }
+
+        const menuData = await response.json();
+
+        // Render the menu
+        const menuHtml = renderMenu(menuData);
+        document.getElementById('menu-container').innerHTML = menuHtml;
+
+        // Show the HTML source
+        document.getElementById('html-source').textContent = menuHtml;
+      } catch (error) {
+        console.error('Error loading menu:', error);
+        document.getElementById('menu-container').innerHTML =
+          '<p style="color: red;">Error loading menu. Menu API endpoint may not be implemented yet.</p>' +
+          '<p>Try accessing menu items directly through the admin interface at <a href="/admin/menus/main">/admin/menus/main</a></p>';
+        document.getElementById('html-source').textContent = 'Error: ' + error.message;
+      }
+    }
+
+    function renderMenu(items) {
+      if (!items || items.length === 0) {
+        return '<p>No menu items found. Create some in the admin interface!</p>';
+      }
+
+      let html = '<ul class="menu">';
+      for (const item of items) {
+        html += renderMenuItem(item);
+      }
+      html += '</ul>';
+      return html;
+    }
+
+    function renderMenuItem(item) {
+      const attrs = item.attributes || {};
+      const classAttr = attrs.class ? ` class="${escapeHtml(attrs.class)}"` : '';
+      const targetAttr = attrs.target ? ` target="${escapeHtml(attrs.target)}"` : '';
+      const relAttr = attrs.rel ? ` rel="${escapeHtml(attrs.rel)}"` : '';
+      const icon = attrs.icon ? `<i class="${escapeHtml(attrs.icon)}"></i>` : '';
+
+      let html = '<li>';
+      html += `<a href="${escapeHtml(item.url || item.link || '#')}"${classAttr}${targetAttr}${relAttr}>`;
+      html += icon + escapeHtml(item.title);
+      html += '</a>';
+
+      // Render children if any
+      if (item.children && item.children.length > 0) {
+        html += '<ul>';
+        for (const child of item.children) {
+          html += renderMenuItem(child);
+        }
+        html += '</ul>';
+      }
+
+      html += '</li>';
+      return html;
+    }
+
+    function escapeHtml(text) {
+      const div = document.createElement('div');
+      div.textContent = text;
+      return div.innerHTML;
+    }
+
+    // Load menu on page load
+    loadMenu();
+  </script>
+</body>
+</html>
