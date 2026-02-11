@@ -1,0 +1,539 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Add More Widget - Test Page</title>
+  <style>
+    * {
+      box-sizing: border-box;
+    }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+      max-width: 1200px;
+      margin: 0 auto;
+      padding: 2rem;
+      background: #f5f5f5;
+    }
+
+    h1 {
+      color: #333;
+      border-bottom: 3px solid #0066cc;
+      padding-bottom: 0.5rem;
+    }
+
+    h2 {
+      color: #555;
+      margin-top: 2rem;
+      padding-top: 1rem;
+      border-top: 1px solid #ddd;
+    }
+
+    .test-section {
+      background: white;
+      padding: 1.5rem;
+      margin-bottom: 1.5rem;
+      border-radius: 8px;
+      box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+    }
+
+    .test-section h3 {
+      margin-top: 0;
+      color: #0066cc;
+    }
+
+    .test-description {
+      background: #e8f4f8;
+      padding: 1rem;
+      border-left: 4px solid #0066cc;
+      margin-bottom: 1rem;
+      font-size: 0.95rem;
+    }
+
+    .verification-steps {
+      background: #fff9e6;
+      padding: 1rem;
+      border-left: 4px solid #ffb700;
+      margin-top: 1rem;
+      font-size: 0.9rem;
+    }
+
+    .verification-steps h4 {
+      margin-top: 0;
+      color: #cc8800;
+    }
+
+    .verification-steps ol {
+      margin: 0.5rem 0 0 0;
+      padding-left: 1.5rem;
+    }
+
+    .verification-steps li {
+      margin-bottom: 0.5rem;
+    }
+
+    .form-group {
+      margin-bottom: 1.5rem;
+    }
+
+    label {
+      display: block;
+      font-weight: 600;
+      margin-bottom: 0.5rem;
+      color: #333;
+    }
+
+    .required {
+      color: #d00;
+    }
+
+    .field-hint {
+      display: block;
+      margin-top: 0.25rem;
+      font-size: 0.875rem;
+      color: #666;
+    }
+
+    .form-input {
+      width: 100%;
+      padding: 0.5rem;
+      border: 1px solid #ccc;
+      border-radius: 4px;
+      font-size: 1rem;
+      transition: border-color 0.2s;
+    }
+
+    .form-input:focus {
+      outline: none;
+      border-color: #0066cc;
+      box-shadow: 0 0 0 3px rgba(0, 102, 204, 0.1);
+    }
+
+    textarea.form-input {
+      resize: vertical;
+      min-height: 80px;
+    }
+
+    select.form-input {
+      cursor: pointer;
+    }
+
+    .btn {
+      padding: 0.5rem 1rem;
+      border: none;
+      border-radius: 4px;
+      font-size: 0.95rem;
+      font-weight: 500;
+      cursor: pointer;
+      transition: all 0.2s;
+      display: inline-block;
+      text-decoration: none;
+    }
+
+    .btn-primary {
+      background: #0066cc;
+      color: white;
+    }
+
+    .btn-primary:hover {
+      background: #0052a3;
+    }
+
+    .btn-secondary {
+      background: #6c757d;
+      color: white;
+    }
+
+    .btn-secondary:hover {
+      background: #545b62;
+    }
+
+    .btn-danger {
+      background: #dc3545;
+      color: white;
+    }
+
+    .btn-danger:hover {
+      background: #c82333;
+    }
+
+    .btn-sm {
+      padding: 0.375rem 0.75rem;
+      font-size: 0.875rem;
+    }
+
+    .form-actions {
+      margin-top: 2rem;
+      padding-top: 1.5rem;
+      border-top: 1px solid #ddd;
+      display: flex;
+      gap: 1rem;
+    }
+
+    .result-box {
+      background: #f8f9fa;
+      border: 1px solid #dee2e6;
+      border-radius: 4px;
+      padding: 1rem;
+      margin-top: 1rem;
+      font-family: monospace;
+      font-size: 0.9rem;
+      white-space: pre-wrap;
+      word-break: break-all;
+    }
+
+    .badge {
+      display: inline-block;
+      padding: 0.25rem 0.5rem;
+      font-size: 0.75rem;
+      font-weight: 600;
+      border-radius: 3px;
+      margin-left: 0.5rem;
+    }
+
+    .badge-success {
+      background: #28a745;
+      color: white;
+    }
+
+    .badge-info {
+      background: #17a2b8;
+      color: white;
+    }
+
+    .badge-warning {
+      background: #ffc107;
+      color: #333;
+    }
+  </style>
+</head>
+<body>
+  <h1>🎯 Add More Widget - Comprehensive Test Suite</h1>
+
+  <div class="test-description">
+    <strong>Purpose:</strong> This page tests the multi-value field widget with "Add more" functionality.
+    The widget supports fields with cardinality > 1, allowing users to add multiple values incrementally.
+  </div>
+
+  <!-- Feature #1: Single empty item display -->
+  <h2>Feature #1: Single Empty Item Display <span class="badge badge-info">cardinality > 1</span></h2>
+
+  <div class="test-section" id="test-feature-1">
+    <h3>Test 1.1: Basic Multi-Value Field (Unlimited Cardinality)</h3>
+    <div class="test-description">
+      A multi-value field should initially display a single empty input item.
+      The "Add more" button should not be visible initially.
+    </div>
+
+    <form id="form-test-1-1">
+      <div class="form-group">
+        <label for="field-tags-unlimited">
+          Tags <span class="required">*</span>
+          <span class="badge badge-info">Unlimited</span>
+        </label>
+        <div id="field-tags-unlimited" data-field-container></div>
+        <small class="field-hint">Enter tags for this content. Add multiple tags using the button below.</small>
+      </div>
+
+      <div class="verification-steps">
+        <h4>✓ Verification Steps:</h4>
+        <ol>
+          <li>Exactly one empty input field should be visible</li>
+          <li>No "Add more" button should be visible initially</li>
+          <li>The empty field should have proper labels and styling</li>
+          <li>The field should accept input normally</li>
+        </ol>
+      </div>
+    </form>
+  </div>
+
+  <!-- Feature #2: Add more button with incremental addition -->
+  <h2>Feature #2: Add More Button <span class="badge badge-success">Incremental Addition</span></h2>
+
+  <div class="test-section" id="test-feature-2">
+    <h3>Test 2.1: Add More Button Behavior</h3>
+    <div class="test-description">
+      After entering data in the first item, the "Add more" button should appear.
+      Clicking it should add one new empty item below existing items.
+    </div>
+
+    <form id="form-test-2-1">
+      <div class="form-group">
+        <label for="field-emails">
+          Email Addresses
+          <span class="badge badge-info">Unlimited</span>
+        </label>
+        <div id="field-emails" data-field-container></div>
+        <small class="field-hint">Enter email addresses. Add more using the button that appears after filling the first field.</small>
+      </div>
+
+      <div class="verification-steps">
+        <h4>✓ Verification Steps:</h4>
+        <ol>
+          <li>Type an email in the first field</li>
+          <li>Verify "Add more" button appears below the filled item</li>
+          <li>Click "Add more" - a new empty item should appear</li>
+          <li>Verify existing data is preserved</li>
+          <li>Click "Add more" again - another item should be added</li>
+          <li>Button should remain functional after multiple additions</li>
+          <li>Button label should be clear (e.g., "Add another item")</li>
+        </ol>
+      </div>
+    </form>
+  </div>
+
+  <div class="test-section" id="test-feature-2-2">
+    <h3>Test 2.2: Different Field Types</h3>
+    <div class="test-description">
+      The widget should work with various field types (text, textarea, number, email, url, date, select).
+    </div>
+
+    <form id="form-test-2-2">
+      <div class="form-group">
+        <label for="field-notes">
+          Notes (Textarea)
+          <span class="badge badge-info">Unlimited</span>
+        </label>
+        <div id="field-notes" data-field-container></div>
+        <small class="field-hint">Multi-line text areas should work correctly.</small>
+      </div>
+
+      <div class="form-group">
+        <label for="field-numbers">
+          Quantities (Number)
+          <span class="badge badge-info">Unlimited</span>
+        </label>
+        <div id="field-numbers" data-field-container></div>
+        <small class="field-hint">Number inputs with proper validation.</small>
+      </div>
+
+      <div class="form-group">
+        <label for="field-dates">
+          Important Dates
+          <span class="badge badge-info">Unlimited</span>
+        </label>
+        <div id="field-dates" data-field-container></div>
+        <small class="field-hint">Date picker fields should work correctly.</small>
+      </div>
+    </form>
+  </div>
+
+  <!-- Feature #3: Limited cardinality integration -->
+  <h2>Feature #3: Limited Cardinality <span class="badge badge-warning">Max Values</span></h2>
+
+  <div class="test-section" id="test-feature-3">
+    <h3>Test 3.1: Fixed Cardinality (Max 3)</h3>
+    <div class="test-description">
+      When a field has a limited cardinality, the "Add more" button should be disabled/hidden when the limit is reached.
+    </div>
+
+    <form id="form-test-3-1">
+      <div class="form-group">
+        <label for="field-authors">
+          Authors
+          <span class="badge badge-warning">Max 3</span>
+        </label>
+        <div id="field-authors" data-field-container></div>
+        <small class="field-hint">You can add up to 3 authors. Button should disable when limit is reached.</small>
+      </div>
+
+      <div class="verification-steps">
+        <h4>✓ Verification Steps:</h4>
+        <ol>
+          <li>Add first item - button should appear</li>
+          <li>Add second item - button should remain enabled</li>
+          <li>Add third item - button should become disabled or show "Maximum reached"</li>
+          <li>Attempt to click disabled button - no new item should appear</li>
+          <li>Remove one item - button should become available again</li>
+          <li>Add item again - should work until limit is reached</li>
+        </ol>
+      </div>
+    </form>
+  </div>
+
+  <div class="test-section" id="test-feature-3-2">
+    <h3>Test 3.2: Fixed Cardinality (Max 5)</h3>
+    <div class="test-description">
+      Testing with a higher cardinality limit (5 items).
+    </div>
+
+    <form id="form-test-3-2">
+      <div class="form-group">
+        <label for="field-keywords">
+          Keywords
+          <span class="badge badge-warning">Max 5</span>
+        </label>
+        <div id="field-keywords" data-field-container></div>
+        <small class="field-hint">You can add up to 5 keywords.</small>
+      </div>
+    </form>
+  </div>
+
+  <div class="test-section" id="test-feature-3-3">
+    <h3>Test 3.3: Cardinality = 2 (Minimum Multi-Value)</h3>
+    <div class="test-description">
+      Testing the minimum multi-value configuration (exactly 2 values allowed).
+    </div>
+
+    <form id="form-test-3-3">
+      <div class="form-group">
+        <label for="field-choices">
+          Choice A or B
+          <span class="badge badge-warning">Exactly 2</span>
+        </label>
+        <div id="field-choices" data-field-container></div>
+        <small class="field-hint">This field allows exactly 2 values.</small>
+      </div>
+
+      <div class="verification-steps">
+        <h4>✓ Verification Steps:</h4>
+        <ol>
+          <li>Add first item</li>
+          <li>Add second item - button should immediately disable</li>
+          <li>Try to add more - should not be possible</li>
+        </ol>
+      </div>
+    </form>
+  </div>
+
+  <!-- Form submission test -->
+  <h2>Form Submission & Data Validation</h2>
+
+  <div class="test-section">
+    <h3>Test 4: Complete Form with Submit</h3>
+    <div class="test-description">
+      This form demonstrates submitting multi-value field data and validating the structure.
+    </div>
+
+    <form id="form-submit-test" onsubmit="handleSubmit(event)">
+      <div class="form-group">
+        <label for="field-submit-test">
+          Item List
+          <span class="badge badge-info">Unlimited</span>
+        </label>
+        <div id="field-submit-test" data-field-container></div>
+      </div>
+
+      <div class="form-actions">
+        <button type="submit" class="btn btn-primary">Submit Form</button>
+        <button type="button" class="btn btn-secondary" onclick="resetForm()">Reset</button>
+      </div>
+    </form>
+
+    <div id="submit-result" class="result-box" style="display:none;"></div>
+  </div>
+
+  <!-- Initialize widgets -->
+  <script src="/public/js/field-add-more.js"></script>
+  <script>
+    // Track all widget instances for cleanup
+    const widgets = [];
+
+    // Feature #1 tests
+    widgets.push(new FieldAddMore(document.getElementById('field-tags-unlimited'), {
+      fieldName: 'tags',
+      fieldType: 'text',
+      cardinality: -1,
+      placeholder: 'Enter a tag'
+    }));
+
+    // Feature #2 tests
+    widgets.push(new FieldAddMore(document.getElementById('field-emails'), {
+      fieldName: 'emails',
+      fieldType: 'email',
+      cardinality: -1,
+      placeholder: 'user@example.com'
+    }));
+
+    widgets.push(new FieldAddMore(document.getElementById('field-notes'), {
+      fieldName: 'notes',
+      fieldType: 'textarea',
+      cardinality: -1,
+      placeholder: 'Enter note...'
+    }));
+
+    widgets.push(new FieldAddMore(document.getElementById('field-numbers'), {
+      fieldName: 'numbers',
+      fieldType: 'number',
+      cardinality: -1,
+      placeholder: '0'
+    }));
+
+    widgets.push(new FieldAddMore(document.getElementById('field-dates'), {
+      fieldName: 'dates',
+      fieldType: 'date',
+      cardinality: -1
+    }));
+
+    // Feature #3 tests
+    widgets.push(new FieldAddMore(document.getElementById('field-authors'), {
+      fieldName: 'authors',
+      fieldType: 'text',
+      cardinality: 3,
+      placeholder: 'Author name'
+    }));
+
+    widgets.push(new FieldAddMore(document.getElementById('field-keywords'), {
+      fieldName: 'keywords',
+      fieldType: 'text',
+      cardinality: 5,
+      placeholder: 'Keyword'
+    }));
+
+    widgets.push(new FieldAddMore(document.getElementById('field-choices'), {
+      fieldName: 'choices',
+      fieldType: 'text',
+      cardinality: 2,
+      placeholder: 'Enter choice'
+    }));
+
+    // Submit test widget
+    const submitWidget = new FieldAddMore(document.getElementById('field-submit-test'), {
+      fieldName: 'items',
+      fieldType: 'text',
+      cardinality: -1,
+      placeholder: 'Enter an item'
+    });
+    widgets.push(submitWidget);
+
+    // Handle form submission
+    function handleSubmit(event) {
+      event.preventDefault();
+
+      const values = submitWidget.getValues();
+      const result = document.getElementById('submit-result');
+
+      result.style.display = 'block';
+      result.textContent = JSON.stringify({
+        field: 'items',
+        count: values.length,
+        values: values,
+        timestamp: new Date().toISOString()
+      }, null, 2);
+
+      console.log('Form submitted with values:', values);
+    }
+
+    function resetForm() {
+      submitWidget.setValues([]);
+      document.getElementById('submit-result').style.display = 'none';
+    }
+
+    // Log initialization
+    console.log(`✓ Initialized ${widgets.length} Add More widgets`);
+    console.log('Test page ready for manual verification');
+  </script>
+
+  <footer style="margin-top: 3rem; padding-top: 2rem; border-top: 1px solid #ddd; color: #666; font-size: 0.9rem;">
+    <p><strong>Testing Notes:</strong></p>
+    <ul>
+      <li>All features are implemented in <code>/public/js/field-add-more.js</code></li>
+      <li>Widgets are self-contained and don't require external dependencies</li>
+      <li>Smooth CSS transitions for adding/removing items (200ms default)</li>
+      <li>Responsive design adapts to mobile screens</li>
+      <li>Accessible button labels and clear visual feedback</li>
+    </ul>
+  </footer>
+</body>
+</html>
