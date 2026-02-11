@@ -127,6 +127,10 @@ const ELEMENT_TYPES = {
   language_select: {
     input_type: 'select',
     process: ['processLanguageSelect']
+  },
+  icon_autocomplete: {
+    input_type: 'text',
+    process: ['processIconAutocomplete']
   }
 };
 
@@ -748,6 +752,21 @@ const PROCESSORS = {
       'ar': 'Arabic'
     };
     return element;
+  },
+
+  processIconAutocomplete(element, formState) {
+    element['#attributes'] = element['#attributes'] || {};
+    element['#attributes'].type = 'text';
+    element['#attributes'].class = element['#attributes'].class || '';
+    element['#attributes'].class += ' icon-autocomplete';
+    element['#attributes']['data-icon-pack'] = element['#icon_pack'] || '';
+    element['#attributes']['data-show-preview'] = element['#show_preview'] !== false;
+
+    if (element['#placeholder']) {
+      element['#attributes'].placeholder = element['#placeholder'];
+    }
+
+    return element;
   }
 };
 
@@ -1022,6 +1041,21 @@ const RENDERERS = {
 
   language_select(element) {
     return RENDERERS.select(element);
+  },
+
+  icon_autocomplete(element) {
+    const inputHtml = renderInput(element);
+    const previewId = `${element['#id']}-preview`;
+
+    // Add icon preview container after input
+    const preview = element['#show_preview'] !== false
+      ? `<div id="${previewId}" class="icon-preview" style="display:inline-block;margin-left:10px;vertical-align:middle;"></div>`
+      : '';
+
+    // Add autocomplete dropdown container
+    const dropdown = `<div id="${element['#id']}-dropdown" class="icon-autocomplete-dropdown" style="display:none;position:absolute;background:white;border:1px solid #ddd;border-radius:4px;max-height:300px;overflow-y:auto;z-index:1000;box-shadow:0 2px 8px rgba(0,0,0,0.15);"></div>`;
+
+    return inputHtml + preview + dropdown;
   },
 
   default(element) {

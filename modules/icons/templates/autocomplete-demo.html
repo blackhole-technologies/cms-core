@@ -1,0 +1,555 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Icon Autocomplete Demo - CMS Core</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 40px 20px;
+        }
+
+        .container {
+            max-width: 800px;
+            margin: 0 auto;
+            background: white;
+            border-radius: 12px;
+            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+            padding: 40px;
+        }
+
+        h1 {
+            color: #333;
+            margin-bottom: 10px;
+            font-size: 32px;
+        }
+
+        .subtitle {
+            color: #666;
+            margin-bottom: 30px;
+            font-size: 16px;
+        }
+
+        .form-section {
+            margin-bottom: 30px;
+        }
+
+        .form-group {
+            margin-bottom: 25px;
+        }
+
+        label {
+            display: block;
+            margin-bottom: 8px;
+            color: #555;
+            font-weight: 500;
+            font-size: 14px;
+        }
+
+        input[type="text"] {
+            width: 100%;
+            padding: 12px 16px;
+            font-size: 16px;
+            border: 2px solid #ddd;
+            border-radius: 8px;
+            transition: border-color 0.2s;
+        }
+
+        input[type="text"]:focus {
+            outline: none;
+            border-color: #667eea;
+        }
+
+        .icon-autocomplete-dropdown {
+            display: none;
+            position: absolute;
+            background: white;
+            border: 1px solid #ddd;
+            border-radius: 8px;
+            max-height: 300px;
+            overflow-y: auto;
+            z-index: 1000;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+            margin-top: 4px;
+            min-width: 300px;
+        }
+
+        .dropdown-item {
+            padding: 12px 16px;
+            cursor: pointer;
+            border-bottom: 1px solid #f0f0f0;
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            transition: background 0.15s;
+        }
+
+        .dropdown-item:hover {
+            background: #f8f9ff;
+        }
+
+        .dropdown-item:last-child {
+            border-bottom: none;
+        }
+
+        .dropdown-item.selected {
+            background: #667eea;
+            color: white;
+        }
+
+        .dropdown-icon {
+            flex-shrink: 0;
+            width: 24px;
+            height: 24px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .dropdown-icon svg {
+            width: 100%;
+            height: 100%;
+        }
+
+        .dropdown-info {
+            flex: 1;
+            min-width: 0;
+        }
+
+        .dropdown-name {
+            font-weight: 500;
+            font-size: 14px;
+        }
+
+        .dropdown-meta {
+            font-size: 12px;
+            color: #888;
+            margin-top: 2px;
+        }
+
+        .icon-preview {
+            display: inline-block;
+            margin-left: 10px;
+            vertical-align: middle;
+            width: 32px;
+            height: 32px;
+        }
+
+        .icon-preview svg {
+            width: 100%;
+            height: 100%;
+        }
+
+        .no-results {
+            padding: 16px;
+            text-align: center;
+            color: #999;
+            font-size: 14px;
+        }
+
+        .loading {
+            padding: 16px;
+            text-align: center;
+            color: #667eea;
+            font-size: 14px;
+        }
+
+        .selected-value {
+            margin-top: 15px;
+            padding: 12px;
+            background: #f8f9ff;
+            border-radius: 6px;
+            font-size: 14px;
+            color: #555;
+        }
+
+        .selected-value strong {
+            color: #333;
+        }
+
+        .demo-features {
+            background: #f8f9ff;
+            border-radius: 8px;
+            padding: 20px;
+            margin-top: 30px;
+        }
+
+        .demo-features h3 {
+            color: #333;
+            font-size: 18px;
+            margin-bottom: 12px;
+        }
+
+        .demo-features ul {
+            list-style: none;
+            padding-left: 0;
+        }
+
+        .demo-features li {
+            padding: 6px 0;
+            color: #555;
+            font-size: 14px;
+        }
+
+        .demo-features li:before {
+            content: "✓ ";
+            color: #667eea;
+            font-weight: bold;
+            margin-right: 8px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>Icon Autocomplete Form Element</h1>
+        <p class="subtitle">Type to search for icons with live preview and keyboard navigation</p>
+
+        <div class="form-section">
+            <div class="form-group">
+                <label for="icon-field-1">Icon Selection (All Packs)</label>
+                <div style="position: relative;">
+                    <input
+                        type="text"
+                        id="icon-field-1"
+                        class="icon-autocomplete"
+                        placeholder="Start typing to search icons..."
+                        data-icon-pack=""
+                        data-show-preview="true"
+                    >
+                    <div id="icon-field-1-preview" class="icon-preview"></div>
+                    <div id="icon-field-1-dropdown" class="icon-autocomplete-dropdown"></div>
+                </div>
+                <div id="selected-1" class="selected-value" style="display:none;">
+                    <strong>Selected:</strong> <span id="selected-1-value"></span>
+                </div>
+            </div>
+
+            <div class="form-group">
+                <label for="icon-field-2">Icon Selection (Heroicons Only)</label>
+                <div style="position: relative;">
+                    <input
+                        type="text"
+                        id="icon-field-2"
+                        class="icon-autocomplete"
+                        placeholder="Search Heroicons only..."
+                        data-icon-pack="heroicons"
+                        data-show-preview="true"
+                    >
+                    <div id="icon-field-2-preview" class="icon-preview"></div>
+                    <div id="icon-field-2-dropdown" class="icon-autocomplete-dropdown"></div>
+                </div>
+                <div id="selected-2" class="selected-value" style="display:none;">
+                    <strong>Selected:</strong> <span id="selected-2-value"></span>
+                </div>
+            </div>
+
+            <div class="form-group">
+                <label for="icon-field-3">Icon Selection (No Preview)</label>
+                <div style="position: relative;">
+                    <input
+                        type="text"
+                        id="icon-field-3"
+                        class="icon-autocomplete"
+                        placeholder="Search icons without preview..."
+                        data-icon-pack=""
+                        data-show-preview="false"
+                    >
+                    <div id="icon-field-3-dropdown" class="icon-autocomplete-dropdown"></div>
+                </div>
+                <div id="selected-3" class="selected-value" style="display:none;">
+                    <strong>Selected:</strong> <span id="selected-3-value"></span>
+                </div>
+            </div>
+        </div>
+
+        <div class="demo-features">
+            <h3>Features Demonstrated</h3>
+            <ul>
+                <li>Typeahead autocomplete with live icon search</li>
+                <li>Icon preview in dropdown results</li>
+                <li>Icon preview next to input field (optional)</li>
+                <li>Filter by icon pack (optional)</li>
+                <li>Keyboard navigation (Arrow Up/Down, Enter, Escape)</li>
+                <li>Debounced search (300ms delay)</li>
+                <li>Integrates with existing form system</li>
+                <li>Uses /api/icons/search endpoint</li>
+            </ul>
+        </div>
+    </div>
+
+    <script>
+        // Icon Autocomplete Widget
+        class IconAutocomplete {
+            constructor(input) {
+                this.input = input;
+                this.dropdown = document.getElementById(input.id + '-dropdown');
+                this.previewContainer = document.getElementById(input.id + '-preview');
+                this.selectedDisplay = document.getElementById('selected-' + input.id.split('-').pop());
+                this.selectedValue = document.getElementById('selected-' + input.id.split('-').pop() + '-value');
+                this.pack = input.dataset.iconPack || '';
+                this.showPreview = input.dataset.showPreview !== 'false';
+                this.debounceTimer = null;
+                this.selectedIndex = -1;
+                this.results = [];
+
+                this.init();
+            }
+
+            init() {
+                // Input events
+                this.input.addEventListener('input', (e) => this.handleInput(e));
+                this.input.addEventListener('keydown', (e) => this.handleKeyDown(e));
+                this.input.addEventListener('focus', () => {
+                    if (this.results.length > 0) {
+                        this.showDropdown();
+                    }
+                });
+
+                // Click outside to close
+                document.addEventListener('click', (e) => {
+                    if (!this.input.contains(e.target) && !this.dropdown.contains(e.target)) {
+                        this.hideDropdown();
+                    }
+                });
+            }
+
+            handleInput(e) {
+                clearTimeout(this.debounceTimer);
+
+                const query = e.target.value.trim();
+
+                if (query.length < 2) {
+                    this.hideDropdown();
+                    return;
+                }
+
+                this.dropdown.innerHTML = '<div class="loading">Searching...</div>';
+                this.showDropdown();
+
+                this.debounceTimer = setTimeout(() => {
+                    this.performSearch(query);
+                }, 300);
+            }
+
+            async performSearch(query) {
+                try {
+                    let url = `/api/icons/search?q=${encodeURIComponent(query)}`;
+                    if (this.pack) {
+                        url += `&pack=${encodeURIComponent(this.pack)}`;
+                    }
+
+                    const response = await fetch(url);
+                    if (!response.ok) {
+                        throw new Error('Search failed');
+                    }
+
+                    const data = await response.json();
+                    this.results = data.results || [];
+                    this.selectedIndex = -1;
+
+                    this.renderResults(query);
+                } catch (error) {
+                    console.error('Icon search error:', error);
+                    this.dropdown.innerHTML = '<div class="no-results">Error searching icons</div>';
+                }
+            }
+
+            renderResults(query) {
+                if (this.results.length === 0) {
+                    this.dropdown.innerHTML = '<div class="no-results">No icons found</div>';
+                    return;
+                }
+
+                this.dropdown.innerHTML = this.results.map((icon, index) => {
+                    const iconPreview = this.showPreview
+                        ? `<div class="dropdown-icon"><div style="width:24px;height:24px;background:#ddd;border-radius:3px;"></div></div>`
+                        : '';
+
+                    return `
+                        <div class="dropdown-item" data-index="${index}" data-icon-id="${this.escapeHtml(icon.id)}">
+                            ${iconPreview}
+                            <div class="dropdown-info">
+                                <div class="dropdown-name">${this.highlightMatch(icon.name, query)}</div>
+                                <div class="dropdown-meta">${icon.pack} ${icon.variant ? '• ' + icon.variant : ''}</div>
+                            </div>
+                        </div>
+                    `;
+                }).join('');
+
+                // Load icon previews asynchronously
+                if (this.showPreview) {
+                    this.loadIconPreviews();
+                }
+
+                // Add click handlers
+                this.dropdown.querySelectorAll('.dropdown-item').forEach(item => {
+                    item.addEventListener('click', () => {
+                        const index = parseInt(item.dataset.index);
+                        this.selectIcon(this.results[index]);
+                    });
+
+                    item.addEventListener('mouseenter', () => {
+                        this.selectedIndex = parseInt(item.dataset.index);
+                        this.updateSelectedHighlight();
+                    });
+                });
+
+                this.showDropdown();
+            }
+
+            async loadIconPreviews() {
+                const items = this.dropdown.querySelectorAll('.dropdown-item');
+
+                for (let i = 0; i < items.length && i < 10; i++) { // Limit to first 10 for performance
+                    const item = items[i];
+                    const iconId = item.dataset.iconId;
+
+                    try {
+                        const response = await fetch('/api/icons/render', {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({ name: iconId, options: { size: 24 } })
+                        });
+
+                        if (response.ok) {
+                            const data = await response.json();
+                            const iconContainer = item.querySelector('.dropdown-icon');
+                            if (iconContainer) {
+                                iconContainer.innerHTML = data.svg;
+                            }
+                        }
+                    } catch (error) {
+                        console.error('Failed to load icon preview:', iconId, error);
+                    }
+                }
+            }
+
+            handleKeyDown(e) {
+                if (!this.dropdown || this.dropdown.style.display === 'none') {
+                    return;
+                }
+
+                switch (e.key) {
+                    case 'ArrowDown':
+                        e.preventDefault();
+                        this.selectedIndex = Math.min(this.selectedIndex + 1, this.results.length - 1);
+                        this.updateSelectedHighlight();
+                        this.scrollToSelected();
+                        break;
+
+                    case 'ArrowUp':
+                        e.preventDefault();
+                        this.selectedIndex = Math.max(this.selectedIndex - 1, 0);
+                        this.updateSelectedHighlight();
+                        this.scrollToSelected();
+                        break;
+
+                    case 'Enter':
+                        e.preventDefault();
+                        if (this.selectedIndex >= 0 && this.results[this.selectedIndex]) {
+                            this.selectIcon(this.results[this.selectedIndex]);
+                        }
+                        break;
+
+                    case 'Escape':
+                        e.preventDefault();
+                        this.hideDropdown();
+                        break;
+                }
+            }
+
+            updateSelectedHighlight() {
+                const items = this.dropdown.querySelectorAll('.dropdown-item');
+                items.forEach((item, index) => {
+                    if (index === this.selectedIndex) {
+                        item.classList.add('selected');
+                    } else {
+                        item.classList.remove('selected');
+                    }
+                });
+            }
+
+            scrollToSelected() {
+                const items = this.dropdown.querySelectorAll('.dropdown-item');
+                if (items[this.selectedIndex]) {
+                    items[this.selectedIndex].scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+                }
+            }
+
+            async selectIcon(icon) {
+                this.input.value = icon.id;
+                this.hideDropdown();
+
+                // Show selected value
+                if (this.selectedDisplay && this.selectedValue) {
+                    this.selectedValue.textContent = icon.id;
+                    this.selectedDisplay.style.display = 'block';
+                }
+
+                // Update preview
+                if (this.previewContainer) {
+                    try {
+                        const response = await fetch('/api/icons/render', {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({ name: icon.id, options: { size: 32 } })
+                        });
+
+                        if (response.ok) {
+                            const data = await response.json();
+                            this.previewContainer.innerHTML = data.svg;
+                        }
+                    } catch (error) {
+                        console.error('Failed to render icon preview:', error);
+                    }
+                }
+            }
+
+            showDropdown() {
+                this.dropdown.style.display = 'block';
+                this.positionDropdown();
+            }
+
+            hideDropdown() {
+                this.dropdown.style.display = 'none';
+            }
+
+            positionDropdown() {
+                const rect = this.input.getBoundingClientRect();
+                this.dropdown.style.width = rect.width + 'px';
+            }
+
+            highlightMatch(text, query) {
+                const regex = new RegExp(`(${this.escapeRegex(query)})`, 'gi');
+                return this.escapeHtml(text).replace(regex, '<strong style="background: #ffeb3b; color: #000;">$1</strong>');
+            }
+
+            escapeHtml(text) {
+                const div = document.createElement('div');
+                div.textContent = text;
+                return div.innerHTML;
+            }
+
+            escapeRegex(text) {
+                return text.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+            }
+        }
+
+        // Initialize all icon autocomplete fields
+        document.addEventListener('DOMContentLoaded', () => {
+            document.querySelectorAll('.icon-autocomplete').forEach(input => {
+                new IconAutocomplete(input);
+            });
+        });
+    </script>
+</body>
+</html>
