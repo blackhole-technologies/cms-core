@@ -232,33 +232,56 @@ export function hook_cli(register, context) {
     }
   }, 'Generate alt text for an image using AI');
 
-  // Bulk generate alt text
+  // Bulk generate alt text for media entities in database
   register('ai:alt:bulk', async (args, ctx) => {
-    const directory = args[0] || './media';
-
-    console.log(`\nBulk generating alt text for images in: ${directory}\n`);
+    // Parse command line flags
+    const flags = parseFlags(args);
+    const { 'content-type': contentType, field, since, limit, 'dry-run': dryRun, resume } = flags;
 
     try {
-      const results = await bulkGenerate(directory, ctx.services);
+      const results = await bulkGenerateFromDatabase({
+        contentType,
+        field,
+        since,
+        limit,
+        dryRun,
+        resume,
+        services: ctx.services
+      });
 
-      console.log('\nBulk Generation Complete:');
-      console.log(`  Total: ${results.total}`);
-      console.log(`  Success: ${results.success}`);
+      console.log('\n' + '='.repeat(60));
+      console.log('Bulk Alt Text Generation Complete');
+      console.log('='.repeat(60));
+      console.log(`  Total Processed: ${results.processed}`);
+      console.log(`  Successful: ${results.success}`);
       console.log(`  Failed: ${results.failed}`);
       console.log(`  Skipped: ${results.skipped}`);
-      console.log('');
+
+      if (dryRun) {
+        console.log(`\n  [DRY RUN MODE - No changes saved]`);
+      }
 
       if (results.errors.length > 0) {
-        console.log('Errors:');
-        results.errors.forEach(err => {
-          console.log(`  - ${err.file}: ${err.error}`);
+        console.log('\nErrors:');
+        results.errors.slice(0, 10).forEach(err => {
+          console.log(`  - ${err.id}: ${err.error}`);
         });
-        console.log('');
+        if (results.errors.length > 10) {
+          console.log(`  ... and ${results.errors.length - 10} more errors`);
+        }
       }
+
+      if (results.checkpointPath) {
+        console.log(`\nCheckpoint saved: ${results.checkpointPath}`);
+        console.log(`Resume with: node index.js ai:alt:bulk --resume`);
+      }
+
+      console.log('');
     } catch (error) {
       console.error(`Error: ${error.message}`);
+      process.exit(1);
     }
-  }, 'Bulk generate alt text for all images in a directory');
+  }, 'Bulk generate alt text for media entities (--content-type, --field, --since, --limit, --dry-run, --resume)');
 
   // Score alt text quality
   register('ai:alt:score', async (args, ctx) => {
@@ -609,4 +632,326 @@ async function bulkGenerate(directory, serviceContainer = null) {
   }
 
   return results;
+}
+
+/**
+ * Parse command line flags
+ * Supports: --flag=value or --flag value
+ */
+function parseFlags(args) {
+  const flags = {};
+
+  for (let i = 0; i < args.length; i++) {
+    const arg = args[i];
+
+    if (arg.startsWith('--')) {
+      const flagName = arg.slice(2);
+
+      // Check if flag has = syntax: --flag=value
+      if (flagName.includes('=')) {
+        const [name, value] = flagName.split('=');
+        flags[name] = value || true;
+      } else {
+        // Check if next arg is a value or another flag
+        if (i + 1 < args.length && !args[i + 1].startsWith('--')) {
+          flags[flagName] = args[i + 1];
+          i++; // Skip next arg
+        } else {
+          flags[flagName] = true;
+        }
+      }
+    }
+  }
+
+  return flags;
+}
+
+/**
+ * Bulk generate alt text for media entities in database
+ *
+ * @param {Object} options - Bulk generation options
+ * @param {string} options.contentType - Filter by content type (default: 'media-entity')
+ * @param {string} options.field - Field name containing image reference (default: all image fields)
+ * @param {string} options.since - ISO date to filter by (only process items created/updated after this date)
+ * @param {number} options.limit - Max number of items to process
+ * @param {boolean} options.dryRun - If true, don't save changes
+ * @param {boolean} options.resume - Resume from last checkpoint
+ * @param {Object} options.services - Service container
+ * @returns {Promise<Object>} - Results with statistics
+ */
+async function bulkGenerateFromDatabase(options) {
+  const {
+    contentType = 'media-entity',
+    field = null,
+    since = null,
+    limit = null,
+    dryRun = false,
+    resume = false,
+    services: svc
+  } = options;
+
+  const content = svc.get('content');
+  const { writeFileSync: writeFile, readFileSync: readFile } = await import('node:fs');
+  const { join } = await import('node:path');
+
+  // Checkpoint file for resume functionality
+  const checkpointDir = '/tmp/claude/ai-alt-text';
+  const checkpointPath = join(checkpointDir, 'checkpoint.json');
+
+  // Load checkpoint if resuming
+  let checkpoint = { processedIds: [], lastId: null };
+  if (resume && existsSync(checkpointPath)) {
+    try {
+      checkpoint = JSON.parse(readFile(checkpointPath, 'utf-8'));
+      console.log(`\nResuming from checkpoint (${checkpoint.processedIds.length} items already processed)...\n`);
+    } catch (err) {
+      console.warn(`Warning: Could not load checkpoint: ${err.message}`);
+    }
+  }
+
+  // Results tracking
+  const results = {
+    processed: 0,
+    success: 0,
+    failed: 0,
+    skipped: 0,
+    errors: [],
+    checkpointPath: null
+  };
+
+  console.log('\n' + '='.repeat(60));
+  console.log('Bulk Alt Text Generation');
+  console.log('='.repeat(60));
+  console.log(`  Content Type: ${contentType}`);
+  console.log(`  Field Filter: ${field || 'all image fields'}`);
+  console.log(`  Since: ${since || 'all time'}`);
+  console.log(`  Limit: ${limit || 'unlimited'}`);
+  console.log(`  Dry Run: ${dryRun ? 'Yes' : 'No'}`);
+  console.log(`  Resume: ${resume ? 'Yes' : 'No'}`);
+  console.log('='.repeat(60) + '\n');
+
+  try {
+    // Get all items of the specified content type
+    // Use direct file reading if content type isn't registered
+    let allItems;
+    try {
+      allItems = content.listAll(contentType);
+    } catch (err) {
+      // Fallback: read directly from content directory
+      console.log(`Note: Content type "${contentType}" not registered, reading directly from disk\n`);
+      const { readdirSync, readFileSync } = await import('node:fs');
+      const { join } = await import('node:path');
+
+      // Use absolute path to content directory
+      const contentPath = '/Users/Alchemy/Projects/experiments/cms-core/content/' + contentType;
+      if (!existsSync(contentPath)) {
+        throw new Error(`Content directory not found: ${contentPath}`);
+      }
+
+      const files = readdirSync(contentPath);
+      allItems = files
+        .filter(f => f.endsWith('.json'))
+        .map(f => {
+          const filePath = join(contentPath, f);
+          return JSON.parse(readFileSync(filePath, 'utf-8'));
+        });
+    }
+
+    // Filter by date if specified
+    let items = allItems;
+    if (since) {
+      const sinceDate = new Date(since);
+      items = items.filter(item => {
+        const itemDate = new Date(item.updated || item.created);
+        return itemDate >= sinceDate;
+      });
+      console.log(`Filtered by date: ${items.length} items since ${since}`);
+    }
+
+    // Skip already processed items if resuming
+    if (resume && checkpoint.processedIds.length > 0) {
+      items = items.filter(item => !checkpoint.processedIds.includes(item.id));
+      console.log(`Resuming: ${items.length} items remaining\n`);
+    }
+
+    // Apply limit
+    if (limit && items.length > limit) {
+      items = items.slice(0, limit);
+      console.log(`Limited to first ${limit} items\n`);
+    }
+
+    console.log(`Processing ${items.length} items...\n`);
+
+    // Process items in batches to avoid memory issues
+    const BATCH_SIZE = 10;
+    let batchCount = 0;
+
+    for (let i = 0; i < items.length; i++) {
+      const item = items[i];
+      results.processed++;
+
+      // Progress indicator
+      if (i % BATCH_SIZE === 0) {
+        batchCount++;
+        const percent = ((i / items.length) * 100).toFixed(1);
+        console.log(`\n[Batch ${batchCount}] Progress: ${i}/${items.length} (${percent}%)`);
+        console.log('-'.repeat(60));
+      }
+
+      try {
+        // Check if item needs alt text
+        const needsAltText = await checkIfNeedsAltText(item, field);
+
+        if (!needsAltText) {
+          results.skipped++;
+          console.log(`⊘ ${item.id} - Skipped (already has alt text or no image)`);
+          checkpoint.processedIds.push(item.id);
+          continue;
+        }
+
+        // Get the image path
+        const imagePath = getImagePath(item, field);
+
+        if (!imagePath) {
+          results.skipped++;
+          console.log(`⊘ ${item.id} - Skipped (no valid image path)`);
+          checkpoint.processedIds.push(item.id);
+          continue;
+        }
+
+        // Generate alt text
+        const altTextResult = await generateAltText(imagePath, svc);
+
+        // Update the item with generated alt text
+        if (!dryRun) {
+          // Determine which field to update
+          if (field) {
+            item[field] = altTextResult.altText;
+          } else if (item.alt !== undefined) {
+            item.alt = altTextResult.altText;
+          } else {
+            item.altText = altTextResult.altText;
+          }
+
+          // Update timestamp
+          item.updated = new Date().toISOString();
+
+          // Save to database - try content service first, fallback to direct file write
+          try {
+            const updateData = field ? { [field]: altTextResult.altText }
+              : item.alt !== undefined ? { alt: altTextResult.altText }
+              : { altText: altTextResult.altText };
+            await content.update(contentType, item.id, updateData);
+          } catch (err) {
+            // Fallback: write directly to file
+            const { writeFileSync } = await import('node:fs');
+            const { join } = await import('node:path');
+            const filePath = `/Users/Alchemy/Projects/experiments/cms-core/content/${contentType}/${item.id}.json`;
+            writeFileSync(filePath, JSON.stringify(item, null, 2), 'utf-8');
+          }
+        }
+
+        results.success++;
+        console.log(`✓ ${item.id} - Generated: "${altTextResult.altText}" (Score: ${altTextResult.qualityScore}/100)`);
+
+        // Update checkpoint
+        checkpoint.processedIds.push(item.id);
+        checkpoint.lastId = item.id;
+
+        // Save checkpoint every 10 items
+        if (results.processed % 10 === 0) {
+          await saveCheckpoint(checkpointDir, checkpointPath, checkpoint);
+        }
+
+      } catch (error) {
+        results.failed++;
+        results.errors.push({
+          id: item.id,
+          error: error.message
+        });
+        console.error(`✗ ${item.id} - Error: ${error.message}`);
+
+        // Still update checkpoint to avoid retrying failed items
+        checkpoint.processedIds.push(item.id);
+      }
+    }
+
+    // Save final checkpoint
+    if (results.processed > 0) {
+      await saveCheckpoint(checkpointDir, checkpointPath, checkpoint);
+      results.checkpointPath = checkpointPath;
+    }
+
+  } catch (error) {
+    console.error(`\nFatal error during bulk processing: ${error.message}`);
+    throw error;
+  }
+
+  return results;
+}
+
+/**
+ * Check if an item needs alt text generation
+ */
+async function checkIfNeedsAltText(item, fieldFilter) {
+  // If field filter is specified, only check that field
+  if (fieldFilter) {
+    const fieldValue = item[fieldFilter];
+    const altField = `${fieldFilter}_alt`;
+
+    // Check if field has a value and alt field is empty
+    return fieldValue && (!item[altField] || item[altField].trim() === '');
+  }
+
+  // Check common alt text fields
+  const altFields = ['alt', 'altText', 'alt_text'];
+
+  for (const altField of altFields) {
+    if (item[altField] !== undefined && item[altField] !== null && item[altField].trim() !== '') {
+      return false; // Already has alt text
+    }
+  }
+
+  // Check if item has an image
+  const hasImage = item.path || item.filename || item.url || item.src;
+
+  return hasImage;
+}
+
+/**
+ * Get the image path from an item
+ */
+function getImagePath(item, fieldFilter) {
+  // If field filter specified, use that field
+  if (fieldFilter && item[fieldFilter]) {
+    return item[fieldFilter];
+  }
+
+  // Try common image path fields
+  const pathFields = ['path', 'filename', 'file', 'src', 'url'];
+
+  for (const field of pathFields) {
+    if (item[field]) {
+      // Skip remote URLs (YouTube, etc)
+      const value = item[field];
+      if (typeof value === 'string' && !value.startsWith('http')) {
+        return value;
+      }
+    }
+  }
+
+  return null;
+}
+
+/**
+ * Save checkpoint to disk
+ */
+async function saveCheckpoint(checkpointDir, checkpointPath, checkpoint) {
+  const { mkdirSync, writeFileSync } = await import('node:fs');
+
+  if (!existsSync(checkpointDir)) {
+    mkdirSync(checkpointDir, { recursive: true });
+  }
+
+  writeFileSync(checkpointPath, JSON.stringify(checkpoint, null, 2), 'utf-8');
 }
