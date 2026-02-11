@@ -30,8 +30,12 @@
     <p style="margin:0 0 16px;color:#666;font-size:14px">Alt text describes this image for people using screen readers. It's required for accessibility.</p>
     <div style="margin-bottom:16px">
       <label style="display:block;font-weight:bold;margin-bottom:4px">Alt Text <span style="color:red">*</span></label>
-      <input type="text" id="altTextInput" placeholder="Describe the image..." style="width:100%;padding:8px;border:1px solid #ccc;border-radius:4px;box-sizing:border-box">
+      <div style="display:flex;gap:8px">
+        <input type="text" id="altTextInput" placeholder="Describe the image..." style="flex:1;padding:8px;border:1px solid #ccc;border-radius:4px;box-sizing:border-box">
+        <button onclick="generateAltText()" id="generateAltBtn" style="padding:8px 16px;border:1px solid #0071b9;background:white;color:#0071b9;border-radius:4px;cursor:pointer;white-space:nowrap;font-weight:500">✨ Generate</button>
+      </div>
       <p style="margin:4px 0 0;font-size:12px;color:#666">Example: "Team photo at the annual conference"</p>
+      <div id="altTextFeedback" style="display:none;margin-top:8px;padding:8px;border-radius:4px;font-size:12px"></div>
     </div>
     <div style="margin-bottom:16px">
       <label style="display:block;font-weight:bold;margin-bottom:4px">Caption (optional)</label>
@@ -323,4 +327,103 @@ function resetUploader() {
   document.getElementById('fileInput').value = '';
   renderFileList();
 }
+
+// AI Alt Text Generation
+async function generateAltText() {
+  if (pendingImageIndex < 0) return;
+
+  var btn = document.getElementById('generateAltBtn');
+  var feedback = document.getElementById('altTextFeedback');
+  var input = document.getElementById('altTextInput');
+
+  btn.disabled = true;
+  btn.textContent = '⏳ Generating...';
+  feedback.style.display = 'none';
+
+  try {
+    var file = selectedFiles[pendingImageIndex].file;
+    var formData = new FormData();
+    formData.append('file', file);
+
+    var response = await fetch('/api/ai/alt-text/generate', {
+      method: 'POST',
+      body: formData
+    });
+
+    if (!response.ok) {
+      throw new Error('Failed to generate alt text');
+    }
+
+    var data = await response.json();
+
+    if (data.altText) {
+      input.value = data.altText;
+
+      // Show quality feedback
+      feedback.style.display = 'block';
+      feedback.style.background = data.qualityScore >= 80 ? '#e8f5e9' : '#fff3e0';
+      feedback.style.border = '1px solid ' + (data.qualityScore >= 80 ? '#4caf50' : '#ff9800');
+      feedback.style.color = data.qualityScore >= 80 ? '#2e7d32' : '#e65100';
+      feedback.innerHTML = '<strong>Quality Score: ' + data.qualityScore + '/100</strong> (' + data.qualityGrade + ')';
+
+      if (data.qualityFeedback && data.qualityFeedback.length > 0) {
+        feedback.innerHTML += '<br><span style="font-weight:normal">' + data.qualityFeedback.join(' ') + '</span>';
+      }
+    }
+
+    btn.disabled = false;
+    btn.textContent = '✨ Generate';
+  } catch (error) {
+    feedback.style.display = 'block';
+    feedback.style.background = '#ffebee';
+    feedback.style.border = '1px solid #f44336';
+    feedback.style.color = '#c62828';
+    feedback.textContent = 'Error: ' + error.message;
+
+    btn.disabled = false;
+    btn.textContent = '✨ Generate';
+  }
+}
+
+// Alt text quality scoring on input
+var altTextScoreTimeout = null;
+document.addEventListener('DOMContentLoaded', function() {
+  var altInput = document.getElementById('altTextInput');
+  if (altInput) {
+    altInput.addEventListener('input', function() {
+      clearTimeout(altTextScoreTimeout);
+      var feedback = document.getElementById('altTextFeedback');
+
+      if (this.value.trim().length < 5) {
+        feedback.style.display = 'none';
+        return;
+      }
+
+      altTextScoreTimeout = setTimeout(async function() {
+        try {
+          var response = await fetch('/api/ai/alt-text/score', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ altText: altInput.value })
+          });
+
+          if (!response.ok) return;
+
+          var data = await response.json();
+          feedback.style.display = 'block';
+          feedback.style.background = data.score >= 80 ? '#e8f5e9' : '#fff3e0';
+          feedback.style.border = '1px solid ' + (data.score >= 80 ? '#4caf50' : '#ff9800');
+          feedback.style.color = data.score >= 80 ? '#2e7d32' : '#e65100';
+          feedback.innerHTML = '<strong>Quality: ' + data.score + '/100</strong> (' + data.grade + ')';
+
+          if (data.feedback && data.feedback.length > 0 && data.score < 90) {
+            feedback.innerHTML += '<br><span style="font-weight:normal">' + data.feedback.join(' ') + '</span>';
+          }
+        } catch (e) {
+          // Silently fail for scoring
+        }
+      }, 800);
+    });
+  }
+});
 </script>
