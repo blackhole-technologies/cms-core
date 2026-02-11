@@ -5637,6 +5637,12 @@ export async function boot(baseDir, options = {}) {
     // not triggering an event. (They're the same function.)
     await hooks.invoke('boot', context);
 
+    // Discover icon packs from plugins
+    // WHY HERE (after module boot):
+    // Modules register icon packs via hook_icon_packs_info.
+    // We fire the hook after modules have been loaded and hooks wired.
+    await icons.discoverPluginPacks(hooks);
+
     // Discover entity types from modules
     // WHY HERE (after module boot):
     // Modules register entity types via hook_entity_type_info.

@@ -1,0 +1,7 @@
+{
+  "name": "icon_pack_example",
+  "version": "1.0.0",
+  "description": "Example module demonstrating how to register a custom icon pack via hook_icon_packs_info",
+  "core": "0.0.x",
+  "hooks": ["icon_packs_info"]
+}
