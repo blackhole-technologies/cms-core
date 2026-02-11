@@ -677,3 +677,76 @@ For production deployments, consider adding:
 - Cost values rounded to 4 decimal places for consistency
 - Breakdown values are independently calculated and sum correctly
 
+
+
+# Session: 2026-02-11 (Feature #3 Re-Verification) - VERIFIED ✅
+
+## Feature #3: Provider health check endpoint - RE-VERIFIED
+
+**Context:** Feature was already marked as passing (implemented in commit 8f5921b). This session re-verified all requirements through browser automation and code review.
+
+**Verification Results (All 13 Steps Passing):**
+
+### Endpoint Functionality
+- ✅ Route handler exists at GET /api/ai/health (lines 369-441 in modules/ai_dashboard/index.js)
+- ✅ Iterates all registered AI providers via ai-registry service
+- ✅ Performs lightweight health checks via checkProviderHealth() function
+- ✅ Measures response time for each provider call
+- ✅ Implements 5-second timeout (configurable, default 5000ms)
+
+### Response Format
+- ✅ Returns correct JSON structure:
+  ```json
+  {
+    "providers": [
+      {"name": "ai_test", "status": "ok", "responseTime": 161, "message": "..."},
+      {"name": "ai_test_provider2", "status": "ok", "responseTime": 151, "message": "..."},
+      {"name": "ai_test_timeout", "status": "timeout", "responseTime": 5000, "message": "..."}
+    ],
+    "timestamp": "2026-02-11T12:57:54.112Z",
+    "cached": false
+  }
+  ```
+
+### Error Handling
+- ✅ Handles network failures, timeouts, and errors gracefully
+- ✅ Returns appropriate status codes: ok, error, timeout
+- ✅ Includes descriptive error messages
+
+### Caching
+- ✅ Implements 60-second cache (CACHE_TTL_MS = 60000)
+- ✅ Returns cached results on repeated calls within TTL
+- ✅ Sets X-Cache headers (HIT/MISS) and X-Cache-Age
+- ✅ Query param ?force=true bypasses cache successfully
+
+### Test Cases Verified
+- ✅ Empty provider list returns {providers: []} (lines 396-404)
+- ✅ Mock providers (ai_test, ai_test_provider2) respond with status=ok and responseTime<200ms
+- ✅ Timeout provider (ai_test_timeout) correctly times out after 5 seconds
+- ✅ Second call within 60s returns cached result (same timestamp)
+- ✅ Call with ?force=true performs fresh health check (new timestamp)
+
+### Integration
+- ✅ Integrates with ai-stats service (logs health checks to content/ai-stats/)
+- ✅ Each health check logged with operation: "health.check"
+- ✅ Zero console errors during testing
+- ✅ Zero network errors
+
+**Browser Testing:**
+- Tested via Playwright automation
+- Screenshots captured: feature3-health-check-basic.png, feature3-health-check-force.png
+- Verified JSON responses in browser
+- Confirmed cache behavior through repeated requests
+
+**Current Status:**
+- Feature #3: ✅ PASSING (already marked, now re-verified)
+- Total Features: 8
+- Passing: 5/8 (62.5%)
+- Remaining: #0, #6, #7
+
+**Session Notes:**
+- No code changes needed - feature fully implemented and working
+- All 13 feature steps verified and passing
+- Ready to move to next feature
+
+---
