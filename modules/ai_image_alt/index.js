@@ -49,6 +49,154 @@ export function hook_boot(context) {
 }
 
 /**
+ * Register API routes
+ */
+export function hook_routes(register, context) {
+  // POST /api/ai/alt-text/generate - Generate alt text for an uploaded image
+  register('POST', '/api/ai/alt-text/generate', async (req, res) => {
+    try {
+      // Parse multipart form data
+      const formData = await parseMultipartFormData(req);
+
+      if (!formData.file) {
+        res.writeHead(400, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ error: 'No image file provided' }));
+        return;
+      }
+
+      // Save temp file
+      const { writeFileSync, mkdirSync } = await import('node:fs');
+      const { join } = await import('node:path');
+      const tmpDir = '/tmp/claude/ai-alt-text';
+
+      if (!existsSync(tmpDir)) {
+        mkdirSync(tmpDir, { recursive: true });
+      }
+
+      const tmpPath = join(tmpDir, formData.file.filename);
+      writeFileSync(tmpPath, formData.file.data);
+
+      // Generate alt text
+      const result = await generateAltText(tmpPath, context.services);
+
+      // Clean up temp file
+      const { unlinkSync } = await import('node:fs');
+      unlinkSync(tmpPath);
+
+      res.writeHead(200, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify(result));
+    } catch (error) {
+      console.error('[ai_image_alt] Generate error:', error);
+      res.writeHead(500, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ error: error.message }));
+    }
+  });
+
+  // POST /api/ai/alt-text/score - Score alt text quality
+  register('POST', '/api/ai/alt-text/score', async (req, res) => {
+    try {
+      const body = await parseJsonBody(req);
+
+      if (!body.altText) {
+        res.writeHead(400, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ error: 'Alt text is required' }));
+        return;
+      }
+
+      const result = await scoreAltTextQuality(body.altText);
+
+      res.writeHead(200, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify(result));
+    } catch (error) {
+      console.error('[ai_image_alt] Score error:', error);
+      res.writeHead(500, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ error: error.message }));
+    }
+  });
+}
+
+/**
+ * Parse JSON request body
+ */
+function parseJsonBody(req) {
+  return new Promise((resolve, reject) => {
+    let body = '';
+    req.on('data', chunk => {
+      body += chunk.toString();
+    });
+    req.on('end', () => {
+      try {
+        resolve(JSON.parse(body));
+      } catch (e) {
+        reject(new Error('Invalid JSON'));
+      }
+    });
+    req.on('error', reject);
+  });
+}
+
+/**
+ * Parse multipart form data (simplified - handles single file upload)
+ */
+function parseMultipartFormData(req) {
+  return new Promise((resolve, reject) => {
+    const boundary = req.headers['content-type']?.split('boundary=')[1];
+    if (!boundary) {
+      reject(new Error('No boundary found'));
+      return;
+    }
+
+    const chunks = [];
+    req.on('data', chunk => chunks.push(chunk));
+    req.on('end', () => {
+      const buffer = Buffer.concat(chunks);
+      const parts = [];
+      const boundaryBuffer = Buffer.from(`--${boundary}`);
+
+      let start = 0;
+      while (true) {
+        const idx = buffer.indexOf(boundaryBuffer, start);
+        if (idx === -1) break;
+
+        const nextIdx = buffer.indexOf(boundaryBuffer, idx + boundaryBuffer.length);
+        if (nextIdx === -1) break;
+
+        const part = buffer.slice(idx + boundaryBuffer.length, nextIdx);
+        parts.push(part);
+        start = nextIdx;
+      }
+
+      const result = {};
+      for (const part of parts) {
+        const headerEnd = part.indexOf('\r\n\r\n');
+        if (headerEnd === -1) continue;
+
+        const headers = part.slice(0, headerEnd).toString();
+        const data = part.slice(headerEnd + 4, part.length - 2);
+
+        const nameMatch = headers.match(/name="([^"]+)"/);
+        const filenameMatch = headers.match(/filename="([^"]+)"/);
+
+        if (nameMatch) {
+          const name = nameMatch[1];
+          if (filenameMatch) {
+            result[name] = {
+              filename: filenameMatch[1],
+              data
+            };
+          } else {
+            result[name] = data.toString();
+          }
+        }
+      }
+
+      resolve(result);
+    });
+    req.on('error', reject);
+  });
+}
+
+/**
  * Register CLI commands
  */
 export function hook_cli(register, context) {
