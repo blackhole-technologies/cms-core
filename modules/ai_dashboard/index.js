@@ -448,23 +448,32 @@ export function hook_routes(register, context) {
     const action = formData.action;
     const moduleName = formData.module;
 
+    console.log('[ai_dashboard] Action request:', { action, moduleName, formData });
+
     if (!action || !moduleName) {
+      console.log('[ai_dashboard] Missing action or module');
       return redirect(res, '/admin/ai/dashboard?error=' + encodeURIComponent('Missing action or module'));
     }
 
     const module = aiRegistry.getModule(moduleName);
     if (!module) {
+      console.log('[ai_dashboard] Module not found:', moduleName);
       return redirect(res, '/admin/ai/dashboard?error=' + encodeURIComponent('Module not found'));
     }
 
     try {
+      console.log('[ai_dashboard] Processing action:', action);
       switch (action) {
         case 'enable':
           // Update module status to active using ai-registry service
+          console.log('[ai_dashboard] Enabling module:', moduleName);
           const enableSuccess = aiRegistry.updateStatus(moduleName, 'active');
+          console.log('[ai_dashboard] Enable result:', enableSuccess);
           if (!enableSuccess) {
+            console.log('[ai_dashboard] Enable failed, redirecting with error');
             return redirect(res, '/admin/ai/dashboard?error=' + encodeURIComponent(`Failed to enable module "${moduleName}"`));
           }
+          console.log('[ai_dashboard] Enable success, redirecting');
           return redirect(res, '/admin/ai/dashboard?success=' + encodeURIComponent(`Module "${moduleName}" enabled`));
 
         case 'disable':
