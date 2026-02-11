@@ -1,0 +1,20 @@
+{
+  "id": "1770600000010-test10",
+  "type": "media-entity",
+  "created": "2026-02-11T14:06:59.369Z",
+  "updated": "2026-02-11T14:06:59.369Z",
+  "name": "Test Image 10 - No Alt Text",
+  "mediaType": "image",
+  "filename": "test10.png",
+  "path": "/tmp/claude/test-images/test10.png",
+  "mimeType": "image/png",
+  "size": 68,
+  "metadata": {},
+  "tags": [],
+  "alt": "",
+  "caption": "",
+  "credit": "",
+  "status": "published",
+  "isDefaultRevision": true,
+  "publishedAt": "2026-02-11T14:06:59.369Z"
+}

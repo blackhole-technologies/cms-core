@@ -1,0 +1,20 @@
+{
+  "id": "1770600000004-test4",
+  "type": "media-entity",
+  "created": "2026-02-11T14:04:14.393Z",
+  "updated": "2026-02-11T14:04:14.393Z",
+  "name": "Test Image 4 - Already Has Alt",
+  "mediaType": "image",
+  "filename": "test4.png",
+  "path": "/tmp/claude/test-images/test4.png",
+  "mimeType": "image/png",
+  "size": 68,
+  "metadata": {},
+  "tags": [],
+  "alt": "This image already has alt text",
+  "caption": "",
+  "credit": "",
+  "status": "published",
+  "isDefaultRevision": true,
+  "publishedAt": "2026-02-11T14:04:14.393Z"
+}

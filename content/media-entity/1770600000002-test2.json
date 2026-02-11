@@ -1,0 +1,20 @@
+{
+  "id": "1770600000002-test2",
+  "type": "media-entity",
+  "created": "2026-02-11T14:04:14.392Z",
+  "updated": "2026-02-11T14:06:12.768Z",
+  "name": "Test Image 2 - No Alt Text",
+  "mediaType": "image",
+  "filename": "test2.png",
+  "path": "/tmp/claude/test-images/test2.png",
+  "mimeType": "image/png",
+  "size": 68,
+  "metadata": {},
+  "tags": [],
+  "alt": "A photograph showing a scenic landscape with mountains in the background and a lake in the foreground",
+  "caption": "",
+  "credit": "",
+  "status": "published",
+  "isDefaultRevision": true,
+  "publishedAt": "2026-02-11T14:04:14.392Z"
+}

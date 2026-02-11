@@ -1,0 +1,20 @@
+{
+  "id": "1770600000086-test86",
+  "type": "media-entity",
+  "created": "2026-02-11T14:06:59.382Z",
+  "updated": "2026-02-11T14:06:59.382Z",
+  "name": "Test Image 86 - No Alt Text",
+  "mediaType": "image",
+  "filename": "test86.png",
+  "path": "/tmp/claude/test-images/test86.png",
+  "mimeType": "image/png",
+  "size": 68,
+  "metadata": {},
+  "tags": [],
+  "alt": "",
+  "caption": "",
+  "credit": "",
+  "status": "published",
+  "isDefaultRevision": true,
+  "publishedAt": "2026-02-11T14:06:59.382Z"
+}

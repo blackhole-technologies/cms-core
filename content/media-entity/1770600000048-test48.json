@@ -1,0 +1,20 @@
+{
+  "id": "1770600000048-test48",
+  "type": "media-entity",
+  "created": "2026-02-11T14:06:59.375Z",
+  "updated": "2026-02-11T14:06:59.375Z",
+  "name": "Test Image 48 - No Alt Text",
+  "mediaType": "image",
+  "filename": "test48.png",
+  "path": "/tmp/claude/test-images/test48.png",
+  "mimeType": "image/png",
+  "size": 68,
+  "metadata": {},
+  "tags": [],
+  "alt": "",
+  "caption": "",
+  "credit": "",
+  "status": "published",
+  "isDefaultRevision": true,
+  "publishedAt": "2026-02-11T14:06:59.375Z"
+}

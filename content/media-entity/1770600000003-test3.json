@@ -1,0 +1,20 @@
+{
+  "id": "1770600000003-test3",
+  "type": "media-entity",
+  "created": "2026-02-11T14:04:14.392Z",
+  "updated": "2026-02-11T14:06:24.491Z",
+  "name": "Test Image 3 - No Alt Text",
+  "mediaType": "image",
+  "filename": "test3.png",
+  "path": "/tmp/claude/test-images/test3.png",
+  "mimeType": "image/png",
+  "size": 68,
+  "metadata": {},
+  "tags": [],
+  "alt": "An illustration showing a group of people collaborating around a conference table",
+  "caption": "",
+  "credit": "",
+  "status": "published",
+  "isDefaultRevision": true,
+  "publishedAt": "2026-02-11T14:04:14.392Z"
+}

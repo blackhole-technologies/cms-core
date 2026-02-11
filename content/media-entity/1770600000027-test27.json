@@ -1,0 +1,20 @@
+{
+  "id": "1770600000027-test27",
+  "type": "media-entity",
+  "created": "2026-02-11T14:06:59.371Z",
+  "updated": "2026-02-11T14:06:59.371Z",
+  "name": "Test Image 27 - No Alt Text",
+  "mediaType": "image",
+  "filename": "test27.png",
+  "path": "/tmp/claude/test-images/test27.png",
+  "mimeType": "image/png",
+  "size": 68,
+  "metadata": {},
+  "tags": [],
+  "alt": "",
+  "caption": "",
+  "credit": "",
+  "status": "published",
+  "isDefaultRevision": true,
+  "publishedAt": "2026-02-11T14:06:59.371Z"
+}
