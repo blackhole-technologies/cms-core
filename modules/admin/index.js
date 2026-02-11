@@ -13218,13 +13218,29 @@ export function hook_routes(register, context) {
         return;
       }
 
+      // Build attributes object from form data
+      const attributes = {};
+      if (formData.css_class?.trim()) {
+        attributes.class = formData.css_class.trim();
+      }
+      if (formData.target?.trim()) {
+        attributes.target = formData.target.trim();
+      }
+      if (formData.rel?.trim()) {
+        attributes.rel = formData.rel.trim();
+      }
+      if (formData.icon_class?.trim()) {
+        attributes.icon = formData.icon_class.trim();
+      }
+
       const item = await menuService.createMenuItem({
         menuId: name,
         title: itemData.title,
         link: itemData.url,
         weight: itemData.weight,
         parentId: itemData.parent,
-        enabled: itemData.enabled
+        enabled: itemData.enabled,
+        attributes: attributes
       });
       redirect(res, `/admin/menus/${name}?success=` + encodeURIComponent(`Item created: ${item.title}`));
     } catch (error) {
@@ -13298,12 +13314,28 @@ export function hook_routes(register, context) {
         return;
       }
 
+      // Build attributes object from form data
+      const attributes = {};
+      if (formData.css_class?.trim()) {
+        attributes.class = formData.css_class.trim();
+      }
+      if (formData.target?.trim()) {
+        attributes.target = formData.target.trim();
+      }
+      if (formData.rel?.trim()) {
+        attributes.rel = formData.rel.trim();
+      }
+      if (formData.icon_class?.trim()) {
+        attributes.icon = formData.icon_class.trim();
+      }
+
       await menuService.updateMenuItem(id, {
         title: updates.title,
         link: updates.url,
         weight: updates.weight,
         parentId: updates.parent,
-        enabled: updates.enabled
+        enabled: updates.enabled,
+        attributes: attributes
       });
       redirect(res, `/admin/menus/${name}?success=` + encodeURIComponent(`Item updated: ${updates.title}`));
     } catch (error) {
