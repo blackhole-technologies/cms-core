@@ -286,8 +286,13 @@ export function hook_routes(register, context) {
       const auth = context.services.get('auth');
       const session = auth.getSession(req);
 
+      // Determine userId from session or API token
+      let userId = null;
+
       // Check session authentication
-      if (!session || !session.userId) {
+      if (session && session.userId) {
+        userId = session.userId;
+      } else {
         // Try API token authentication (Authorization: Bearer <token>)
         const authHeader = req.headers['authorization'];
         if (!authHeader || !authHeader.startsWith('Bearer ')) {
@@ -315,11 +320,9 @@ export function hook_routes(register, context) {
           return;
         }
 
-        // Set userId from token for rate limiting
-        session.userId = validToken.userId;
+        // Extract userId from token for rate limiting
+        userId = validToken.userId;
       }
-
-      const userId = session.userId;
 
       // ========================================
       // STEP 2: RATE LIMITING
