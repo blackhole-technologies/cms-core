@@ -5,214 +5,9 @@
     "description": "Example view showing list of articles",
     "contentType": "article",
     "display": "page",
-    "path": null,
-    "header": "<p style=\"font-weight: bold; color: #2563eb;\">Welcome to our article collection! Browse our latest content below.</p>",
-    "footer": "<p style=\"text-align: center; color: #6b7280;\">Thanks for reading. <a href=\"/contact\">Contact us</a> for more information.</p>",
-    "filters": [
-      {
-        "field": "status",
-        "op": "=",
-        "value": "published",
-        "exposed": true
-      }
-    ],
-    "contextualFilters": [],
-    "sort": [
-      {
-        "field": "created",
-        "dir": "desc"
-      }
-    ],
-    "pager": {
-      "type": "full",
-      "limit": 10
-    },
-    "fields": [
-      {
-        "name": "title",
-        "label": "Article Title",
-        "formatter": "default"
-      },
-      {
-        "name": "created",
-        "label": "Date Created",
-        "formatter": "date"
-      },
-      "author",
-      "body",
-      {
-        "name": "status",
-        "label": "Publication Status",
-        "formatter": "raw"
-      }
-    ],
-    "relationships": [],
-    "aggregation": null,
-    "cache": {
-      "enabled": true,
-      "ttl": 300
-    },
-    "created": "2026-02-03T00:00:00.000Z",
-    "updated": "2026-02-08T01:45:20.082Z",
-    "displayMode": "table",
-    "template": null,
-    "displays": [
-      {
-        "id": "page_1",
-        "type": "page",
-        "label": "Page",
-        "path": "/articles",
-        "displayMode": "table",
-        "template": null,
-        "pager": {
-          "type": "full",
-          "limit": 10
-        },
-        "isDefault": true
-      },
-      {
-        "id": "block_1",
-        "type": "block",
-        "label": "Sidebar Block",
-        "path": null,
-        "displayMode": "grid",
-        "template": null,
-        "pager": {
-          "type": "mini",
-          "limit": 5
-        },
-        "isDefault": false
-      },
-      {
-        "id": "feed_1",
-        "type": "feed",
-        "label": "Feed",
-        "path": null,
-        "displayMode": "table",
-        "template": null,
-        "pager": {
-          "type": "full",
-          "limit": 10
-        },
-        "isDefault": false
-      }
-    ],
-    "filterLogic": "AND"
-  },
-  "complex_test_view": {
-    "id": "complex_test_view",
-    "name": "Complex Test View",
-    "description": "A view with complex configuration for export/import testing",
-    "contentType": "article",
-    "display": "page",
-    "displays": [
-      {
-        "id": "default",
-        "type": "page",
-        "label": "Page",
-        "path": "/test-complex",
-        "displayMode": "table",
-        "template": null,
-        "pager": {
-          "type": "full",
-          "limit": 25
-        },
-        "isDefault": true
-      }
-    ],
-    "path": "/test-complex",
-    "filters": [
-      {
-        "field": "published",
-        "op": "=",
-        "value": true
-      },
-      {
-        "field": "title",
-        "op": "contains",
-        "value": "test"
-      }
-    ],
-    "filterLogic": "AND",
-    "contextualFilters": [
-      {
-        "source": "query",
-        "param": "category",
-        "field": "category",
-        "op": "=",
-        "required": false
-      }
-    ],
-    "sort": [
-      {
-        "field": "created",
-        "dir": "desc"
-      },
-      {
-        "field": "title",
-        "dir": "asc"
-      }
-    ],
-    "pager": {
-      "type": "full",
-      "limit": 25,
-      "offset": 0
-    },
-    "fields": [
-      "title",
-      "body",
-      "created",
-      "author",
-      "published"
-    ],
-    "relationships": [
-      {
-        "field": "author",
-        "contentType": "user",
-        "alias": "author_ref"
-      }
-    ],
-    "aggregation": null,
-    "cache": {
-      "enabled": true,
-      "ttl": 600
-    },
-    "created": "2026-02-08T01:46:02.916Z",
-    "updated": "2026-02-08T01:46:02.916Z"
-  },
-  "test_required_ctx": {
-    "id": "test_required_ctx",
-    "name": "Required Contextual Filter",
-    "description": "",
-    "contentType": "article",
-    "display": "page",
-    "displays": [
-      {
-        "id": "default",
-        "type": "page",
-        "label": "Page",
-        "path": null,
-        "displayMode": "table",
-        "template": null,
-        "pager": {
-          "type": "full",
-          "limit": 10
-        },
-        "isDefault": true
-      }
-    ],
-    "path": null,
+    "path": "/articles",
     "filters": [],
-    "filterLogic": "AND",
-    "contextualFilters": [
-      {
-        "field": "author",
-        "source": "url",
-        "param": "author",
-        "required": true,
-        "op": "="
-      }
-    ],
+    "contextualFilters": [],
     "sort": [
       {
         "field": "created",
@@ -224,19 +19,14 @@
       "limit": 10,
       "offset": 0
     },
-    "fields": [
-      "id",
-      "title",
-      "author"
-    ],
+    "fields": ["title", "created", "author"],
     "relationships": [],
     "aggregation": null,
-    "emptyState": null,
     "cache": {
       "enabled": true,
       "ttl": 300
     },
-    "created": "2026-02-08T05:23:12.531Z",
-    "updated": "2026-02-08T05:23:12.531Z"
+    "created": "2026-02-03T00:00:00.000Z",
+    "updated": "2026-02-03T00:00:00.000Z"
   }
 }

@@ -94,57 +94,6 @@ import * as locks from './locks.js';
 import { slugify, generateUniqueSlug, validateSlug, looksLikeId } from './slugify.js';
 
 /**
- * Constraint service reference (injected after boot)
- *
- * WHY LATE-BINDING:
- * Content.js is initialized before constraints.js in the boot sequence.
- * The constraints service is injected via setConstraints() after both are initialized.
- * This avoids circular dependency issues while enabling constraint-based validation
- * on content create/update.
- */
-let constraintService = null;
-
-/**
- * Workspace provider reference (injected after boot)
- *
- * WHY LATE-BINDING:
- * Content.js is initialized before workspaces.js in the boot sequence.
- * The workspace provider is injected via setWorkspaceProvider() after both
- * are initialized. This avoids circular dependency issues while enabling
- * workspace-aware content isolation (Drupal workspaces pattern).
- *
- * The provider must implement:
- * - getActiveWorkspace() -> {id, machineName, label} | null
- * - associateContent(workspaceId, contentType, contentId, operation)
- */
-let workspaceProvider = null;
-
-/**
- * Set the workspace provider for workspace-aware content operations
- *
- * Called from boot.js after both content and workspaces are initialized.
- * Enables workspace isolation: content created in a workspace is tagged
- * with _workspace field and filtered from live queries.
- *
- * @param {Object} provider - The workspaces service module
- */
-export function setWorkspaceProvider(provider) {
-  workspaceProvider = provider;
-}
-
-/**
- * Set the constraint service for content validation
- *
- * Called from boot.js after both content and constraints are initialized.
- * Enables the Drupal-inspired constraint plugin validation on save.
- *
- * @param {Object} svc - The constraints service module
- */
-export function setConstraints(svc) {
-  constraintService = svc;
-}
-
-/**
  * Content type registry
  * Structure: { typeName: { schema, source } }
  *
@@ -571,557 +520,6 @@ function saveRevision(type, id, content) {
 }
 
 /**
- * PENDING REVISIONS SYSTEM:
- * =========================
- * Implements Drupal's content_moderation pattern:
- * - Published content can have "pending" draft revisions
- * - The main content file is always the "default" (public-facing) version
- * - Drafts on published content are stored as non-default revisions
- * - Publishing a pending draft promotes it to the default
- *
- * KEY CONCEPT: isDefaultRevision flag
- * - true  = this version is the public-facing, canonical version
- * - false = this is a pending draft, not visible to the public
- *
- * The main content file (content/{type}/{id}.json) always holds the
- * default revision. Non-default drafts live in .revisions/.
- *
- * WHY THIS APPROACH:
- * - read() and list() automatically return the published version
- * - No changes needed to existing API consumers
- * - Drafts are accessible via getPendingRevisions() or includeAllRevisions
- * - Mirrors Drupal's separation of published + isDefaultRevision flags
- */
-
-/**
- * Determine isDefaultRevision value based on workflow state
- *
- * WHY: In Drupal's content_moderation, the isDefaultRevision flag is
- * determined by the workflow state, not set manually. Published content
- * is always the default. Drafts on published content are non-default.
- *
- * @param {string} targetStatus - The workflow status being set
- * @param {Object} existing - The existing content item (null for new content)
- * @returns {boolean} - Whether the revision should be the default
- */
-function shouldBeDefaultRevision(targetStatus, existing = null) {
-  // Published content is always the default revision
-  if (targetStatus === 'published') {
-    return true;
-  }
-
-  // If creating new content (no existing), it's always the default
-  if (!existing) {
-    return true;
-  }
-
-  // If existing content is published and we're creating a draft,
-  // the draft should NOT be the default (pending revision pattern)
-  if (existing.status === 'published' && targetStatus === 'draft') {
-    return false;
-  }
-
-  // For non-published existing content changing to draft,
-  // keep it as default (normal draft editing)
-  return true;
-}
-
-/**
- * Create a draft revision on published content (pending revision)
- *
- * WHY: When published content is edited as a draft, the edit should
- * NOT overwrite the live version. Instead, it's stored as a
- * non-default revision in .revisions/ directory.
- *
- * @param {string} type - Content type
- * @param {string} id - Content ID
- * @param {Object} data - New field data for the draft
- * @param {Object} options - Options (userId, etc.)
- * @returns {Promise<Object>} - The pending draft revision
- */
-export async function createDraft(type, id, data, options = {}) {
-  const existing = read(type, id);
-  if (!existing) {
-    throw new Error(`Content not found: ${type}/${id}`);
-  }
-
-  // Only create pending revisions on published content
-  // For non-published content, use normal update()
-  if (existing.status !== 'published') {
-    return update(type, id, { ...data, status: 'draft' }, options);
-  }
-
-  const { schema } = contentTypes[type];
-  const now = new Date().toISOString();
-
-  // Merge existing with draft data
-  const draft = {
-    ...existing,
-    ...data,
-    // Preserve system fields
-    id: existing.id,
-    type: existing.type,
-    created: existing.created,
-    updated: now,
-    // Mark as draft, non-default revision
-    status: 'draft',
-    isDefaultRevision: false,
-  };
-
-  // Save draft as a revision (non-default)
-  if (revisionsEnabled) {
-    ensureRevisionsDir(type, id);
-    const revisionPath = getRevisionPath(type, id, now);
-    writeFileSync(revisionPath, JSON.stringify(draft, null, 2) + '\n');
-  }
-
-  // Fire hook so other modules know a pending draft was created
-  await hooks.trigger('content:pendingDraftCreated', {
-    type,
-    id,
-    draft,
-    published: existing,
-  });
-
-  return draft;
-}
-
-/**
- * Get pending (non-default) revisions for a content item
- *
- * @param {string} type - Content type
- * @param {string} id - Content ID
- * @returns {Array<Object>} - List of pending revision objects with full content
- */
-export function getPendingRevisions(type, id) {
-  const revisionsDir = getRevisionsDir(type, id);
-
-  if (!existsSync(revisionsDir)) {
-    return [];
-  }
-
-  const files = readdirSync(revisionsDir)
-    .filter(f => f.endsWith('.json'))
-    .sort()
-    .reverse();
-
-  const pending = [];
-
-  for (const file of files) {
-    try {
-      const filePath = join(revisionsDir, file);
-      const raw = readFileSync(filePath, 'utf-8');
-      const revision = JSON.parse(raw);
-
-      // Only include non-default revisions (pending drafts)
-      if (revision.isDefaultRevision === false) {
-        pending.push(revision);
-      }
-    } catch (e) {
-      // Skip unreadable revisions
-    }
-  }
-
-  return pending;
-}
-
-/**
- * Check if a content item has pending (non-default) revisions
- *
- * WHY: Fast check without loading all revision data. Used by content
- * listings to show a "pending revision" indicator badge.
- *
- * @param {string} type - Content type
- * @param {string} id - Content ID
- * @returns {boolean} - True if pending revisions exist
- */
-export function hasPendingRevisions(type, id) {
-  const revisionsDir = getRevisionsDir(type, id);
-
-  if (!existsSync(revisionsDir)) {
-    return false;
-  }
-
-  const files = readdirSync(revisionsDir).filter(f => f.endsWith('.json'));
-
-  for (const file of files) {
-    try {
-      const filePath = join(revisionsDir, file);
-      const raw = readFileSync(filePath, 'utf-8');
-      const revision = JSON.parse(raw);
-
-      if (revision.isDefaultRevision === false) {
-        return true;
-      }
-    } catch (e) {
-      // Skip unreadable revisions
-    }
-  }
-
-  return false;
-}
-
-/**
- * Count pending (non-default) revisions for a content item
- *
- * WHY: Used by content listings to show exact count of pending drafts.
- * More informative than just hasPendingRevisions boolean.
- *
- * @param {string} type - Content type
- * @param {string} id - Content ID
- * @returns {number} - Number of pending revisions
- */
-export function countPendingRevisions(type, id) {
-  return getPendingRevisions(type, id).length;
-}
-
-/**
- * Publish a pending revision, making it the new default
- *
- * WHY: When a pending draft is approved, it should replace the
- * current published version as the default revision.
- *
- * BEHAVIOR:
- * 1. Save current published version as a revision
- * 2. Replace main file with the pending draft (now published)
- * 3. Mark the new version as isDefaultRevision: true, status: published
- *
- * @param {string} type - Content type
- * @param {string} id - Content ID
- * @param {string} revisionTimestamp - ISO timestamp of the pending revision to publish
- * @returns {Promise<Object>} - The newly published content
- */
-export async function publishPendingRevision(type, id, revisionTimestamp = null) {
-  const existing = read(type, id);
-  if (!existing) {
-    throw new Error(`Content not found: ${type}/${id}`);
-  }
-
-  // Find the pending revision to publish
-  let pendingDraft;
-
-  if (revisionTimestamp) {
-    // Specific revision requested
-    pendingDraft = getRevision(type, id, revisionTimestamp);
-    if (!pendingDraft || pendingDraft.isDefaultRevision !== false) {
-      throw new Error(`No pending revision found at timestamp: ${revisionTimestamp}`);
-    }
-  } else {
-    // Get the most recent pending revision
-    const pending = getPendingRevisions(type, id);
-    if (pending.length === 0) {
-      throw new Error(`No pending revisions found for ${type}/${id}`);
-    }
-    pendingDraft = pending[0]; // Most recent
-  }
-
-  const now = new Date().toISOString();
-
-  // 1. Save current published version as a historical revision
-  if (revisionsEnabled) {
-    saveRevision(type, id, existing);
-  }
-
-  // 2. Build the new published version from the pending draft
-  const newPublished = {
-    ...pendingDraft,
-    status: 'published',
-    isDefaultRevision: true,
-    updated: now,
-    publishedAt: existing.publishedAt || now,
-  };
-
-  // 3. Write the new version as the main content file
-  const filePath = getContentPath(type, id);
-  writeFileSync(filePath, JSON.stringify(newPublished, null, 2) + '\n');
-
-  // 3b. Remove the promoted pending draft from .revisions/
-  // WHY: Once a pending draft is published, it should no longer count as pending.
-  // The draft's content is now the main file, so the revision file is redundant.
-  const promotedTimestamp = pendingDraft.updated;
-  if (promotedTimestamp) {
-    const safeTs = promotedTimestamp.replace(/:/g, '-');
-    const draftRevPath = join(getRevisionsDir(type, id), `${safeTs}.json`);
-    if (existsSync(draftRevPath)) {
-      unlinkSync(draftRevPath);
-    }
-  }
-
-  // 4. Invalidate cache
-  if (cacheEnabled) {
-    cache.delete(cache.itemKey(type, id));
-    cache.clear(`content:${type}:list:*`);
-  }
-
-  // 5. Fire hooks
-  await hooks.trigger('content:afterStatusChange', {
-    type,
-    id,
-    from: 'draft',
-    to: 'published',
-    item: newPublished,
-  });
-  await hooks.trigger('content:published', { type, item: newPublished });
-
-  return newPublished;
-}
-
-/**
- * Discard a pending (non-default) revision
- *
- * WHY: When a pending draft is no longer needed, it should be removed
- * from the revision list. The published/default version remains unchanged.
- *
- * @param {string} type - Content type
- * @param {string} id - Content ID
- * @param {string|null} revisionTimestamp - ISO timestamp of the specific pending revision to discard.
- *   If null, discards ALL pending revisions.
- * @returns {{ discarded: number, remaining: number }} - How many were discarded and how many remain
- */
-export function discardPendingRevision(type, id, revisionTimestamp = null) {
-  const existing = read(type, id);
-  if (!existing) {
-    throw new Error(`Content not found: ${type}/${id}`);
-  }
-
-  const revisionsDir = getRevisionsDir(type, id);
-  if (!existsSync(revisionsDir)) {
-    return { discarded: 0, remaining: 0 };
-  }
-
-  let discardedCount = 0;
-
-  if (revisionTimestamp) {
-    // Discard a specific pending revision
-    const safeTs = revisionTimestamp.replace(/:/g, '-');
-    const revPath = join(revisionsDir, `${safeTs}.json`);
-
-    if (existsSync(revPath)) {
-      // Verify it's actually a pending (non-default) revision
-      try {
-        const raw = readFileSync(revPath, 'utf-8');
-        const revision = JSON.parse(raw);
-        if (revision.isDefaultRevision === false) {
-          unlinkSync(revPath);
-          discardedCount = 1;
-        } else {
-          throw new Error(`Revision at ${revisionTimestamp} is not a pending revision (isDefaultRevision: true)`);
-        }
-      } catch (e) {
-        if (e.message.includes('not a pending revision')) throw e;
-        throw new Error(`Could not read revision at ${revisionTimestamp}`);
-      }
-    } else {
-      throw new Error(`No revision found at timestamp: ${revisionTimestamp}`);
-    }
-  } else {
-    // Discard ALL pending revisions
-    const files = readdirSync(revisionsDir).filter(f => f.endsWith('.json'));
-
-    for (const file of files) {
-      const filePath = join(revisionsDir, file);
-      try {
-        const raw = readFileSync(filePath, 'utf-8');
-        const revision = JSON.parse(raw);
-        if (revision.isDefaultRevision === false) {
-          unlinkSync(filePath);
-          discardedCount++;
-        }
-      } catch (e) {
-        // Skip unreadable files
-      }
-    }
-  }
-
-  // Invalidate cache after discarding
-  if (cacheEnabled) {
-    cache.delete(cache.itemKey(type, id));
-    cache.clear(`content:${type}:list:*`);
-  }
-
-  const remaining = countPendingRevisions(type, id);
-  return { discarded: discardedCount, remaining };
-}
-
-/**
- * Compare a pending revision to the published/default version
- *
- * WHY: Before publishing or discarding a pending draft, users need to see
- * exactly what changed compared to the live version. This provides a
- * field-level diff between the current default and the pending draft.
- *
- * @param {string} type - Content type
- * @param {string} id - Content ID
- * @param {string|null} revisionTimestamp - Specific pending revision timestamp.
- *   If null, compares the most recent pending revision.
- * @returns {{ published: Object, pending: Object, changes: Array, unchangedFields: Array }}
- */
-export function comparePendingToPublished(type, id, revisionTimestamp = null) {
-  const published = read(type, id);
-  if (!published) {
-    throw new Error(`Content not found: ${type}/${id}`);
-  }
-
-  // Find the pending revision to compare
-  let pendingDraft;
-  if (revisionTimestamp) {
-    pendingDraft = getRevision(type, id, revisionTimestamp);
-    if (!pendingDraft || pendingDraft.isDefaultRevision !== false) {
-      throw new Error(`No pending revision found at timestamp: ${revisionTimestamp}`);
-    }
-  } else {
-    const pending = getPendingRevisions(type, id);
-    if (pending.length === 0) {
-      throw new Error(`No pending revisions found for ${type}/${id}`);
-    }
-    pendingDraft = pending[0]; // Most recent
-  }
-
-  // Compute field-level diff
-  const changes = [];
-  const unchangedFields = [];
-
-  // System fields to skip in comparison (always differ between revisions)
-  const skipFields = ['updated', 'isDefaultRevision'];
-
-  const allKeys = new Set([...Object.keys(published), ...Object.keys(pendingDraft)]);
-
-  for (const key of allKeys) {
-    if (skipFields.includes(key)) continue;
-
-    const pubVal = published[key];
-    const pendVal = pendingDraft[key];
-
-    const pubStr = JSON.stringify(pubVal);
-    const pendStr = JSON.stringify(pendVal);
-
-    if (pubStr === pendStr) {
-      unchangedFields.push(key);
-      continue;
-    }
-
-    let changeType;
-    if (pubVal === undefined) {
-      changeType = 'added';
-    } else if (pendVal === undefined) {
-      changeType = 'removed';
-    } else {
-      changeType = 'modified';
-    }
-
-    changes.push({
-      field: key,
-      published: pubVal,
-      pending: pendVal,
-      type: changeType,
-    });
-  }
-
-  return {
-    published,
-    pending: pendingDraft,
-    changes,
-    unchangedFields,
-  };
-}
-
-/**
- * Get the workflow state for a content item, reflecting pending revision status
- *
- * WHY: The workflow system needs to accurately represent content that has
- * pending revisions. A published article with a pending draft has a
- * compound state: "published" for the live version but also "has pending changes".
- * This function provides that complete picture.
- *
- * @param {string} type - Content type
- * @param {string} id - Content ID
- * @returns {{ status: string, hasPending: boolean, pendingCount: number,
- *   isDefaultRevision: boolean, availableTransitions: string[],
- *   pendingStatus: string|null, workflowSummary: string }}
- */
-export function getWorkflowState(type, id) {
-  const item = read(type, id);
-  if (!item) {
-    throw new Error(`Content not found: ${type}/${id}`);
-  }
-
-  const hasPending = hasPendingRevisions(type, id);
-  const pendingCount = hasPending ? countPendingRevisions(type, id) : 0;
-  const pendingRevisions = hasPending ? getPendingRevisions(type, id) : [];
-
-  // Get the status of the most recent pending revision
-  const pendingStatus = pendingRevisions.length > 0 ? pendingRevisions[0].status : null;
-
-  // Determine available transitions based on current state + pending status
-  const currentStatus = item.status || 'draft';
-  const availableTransitions = [];
-
-  // Standard transitions
-  const typeInfo = contentTypes[type];
-  const workflowOptions = typeInfo?.schema?._workflow;
-
-  if (workflowOptions?.allowedTransitions) {
-    const allowed = workflowOptions.allowedTransitions[currentStatus] || [];
-    availableTransitions.push(...allowed);
-  } else {
-    // Default transitions when no explicit workflow defined
-    switch (currentStatus) {
-      case 'draft':
-        availableTransitions.push('published', 'pending', 'archived');
-        break;
-      case 'published':
-        availableTransitions.push('draft', 'archived');
-        break;
-      case 'pending':
-        availableTransitions.push('draft', 'published', 'archived');
-        break;
-      case 'archived':
-        availableTransitions.push('draft');
-        break;
-    }
-  }
-
-  // If there are pending revisions on published content, add publish-pending
-  // as an available action (not a status transition, but a workflow action)
-  if (hasPending && currentStatus === 'published') {
-    if (!availableTransitions.includes('publish-pending')) {
-      availableTransitions.push('publish-pending');
-    }
-    if (!availableTransitions.includes('discard-pending')) {
-      availableTransitions.push('discard-pending');
-    }
-  }
-
-  // Build human-readable workflow summary
-  let workflowSummary;
-  if (currentStatus === 'published' && hasPending) {
-    workflowSummary = `Published with ${pendingCount} pending draft${pendingCount > 1 ? 's' : ''}`;
-  } else if (currentStatus === 'published') {
-    workflowSummary = 'Published (live)';
-  } else if (currentStatus === 'draft' && item.isDefaultRevision === false) {
-    workflowSummary = 'Pending draft (not live)';
-  } else if (currentStatus === 'draft') {
-    workflowSummary = 'Draft (not published)';
-  } else if (currentStatus === 'pending') {
-    workflowSummary = 'Pending review';
-  } else if (currentStatus === 'archived') {
-    workflowSummary = 'Archived';
-  } else {
-    workflowSummary = currentStatus;
-  }
-
-  return {
-    status: currentStatus,
-    hasPending,
-    pendingCount,
-    isDefaultRevision: item.isDefaultRevision !== false,
-    availableTransitions,
-    pendingStatus,
-    workflowSummary,
-  };
-}
-
-/**
  * Internal prune function (doesn't check revisionsEnabled)
  *
  * @param {string} type - Content type
@@ -1316,14 +714,6 @@ function validateData(data, schema, type, options = {}) {
   for (const [fieldName, fieldDef] of Object.entries(schema)) {
     const value = data[fieldName];
 
-    // Skip readonly fields during validation — they are auto-set by the system
-    // WHY: Fields like 'created' and 'updated' are required but readonly,
-    // meaning the system populates them automatically. User-supplied data
-    // should not be required to include these fields.
-    if (fieldDef.readonly) {
-      continue;
-    }
-
     // Check required fields
     if (fieldDef.required && (value === undefined || value === null)) {
       throw new Error(`Missing required field "${fieldName}" for content type "${type}"`);
@@ -1449,17 +839,8 @@ export async function create(type, data) {
 
   const { schema } = contentTypes[type];
 
-  // Run constraint plugin validation if available
-  // WHY CONSTRAINTS BEFORE OLD VALIDATION:
-  // Constraints collect ALL violations at once (Drupal pattern).
-  // If constraints are enabled, they replace the old one-at-a-time validateData.
-  // This gives users a complete list of what needs fixing.
-  if (constraintService) {
-    await constraintService.validateOrThrow(type, data, schema);
-  } else {
-    // Fallback to legacy validation if constraints not initialized
-    validateData(data, schema, type);
-  }
+  // Validate data against schema
+  validateData(data, schema, type);
 
   // Generate unique ID and timestamps
   const id = generateId();
@@ -1475,13 +856,6 @@ export async function create(type, data) {
     created: now,
     updated: now,
     ...data,
-    // WHY isDefaultRevision on create:
-    // - New content is always the default (canonical) revision
-    // - Enables pending draft workflows where published content
-    //   can have non-default draft revisions alongside it
-    // - Mirrors Drupal's content_moderation: published + isDefaultRevision
-    //   are independent flags allowing "pending draft on published content"
-    isDefaultRevision: true,
   };
 
   // Add workflow fields if enabled
@@ -1513,30 +887,6 @@ export async function create(type, data) {
     }
   }
 
-  // Tag content with workspace if one is active
-  // WHY WORKSPACE TAGGING:
-  // - Content created in a workspace is isolated from live site
-  // - The _workspace field marks which workspace owns this content
-  // - Live queries filter out workspace content; workspace queries include it
-  // - Mirrors Drupal's workspaces module: changes don't affect live until published
-  if (workspaceProvider) {
-    const activeWs = workspaceProvider.getActiveWorkspace();
-    if (activeWs) {
-      content._workspace = activeWs.id;
-      // Track the association for workspace publish/delete operations
-      // WHY RE-THROW WORKSPACE_EXPIRED:
-      // Most association errors are non-critical (e.g., file I/O glitches).
-      // But expiration errors MUST block content creation — writing to an
-      // expired workspace violates its read-only contract.
-      try {
-        workspaceProvider.associateContent(activeWs.id, type, id, 'create', { revisionId: content.created || new Date().toISOString() });
-      } catch (wsErr) {
-        if (wsErr.code === 'WORKSPACE_EXPIRED') throw wsErr;
-        /* other workspace association errors are non-critical */
-      }
-    }
-  }
-
   // Ensure type directory exists
   ensureTypeDir(type);
 
@@ -1545,13 +895,7 @@ export async function create(type, data) {
   // - Human-readable
   // - Git-friendly diffs
   // - Standard JSON formatting
-  // WHY content.id (not local id variable):
-  // - data.id can override the generated ID (e.g., workspace copies
-  //   use a convention like "ws-{prefix}-{originalId}")
-  // - The file path must match the stored ID so read(type, id) can find it
-  // - Without this, workspace copies get saved with a generated filename
-  //   that doesn't match their ws- prefixed ID, breaking lookups
-  const filePath = getContentPath(type, content.id);
+  const filePath = getContentPath(type, id);
   writeFileSync(filePath, JSON.stringify(content, null, 2) + '\n');
 
   // Invalidate list cache for this type
@@ -1678,15 +1022,6 @@ function readRaw(type, id) {
     const raw = readFileSync(filePath, 'utf-8');
     const item = JSON.parse(raw);
 
-    // WHY DEFAULT isDefaultRevision to true:
-    // - Existing content created before pending revisions feature
-    //   should be treated as the default (canonical) revision
-    // - The main content file (not in .revisions/) is always
-    //   the current default unless explicitly marked otherwise
-    if (item.isDefaultRevision === undefined) {
-      item.isDefaultRevision = true;
-    }
-
     // Store in cache if enabled
     if (cacheEnabled) {
       const cacheKey = cache.itemKey(type, id);
@@ -1758,113 +1093,7 @@ export function read(type, id, options = {}) {
     computed = true,
     computedFields: requestedComputedFields = null,
     context = null,
-    skipWorkspace = false,
-    includeAllRevisions = false,
   } = options;
-
-  // INCLUDE ALL REVISIONS:
-  // When includeAllRevisions is true, return the main content item with an
-  // attached `revisions` array containing all historical revisions (both
-  // default and non-default). This enables callers to see the full revision
-  // history inline, including pending drafts.
-  //
-  // WHY on read() not a separate function:
-  // - Matches Drupal's entity load with revision support
-  // - Single call returns everything needed for revision comparison UIs
-  // - Callers can opt-in without changing their code structure
-  if (includeAllRevisions) {
-    const mainItem = read(type, id, { ...options, includeAllRevisions: false });
-    if (!mainItem) return null;
-
-    // Get all revisions from the .revisions/ directory
-    const allRevisions = getRevisions(type, id);
-    const revisionDetails = [];
-
-    for (const rev of allRevisions) {
-      const revContent = getRevision(type, id, rev.timestamp);
-      if (revContent) {
-        revisionDetails.push({
-          ...revContent,
-          _revisionTimestamp: rev.timestamp,
-          _isHistoricalRevision: true,
-        });
-      }
-    }
-
-    // Sort chronologically (oldest first)
-    revisionDetails.sort((a, b) => {
-      const tsA = a._revisionTimestamp || a.updated || a.created || '';
-      const tsB = b._revisionTimestamp || b.updated || b.created || '';
-      return new Date(tsA).getTime() - new Date(tsB).getTime();
-    });
-
-    // Attach revisions array to the main item
-    // The main item is the current default revision
-    return {
-      ...mainItem,
-      _revisions: revisionDetails,
-      _revisionCount: revisionDetails.length + 1, // +1 for current
-    };
-  }
-
-  // WORKSPACE-AWARE READ:
-  // When a workspace is active, check if a workspace-specific copy exists
-  // for this content item. If so, return the workspace version instead of
-  // the live version. This mirrors Drupal's workspaces module where viewing
-  // content in a workspace context shows the staged (modified) version.
-  //
-  // WHY HERE (not in readRaw):
-  // - readRaw is a low-level file reader used everywhere
-  // - Workspace resolution is a business-level concern
-  // - Only user-facing read() should do workspace substitution
-  // - skipWorkspace option prevents infinite recursion
-  if (!skipWorkspace && workspaceProvider) {
-    const activeWs = workspaceProvider.getActiveWorkspace();
-    if (activeWs) {
-      // Build the workspace copy ID: ws-{first8chars}-{originalId}
-      const workspaceCopyId = `ws-${activeWs.id.substring(0, 8)}-${id}`;
-      const workspaceCopy = readRaw(type, workspaceCopyId);
-      if (workspaceCopy) {
-        // Found a workspace-specific version — use it instead
-        // Preserve _originalId so callers know this is a workspace copy
-        let item = workspaceCopy;
-
-        // Populate relations if requested
-        if (populate && populate.length > 0) {
-          const schema = contentTypes[type]?.schema;
-          if (schema) {
-            item = populateRelations(item, schema, populate);
-          }
-        }
-
-        // Resolve computed fields
-        if (computed && computedEnabled && hasComputedFields(type)) {
-          const allComputed = getComputedFields(type);
-          const hasAsync = Object.values(allComputed).some(f => f.async);
-          if (!hasAsync) {
-            const resolved = { ...item };
-            const fieldsToCompute = requestedComputedFields
-              ? requestedComputedFields.filter(f => allComputed[f])
-              : Object.keys(allComputed);
-            for (const fieldName of fieldsToCompute) {
-              const fieldDef = allComputed[fieldName];
-              try {
-                resolved[fieldName] = fieldDef.compute(item, context);
-              } catch (error) {
-                console.error(`[content] Error computing "${fieldName}": ${error.message}`);
-                resolved[fieldName] = null;
-              }
-            }
-            item = resolved;
-          }
-        }
-
-        return item;
-      }
-      // No workspace copy exists — fall through to return live version
-      // This is correct: content not edited in workspace shows the live version
-    }
-  }
 
   // Get raw item
   let item = readRaw(type, id);
@@ -1933,34 +1162,7 @@ export async function readAsync(type, id, options = {}) {
     computed = true,
     computedFields: requestedComputedFields = null,
     context = null,
-    skipWorkspace = false,
   } = options;
-
-  // WORKSPACE-AWARE ASYNC READ:
-  // Same logic as read() — check for workspace copy first
-  if (!skipWorkspace && workspaceProvider) {
-    const activeWs = workspaceProvider.getActiveWorkspace();
-    if (activeWs) {
-      const workspaceCopyId = `ws-${activeWs.id.substring(0, 8)}-${id}`;
-      const workspaceCopy = readRaw(type, workspaceCopyId);
-      if (workspaceCopy) {
-        let item = workspaceCopy;
-        if (populate && populate.length > 0) {
-          const schema = contentTypes[type]?.schema;
-          if (schema) {
-            item = populateRelations(item, schema, populate);
-          }
-        }
-        if (computed && computedEnabled && hasComputedFields(type)) {
-          item = await resolveComputed(item, {
-            fields: requestedComputedFields,
-            context,
-          });
-        }
-        return item;
-      }
-    }
-  }
 
   // Get raw item
   let item = readRaw(type, id);
@@ -2014,8 +1216,8 @@ export async function readAsync(type, id, options = {}) {
  * await update('greeting', '1705123456789-x7k9m', { message: 'Updated message!' });
  */
 export async function update(type, id, data, options = {}) {
-  // Read existing content (bypasses workspace filter to find live content)
-  const existing = readRaw(type, id);
+  // Read existing content
+  const existing = read(type, id);
 
   if (!existing) {
     return null;
@@ -2024,67 +1226,6 @@ export async function update(type, id, data, options = {}) {
   // Verify content type is registered
   if (!contentTypes[type]) {
     throw new Error(`Unknown content type: "${type}"`);
-  }
-
-  // WORKSPACE-AWARE EDITING:
-  // If we're in a workspace and editing live content (no _workspace field),
-  // create a workspace-specific copy instead of modifying the original.
-  // This mirrors Drupal's workspaces module: edits in a workspace are isolated
-  // and don't affect live content until the workspace is published.
-  //
-  // WHY CREATE COPY:
-  // - Live content stays untouched for public-facing reads
-  // - Workspace copy captures the modified version
-  // - Association table tracks which live items have workspace edits
-  // - Publishing workspace later merges these copies back to live
-  if (workspaceProvider && !options.skipWorkspace) {
-    const activeWs = workspaceProvider.getActiveWorkspace();
-    if (activeWs && !existing._workspace) {
-      // Check if a workspace copy already exists for this content
-      const workspaceCopyId = `ws-${activeWs.id.substring(0, 8)}-${id}`;
-      const existingCopy = readRaw(type, workspaceCopyId);
-
-      if (existingCopy) {
-        // Update the existing workspace copy instead of creating a new one
-        return update(type, workspaceCopyId, data, { ...options, skipWorkspace: true });
-      }
-
-      // Create a workspace copy with the edits applied
-      const now = new Date().toISOString();
-      const workspaceCopy = {
-        ...existing,
-        ...data,
-        id: workspaceCopyId,
-        _workspace: activeWs.id,
-        _originalId: id,
-        _originalType: type,
-        created: existing.created,
-        updated: now,
-      };
-
-      // Persist the workspace copy
-      ensureTypeDir(type);
-      const filePath = getContentPath(type, workspaceCopyId);
-      writeFileSync(filePath, JSON.stringify(workspaceCopy, null, 2) + '\n');
-
-      // Track in workspace associations
-      try {
-        workspaceProvider.associateContent(activeWs.id, type, id, 'edit', { revisionId: workspaceCopy.updated || new Date().toISOString() });
-      } catch (wsErr) {
-        if (wsErr.code === 'WORKSPACE_EXPIRED') throw wsErr;
-        /* other workspace association errors are non-critical */
-      }
-
-      // Invalidate cache
-      if (cacheEnabled) {
-        cache.clear(`content:${type}:list:*`);
-      }
-
-      // Fire afterUpdate hook
-      await hooks.trigger('content:afterUpdate', { type, item: workspaceCopy });
-
-      return workspaceCopy;
-    }
   }
 
   // Check lock status (unless force flag is set)
@@ -2114,7 +1255,6 @@ export async function update(type, id, data, options = {}) {
   // - Partial updates are more ergonomic
   // - Less data over the wire
   // - Less chance of overwriting parallel edits
-  const now = new Date().toISOString();
   const merged = {
     ...existing,
     ...data,
@@ -2122,55 +1262,11 @@ export async function update(type, id, data, options = {}) {
     id: existing.id,
     type: existing.type,
     created: existing.created,
-    updated: now,
+    updated: new Date().toISOString(),
   };
 
-  // PENDING REVISIONS: Set isDefaultRevision based on workflow state
-  // WHY: Mirrors Drupal's content_moderation where the isDefaultRevision
-  // flag is determined by the workflow transition, not manually set.
-  // - Publishing → always default
-  // - Draft on published content → non-default (pending revision)
-  // - Draft on draft content → stays default (normal editing)
-  if (workflowEnabled) {
-    const targetStatus = merged.status || existing.status || 'draft';
-    merged.isDefaultRevision = shouldBeDefaultRevision(targetStatus, existing);
-  }
-
-  // PENDING REVISION ROUTING:
-  // If the update results in a non-default revision (draft on published),
-  // store as a pending revision instead of overwriting the main file.
-  // This keeps the published version intact for public-facing reads.
-  if (workflowEnabled && merged.isDefaultRevision === false && existing.status === 'published') {
-    // Store as pending revision in .revisions/ directory
-    if (revisionsEnabled) {
-      ensureRevisionsDir(type, id);
-      const revisionPath = getRevisionPath(type, id, now);
-      writeFileSync(revisionPath, JSON.stringify(merged, null, 2) + '\n');
-    }
-
-    // Fire hook so other modules know a pending draft was created
-    await hooks.trigger('content:pendingDraftCreated', {
-      type,
-      id,
-      draft: merged,
-      published: existing,
-    });
-
-    // Fire afterUpdate hook with the draft (but don't overwrite main file)
-    await hooks.trigger('content:afterUpdate', { type, item: merged });
-
-    return merged;
-  }
-
   // Validate merged data
-  // WHY CONSTRAINTS ON UPDATE TOO:
-  // Constraints must be enforced on every save, not just create.
-  // Uses merged data so partial updates are validated in full context.
-  if (constraintService) {
-    await constraintService.validateOrThrow(type, merged, schema, { isUpdate: true, id });
-  } else {
-    validateData(merged, schema, type);
-  }
+  validateData(merged, schema, type);
 
   // Handle slug updates (track history for redirects)
   const oldSlug = existing.slug;
@@ -2487,34 +1583,20 @@ function applyFilter(itemValue, operator, filterValue) {
  *
  * @param {Object} item - Content item
  * @param {Object} filters - Filter conditions
- * @param {string} filterLogic - 'AND' (all must match) or 'OR' (any can match)
- * @returns {boolean} - Whether item passes filters
+ * @returns {boolean} - Whether item passes all filters (AND logic)
  * @private
  */
-function matchesFilters(item, filters, filterLogic = 'AND') {
+function matchesFilters(item, filters) {
   if (!filters || Object.keys(filters).length === 0) {
     return true;
   }
 
-  if (filterLogic === 'OR') {
-    // OR logic: pass on first match
-    for (const [key, value] of Object.entries(filters)) {
-      const { field, operator } = parseFilterKey(key);
-      const itemValue = item[field];
-      if (applyFilter(itemValue, operator, value)) {
-        return true;
-      }
-    }
-    return false;
-  }
-
-  // AND logic (default): fail on first non-match
   for (const [key, value] of Object.entries(filters)) {
     const { field, operator } = parseFilterKey(key);
     const itemValue = item[field];
 
     if (!applyFilter(itemValue, operator, value)) {
-      return false;
+      return false; // AND logic: fail on first non-match
     }
   }
 
@@ -2600,22 +1682,15 @@ export function list(type, options = {}) {
     sortBy = 'created',
     sortOrder = 'desc',
     filters = null,
-    filterLogic = 'AND',
     populate = null,
     computed = true,
     computedFields: requestedComputedFields = null,
-    workspaceId = null,
-    includeAllRevisions = false,
   } = options;
 
   // Check cache first if enabled
-  // Include filters AND workspaceId in cache key for accurate caching
-  // WHY workspaceId IN CACHE KEY:
-  // Different workspace contexts return different content sets.
-  // Without this, a live query caches results that then get served
-  // for workspace-scoped queries (or vice versa), breaking isolation.
+  // Include filters in cache key for accurate caching
   if (cacheEnabled) {
-    const cacheKey = cache.listKey(type, { page, limit, search, sortBy, sortOrder, filters, workspaceId });
+    const cacheKey = cache.listKey(type, { page, limit, search, sortBy, sortOrder, filters });
     const cached = cache.get(cacheKey);
     if (cached !== null) {
       return cached;
@@ -2636,81 +1711,9 @@ export function list(type, options = {}) {
   for (const file of files) {
     const id = file.replace('.json', '');
     // Read without computed fields initially (we'll add them after pagination)
-    // WHY skipWorkspace: true:
-    // - list() handles its own workspace filtering logic below
-    // - read()'s workspace substitution would cause duplicates since list()
-    //   reads ALL files from disk including workspace copies
-    // - The workspace overlay merge in list() needs raw items to work correctly
-    const item = read(type, id, { computed: false, skipWorkspace: true });
+    const item = read(type, id, { computed: false });
     if (item) {
       items.push(item);
-    }
-  }
-
-  // INCLUDE ALL REVISIONS:
-  // When includeAllRevisions is true, add historical revisions from .revisions/
-  // directories as additional items in the listing. Each revision gets metadata
-  // flags (_isHistoricalRevision, _revisionTimestamp) so callers can distinguish
-  // them from current items.
-  //
-  // WHY: Enables admin UIs and APIs to show a complete timeline of all content
-  // versions, including pending drafts (non-default revisions). This mirrors
-  // Drupal's content_moderation overview where you can see all revisions inline.
-  if (includeAllRevisions) {
-    const revisionItems = [];
-    for (const item of items) {
-      const revs = getRevisions(type, item.id);
-      for (const rev of revs) {
-        const revContent = getRevision(type, item.id, rev.timestamp);
-        if (revContent) {
-          revisionItems.push({
-            ...revContent,
-            _revisionTimestamp: rev.timestamp,
-            _isHistoricalRevision: true,
-          });
-        }
-      }
-    }
-    items = [...items, ...revisionItems];
-  }
-
-  // Apply workspace isolation filter
-  // WHY FILTER BY WORKSPACE:
-  // - Live context: exclude items created in any workspace (_workspace field set)
-  // - Workspace context: include ONLY items created in the active workspace
-  //   (not live items - those are separate from workspace staging)
-  // - Mirrors Drupal's workspaces: workspace content is isolated until published
-  //
-  // WHY workspaceId OPTION:
-  // - HTTP requests use X-Workspace header per-request, not CLI-level active workspace
-  // - The workspaceId option allows JSON:API and REST handlers to pass workspace
-  //   context from the request header, overriding the CLI active workspace
-  // - When workspaceId is explicitly provided (even null), it takes precedence
-  // - When 'live' is passed, forces live context regardless of CLI workspace
-  if (workspaceId === 'live') {
-    // Explicit live context: exclude all workspace content
-    items = items.filter(item => !item._workspace);
-  } else if (workspaceId) {
-    // Explicit workspace context from HTTP request header
-    // Show workspace-specific content PLUS live content with workspace overlays
-    const wsItems = items.filter(item => item._workspace === workspaceId);
-    const liveItems = items.filter(item => !item._workspace);
-    // Merge: workspace copies override their live originals
-    const overriddenIds = new Set(wsItems.filter(i => i._originalId).map(i => i._originalId));
-    const filteredLive = liveItems.filter(item => !overriddenIds.has(item.id));
-    items = [...filteredLive, ...wsItems];
-  } else if (workspaceProvider) {
-    const activeWs = workspaceProvider.getActiveWorkspace();
-    if (activeWs) {
-      // CLI workspace context: show workspace content + live with overlays
-      const wsItems = items.filter(item => item._workspace === activeWs.id);
-      const liveItems = items.filter(item => !item._workspace);
-      const overriddenIds = new Set(wsItems.filter(i => i._originalId).map(i => i._originalId));
-      const filteredLive = liveItems.filter(item => !overriddenIds.has(item.id));
-      items = [...filteredLive, ...wsItems];
-    } else {
-      // Live context: exclude all workspace content
-      items = items.filter(item => !item._workspace);
     }
   }
 
@@ -2720,7 +1723,7 @@ export function list(type, options = {}) {
   // - Search is a broad text match
   // - Filtering first reduces items for search to process
   if (filters && Object.keys(filters).length > 0) {
-    items = items.filter(item => matchesFilters(item, filters, filterLogic));
+    items = items.filter(item => matchesFilters(item, filters));
   }
 
   // Apply search filter
@@ -2839,7 +1842,7 @@ export function list(type, options = {}) {
   // - Cache key would need to include populate fields
   // - Complexity vs benefit tradeoff
   if (cacheEnabled && !populate) {
-    const cacheKey = cache.listKey(type, { page, limit, search, sortBy, sortOrder, filters, workspaceId });
+    const cacheKey = cache.listKey(type, { page, limit, search, sortBy, sortOrder, filters });
     cache.set(cacheKey, result, cacheTTL);
   }
 
@@ -2979,16 +1982,6 @@ export function getSchema(type) {
 }
 
 /**
- * Get content type info (schema + metadata)
- *
- * @param {string} type - Content type name
- * @returns {Object|null} - Type info { schema, source } or null
- */
-export function getType(type) {
-  return contentTypes[type] || null;
-}
-
-/**
  * Clear all registered content types (mainly for testing)
  */
 export function clearTypes() {
@@ -3048,23 +2041,9 @@ export function getRevisions(type, id) {
     const filePath = join(revisionsDir, file);
     const stats = statSync(filePath);
 
-    // Read revision content to extract isDefaultRevision flag
-    // WHY include isDefaultRevision in metadata:
-    // - Enables pending revision workflows without reading full revision content
-    // - CLI and UI can show which revision is the default at a glance
-    let isDefaultRevision = false;
-    try {
-      const raw = readFileSync(filePath, 'utf-8');
-      const revisionContent = JSON.parse(raw);
-      isDefaultRevision = revisionContent.isDefaultRevision === true;
-    } catch (e) {
-      // If we can't read the revision, default to false
-    }
-
     revisions.push({
       timestamp,
       size: stats.size,
-      isDefaultRevision,
     });
   }
 
@@ -3172,103 +2151,6 @@ export async function revertTo(type, id, timestamp) {
   await hooks.trigger('content:afterUpdate', { type, item: restored });
 
   return restored;
-}
-
-/**
- * Set a specific revision as the default (canonical) revision
- *
- * WHY SEPARATE FROM revertTo:
- * - revertTo is about restoring content, focused on the "updated" timestamp
- * - setDefaultRevision is about the pending revisions workflow:
- *   it explicitly manages the isDefaultRevision flag
- * - In Drupal's content_moderation, setting the default revision
- *   is the mechanism by which a pending draft becomes canonical
- *
- * BEHAVIOR:
- * 1. Save current default as a non-default revision
- * 2. Load the target revision content
- * 3. Write it as the main file with isDefaultRevision: true
- * 4. Remove the target from the revisions directory
- *
- * @param {string} type - Content type
- * @param {string} id - Content ID
- * @param {string} revisionTimestamp - ISO timestamp of the revision to make default
- * @returns {Promise<Object>} - The new default content
- */
-export async function setDefaultRevision(type, id, revisionTimestamp) {
-  const current = read(type, id);
-  if (!current) {
-    throw new Error(`Content not found: ${type}/${id}`);
-  }
-
-  // Load the target revision
-  const targetRevision = getRevision(type, id, revisionTimestamp);
-  if (!targetRevision) {
-    throw new Error(`Revision not found: ${revisionTimestamp}`);
-  }
-
-  // Save current version as a non-default revision
-  // WHY NON-DEFAULT:
-  // - The current content is being replaced as the default
-  // - It should be preserved in history but no longer be canonical
-  if (revisionsEnabled) {
-    const currentAsRevision = { ...current, isDefaultRevision: false };
-    saveRevision(type, id, currentAsRevision);
-  }
-
-  const now = new Date().toISOString();
-
-  // Build the new default from the target revision
-  const newDefault = {
-    ...targetRevision,
-    isDefaultRevision: true,
-    updated: now,
-  };
-
-  // Write as the main content file
-  const filePath = getContentPath(type, id);
-  writeFileSync(filePath, JSON.stringify(newDefault, null, 2) + '\n');
-
-  // Remove the target revision file (it's now the main content)
-  // WHY REMOVE:
-  // - Avoids having the same content in both the main file and revisions
-  // - The old default is now in revisions, so nothing is lost
-  const revisionsDir = getRevisionsDir(type, id);
-  const tsFormatted = revisionTimestamp.replace(/:/g, '-');
-  const possibleFiles = readdirSync(revisionsDir).filter(f => f.endsWith('.json'));
-  for (const file of possibleFiles) {
-    const fileTs = file.replace('.json', '').replace(/-/g, ':').replace(/T(\d+):(\d+):/, (m, h, min) => `T${h}:${min}:`);
-    // Match by checking if the revision content matches
-    try {
-      const revPath = join(revisionsDir, file);
-      const rev = JSON.parse(readFileSync(revPath, 'utf-8'));
-      if (rev.updated === targetRevision.updated && rev.title === targetRevision.title) {
-        unlinkSync(revPath);
-        break;
-      }
-    } catch (e) {
-      // Skip
-    }
-  }
-
-  // Invalidate cache
-  if (cacheEnabled) {
-    cache.delete(cache.itemKey(type, id));
-    cache.clear(`content:${type}:list:*`);
-  }
-
-  // Fire hook
-  await hooks.trigger('content:defaultRevisionChanged', {
-    type,
-    id,
-    newDefault,
-    previousDefault: current,
-    revisionTimestamp,
-  });
-
-  await hooks.trigger('content:afterUpdate', { type, item: newDefault });
-
-  return newDefault;
 }
 
 /**
@@ -3756,19 +2638,6 @@ export async function setStatus(type, id, status, options = {}) {
 
   const now = new Date().toISOString();
 
-  // PENDING REVISION PUBLISH:
-  // When publishing and there are pending draft revisions, promote the
-  // most recent pending draft to become the new default (live) version.
-  // This is Feature #13: "Publish transition makes revision the new default"
-  if (toStatus === 'published' && existing.status === 'published') {
-    const pending = getPendingRevisions(type, id);
-    if (pending.length > 0) {
-      // Promote the most recent pending draft
-      const published = await publishPendingRevision(type, id);
-      return published;
-    }
-  }
-
   // Build update data
   const updateData = {
     status: toStatus,
@@ -3778,11 +2647,6 @@ export async function setStatus(type, id, status, options = {}) {
   if (toStatus === 'published' && !existing.publishedAt) {
     updateData.publishedAt = now;
   }
-
-  // PENDING REVISIONS: Set isDefaultRevision based on target status
-  // WHY: When status changes, the isDefaultRevision flag must reflect
-  // whether this version should be the public-facing default.
-  updateData.isDefaultRevision = shouldBeDefaultRevision(toStatus, existing);
 
   // Handle scheduledAt for pending status
   if (toStatus === 'pending' && options.scheduledAt) {

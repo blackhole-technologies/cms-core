@@ -1,0 +1,6 @@
+{
+  "name": "ai_dashboard",
+  "version": "1.0.0",
+  "description": "AI Dashboard - Admin interface for AI modules and providers",
+  "dependencies": ["admin", "users"]
+}

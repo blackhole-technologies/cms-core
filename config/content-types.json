@@ -8,13 +8,9 @@
       "title": {
         "type": "string",
         "required": true,
-        "minLength": 5,
         "maxLength": 255,
         "weight": 0,
-        "label": "Title",
-        "constraints": {
-          "Unique": {}
-        }
+        "label": "Title"
       },
       "body": {
         "type": "richtext",
@@ -27,58 +23,7 @@
         "required": false,
         "weight": 5,
         "label": "Summary",
-        "minLength": 1,
         "maxLength": 500
-      },
-      "slug": {
-        "type": "string",
-        "required": false,
-        "weight": 3,
-        "label": "URL Slug",
-        "pattern": "^[a-z0-9]+(?:-[a-z0-9]+)*$",
-        "patternMessage": "URL Slug must contain only lowercase letters, numbers, and hyphens (e.g., my-article-title)"
-      },
-      "tags": {
-        "type": "string",
-        "required": false,
-        "weight": 4,
-        "label": "Tags",
-        "constraints": {
-          "Regex": {
-            "pattern": "^[a-zA-Z0-9, ]+$",
-            "message": "Tags must contain only letters, numbers, commas, and spaces"
-          }
-        }
-      },
-      "email": {
-        "type": "string",
-        "required": false,
-        "weight": 6,
-        "label": "Email",
-        "constraints": {
-          "Email": {}
-        }
-      },
-      "website": {
-        "type": "string",
-        "required": false,
-        "weight": 7,
-        "label": "Website",
-        "constraints": {
-          "Url": {}
-        }
-      },
-      "rating": {
-        "type": "integer",
-        "required": false,
-        "weight": 8,
-        "label": "Rating",
-        "constraints": {
-          "Range": {
-            "min": 1,
-            "max": 100
-          }
-        }
       },
       "created": {
         "type": "datetime",

@@ -61,41 +61,6 @@
         </label>
       </div>
 
-      <fieldset class="attribute-fieldset">
-        <legend>Link Attributes</legend>
-        <small>Configure HTML attributes for this menu link</small>
-
-        <div class="form-group">
-          <label for="css_class">CSS Classes</label>
-          <input type="text" id="css_class" name="css_class" value="{{item.attributes.class}}" placeholder="e.g., btn btn-primary active">
-          <small>Space-separated CSS class names to add to the link</small>
-        </div>
-
-        <div class="form-group">
-          <label for="target">Target</label>
-          <select id="target" name="target">
-            <option value="">-- Default (same window) --</option>
-            <option value="_blank" {{#if (eq item.attributes.target "_blank")}}selected{{/if}}>_blank (new tab/window)</option>
-            <option value="_self" {{#if (eq item.attributes.target "_self")}}selected{{/if}}>_self (same frame)</option>
-            <option value="_parent" {{#if (eq item.attributes.target "_parent")}}selected{{/if}}>_parent (parent frame)</option>
-            <option value="_top" {{#if (eq item.attributes.target "_top")}}selected{{/if}}>_top (top-level window)</option>
-          </select>
-          <small>Controls where the link opens</small>
-        </div>
-
-        <div class="form-group">
-          <label for="rel">Rel Attribute</label>
-          <input type="text" id="rel" name="rel" value="{{item.attributes.rel}}" placeholder="e.g., nofollow noopener">
-          <small>Relationship between current document and linked resource</small>
-        </div>
-
-        <div class="form-group">
-          <label for="icon_class">Icon Class</label>
-          <input type="text" id="icon_class" name="icon_class" value="{{item.attributes.icon}}" placeholder="e.g., fa fa-home">
-          <small>Icon class name (e.g., Font Awesome, Material Icons)</small>
-        </div>
-      </fieldset>
-
       <div class="form-actions">
         <button type="submit" class="btn btn-primary">Save Changes</button>
         <a href="/admin/menus/{{menuName}}" class="btn btn-secondary">Cancel</a>
@@ -119,25 +84,6 @@
   </div>
 
   <style>
-    .attribute-fieldset {
-      margin: 1.5rem 0;
-      padding: 1.25rem;
-      border: 1px solid #d1d5db;
-      border-radius: 4px;
-      background: #f9fafb;
-    }
-    .attribute-fieldset legend {
-      padding: 0 0.5rem;
-      font-size: 0.95rem;
-      font-weight: 600;
-      color: #111827;
-    }
-    .attribute-fieldset > small {
-      display: block;
-      margin-bottom: 1rem;
-      font-size: 0.85rem;
-      color: #6b7280;
-    }
     .form-group {
       margin-bottom: 1.25rem;
     }

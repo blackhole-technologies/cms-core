@@ -31,9 +31,6 @@
 import { join } from 'node:path';
 import { existsSync, readdirSync, readFileSync, writeFileSync } from 'node:fs';
 
-// Site config path (set on init)
-let siteConfigPath = null;
-
 // State
 let baseDir = null;
 let config = null;
@@ -47,7 +44,6 @@ let adminSkinCache = new Map();
 export function init(options = {}) {
   baseDir = options.baseDir || process.cwd();
   config = options.config || {};
-  siteConfigPath = join(baseDir, 'config', 'site.json');
   
   // Clear caches
   layoutCache.clear();
@@ -380,11 +376,8 @@ export function getActiveTheme() {
 
 /**
  * Set the active theme
- * @param {string} layoutId - Layout ID
- * @param {string} skinId - Skin ID
- * @param {boolean} persist - Save to site.json (default: false)
  */
-export function setActiveTheme(layoutId, skinId, persist = false) {
+export function setActiveTheme(layoutId, skinId) {
   // Validate
   if (layoutId && !getLayout(layoutId)) {
     throw new Error(`Layout not found: ${layoutId}`);
@@ -398,20 +391,13 @@ export function setActiveTheme(layoutId, skinId, persist = false) {
   if (layoutId) config.theme.layout = layoutId;
   if (skinId) config.theme.skin = skinId;
   
-  // Persist to site.json if requested
-  if (persist) {
-    saveThemeConfig();
-  }
-  
   return getActiveTheme();
 }
 
 /**
  * Set the active admin skin
- * @param {string} skinId - Admin skin ID
- * @param {boolean} persist - Save to site.json (default: false)
  */
-export function setAdminSkin(skinId, persist = false) {
+export function setAdminSkin(skinId) {
   if (!getAdminSkin(skinId)) {
     throw new Error(`Admin skin not found: ${skinId}`);
   }
@@ -419,39 +405,7 @@ export function setAdminSkin(skinId, persist = false) {
   if (!config.adminTheme) config.adminTheme = {};
   config.adminTheme.skin = skinId;
   
-  // Persist to site.json if requested
-  if (persist) {
-    saveThemeConfig();
-  }
-  
   return getActiveAdminSkin();
-}
-
-/**
- * Save theme configuration to site.json
- */
-export function saveThemeConfig() {
-  if (!siteConfigPath || !existsSync(siteConfigPath)) {
-    console.warn('[theme-engine] Cannot persist: site.json not found');
-    return false;
-  }
-  
-  try {
-    // Read current site config
-    const siteConfig = JSON.parse(readFileSync(siteConfigPath, 'utf-8'));
-    
-    // Update theme sections
-    siteConfig.theme = config.theme || { layout: 'classic', skin: 'minimal' };
-    siteConfig.adminTheme = config.adminTheme || { skin: 'default' };
-    
-    // Write back
-    writeFileSync(siteConfigPath, JSON.stringify(siteConfig, null, 2) + '\n', 'utf-8');
-    console.log('[theme-engine] Saved theme config to site.json');
-    return true;
-  } catch (error) {
-    console.error('[theme-engine] Failed to save theme config:', error.message);
-    return false;
-  }
 }
 
 // ============================================

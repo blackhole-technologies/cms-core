@@ -1,3 +1,5 @@
+{{> admin-header title="Media Library"}}
+
 <div class="admin-content">
   <div class="page-header">
     <h1>Media Library</h1>
@@ -17,52 +19,32 @@
     </div>
   </div>
 
-  <!-- Search & View Toggle Bar -->
-  <div class="media-toolbar">
-    <div class="media-search">
-      <input type="text" id="mediaSearch" placeholder="Search media by name..." value="{{searchQuery}}" />
-      <button type="button" id="searchBtn" class="btn btn-sm">Search</button>
-      {{#if searchQuery}}
-      <a href="/admin/media/library{{typeQueryParam}}" class="btn btn-sm btn-secondary">Clear</a>
-      {{/if}}
-    </div>
-    <div class="view-toggle">
-      <button type="button" class="view-btn" data-view="grid" title="Grid view" id="gridViewBtn">
-        <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor"><rect x="1" y="1" width="6" height="6" rx="1"/><rect x="9" y="1" width="6" height="6" rx="1"/><rect x="1" y="9" width="6" height="6" rx="1"/><rect x="9" y="9" width="6" height="6" rx="1"/></svg>
-      </button>
-      <button type="button" class="view-btn" data-view="list" title="List view" id="listViewBtn">
-        <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor"><rect x="1" y="1" width="14" height="3" rx="1"/><rect x="1" y="6" width="14" height="3" rx="1"/><rect x="1" y="11" width="14" height="3" rx="1"/></svg>
-      </button>
-    </div>
-  </div>
-
   <div class="media-filters">
     <div class="filter-tabs">
-      {{#each filterTabs}}
-      <a href="{{href}}" class="tab {{activeClass}}">{{label}}</a>
+      <a href="/admin/media/library" class="tab {{#unless currentType}}active{{/unless}}">All</a>
+      {{#each types}}
+      <a href="/admin/media/library?type={{id}}" class="tab {{#if (eq id ../currentType)}}active{{/if}}">{{label}}</a>
       {{/each}}
     </div>
   </div>
 
-  {{#if searchQuery}}
-  <div class="search-results-info">
-    Showing results for "<strong>{{searchQuery}}</strong>"
-    {{#if currentType}}
-     in <strong>{{currentType}}</strong>
-    {{/if}}
-  </div>
-  {{/if}}
-
-  {{#if hasItems}}
-  <!-- Grid View -->
-  <div class="media-grid" id="mediaGrid">
+  {{#if items.length}}
+  <div class="media-grid">
     {{#each items}}
     <a href="/admin/media/library/{{id}}" class="media-item">
       <div class="media-preview">
-        {{#if _isImage}}
+        {{#if (eq mediaType "image")}}
         <img src="/media/{{path}}" alt="{{name}}" loading="lazy" />
+        {{else if (eq mediaType "video")}}
+        <div class="media-icon">🎬</div>
+        {{else if (eq mediaType "audio")}}
+        <div class="media-icon">🎵</div>
+        {{else if (eq mediaType "document")}}
+        <div class="media-icon">📄</div>
+        {{else if (eq mediaType "remote_video")}}
+        <div class="media-icon">🔗</div>
         {{else}}
-        <div class="media-icon">{{_icon}}</div>
+        <div class="media-icon">📁</div>
         {{/if}}
       </div>
       <div class="media-info">
@@ -72,112 +54,27 @@
     </a>
     {{/each}}
   </div>
-
-  <!-- List View -->
-  <div class="media-list" id="mediaList" style="display: none;">
-    <table class="media-table">
-      <thead>
-        <tr>
-          <th style="width: 50px;">Preview</th>
-          <th>Name</th>
-          <th>Type</th>
-          <th>Size</th>
-          <th>Created</th>
-          <th style="width: 80px;">Actions</th>
-        </tr>
-      </thead>
-      <tbody>
-        {{#each items}}
-        <tr>
-          <td class="list-preview">
-            {{#if _isImage}}
-            <img src="/media/{{path}}" alt="{{name}}" />
-            {{else}}
-            <span class="list-icon">{{_icon}}</span>
-            {{/if}}
-          </td>
-          <td><a href="/admin/media/library/{{id}}" class="media-link">{{name}}</a></td>
-          <td><span class="type-badge">{{mediaType}}</span></td>
-          <td>{{_sizeFormatted}}</td>
-          <td>{{_createdFormatted}}</td>
-          <td><a href="/admin/media/library/{{id}}" class="btn btn-sm">View</a></td>
-        </tr>
-        {{/each}}
-      </tbody>
-    </table>
-  </div>
   {{else}}
   <div class="empty-state">
-    {{#if searchQuery}}
-    <p>No media items match your search.</p>
-    <a href="/admin/media/library" class="btn btn-primary">Clear search</a>
-    {{else}}
     <p>No media items found.</p>
     <a href="/admin/media/upload" class="btn btn-primary">Upload your first media</a>
-    {{/if}}
   </div>
   {{/if}}
 
-  {{#if showPagination}}
+  {{#if (or hasPrev hasNext)}}
   <div class="pagination">
     {{#if hasPrev}}
-    <a href="{{prevUrl}}" class="btn">&#8592; Previous</a>
+    <a href="/admin/media/library?page={{subtract page 1}}{{#if currentType}}&type={{currentType}}{{/if}}" class="btn">← Previous</a>
     {{/if}}
     <span class="page-info">Page {{page}}</span>
     {{#if hasNext}}
-    <a href="{{nextUrl}}" class="btn">Next &#8594;</a>
+    <a href="/admin/media/library?page={{add page 1}}{{#if currentType}}&type={{currentType}}{{/if}}" class="btn">Next →</a>
     {{/if}}
   </div>
   {{/if}}
-
-  <!-- Open Media Browser Button (for testing) -->
-  <div style="margin-top: 2rem; padding-top: 1rem; border-top: 1px solid #eee;">
-    <button type="button" onclick="openMediaBrowser()" class="btn btn-primary">Open Media Browser Modal</button>
-  </div>
-</div>
-
-<!-- Media Browser Modal (for WYSIWYG/field selection) -->
-<div id="mediaBrowserModal" class="modal" style="display: none;">
-  <div class="modal-content modal-lg">
-    <div class="modal-header">
-      <h3>Select Media</h3>
-      <button class="modal-close" onclick="closeMediaBrowser()">&times;</button>
-    </div>
-    <div class="modal-body">
-      <div class="browser-toolbar">
-        <div class="browser-search">
-          <input type="text" id="browserSearch" placeholder="Search media..." />
-        </div>
-        <div class="browser-filters">
-          <select id="browserTypeFilter">
-            <option value="">All Types</option>
-          </select>
-        </div>
-        <div class="browser-view-toggle">
-          <button type="button" class="view-btn active" data-browser-view="grid" title="Grid view">
-            <svg width="14" height="14" viewBox="0 0 16 16" fill="currentColor"><rect x="1" y="1" width="6" height="6" rx="1"/><rect x="9" y="1" width="6" height="6" rx="1"/><rect x="1" y="9" width="6" height="6" rx="1"/><rect x="9" y="9" width="6" height="6" rx="1"/></svg>
-          </button>
-          <button type="button" class="view-btn" data-browser-view="list" title="List view">
-            <svg width="14" height="14" viewBox="0 0 16 16" fill="currentColor"><rect x="1" y="1" width="14" height="3" rx="1"/><rect x="1" y="6" width="14" height="3" rx="1"/><rect x="1" y="11" width="14" height="3" rx="1"/></svg>
-          </button>
-        </div>
-      </div>
-      <div id="browserResults" class="browser-results">
-        <div class="browser-loading">Loading media...</div>
-      </div>
-    </div>
-    <div class="modal-footer">
-      <span id="browserSelection" class="selection-info">No item selected</span>
-      <div class="modal-actions">
-        <button type="button" onclick="closeMediaBrowser()" class="btn">Cancel</button>
-        <button type="button" id="browserSelectBtn" class="btn btn-primary" disabled onclick="confirmMediaSelection()">Select</button>
-      </div>
-    </div>
-  </div>
 </div>
 
 <style>
-/* Stats */
 .media-stats {
   display: flex;
   gap: 2rem;
@@ -197,58 +94,6 @@
   color: #666;
   font-size: 0.875rem;
 }
-
-/* Toolbar */
-.media-toolbar {
-  display: flex;
-  align-items: center;
-  gap: 1rem;
-  margin-bottom: 1rem;
-}
-.media-search {
-  flex: 1;
-  display: flex;
-  gap: 0.5rem;
-}
-.media-search input {
-  flex: 1;
-  padding: 0.5rem 0.75rem;
-  border: 1px solid #ccc;
-  border-radius: 4px;
-  font-size: 0.875rem;
-}
-.view-toggle {
-  display: flex;
-  border: 1px solid #ccc;
-  border-radius: 4px;
-  overflow: hidden;
-}
-.view-btn {
-  background: white;
-  border: none;
-  padding: 0.5rem 0.75rem;
-  cursor: pointer;
-  display: flex;
-  align-items: center;
-  color: #666;
-}
-.view-btn.active {
-  background: #1976d2;
-  color: white;
-}
-.view-btn:hover:not(.active) {
-  background: #f0f0f0;
-}
-.btn-sm {
-  padding: 0.35rem 0.75rem;
-  font-size: 0.8rem;
-}
-.btn-secondary {
-  background: #e0e0e0;
-  color: #333;
-}
-
-/* Filters */
 .media-filters {
   margin-bottom: 1.5rem;
 }
@@ -268,15 +113,6 @@
   background: #1976d2;
   color: white;
 }
-.search-results-info {
-  padding: 0.75rem 1rem;
-  background: #e3f2fd;
-  border-radius: 4px;
-  margin-bottom: 1rem;
-  font-size: 0.875rem;
-}
-
-/* Grid View */
 .media-grid {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
@@ -323,505 +159,6 @@
   font-size: 0.75rem;
   color: #666;
 }
-
-/* List View */
-.media-list {
-  margin-top: 0;
-}
-.media-table {
-  width: 100%;
-  border-collapse: collapse;
-  background: white;
-  border-radius: 8px;
-  overflow: hidden;
-  border: 1px solid #ddd;
-}
-.media-table th {
-  background: #f5f5f5;
-  padding: 0.75rem 1rem;
-  text-align: left;
-  font-weight: 600;
-  font-size: 0.8rem;
-  text-transform: uppercase;
-  color: #666;
-  border-bottom: 2px solid #ddd;
-}
-.media-table td {
-  padding: 0.5rem 1rem;
-  border-bottom: 1px solid #eee;
-  vertical-align: middle;
-}
-.media-table tr:hover {
-  background: #f8f9fa;
-}
-.list-preview {
-  width: 40px;
-  height: 40px;
-}
-.list-preview img {
-  width: 40px;
-  height: 40px;
-  object-fit: cover;
-  border-radius: 4px;
-}
-.list-icon {
-  font-size: 1.5rem;
-}
-.media-link {
-  color: #1976d2;
-  text-decoration: none;
-  font-weight: 500;
-}
-.media-link:hover {
-  text-decoration: underline;
-}
-.type-badge {
-  display: inline-block;
-  padding: 0.2rem 0.5rem;
-  background: #e0e0e0;
-  border-radius: 12px;
-  font-size: 0.75rem;
-  color: #555;
-}
-
-/* Modal */
-.modal {
-  position: fixed;
-  top: 0; left: 0;
-  width: 100%; height: 100%;
-  background: rgba(0,0,0,0.5);
-  z-index: 1000;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-}
-.modal-content {
-  background: white;
-  border-radius: 8px;
-  max-width: 450px;
-  width: 90%;
-  box-shadow: 0 4px 20px rgba(0,0,0,0.2);
-}
-.modal-lg {
-  max-width: 900px;
-  max-height: 80vh;
-  display: flex;
-  flex-direction: column;
-}
-.modal-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  padding: 1rem 1.5rem;
-  border-bottom: 1px solid #eee;
-}
-.modal-header h3 {
-  margin: 0;
-}
-.modal-close {
-  background: none;
-  border: none;
-  font-size: 1.5rem;
-  cursor: pointer;
-  color: #666;
-}
-.modal-body {
-  padding: 1rem 1.5rem;
-  overflow-y: auto;
-  flex: 1;
-  min-height: 300px;
-}
-.modal-footer {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  padding: 1rem 1.5rem;
-  border-top: 1px solid #eee;
-  gap: 1rem;
-}
-.modal-actions {
-  display: flex;
-  gap: 0.5rem;
-}
-.selection-info {
-  font-size: 0.875rem;
-  color: #666;
-}
-
-/* Browser Toolbar */
-.browser-toolbar {
-  display: flex;
-  align-items: center;
-  gap: 0.75rem;
-  margin-bottom: 1rem;
-}
-.browser-search {
-  flex: 1;
-}
-.browser-search input {
-  width: 100%;
-  padding: 0.5rem 0.75rem;
-  border: 1px solid #ccc;
-  border-radius: 4px;
-  font-size: 0.875rem;
-}
-.browser-filters select {
-  padding: 0.5rem;
-  border: 1px solid #ccc;
-  border-radius: 4px;
-  font-size: 0.875rem;
-}
-.browser-view-toggle {
-  display: flex;
-  border: 1px solid #ccc;
-  border-radius: 4px;
-  overflow: hidden;
-}
-.browser-view-toggle .view-btn {
-  padding: 0.4rem 0.6rem;
-}
-
-/* Browser Results */
-.browser-results {
-  min-height: 200px;
-}
-.browser-loading {
-  text-align: center;
-  padding: 3rem;
-  color: #999;
-}
-.browser-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
-  gap: 0.75rem;
-}
-.browser-item {
-  background: white;
-  border: 2px solid #ddd;
-  border-radius: 6px;
-  overflow: hidden;
-  cursor: pointer;
-  transition: border-color 0.2s, box-shadow 0.2s;
-}
-.browser-item:hover {
-  border-color: #90caf9;
-  box-shadow: 0 2px 8px rgba(0,0,0,0.1);
-}
-.browser-item.selected {
-  border-color: #1976d2;
-  box-shadow: 0 0 0 2px rgba(25, 118, 210, 0.3);
-}
-.browser-item .item-preview {
-  aspect-ratio: 1;
-  background: #f5f5f5;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  position: relative;
-}
-.browser-item .item-preview img {
-  width: 100%;
-  height: 100%;
-  object-fit: cover;
-}
-.browser-item .item-icon {
-  font-size: 2.5rem;
-}
-.browser-item .item-info {
-  padding: 0.5rem;
-}
-.browser-item .item-name {
-  display: block;
-  font-size: 0.8rem;
-  font-weight: 500;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-.browser-item .item-type {
-  font-size: 0.7rem;
-  color: #999;
-}
-.browser-item .check-mark {
-  position: absolute;
-  top: 6px;
-  right: 6px;
-  width: 24px;
-  height: 24px;
-  background: #1976d2;
-  color: white;
-  border-radius: 50%;
-  display: none;
-  align-items: center;
-  justify-content: center;
-  font-size: 0.8rem;
-}
-.browser-item.selected .check-mark {
-  display: flex;
-}
-
-/* Browser List View */
-.browser-list-view {
-  display: none;
-}
-.browser-list-table {
-  width: 100%;
-  border-collapse: collapse;
-}
-.browser-list-table th {
-  background: #f5f5f5;
-  padding: 0.5rem 0.75rem;
-  text-align: left;
-  font-size: 0.75rem;
-  text-transform: uppercase;
-  color: #666;
-  border-bottom: 1px solid #ddd;
-}
-.browser-list-table td {
-  padding: 0.4rem 0.75rem;
-  border-bottom: 1px solid #eee;
-  font-size: 0.875rem;
-}
-.browser-list-table tr {
-  cursor: pointer;
-}
-.browser-list-table tr:hover {
-  background: #f0f7ff;
-}
-.browser-list-table tr.selected {
-  background: #e3f2fd;
-}
-.browser-list-preview {
-  width: 32px;
-  height: 32px;
-}
-.browser-list-preview img {
-  width: 32px;
-  height: 32px;
-  object-fit: cover;
-  border-radius: 3px;
-}
-.browser-empty {
-  text-align: center;
-  padding: 3rem;
-  color: #999;
-}
 </style>
 
-<script>
-// ============================================
-// View Toggle (Grid/List) for main page
-// ============================================
-(function() {
-  var gridBtn = document.getElementById('gridViewBtn');
-  var listBtn = document.getElementById('listViewBtn');
-  var gridEl = document.getElementById('mediaGrid');
-  var listEl = document.getElementById('mediaList');
-
-  // Restore saved preference
-  var savedView = localStorage.getItem('mediaViewMode') || 'grid';
-  setView(savedView);
-
-  if (gridBtn) gridBtn.addEventListener('click', function() { setView('grid'); localStorage.setItem('mediaViewMode', 'grid'); });
-  if (listBtn) listBtn.addEventListener('click', function() { setView('list'); localStorage.setItem('mediaViewMode', 'list'); });
-
-  function setView(view) {
-    if (gridBtn) gridBtn.classList.toggle('active', view === 'grid');
-    if (listBtn) listBtn.classList.toggle('active', view === 'list');
-    if (gridEl) gridEl.style.display = view === 'grid' ? 'grid' : 'none';
-    if (listEl) listEl.style.display = view === 'list' ? 'block' : 'none';
-  }
-})();
-
-// ============================================
-// Search
-// ============================================
-(function() {
-  var searchInput = document.getElementById('mediaSearch');
-  var searchBtn = document.getElementById('searchBtn');
-
-  function doSearch() {
-    var q = searchInput.value.trim();
-    var url = new URL(window.location.href);
-    if (q) {
-      url.searchParams.set('search', q);
-    } else {
-      url.searchParams.delete('search');
-    }
-    url.searchParams.delete('page');
-    window.location.href = url.toString();
-  }
-
-  if (searchBtn) searchBtn.addEventListener('click', doSearch);
-  if (searchInput) searchInput.addEventListener('keydown', function(e) {
-    if (e.key === 'Enter') doSearch();
-  });
-})();
-
-// ============================================
-// Media Browser Modal
-// ============================================
-var selectedMedia = null;
-var browserViewMode = 'grid';
-
-function openMediaBrowser(options) {
-  options = options || {};
-  selectedMedia = null;
-  document.getElementById('browserSelectBtn').disabled = true;
-  document.getElementById('browserSelection').textContent = 'No item selected';
-  document.getElementById('mediaBrowserModal').style.display = 'flex';
-
-  // Load type filter options and items
-  fetch('/admin/media/library/browse')
-    .then(function(r) { return r.json(); })
-    .then(function(data) {
-      var sel = document.getElementById('browserTypeFilter');
-      sel.innerHTML = '<option value="">All Types</option>';
-      if (data.types) {
-        data.types.forEach(function(t) {
-          sel.innerHTML += '<option value="' + t.id + '">' + t.label + '</option>';
-        });
-      }
-      var items = (data.items && data.items.items) ? data.items.items : (data.items || []);
-      renderBrowserResults(items);
-    })
-    .catch(function() {
-      document.getElementById('browserResults').innerHTML =
-        '<div class="browser-empty">Failed to load media</div>';
-    });
-}
-
-function closeMediaBrowser() {
-  document.getElementById('mediaBrowserModal').style.display = 'none';
-  selectedMedia = null;
-}
-
-function getMediaIcon(type) {
-  var icons = { video: '\uD83C\uDFAC', audio: '\uD83C\uDFB5', document: '\uD83D\uDCC4', remote_video: '\uD83D\uDD17', image: '\uD83D\uDDBC\uFE0F' };
-  return icons[type] || '\uD83D\uDCC1';
-}
-
-function renderBrowserResults(items) {
-  var container = document.getElementById('browserResults');
-  if (!items || items.length === 0) {
-    container.innerHTML = '<div class="browser-empty">No media items found</div>';
-    return;
-  }
-
-  // Grid view
-  var gridHtml = '<div class="browser-grid" id="browserGridView">';
-  items.forEach(function(item) {
-    var preview = item.mediaType === 'image'
-      ? '<img src="/media/' + item.path + '" alt="' + (item.name || '') + '" loading="lazy" />'
-      : '<span class="item-icon">' + getMediaIcon(item.mediaType) + '</span>';
-    gridHtml += '<div class="browser-item" data-id="' + item.id + '" onclick="selectBrowserItem(this, \'' + item.id + '\', \'' + encodeURIComponent(item.name || '') + '\')">'
-      + '<div class="item-preview">' + preview + '<span class="check-mark">\u2713</span></div>'
-      + '<div class="item-info"><span class="item-name">' + (item.name || 'Unnamed') + '</span>'
-      + '<span class="item-type">' + item.mediaType + '</span></div>'
-      + '</div>';
-  });
-  gridHtml += '</div>';
-
-  // List view
-  var listHtml = '<div class="browser-list-view" id="browserListView"><table class="browser-list-table"><thead><tr>'
-    + '<th>Preview</th><th>Name</th><th>Type</th></tr></thead><tbody>';
-  items.forEach(function(item) {
-    var preview = item.mediaType === 'image'
-      ? '<img src="/media/' + item.path + '" alt="" />'
-      : '<span style="font-size:1.2rem;">' + getMediaIcon(item.mediaType) + '</span>';
-    listHtml += '<tr data-id="' + item.id + '" onclick="selectBrowserItem(this, \'' + item.id + '\', \'' + encodeURIComponent(item.name || '') + '\')">'
-      + '<td class="browser-list-preview">' + preview + '</td>'
-      + '<td>' + (item.name || 'Unnamed') + '</td>'
-      + '<td><span class="type-badge">' + item.mediaType + '</span></td>'
-      + '</tr>';
-  });
-  listHtml += '</tbody></table></div>';
-
-  container.innerHTML = gridHtml + listHtml;
-  updateBrowserView();
-}
-
-function selectBrowserItem(el, id, encodedName) {
-  // Deselect all
-  document.querySelectorAll('.browser-item.selected, .browser-list-table tr.selected').forEach(function(item) {
-    item.classList.remove('selected');
-  });
-  // Select this item in both views
-  document.querySelectorAll('[data-id="' + id + '"]').forEach(function(item) {
-    item.classList.add('selected');
-  });
-  selectedMedia = { id: id, name: decodeURIComponent(encodedName) };
-  document.getElementById('browserSelectBtn').disabled = false;
-  document.getElementById('browserSelection').textContent = 'Selected: ' + selectedMedia.name;
-}
-
-function confirmMediaSelection() {
-  if (selectedMedia) {
-    // Dispatch custom event with the selected media data
-    var event = new CustomEvent('mediaSelected', { detail: selectedMedia });
-    document.dispatchEvent(event);
-    // Navigate to the media detail page
-    window.location.href = '/admin/media/library/' + selectedMedia.id;
-  }
-  closeMediaBrowser();
-}
-
-function updateBrowserView() {
-  var gridView = document.getElementById('browserGridView');
-  var listView = document.getElementById('browserListView');
-  if (gridView) gridView.style.display = browserViewMode === 'grid' ? 'grid' : 'none';
-  if (listView) listView.style.display = browserViewMode === 'list' ? 'block' : 'none';
-}
-
-// Browser view toggle
-document.querySelectorAll('.browser-view-toggle .view-btn').forEach(function(btn) {
-  btn.addEventListener('click', function() {
-    browserViewMode = btn.getAttribute('data-browser-view');
-    document.querySelectorAll('.browser-view-toggle .view-btn').forEach(function(b) {
-      b.classList.toggle('active', b.getAttribute('data-browser-view') === browserViewMode);
-    });
-    updateBrowserView();
-  });
-});
-
-// Browser search (debounced)
-var browserSearchTimer = null;
-document.getElementById('browserSearch').addEventListener('input', function() {
-  clearTimeout(browserSearchTimer);
-  var q = this.value.trim();
-  var typeFilter = document.getElementById('browserTypeFilter').value;
-  browserSearchTimer = setTimeout(function() {
-    fetchBrowserResults(q, typeFilter);
-  }, 300);
-});
-
-// Browser type filter
-document.getElementById('browserTypeFilter').addEventListener('change', function() {
-  var q = document.getElementById('browserSearch').value.trim();
-  fetchBrowserResults(q, this.value);
-});
-
-function fetchBrowserResults(search, mediaType) {
-  var url = '/admin/media/library/browse/search?limit=50';
-  if (search) url += '&search=' + encodeURIComponent(search);
-  if (mediaType) url += '&type=' + encodeURIComponent(mediaType);
-
-  document.getElementById('browserResults').innerHTML = '<div class="browser-loading">Searching...</div>';
-
-  fetch(url)
-    .then(function(r) { return r.json(); })
-    .then(function(data) {
-      var items = data.items || [];
-      renderBrowserResults(items);
-    })
-    .catch(function() {
-      document.getElementById('browserResults').innerHTML =
-        '<div class="browser-empty">Search failed</div>';
-    });
-}
-
-// Close modal with Escape key
-document.addEventListener('keydown', function(e) {
-  if (e.key === 'Escape') closeMediaBrowser();
-});
-</script>
+{{> admin-footer}}

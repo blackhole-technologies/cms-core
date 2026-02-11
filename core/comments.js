@@ -62,28 +62,10 @@ export function getConfig() {
 export function registerContentType(register) {
   register(COMMENT_TYPE, {
     contentType: { type: 'string', required: true },
-    contentId: {
-      type: 'string',
-      required: true,
-      constraints: {
-        // Note: Can't validate contentId with EntityReference because we don't know
-        // the target type until runtime (contentType field tells us)
-        // This is validated manually in addComment()
-      }
-    },
-    parentId: {
-      type: 'string',
-      constraints: {
-        EntityReference: { type: 'comment' }
-      }
-    },
+    contentId: { type: 'string', required: true },
+    parentId: { type: 'string' },
     author: { type: 'string', required: true },
-    authorId: {
-      type: 'string',
-      constraints: {
-        EntityReference: { type: 'user' }
-      }
-    },
+    authorId: { type: 'string' },
     email: { type: 'string' },
     body: { type: 'string', required: true },
     status: { type: 'string' },

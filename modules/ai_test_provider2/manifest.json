@@ -1,0 +1,12 @@
+{
+  "name": "ai_test_provider2",
+  "version": "1.0.0",
+  "description": "Second test AI provider",
+  "ai": true,
+  "aiType": "provider",
+  "aiCapabilities": {
+    "models": ["gpt-4", "gpt-3.5-turbo"],
+    "operations": ["chat", "completion"],
+    "streaming": false
+  }
+}

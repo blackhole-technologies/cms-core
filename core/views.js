@@ -200,11 +200,6 @@ function validateViewConfig(viewConfig) {
     }
   }
 
-  // Validate filterLogic
-  if (viewConfig.filterLogic && !['AND', 'OR'].includes(viewConfig.filterLogic)) {
-    throw new Error('View filterLogic must be "AND" or "OR"');
-  }
-
   // Validate sort
   if (viewConfig.sort) {
     if (!Array.isArray(viewConfig.sort)) {
@@ -253,33 +248,14 @@ export async function createView(id, viewConfig) {
 
   // Build view object
   const now = new Date().toISOString();
-
-  // WHY: Build displays array from config. Each display has its own type, settings, path, format.
-  // This mirrors Drupal Views where a single view can have page, block, and feed displays.
-  const displays = viewConfig.displays || [{
-    id: 'default',
-    type: viewConfig.display || 'page',
-    label: (viewConfig.display || 'page').charAt(0).toUpperCase() + (viewConfig.display || 'page').slice(1),
-    path: viewConfig.path || null,
-    displayMode: viewConfig.displayMode || 'table',
-    template: viewConfig.template || null,
-    pager: {
-      type: viewConfig.pager?.type || 'full',
-      limit: viewConfig.pager?.limit || config.defaultLimit,
-    },
-    isDefault: true,
-  }];
-
   const view = {
     id,
     name: viewConfig.name,
     description: viewConfig.description || '',
     contentType: viewConfig.contentType,
     display: viewConfig.display || 'page',
-    displays,
     path: viewConfig.path || null,
     filters: viewConfig.filters || [],
-    filterLogic: viewConfig.filterLogic || 'AND',
     contextualFilters: viewConfig.contextualFilters || [],
     sort: viewConfig.sort || [],
     pager: {
@@ -290,7 +266,6 @@ export async function createView(id, viewConfig) {
     fields: viewConfig.fields || [],
     relationships: viewConfig.relationships || [],
     aggregation: viewConfig.aggregation || null,
-    emptyState: viewConfig.emptyState || null,
     cache: {
       enabled: viewConfig.cache?.enabled ?? config.cacheEnabled,
       ttl: viewConfig.cache?.ttl || config.cacheTTL,
@@ -389,62 +364,6 @@ export async function deleteView(id) {
 
   // Fire after hook
   await hooksService.trigger('views:afterDelete', { viewId: id });
-}
-
-/**
- * Clone a view to create a copy
- *
- * WHY THIS EXISTS:
- * When creating similar views, cloning an existing view is faster than
- * building from scratch. The clone gets a unique ID but preserves all
- * configuration (filters, sorts, fields, displays) from the original.
- * This is a common pattern in Drupal Views UI.
- *
- * @param {string} sourceId - ID of view to clone
- * @param {string} newId - ID for the cloned view (must be unique)
- * @param {Object} options - Optional overrides (name, label, description)
- * @returns {Promise<Object>} Cloned view
- */
-export async function cloneView(sourceId, newId, options = {}) {
-  const source = views[sourceId];
-  if (!source) {
-    throw new Error(`Source view "${sourceId}" not found`);
-  }
-
-  // Check if new ID already exists
-  if (views[newId]) {
-    throw new Error(`View "${newId}" already exists`);
-  }
-
-  // Deep clone the source view configuration
-  // WHY: Deep clone prevents modifications to the clone from affecting the original
-  const cloned = JSON.parse(JSON.stringify(source));
-
-  // Update identifying fields
-  cloned.id = newId;
-  cloned.name = options.name || `${source.name} (Copy)`;
-  cloned.label = options.label || `${source.label} (Copy)`;
-  cloned.description = options.description || `Cloned from ${source.name}`;
-  cloned.created = new Date().toISOString();
-  cloned.updated = new Date().toISOString();
-
-  // WHY: Clear cache settings on clone - the cloned view should start fresh
-  // and not share cache entries with the original view
-  if (cloned.cache) {
-    delete cloned.cache.lastClear;
-  }
-
-  // Fire before hook
-  await hooksService.trigger('views:beforeClone', { source, cloned });
-
-  // Add to views registry
-  views[newId] = cloned;
-  saveViews();
-
-  // Fire after hook
-  await hooksService.trigger('views:afterClone', { source, cloned });
-
-  return cloned;
 }
 
 /**
@@ -556,10 +475,6 @@ function selectFields(items, fields) {
     return items;
   }
 
-  // WHY: Fields can be strings ("title") or objects ({name: "title", label: "Custom Title", formatter: "raw"}).
-  // Normalize to extract field names for data selection.
-  const fieldNames = fields.map(f => typeof f === 'string' ? f : (f.name || f));
-
   return items.map(item => {
     const selected = {};
 
@@ -568,9 +483,9 @@ function selectFields(items, fields) {
     selected.type = item.type;
 
     // Include selected fields
-    for (const fieldName of fieldNames) {
-      if (item[fieldName] !== undefined) {
-        selected[fieldName] = item[fieldName];
+    for (const field of fields) {
+      if (item[field] !== undefined) {
+        selected[field] = item[field];
       }
     }
 
@@ -692,60 +607,18 @@ export async function executeView(id, context = {}) {
   await hooksService.trigger('views:beforeQuery', { view, context });
 
   // Apply contextual filters
-  let filters = applyContextualFilters(view, context);
-
-  // WHY: Handle exposed filters - override from query params or remove if not provided
-  // Exposed filters allow end users to dynamically filter results via form inputs.
-  // When exposed=true:
-  //   - If query param present with value → use that value
-  //   - If query param present but empty → remove filter (show all)
-  //   - If query param not present → remove filter (default for exposed is "show all")
-  // This differs from non-exposed filters which always use their configured value.
-  const queryParams = context.query || {};
-  filters = filters.map(filter => {
-    if (filter.exposed) {
-      // Exposed filter behavior
-      if (queryParams.hasOwnProperty(filter.field)) {
-        const queryValue = queryParams[filter.field];
-
-        // Empty query param = remove this filter (show all)
-        if (queryValue === '') {
-          return null;
-        }
-
-        // Override filter value with query param
-        return {
-          ...filter,
-          value: queryValue,
-        };
-      } else {
-        // WHY: No query param for exposed filter = don't filter (show all)
-        // This allows the "Reset" link to work by removing all query params
-        return null;
-      }
-    }
-    return filter;
-  }).filter(f => f !== null); // Remove null entries (empty/missing exposed filters)
-
-  // WHY: Convert array-format filters to object-format for content.list()
-  // content.list() expects filters as { "field": value, "field__op": value }
-  // e.g. { "status": "published", "title__contains": "test" }
-  // Views stores filters as array of { field, op, value } objects
-  const filterObj = {};
-  for (const f of filters) {
-    const op = OPERATORS[f.op] || f.op;
-    // 'eq' operator uses plain field name; others use field__op suffix
-    const key = op === 'eq' ? f.field : `${f.field}__${op}`;
-    filterObj[key] = f.value;
-  }
+  const filters = applyContextualFilters(view, context);
 
   // Build query options
   const queryOptions = {
-    filters: filterObj,
-    filterLogic: view.filterLogic || 'AND',
-    sortBy: view.sort[0]?.field || 'created',
-    sortOrder: view.sort[0]?.dir || 'desc',
-    page: view.pager.offset ? Math.floor(view.pager.offset / Math.min(view.pager.limit, config.maxLimit)) + 1 : 1,
+    filters: filters.map(f => ({
+      field: f.field,
+      op: OPERATORS[f.op] || f.op,
+      value: f.value,
+    })),
+    sort: view.sort[0]?.field || 'created',
+    order: view.sort[0]?.dir || 'desc',
+    offset: view.pager.offset,
     limit: Math.min(view.pager.limit, config.maxLimit),
   };
 
@@ -808,9 +681,6 @@ export async function executeView(id, context = {}) {
       hasPrev: view.pager.offset > 0,
     },
     aggregation: aggregated,
-    // WHY: Empty state message shown when no results found
-    // Allows views to provide custom messaging instead of generic "No results"
-    emptyState: result.items.length === 0 ? (view.emptyState || null) : null,
   };
 
   // Cache result
@@ -819,82 +689,6 @@ export async function executeView(id, context = {}) {
   }
 
   return finalResult;
-}
-
-/**
- * Build query structure for inspection (debugging tool)
- *
- * WHY THIS EXISTS:
- * Views configuration can be complex with filters, sorts, fields, contextual filters, etc.
- * This function builds the actual query object that would be sent to content.list()
- * without executing it, allowing developers to debug and understand how their view
- * configuration translates into a database query.
- *
- * @param {string} id - View ID
- * @param {Object} context - Execution context (optional, for contextual filters)
- * @returns {Object} Query structure with filters, sorts, fields, pager
- */
-export function buildQuery(id, context = {}) {
-  const view = views[id];
-  if (!view) {
-    throw new Error(`View "${id}" not found`);
-  }
-
-  // Apply contextual filters
-  let filters = applyContextualFilters(view, context);
-
-  // Handle exposed filters
-  const queryParams = context.query || {};
-  filters = filters.map(filter => {
-    if (filter.exposed) {
-      if (queryParams.hasOwnProperty(filter.field)) {
-        const queryValue = queryParams[filter.field];
-        if (queryValue === '') {
-          return null;
-        }
-        return {
-          ...filter,
-          value: queryValue,
-        };
-      } else {
-        return null;
-      }
-    }
-    return filter;
-  }).filter(f => f !== null);
-
-  // Convert filters to object format
-  const filterObj = {};
-  for (const f of filters) {
-    const op = OPERATORS[f.op] || f.op;
-    const key = op === 'eq' ? f.field : `${f.field}__${op}`;
-    filterObj[key] = f.value;
-  }
-
-  // Build query structure
-  return {
-    viewId: id,
-    viewName: view.name,
-    contentType: view.contentType,
-    query: {
-      filters: filterObj,
-      filterLogic: view.filterLogic || 'AND',
-      sortBy: view.sort[0]?.field || 'created',
-      sortOrder: view.sort[0]?.dir || 'desc',
-      page: view.pager.offset ? Math.floor(view.pager.offset / Math.min(view.pager.limit, config.maxLimit)) + 1 : 1,
-      limit: Math.min(view.pager.limit, config.maxLimit),
-    },
-    additionalSorts: view.sort.slice(1).map(s => ({
-      field: s.field,
-      direction: s.dir,
-    })),
-    fields: view.fields || [],
-    relationships: view.relationships || [],
-    aggregation: view.aggregation || null,
-    pager: view.pager,
-    contextualFilters: view.contextualFilters || [],
-    appliedFilters: filters,
-  };
 }
 
 /**
@@ -996,167 +790,4 @@ export function getConfig() {
  */
 export function isEnabled() {
   return config.enabled;
-}
-
-// ============================================
-// DISPLAY MANAGEMENT
-// ============================================
-
-/**
- * Add a display to a view
- *
- * WHY: Drupal Views support multiple displays per view (page, block, feed).
- * Each display has its own settings (path, format, pager) while sharing
- * the underlying query configuration. This enables a single view to
- * render as both a page at /articles and a sidebar block.
- *
- * @param {string} viewId - View ID
- * @param {Object} displayConfig - Display configuration
- * @returns {Promise<Object>} Created display
- */
-export async function addDisplay(viewId, displayConfig) {
-  const view = views[viewId];
-  if (!view) {
-    throw new Error(`View "${viewId}" not found`);
-  }
-
-  if (!view.displays) view.displays = [];
-
-  // WHY: Generate unique display ID by counting existing displays of same type.
-  // Drupal uses this pattern (page_1, page_2, block_1) to allow multiple
-  // displays of the same type on a single view.
-  const typeCount = view.displays.filter(d => d.type === displayConfig.type).length;
-  const displayId = displayConfig.type + '_' + (typeCount + 1);
-
-  const display = {
-    id: displayId,
-    type: displayConfig.type,
-    label: displayConfig.label || displayConfig.type.charAt(0).toUpperCase() + displayConfig.type.slice(1),
-    path: displayConfig.path || null,
-    displayMode: displayConfig.displayMode || 'table',
-    template: displayConfig.template || null,
-    pager: {
-      type: displayConfig.pager?.type || 'full',
-      limit: displayConfig.pager?.limit || config.defaultLimit,
-    },
-    isDefault: view.displays.length === 0,
-  };
-
-  view.displays.push(display);
-  view.updated = new Date().toISOString();
-  saveViews();
-
-  // Fire hook so other modules can react
-  await hooksService.trigger('views:displayAdded', { viewId, display });
-
-  return display;
-}
-
-/**
- * Update a display's settings
- *
- * WHY: Each display has independent settings (title, format, path, pager).
- * Updating one display should not affect others in the same view.
- *
- * @param {string} viewId - View ID
- * @param {string} displayId - Display ID within the view
- * @param {Object} updates - Fields to update on the display
- * @returns {Promise<Object>} Updated display
- */
-export async function updateDisplay(viewId, displayId, updates) {
-  const view = views[viewId];
-  if (!view) {
-    throw new Error(`View "${viewId}" not found`);
-  }
-
-  const display = view.displays?.find(d => d.id === displayId);
-  if (!display) {
-    throw new Error(`Display "${displayId}" not found in view "${viewId}"`);
-  }
-
-  // WHY: Selective merge - preserve fields not in updates, overwrite those that are.
-  // Special handling for nested pager object to avoid losing settings.
-  if (updates.pager) {
-    display.pager = { ...display.pager, ...updates.pager };
-    delete updates.pager;
-  }
-  Object.assign(display, updates);
-
-  view.updated = new Date().toISOString();
-  saveViews();
-
-  await hooksService.trigger('views:displayUpdated', { viewId, displayId, display });
-
-  return display;
-}
-
-/**
- * Remove a display from a view
- *
- * @param {string} viewId - View ID
- * @param {string} displayId - Display ID to remove
- * @returns {Promise<void>}
- */
-export async function removeDisplay(viewId, displayId) {
-  const view = views[viewId];
-  if (!view) {
-    throw new Error(`View "${viewId}" not found`);
-  }
-
-  const idx = view.displays?.findIndex(d => d.id === displayId);
-  if (idx === undefined || idx === -1) {
-    throw new Error(`Display "${displayId}" not found in view "${viewId}"`);
-  }
-
-  const removed = view.displays.splice(idx, 1)[0];
-  view.updated = new Date().toISOString();
-  saveViews();
-
-  await hooksService.trigger('views:displayRemoved', { viewId, displayId, display: removed });
-}
-
-/**
- * Get views that have page displays with paths configured
- *
- * WHY: Page displays with paths need to be served as actual URL routes.
- * This function collects all such routes so the server can register them.
- * Checks both the new per-display path and the legacy top-level path.
- *
- * @returns {Array<Object>} Array of { viewId, displayId, path, view, display }
- */
-export function getPageDisplayRoutes() {
-  const routes = [];
-  for (const view of Object.values(views)) {
-    // Check displays array for page displays with paths
-    if (view.displays && Array.isArray(view.displays)) {
-      for (const display of view.displays) {
-        if (display.type === 'page' && display.path) {
-          routes.push({
-            viewId: view.id,
-            displayId: display.id,
-            path: display.path,
-            view,
-            display,
-          });
-        }
-      }
-    }
-
-    // WHY: Also check legacy top-level path for backward compatibility.
-    // Older views may have path set at the view level instead of per-display.
-    if (view.path && view.display === 'page') {
-      // Avoid duplicates if the same path is already in a display
-      const alreadyAdded = routes.some(r => r.viewId === view.id && r.path === view.path);
-      if (!alreadyAdded) {
-        routes.push({
-          viewId: view.id,
-          displayId: 'default',
-          path: view.path,
-          view,
-          display: view.displays?.[0] || { type: 'page', displayMode: 'table' },
-        });
-      }
-    }
-  }
-  return routes;
 }

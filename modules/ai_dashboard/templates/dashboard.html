@@ -1,0 +1,173 @@
+<div class="admin-breadcrumb">
+  <a href="/admin">Home</a> <span>&rsaquo;</span> <a href="/admin/reports">Reports</a> <span>&rsaquo;</span> AI Dashboard
+</div>
+
+<h1 class="admin-page-title">AI Dashboard</h1>
+<p class="admin-page-description">Overview of AI modules, providers, and tools.</p>
+
+{{#if successMessage}}
+<div class="flash flash-success">{{successMessage}}</div>
+{{/if}}
+
+{{#if errorMessage}}
+<div class="flash flash-error">{{errorMessage}}</div>
+{{/if}}
+
+<!-- AI Statistics -->
+<div class="admin-stats">
+  <div class="admin-stat-card">
+    <div class="admin-stat-value">{{stats.total}}</div>
+    <div class="admin-stat-label">Total AI Modules</div>
+  </div>
+  <div class="admin-stat-card">
+    <div class="admin-stat-value">{{stats.byStatus.active}}</div>
+    <div class="admin-stat-label">Active</div>
+  </div>
+  <div class="admin-stat-card">
+    <div class="admin-stat-value">{{stats.byStatus.inactive}}</div>
+    <div class="admin-stat-label">Inactive</div>
+  </div>
+  <div class="admin-stat-card">
+    <div class="admin-stat-value">{{stats.byStatus.error}}</div>
+    <div class="admin-stat-label">Errors</div>
+  </div>
+</div>
+
+<!-- Module Type Breakdown -->
+<div class="admin-panel">
+  <div class="admin-panel-header">
+    <h2>Modules by Type</h2>
+  </div>
+  <div class="admin-panel-body">
+    <div class="admin-stats" style="margin: 0;">
+      <div class="admin-stat-card">
+        <div class="admin-stat-value">{{stats.byType.provider}}</div>
+        <div class="admin-stat-label">Providers</div>
+      </div>
+      <div class="admin-stat-card">
+        <div class="admin-stat-value">{{stats.byType.tool}}</div>
+        <div class="admin-stat-label">Tools</div>
+      </div>
+      <div class="admin-stat-card">
+        <div class="admin-stat-value">{{stats.byType.processor}}</div>
+        <div class="admin-stat-label">Processors</div>
+      </div>
+      <div class="admin-stat-card">
+        <div class="admin-stat-value">{{stats.byType.agent}}</div>
+        <div class="admin-stat-label">Agents</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- AI Modules Grid -->
+<div class="admin-panel">
+  <div class="admin-panel-header">
+    <h2>AI Modules</h2>
+    <p>All registered AI modules with status and capabilities</p>
+  </div>
+  <div class="admin-panel-body">
+    {{#if modules}}
+    <div style="display: grid; grid-template-columns: repeat(auto-fill, minmax(350px, 1fr)); gap: 1rem;">
+      {{#each modules}}
+      <div class="admin-card" style="border: 1px solid #e5e7eb; border-radius: 8px; padding: 1rem; background: white;">
+        <!-- Module Header -->
+        <div style="display: flex; justify-content: space-between; align-items: start; margin-bottom: 0.75rem;">
+          <div>
+            <h3 style="margin: 0; font-size: 1.125rem; font-weight: 600;">{{name}}</h3>
+            <div style="margin-top: 0.25rem;">
+              <span class="status-badge status-badge--{{type}}" style="font-size: 0.75rem; text-transform: uppercase;">{{type}}</span>
+            </div>
+          </div>
+          <div>
+            {{#if (eq status "active")}}
+            <span style="display: inline-block; width: 12px; height: 12px; border-radius: 50%; background-color: #10b981;" title="Active"></span>
+            {{else if (eq status "inactive")}}
+            <span style="display: inline-block; width: 12px; height: 12px; border-radius: 50%; background-color: #9ca3af;" title="Inactive"></span>
+            {{else if (eq status "error")}}
+            <span style="display: inline-block; width: 12px; height: 12px; border-radius: 50%; background-color: #ef4444;" title="Error"></span>
+            {{else}}
+            <span style="display: inline-block; width: 12px; height: 12px; border-radius: 50%; background-color: #f59e0b;" title="Warning"></span>
+            {{/if}}
+          </div>
+        </div>
+
+        <!-- Module Info -->
+        <div style="margin-bottom: 0.75rem; font-size: 0.875rem; color: #6b7280;">
+          <div><strong>Status:</strong> {{status}}</div>
+          {{#if manifest.version}}
+          <div><strong>Version:</strong> {{manifest.version}}</div>
+          {{/if}}
+          {{#if registeredAt}}
+          <div><strong>Registered:</strong> {{registeredAt}}</div>
+          {{/if}}
+        </div>
+
+        <!-- Capabilities -->
+        {{#if capabilities}}
+        <div style="margin-bottom: 0.75rem; padding: 0.5rem; background: #f9fafb; border-radius: 4px; font-size: 0.875rem;">
+          <strong style="display: block; margin-bottom: 0.25rem;">Capabilities:</strong>
+          <div style="color: #6b7280; font-family: monospace; font-size: 0.75rem;">
+            {{#if capabilities.models}}
+            <div>Models: {{capabilities.models}}</div>
+            {{/if}}
+            {{#if capabilities.operations}}
+            <div>Operations: {{capabilities.operations}}</div>
+            {{/if}}
+            {{#if capabilities.streaming}}
+            <div>Streaming: {{capabilities.streaming}}</div>
+            {{/if}}
+            {{#unless (or capabilities.models capabilities.operations capabilities.streaming)}}
+            <div style="font-style: italic;">No specific capabilities defined</div>
+            {{/unless}}
+          </div>
+        </div>
+        {{/if}}
+
+        <!-- Quick Actions -->
+        <div style="display: flex; gap: 0.5rem; flex-wrap: wrap;">
+          {{#if (eq status "active")}}
+          <form method="POST" action="/admin/ai/dashboard/action" style="display: inline;">
+            {{csrfField}}
+            <input type="hidden" name="module" value="{{name}}">
+            <input type="hidden" name="action" value="disable">
+            <button type="submit" class="btn btn-small" style="font-size: 0.75rem;">Disable</button>
+          </form>
+          {{else}}
+          <form method="POST" action="/admin/ai/dashboard/action" style="display: inline;">
+            {{csrfField}}
+            <input type="hidden" name="module" value="{{name}}">
+            <input type="hidden" name="action" value="enable">
+            <button type="submit" class="btn btn-small btn-primary" style="font-size: 0.75rem;">Enable</button>
+          </form>
+          {{/if}}
+          <form method="POST" action="/admin/ai/dashboard/action" style="display: inline;">
+            {{csrfField}}
+            <input type="hidden" name="module" value="{{name}}">
+            <input type="hidden" name="action" value="refresh">
+            <button type="submit" class="btn btn-small" style="font-size: 0.75rem;">Refresh</button>
+          </form>
+        </div>
+      </div>
+      {{/each}}
+    </div>
+    {{else}}
+    <p class="empty-message">No AI modules registered. AI modules should have "ai": true or "aiType" in their manifest.json.</p>
+    {{/if}}
+  </div>
+</div>
+
+<style>
+  /* Responsive grid for mobile */
+  @media (max-width: 768px) {
+    .admin-stats {
+      grid-template-columns: repeat(2, 1fr);
+    }
+  }
+
+  @media (max-width: 375px) {
+    .admin-stats {
+      grid-template-columns: 1fr;
+    }
+  }
+</style>

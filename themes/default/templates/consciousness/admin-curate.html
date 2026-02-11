@@ -1,0 +1,134 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Curate — Consciousness Engine</title>
+    <link rel="stylesheet" href="/public/css/admin.css">
+    <style>
+        :root {
+            --bg: #0a0a0f;
+            --surface: #12121a;
+            --surface-2: #1a1a25;
+            --border: #2a2a3a;
+            --text: #e8e8f0;
+            --text-dim: #888898;
+            --gold: #d4a574;
+            --primary: #d4a574;
+        }
+        body { background: var(--bg); color: var(--text); font-family: Georgia, serif; }
+        .admin-container { max-width: 1200px; margin: 0 auto; padding: 2rem; }
+        .admin-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 2rem; padding-bottom: 1rem; border-bottom: 1px solid var(--border); }
+        .admin-header h1 { color: var(--gold); font-weight: normal; }
+        .admin-header a { color: var(--text-dim); text-decoration: none; margin-left: 1.5rem; }
+        .curate-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 2rem; }
+        .panel { background: var(--surface); border: 1px solid var(--border); border-radius: 8px; padding: 1.5rem; }
+        .panel h2 { margin-bottom: 1rem; font-size: 1.1rem; font-weight: normal; color: var(--text-dim); }
+        textarea { width: 100%; min-height: 300px; background: var(--surface-2); border: 1px solid var(--border); border-radius: 6px; padding: 1rem; color: var(--text); font-family: inherit; font-size: 0.9rem; resize: vertical; }
+        .form-group { margin-bottom: 1rem; }
+        .form-group label { display: block; margin-bottom: 0.5rem; color: var(--text-dim); font-size: 0.9rem; }
+        .form-group input, .form-group select { width: 100%; background: var(--surface-2); border: 1px solid var(--border); border-radius: 6px; padding: 0.5rem 0.75rem; color: var(--text); font-size: 0.9rem; }
+        .form-actions { display: flex; gap: 1rem; margin-top: 1.5rem; }
+        .btn { padding: 0.75rem 1.5rem; border-radius: 6px; border: none; cursor: pointer; font-size: 0.9rem; }
+        .btn-primary { background: var(--gold); color: var(--bg); }
+        .btn-secondary { background: var(--surface-2); color: var(--text); border: 1px solid var(--border); }
+        .preview-content { background: var(--surface-2); border-radius: 6px; padding: 1rem; min-height: 200px; max-height: 400px; overflow-y: auto; font-size: 0.9rem; }
+        .stats { display: flex; gap: 1.5rem; margin-top: 1rem; font-size: 0.85rem; color: var(--text-dim); }
+        .tag-suggestions { display: flex; flex-wrap: wrap; gap: 0.5rem; margin-top: 0.5rem; }
+        .tag-suggestion { background: var(--surface-2); border: 1px solid var(--border); padding: 0.2rem 0.5rem; border-radius: 4px; font-size: 0.75rem; cursor: pointer; }
+        .tag-suggestion:hover { border-color: var(--gold); color: var(--gold); }
+    </style>
+</head>
+<body>
+    <div class="admin-container">
+        <header class="admin-header">
+            <h1>📝 Curate Content</h1>
+            <nav><a href="/admin/consciousness">← Dashboard</a></nav>
+        </header>
+        
+        <form action="/admin/consciousness/curate" method="POST">
+            <div class="curate-grid">
+                <div class="panel">
+                    <h2>Paste Conversation</h2>
+                    <textarea name="content" id="contentInput" placeholder="Paste your AI conversation here...
+
+Format: Human: / Assistant: or plain text." oninput="updatePreview()"></textarea>
+                    
+                    <div class="form-group" style="margin-top: 1rem;">
+                        <label>Title</label>
+                        <input type="text" name="title" id="titleInput" placeholder="Brief description...">
+                    </div>
+                    
+                    <div class="form-group">
+                        <label>Topics (comma-separated)</label>
+                        <input type="text" name="topics" id="topicsInput" placeholder="consciousness, quantum, boundaries...">
+                        <div class="tag-suggestions" id="tagSuggestions"></div>
+                    </div>
+                    
+                    <div class="form-group">
+                        <label>Source</label>
+                        <select name="source">
+                            <option value="claude">Claude</option>
+                            <option value="gpt">GPT</option>
+                            <option value="gemini">Gemini</option>
+                            <option value="other">Other</option>
+                        </select>
+                    </div>
+                    
+                    <div class="form-group">
+                        <label>Content Type</label>
+                        <select name="type">
+                            <option value="conversation">Conversation</option>
+                            <option value="exploration">Exploration</option>
+                            <option value="synthesis">Synthesis</option>
+                        </select>
+                    </div>
+                </div>
+                
+                <div class="panel">
+                    <h2>Preview</h2>
+                    <div class="preview-content" id="preview">
+                        <p style="color: var(--text-dim); font-style: italic;">Parsed content will appear here...</p>
+                    </div>
+                    <div class="stats">
+                        <span>Words: <strong id="statWords">0</strong></span>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="form-actions">
+                <button type="button" class="btn btn-secondary" onclick="clearForm()">Clear</button>
+                <button type="submit" class="btn btn-primary">Save</button>
+            </div>
+        </form>
+    </div>
+
+    <script>
+        const commonTopics = ['consciousness', 'quantum', 'boundaries', 'recognition', 'time', 'scale', 'pattern', 'biology', 'cosmology', 'information', 'self-reference', 'emergence', 'negentropy'];
+        
+        function updatePreview() {
+            const input = document.getElementById('contentInput').value;
+            const preview = document.getElementById('preview');
+            preview.innerHTML = input ? '<pre style="white-space: pre-wrap;">' + input.slice(0, 2000) + (input.length > 2000 ? '...' : '') + '</pre>' : '<p style="color: var(--text-dim);">Parsed content will appear here...</p>';
+            document.getElementById('statWords').textContent = input.split(/\s+/).filter(w => w).length;
+            
+            const lower = input.toLowerCase();
+            const suggestions = commonTopics.filter(t => lower.includes(t));
+            document.getElementById('tagSuggestions').innerHTML = suggestions.slice(0, 6).map(t => '<span class="tag-suggestion" onclick="addTopic(\'' + t + '\')">' + t + '</span>').join('');
+        }
+        
+        function addTopic(topic) {
+            const input = document.getElementById('topicsInput');
+            const current = input.value.split(',').map(t => t.trim()).filter(t => t);
+            if (!current.includes(topic)) { current.push(topic); input.value = current.join(', '); }
+        }
+        
+        function clearForm() {
+            document.getElementById('contentInput').value = '';
+            document.getElementById('titleInput').value = '';
+            document.getElementById('topicsInput').value = '';
+            updatePreview();
+        }
+    </script>
+</body>
+</html>
