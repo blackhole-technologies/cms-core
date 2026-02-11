@@ -21,6 +21,7 @@
 import { readFileSync, existsSync } from 'node:fs';
 import { basename, extname, join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { enhanceImageWidget, widgetClientScript } from './widget.js';
 
 // Get the directory of this module for loading templates
 const __dirname = dirname(fileURLToPath(import.meta.url));
@@ -111,11 +112,11 @@ export function hook_boot(context) {
   }));
 
   // Enhance image field widget with AI alt text capabilities
-  const fieldRegistry = services.get('field-registry');
-  if (fieldRegistry) {
-    enhanceImageWidget(fieldRegistry, services);
+  const fields = services.get('fields');
+  if (fields) {
+    enhanceImageWidget(fields, services);
   } else {
-    console.warn('[ai_image_alt] Field registry not available, widget enhancement skipped');
+    console.warn('[ai_image_alt] Fields service not available, widget enhancement skipped');
   }
 
   console.log('[ai_image_alt] Alt text generation service loaded');
