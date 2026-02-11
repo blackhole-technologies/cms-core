@@ -488,6 +488,8 @@ export function hook_middleware(use, context) {
       '/api/health',
       '/api/ai/health',
       '/api/ai/metrics',
+      '/api/ai/alt-text/generate',
+      '/api/ai/alt-text/score',
     ];
     
     if (publicPaths.some(p => path.startsWith(p))) {
