@@ -1,0 +1,131 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Icon Template Helper Test</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 800px;
+            margin: 50px auto;
+            padding: 20px;
+        }
+        .test-section {
+            margin: 30px 0;
+            padding: 20px;
+            border: 1px solid #ddd;
+            border-radius: 8px;
+        }
+        .test-section h2 {
+            margin-top: 0;
+        }
+        .icon-example {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            margin: 10px 0;
+            padding: 10px;
+            background: #f5f5f5;
+            border-radius: 4px;
+        }
+        .icon-example code {
+            flex: 1;
+            font-family: monospace;
+            font-size: 14px;
+        }
+        svg {
+            display: inline-block;
+            vertical-align: middle;
+        }
+    </style>
+</head>
+<body>
+    <h1>Icon Template Helper Test</h1>
+    <p>Testing the {{icon()}} template helper with various options.</p>
+
+    <div class="test-section">
+        <h2>Basic Icon Rendering</h2>
+
+        <div class="icon-example">
+            <code>{{icon("hero:user")}}</code>
+            {{icon("hero:user")}}
+        </div>
+
+        <div class="icon-example">
+            <code>{{icon("example:rocket")}}</code>
+            {{icon("example:rocket")}}
+        </div>
+
+        <div class="icon-example">
+            <code>{{icon("bi:house")}}</code>
+            {{icon("bi:house")}}
+        </div>
+    </div>
+
+    <div class="test-section">
+        <h2>Icon with Size Options</h2>
+
+        <div class="icon-example">
+            <code>{{icon("hero:user", {size: "small"})}}</code>
+            {{icon("hero:user", {size: "small"})}}
+        </div>
+
+        <div class="icon-example">
+            <code>{{icon("hero:user", {size: "medium"})}}</code>
+            {{icon("hero:user", {size: "medium"})}}
+        </div>
+
+        <div class="icon-example">
+            <code>{{icon("hero:user", {size: "large"})}}</code>
+            {{icon("hero:user", {size: "large"})}}
+        </div>
+
+        <div class="icon-example">
+            <code>{{icon("hero:user", {size: "xlarge"})}}</code>
+            {{icon("hero:user", {size: "xlarge"})}}
+        </div>
+    </div>
+
+    <div class="test-section">
+        <h2>Icon with Custom Class</h2>
+
+        <div class="icon-example">
+            <code>{{icon("example:rocket", {class: "custom-icon"})}}</code>
+            {{icon("example:rocket", {class: "custom-icon"})}}
+        </div>
+    </div>
+
+    <div class="test-section">
+        <h2>Icon with Accessibility</h2>
+
+        <div class="icon-example">
+            <code>{{icon("hero:user", {title: "User Profile", aria_label: "User profile icon"})}}</code>
+            {{icon("hero:user", {title: "User Profile", aria_label: "User profile icon"})}}
+        </div>
+    </div>
+
+    <div class="test-section">
+        <h2>Simple Syntax (Variable-style)</h2>
+
+        <div class="icon-example">
+            <code>{{icon hero:home}}</code>
+            {{icon hero:home}}
+        </div>
+
+        <div class="icon-example">
+            <code>{{icon example:plugin}}</code>
+            {{icon example:plugin}}
+        </div>
+    </div>
+
+    <div class="test-section">
+        <h2>Invalid Icon (Should Handle Gracefully)</h2>
+
+        <div class="icon-example">
+            <code>{{icon("nonexistent:icon")}}</code>
+            {{icon("nonexistent:icon")}}
+        </div>
+    </div>
+
+</body>
+</html>

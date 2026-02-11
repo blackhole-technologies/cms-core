@@ -63,6 +63,7 @@
 import { readFileSync, existsSync } from 'node:fs';
 import { join } from 'node:path';
 import { parseCvaHelper } from './lib/Twig/CvaExtension.js';
+import * as iconRenderer from './icon-renderer.js';
 
 /**
  * Base directory for templates (set by init)
@@ -276,6 +277,45 @@ function processIfBlocks(template, data) {
 }
 
 /**
+ * Render icon helper for templates
+ *
+ * @param {string} iconName - Icon ID (e.g., "hero:user" or "example:rocket")
+ * @param {Object} options - Rendering options
+ * @returns {string} - Rendered icon SVG HTML
+ *
+ * WHY HELPER FUNCTION:
+ * - Provides simple syntax for icon rendering in templates
+ * - Integrates with icon renderer service
+ * - Handles errors gracefully (returns fallback icon)
+ *
+ * SUPPORTED OPTIONS:
+ * - size: 'small'|'medium'|'large'|'xlarge'|number (pixel size)
+ * - color: CSS color value
+ * - class: Additional CSS classes
+ * - title: Accessibility title
+ * - aria_label: ARIA label for screen readers
+ */
+function renderIconHelper(iconName, options = {}) {
+  try {
+    // Normalize option names (template uses hyphen, renderer uses underscore)
+    const rendererOptions = {
+      size: options.size,
+      color: options.color,
+      class: options.class,
+      title: options.title,
+      ariaLabel: options.aria_label || options.ariaLabel,
+    };
+
+    const result = iconRenderer.renderIcon(iconName, rendererOptions);
+    return result.svg;
+  } catch (error) {
+    console.error(`[template] Icon helper error for "${iconName}":`, error.message);
+    // Return empty string on error (fail silently in templates)
+    return '';
+  }
+}
+
+/**
  * Process {{variable}} substitutions
  *
  * @param {string} template - Template string
@@ -294,6 +334,8 @@ function processIfBlocks(template, data) {
  * {{t "key"}} → Translated string
  * {{t "key" param="value"}} → Translated string with interpolation
  * {{locale}} → Current locale code
+ * {{icon("name")}} → Icon SVG
+ * {{icon("name", {size: "large"})}} → Icon with options
  *
  * MISSING VARIABLES:
  * If a variable is not found, it's replaced with empty string.
@@ -388,6 +430,28 @@ function processVariables(template, data) {
     return i18nService.t(key, params, locale);
   });
 
+  // Handle {{icon("name", {...})}} function helper
+  // Matches: {{icon("hero:user")}} or {{icon("hero:user", {size: "large", class: "custom"})}}
+  const iconFuncRegex = /\{\{icon\s*\(\s*["']([^"']+)["'](?:\s*,\s*\{([^}]+)\})?\s*\)\}\}/g;
+
+  result = result.replace(iconFuncRegex, (match, iconName, optionsStr) => {
+    const options = {};
+
+    // Parse options if present
+    if (optionsStr) {
+      // Match key: value or key: "value" patterns
+      const optionRegex = /(\w+):\s*(?:"([^"]*)"|'([^']*)'|(\w+))/g;
+      let optionMatch;
+      while ((optionMatch = optionRegex.exec(optionsStr)) !== null) {
+        const key = optionMatch[1];
+        const value = optionMatch[2] || optionMatch[3] || optionMatch[4];
+        options[key] = value;
+      }
+    }
+
+    return renderIconHelper(iconName, options);
+  });
+
   // Match {{varName}} or {{nested.path}} or {{@special}}
   const varRegex = /\{\{(@?\w+(?:\.\w+)*)\}\}/g;
 
@@ -420,6 +484,14 @@ function processVariables(template, data) {
       const fieldPath = varPath.substring(6).trim();
       const embedValue = getNestedValue(data, fieldPath);
       return renderEmbedField(embedValue);
+    }
+
+    // Handle icon helper
+    // Usage: {{icon iconName}} - renders icon SVG
+    // Note: For complex options, use the icon() function helper instead
+    if (varPath.startsWith('icon ')) {
+      const iconName = varPath.substring(5).trim();
+      return renderIconHelper(iconName, {});
     }
 
     const value = getNestedValue(data, varPath);
