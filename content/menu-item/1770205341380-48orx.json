@@ -11,11 +11,7 @@
   "weight": 1,
   "depth": 0,
   "classes": [],
-  "attributes": {
-    "class": "nav-link about-link btn btn-secondary",
-    "target": "_blank",
-    "rel": "noopener noreferrer"
-  },
+  "attributes": {},
   "enabled": true,
   "expanded": false,
   "roles": [],

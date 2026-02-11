@@ -1,0 +1,30 @@
+# cms-core-fields Feature Specification
+
+## Project Overview
+
+**Name:** cms-core-fields
+**Description:** Field enhancements - grouping, tokens, utilities, linking, icons, tagging
+**Path:** /Users/Alchemy/Projects/experiments/cms-core
+
+## Feature Count
+
+**feature_count: 5**
+
+---
+
+## TIER 1: SIMPLE ADD MORE WIDGET (Features 0-4)
+
+These must pass before any functional features.
+
+### Features
+
+### Feature 0: Single empty item display for multi-value fields
+
+### Feature 1: Add more button with incremental item addition
+
+### Feature 2: Widget integration for limited cardinality fields
+
+### Feature 3: Smooth UX transitions on item add
+
+### Feature 4: Configuration per field instance
+

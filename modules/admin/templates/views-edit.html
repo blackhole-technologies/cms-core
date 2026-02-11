@@ -11,35 +11,22 @@
   </div>
 
   {{#if hasFlash}}
-  <div class="flash flash-{{flashType}}">
-    {{flashMessage}}
+  <div class="flash flash-{{flash.type}}">
+    {{flash.message}}
   </div>
   {{/if}}
 
   <div class="breadcrumb">
     <a href="/admin">Dashboard</a> &rarr;
     <a href="/admin/views">Views</a> &rarr;
-    <span>{{breadcrumbLabel}}</span>
+    <span>{{#if view}}Edit{{else}}Create{{/if}} View</span>
   </div>
 
   <div class="admin-section">
-    <form method="POST" action="{{formAction}}" class="view-form" id="view-edit-form">
+    <form method="POST" action="{{#if view}}/admin/views/{{view.id}}{{else}}/admin/views{{/if}}" class="view-form">
       {{csrfField}}
-      {{#if isEdit}}
+      {{#if view}}
       <input type="hidden" name="_method" value="PUT">
-      {{/if}}
-
-      <!-- Display Tabs -->
-      {{#if isEdit}}
-      <div class="display-tabs">
-        {{#each displays}}
-        <div class="display-tab {{tabClass}}" data-display-id="{{id}}" data-display-type="{{type}}" onclick="switchDisplay('{{id}}')">
-          <span class="tab-label">{{label}}</span>
-          <span class="tab-type">{{type}}</span>
-        </div>
-        {{/each}}
-        <button type="button" class="display-tab display-tab-add" onclick="showAddDisplay()">+ Add Display</button>
-      </div>
       {{/if}}
 
       <!-- Basic Info Section -->
@@ -47,20 +34,20 @@
         <h2>Basic Information</h2>
         <div class="form-group">
           <label for="name">View Name</label>
-          <input type="text" id="name" name="name" value="{{viewName}}" required placeholder="e.g., Recent Articles">
+          <input type="text" id="name" name="name" value="{{view.name}}" required placeholder="e.g., Recent Articles">
         </div>
         <div class="form-group">
           <label for="machine_name">Machine Name</label>
-          <input type="text" id="machine_name" name="machine_name" value="{{viewMachineName}}" {{#if isEdit}}readonly{{/if}} required placeholder="e.g., recent_articles" pattern="[a-z_]+">
+          <input type="text" id="machine_name" name="machine_name" value="{{view.machine_name}}" {{#if view}}readonly{{/if}} required placeholder="e.g., recent_articles" pattern="[a-z_]+">
           <small>Lowercase letters and underscores only. Cannot be changed after creation.</small>
         </div>
         <div class="form-group">
           <label for="description">Description</label>
-          <textarea id="description" name="description" rows="2" placeholder="Optional description">{{viewDescription}}</textarea>
+          <textarea id="description" name="description" rows="2" placeholder="Optional description">{{view.description}}</textarea>
         </div>
         <div class="form-group">
           <label class="checkbox-label">
-            <input type="checkbox" name="enabled" value="true" {{#if viewEnabled}}checked{{/if}}>
+            <input type="checkbox" name="enabled" value="true" {{#if view.enabled}}checked{{/if}}>
             Enable this view
           </label>
         </div>
@@ -74,83 +61,43 @@
           <select id="content_type" name="content_type" required>
             <option value="">-- Select Content Type --</option>
             {{#each contentTypes}}
-            <option value="{{value}}" {{#if selected}}selected{{/if}}>{{label}}</option>
+            <option value="{{machine_name}}" {{#if ../view}}{{#ifEquals ../view.contentType machine_name}}selected{{/ifEquals}}{{/if}}>{{name}}</option>
             {{/each}}
           </select>
         </div>
       </div>
 
-      <!-- Display Settings Section (per-display panels) -->
-      {{#if isEdit}}
-      <div class="form-section" id="display-settings-section">
-        <div class="section-header-row">
-          <h2>Display Settings</h2>
-        </div>
-        <p class="section-description">Configure settings for each display. Click display tabs above to switch.</p>
-        {{displaySettingsHtml}}
-      </div>
-      {{/if}}
-
-      <!-- Legacy Display Settings (for create form only) -->
-      {{#if isCreate}}
-      <div class="form-section" id="display-settings-section">
-        <h2>Display Settings</h2>
-        <div class="form-group">
-          <label for="display_type">Display Type</label>
-          <select id="display_type" name="display_type">
-            <option value="page" {{#if displayPage}}selected{{/if}}>Page</option>
-            <option value="block" {{#if displayBlock}}selected{{/if}}>Block</option>
-            <option value="feed" {{#if displayFeed}}selected{{/if}}>Feed (RSS/JSON)</option>
-          </select>
-        </div>
-        <div class="form-group">
-          <label for="display_mode">Format</label>
-          <select id="display_mode" name="display_mode">
-            <option value="table" {{#if formatTable}}selected{{/if}}>Table</option>
-            <option value="grid" {{#if formatGrid}}selected{{/if}}>Grid</option>
-            <option value="list" {{#if formatList}}selected{{/if}}>Unformatted List</option>
-            <option value="custom" {{#if formatCustom}}selected{{/if}}>Custom Template</option>
-          </select>
-        </div>
-        <div class="form-group">
-          <label for="path">URL Path (for page displays)</label>
-          <input type="text" id="path" name="path" value="{{viewPath}}" placeholder="e.g., /blog/recent">
-          <small>Make this view accessible at a specific URL.</small>
-        </div>
-      </div>
-      {{/if}}
-
-      <!-- Fields Configuration Section -->
-      <div class="form-section" id="fields-section">
-        <div class="section-header-row">
-          <h2>Fields</h2>
-          <button type="button" class="btn btn-sm btn-secondary" onclick="showAddFieldModal()">Add Field</button>
-        </div>
-        <p class="section-description">Configure which fields are displayed and their order.</p>
-        <div id="fields-container">
-          {{#if hasFields}}
-          {{fieldsRowsHtml}}
-          {{else}}
-          <p class="empty-message">No fields configured. Add fields to control what data is displayed.</p>
-          {{/if}}
-        </div>
-      </div>
-
       <!-- Filters Section -->
-      <div class="form-section" id="filters-section">
+      <div class="form-section">
         <div class="section-header-row">
           <h2>Filters</h2>
           <button type="button" class="btn btn-sm btn-secondary" onclick="addFilter()">Add Filter</button>
         </div>
-        <p class="section-description">Restrict which content items are displayed.</p>
-        <div class="filter-logic-toggle" id="filter-logic-toggle">
-          <label>Filter logic:</label>
-          <label class="radio-inline"><input type="radio" name="filterLogic" value="AND" {{filterLogicAndChecked}}> AND <span class="text-muted">(all must match)</span></label>
-          <label class="radio-inline"><input type="radio" name="filterLogic" value="OR" {{filterLogicOrChecked}}> OR <span class="text-muted">(any can match)</span></label>
-        </div>
         <div id="filters-container">
-          {{#if hasFilters}}
-          {{filtersRowsHtml}}
+          {{#if view.filters}}
+          {{#each view.filters}}
+          <div class="filter-row">
+            <select name="filters[{{@index}}][field]" class="filter-field" required>
+              <option value="">-- Select Field --</option>
+              <option value="title" {{#ifEquals field "title"}}selected{{/ifEquals}}>Title</option>
+              <option value="status" {{#ifEquals field "status"}}selected{{/ifEquals}}>Status</option>
+              <option value="author" {{#ifEquals field "author"}}selected{{/ifEquals}}>Author</option>
+              <option value="created" {{#ifEquals field "created"}}selected{{/ifEquals}}>Created Date</option>
+              <option value="updated" {{#ifEquals field "updated"}}selected{{/ifEquals}}>Updated Date</option>
+            </select>
+            <select name="filters[{{@index}}][operator]" class="filter-operator" required>
+              <option value="=" {{#ifEquals operator "="}}selected{{/ifEquals}}>Equals</option>
+              <option value="!=" {{#ifEquals operator "!="}}selected{{/ifEquals}}>Not Equals</option>
+              <option value="contains" {{#ifEquals operator "contains"}}selected{{/ifEquals}}>Contains</option>
+              <option value=">" {{#ifEquals operator ">"}}selected{{/ifEquals}}>Greater Than</option>
+              <option value="<" {{#ifEquals operator "<"}}selected{{/ifEquals}}>Less Than</option>
+              <option value=">=" {{#ifEquals operator ">="}}selected{{/ifEquals}}>Greater or Equal</option>
+              <option value="<=" {{#ifEquals operator "<="}}selected{{/ifEquals}}>Less or Equal</option>
+            </select>
+            <input type="text" name="filters[{{@index}}][value]" value="{{value}}" placeholder="Value" required>
+            <button type="button" class="btn btn-sm btn-danger" onclick="removeFilter(this)">Remove</button>
+          </div>
+          {{/each}}
           {{else}}
           <p class="empty-message">No filters defined. Add filters to restrict which content is displayed.</p>
           {{/if}}
@@ -158,15 +105,29 @@
       </div>
 
       <!-- Sorting Section -->
-      <div class="form-section" id="sorts-section">
+      <div class="form-section">
         <div class="section-header-row">
-          <h2>Sorts</h2>
-          <button type="button" class="btn btn-sm btn-secondary" onclick="addSort()">Add Sort</button>
+          <h2>Sorting</h2>
+          <button type="button" class="btn btn-sm btn-secondary" onclick="addSort()">Add Sort Field</button>
         </div>
-        <p class="section-description">Control the order of results. Drag to reorder sort priority.</p>
         <div id="sort-container">
-          {{#if hasSorts}}
-          {{sortsRowsHtml}}
+          {{#if view.sort}}
+          {{#each view.sort}}
+          <div class="sort-row">
+            <select name="sort[{{@index}}][field]" class="sort-field" required>
+              <option value="">-- Select Field --</option>
+              <option value="title" {{#ifEquals field "title"}}selected{{/ifEquals}}>Title</option>
+              <option value="created" {{#ifEquals field "created"}}selected{{/ifEquals}}>Created Date</option>
+              <option value="updated" {{#ifEquals field "updated"}}selected{{/ifEquals}}>Updated Date</option>
+              <option value="author" {{#ifEquals field "author"}}selected{{/ifEquals}}>Author</option>
+            </select>
+            <select name="sort[{{@index}}][direction]" class="sort-direction" required>
+              <option value="ASC" {{#ifEquals direction "ASC"}}selected{{/ifEquals}}>Ascending</option>
+              <option value="DESC" {{#ifEquals direction "DESC"}}selected{{/ifEquals}}>Descending</option>
+            </select>
+            <button type="button" class="btn btn-sm btn-danger" onclick="removeSort(this)">Remove</button>
+          </div>
+          {{/each}}
           {{else}}
           <p class="empty-message">No sorting defined. Add sort fields to control result order.</p>
           {{/if}}
@@ -175,273 +136,75 @@
 
       <!-- Paging Section -->
       <div class="form-section">
-        <h2>Pager</h2>
+        <h2>Paging</h2>
         <div class="form-row">
           <div class="form-group">
-            <label for="pager_type">Pager Type</label>
-            <select id="pager_type" name="pager_type">
-              <option value="full" {{#if pagerFull}}selected{{/if}}>Full Pager</option>
-              <option value="mini" {{#if pagerMini}}selected{{/if}}>Mini Pager</option>
-              <option value="none" {{#if pagerNone}}selected{{/if}}>No Pager (show all)</option>
-            </select>
+            <label for="items_per_page">Items Per Page</label>
+            <input type="number" id="items_per_page" name="items_per_page" value="{{view.itemsPerPage}}" min="1" max="100" placeholder="10">
+            <small>Leave empty for no limit</small>
           </div>
           <div class="form-group">
-            <label for="items_per_page">Items Per Page</label>
-            <input type="number" id="items_per_page" name="items_per_page" value="{{viewItemsPerPage}}" min="1" max="100" placeholder="10">
+            <label class="checkbox-label">
+              <input type="checkbox" name="use_pager" value="true" {{#if view.usePager}}checked{{/if}}>
+              Show pagination controls
+            </label>
           </div>
         </div>
       </div>
 
-      <!-- Relationships -->
-      <div class="form-section" id="relationships-section">
-        <div class="section-header">
-          <h2>Relationships</h2>
-          <button type="button" class="btn btn-secondary btn-sm" onclick="addRelationship()">Add Relationship</button>
-        </div>
-        <p class="section-description">Load related content through entity reference fields (e.g., article → author).</p>
-        <div id="relationships-container">
-          {{#if relationships}}
-            {{#each relationships}}
-            <div class="relationship-row">
-              <select name="relationships[{{@index}}][field]" class="relationship-field" required>
-                <option value="">-- Select Field --</option>
-                <option value="author" {{#if (eq field "author")}}selected{{/if}}>Author</option>
-                <option value="category" {{#if (eq field "category")}}selected{{/if}}>Category</option>
-                <option value="tags" {{#if (eq field "tags")}}selected{{/if}}>Tags</option>
-              </select>
-              <select name="relationships[{{@index}}][contentType]" class="relationship-type" required>
-                <option value="">-- Target Type --</option>
-                <option value="user" {{#if (eq contentType "user")}}selected{{/if}}>User</option>
-                <option value="term" {{#if (eq contentType "term")}}selected{{/if}}>Term</option>
-                <option value="article" {{#if (eq contentType "article")}}selected{{/if}}>Article</option>
-              </select>
-              <input type="text" name="relationships[{{@index}}][alias]" placeholder="Alias (e.g., author_ref)" value="{{alias}}" class="relationship-alias">
-              <button type="button" class="btn btn-danger btn-sm" onclick="this.parentElement.remove()">Remove</button>
-            </div>
-            {{/each}}
+      <!-- Fields Section -->
+      <div class="form-section">
+        <h2>Display Fields</h2>
+        <div class="field-checkboxes">
+          {{#if availableFields}}
+          {{#each availableFields}}
+          <label class="checkbox-label">
+            <input type="checkbox" name="fields[]" value="{{machine_name}}" {{#if ../view.fields}}{{#inArray ../view.fields machine_name}}checked{{/inArray}}{{/if}}>
+            {{label}}
+          </label>
+          {{/each}}
           {{else}}
-            <p class="empty-message">No relationships configured. Click "Add Relationship" to join related content.</p>
+          <p class="empty-message">Select a content type to see available fields.</p>
           {{/if}}
         </div>
       </div>
 
-      <!-- Aggregation -->
-      <div class="form-section" id="aggregation-section">
-        <h2>Aggregation (GROUP BY)</h2>
-        <p class="section-description">Apply aggregate functions like count, sum, average to group results.</p>
+      <!-- Display Settings Section -->
+      <div class="form-section">
+        <h2>Display Settings</h2>
         <div class="form-group">
-          <label>
-            <input type="checkbox" id="aggregation_enabled" name="aggregation_enabled" {{#if aggregation}}checked{{/if}} onchange="toggleAggregation()">
-            Enable aggregation
-          </label>
-        </div>
-        <div id="aggregation-config" style="{{#unless aggregation}}display:none;{{/unless}}">
-          <div class="form-row">
-            <div class="form-group">
-              <label for="aggregation_function">Function</label>
-              <select id="aggregation_function" name="aggregation[function]" onchange="toggleAggregationField()">
-                <option value="">-- Select Function --</option>
-                <option value="count" {{#if (eq aggregation.function "count")}}selected{{/if}}>Count</option>
-                <option value="sum" {{#if (eq aggregation.function "sum")}}selected{{/if}}>Sum</option>
-                <option value="avg" {{#if (eq aggregation.function "avg")}}selected{{/if}}>Average</option>
-                <option value="min" {{#if (eq aggregation.function "min")}}selected{{/if}}>Minimum</option>
-                <option value="max" {{#if (eq aggregation.function "max")}}selected{{/if}}>Maximum</option>
-              </select>
-            </div>
-            <div class="form-group" id="aggregation-field-group" style="{{#if (eq aggregation.function "count")}}display:none;{{/if}}">
-              <label for="aggregation_field">Field</label>
-              <select id="aggregation_field" name="aggregation[field]">
-                <option value="">-- Select Field --</option>
-                <option value="id" {{#if (eq aggregation.field "id")}}selected{{/if}}>ID</option>
-                <option value="created" {{#if (eq aggregation.field "created")}}selected{{/if}}>Created Date</option>
-                <option value="updated" {{#if (eq aggregation.field "updated")}}selected{{/if}}>Updated Date</option>
-              </select>
-              <small>Required for sum, avg, min, max functions</small>
-            </div>
-          </div>
-        </div>
-      </div>
-
-      <!-- Empty State -->
-      <div class="form-section" id="empty-state-section">
-        <h2>Empty State</h2>
-        <p class="section-description">Configure what to display when the view returns no results.</p>
-        <div class="form-group">
-          <label for="empty_state">Empty State Message</label>
-          <textarea id="empty_state" name="emptyState" rows="3" placeholder="No results found. Try adjusting your filters.">{{emptyState}}</textarea>
-          <small>Displayed when no content matches the view filters. Supports HTML.</small>
-        </div>
-      </div>
-
-      <!-- Header & Footer Areas -->
-      <div class="form-section" id="header-footer-section">
-        <h2>Header & Footer</h2>
-        <p class="section-description">Add custom text above and below the view results.</p>
-        <div class="form-group">
-          <label for="view_header">Header</label>
-          <textarea id="view_header" name="header" rows="3" placeholder="Text or HTML to display above results">{{viewHeader}}</textarea>
-          <small>Displayed above the view results. Supports HTML.</small>
+          <label for="display_mode">Display Mode</label>
+          <select id="display_mode" name="display_mode" required>
+            <option value="table" {{#ifEquals view.displayMode "table"}}selected{{/ifEquals}}>Table</option>
+            <option value="grid" {{#ifEquals view.displayMode "grid"}}selected{{/ifEquals}}>Grid</option>
+            <option value="list" {{#ifEquals view.displayMode "list"}}selected{{/ifEquals}}>List</option>
+            <option value="custom" {{#ifEquals view.displayMode "custom"}}selected{{/ifEquals}}>Custom Template</option>
+          </select>
         </div>
         <div class="form-group">
-          <label for="view_footer">Footer</label>
-          <textarea id="view_footer" name="footer" rows="3" placeholder="Text or HTML to display below results">{{viewFooter}}</textarea>
-          <small>Displayed below the view results. Supports HTML.</small>
+          <label for="template">Custom Template (optional)</label>
+          <input type="text" id="template" name="template" value="{{view.template}}" placeholder="e.g., views/custom-article-list">
+          <small>Template file path relative to theme directory</small>
+        </div>
+        <div class="form-group">
+          <label for="path">URL Path (optional)</label>
+          <input type="text" id="path" name="path" value="{{view.path}}" placeholder="e.g., /blog/recent">
+          <small>Make this view accessible at a specific URL</small>
         </div>
       </div>
 
       <!-- Form Actions -->
       <div class="form-actions">
         <button type="submit" class="btn btn-primary">Save View</button>
-        {{#if isEdit}}
-        <button type="button" class="btn btn-secondary" onclick="loadPreview()">Preview</button>
-        <button type="button" class="btn btn-secondary" onclick="showQuery()">Show Query</button>
-        <a href="/admin/views/{{viewId}}/preview" class="btn btn-link" style="font-size:0.85rem;color:#6b7280;">Open in new page</a>
-        {{/if}}
+        <a href="/admin/views/{{view.id}}/preview" class="btn btn-secondary" target="_blank">Preview Query</a>
         <a href="/admin/views" class="btn btn-secondary">Cancel</a>
       </div>
     </form>
-
-    <!-- Inline Preview Results -->
-    {{#if isEdit}}
-    <div id="view-preview" style="display:none; margin-top: 2rem;">
-      <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:1rem; border-bottom:2px solid #2563eb; padding-bottom:0.5rem;">
-        <h2 style="margin:0; color:#2563eb;">Live Preview</h2>
-        <div>
-          <span id="preview-count" style="font-size:0.9rem; color:#6b7280;"></span>
-          <button type="button" class="btn btn-secondary" onclick="loadPreview()" style="margin-left:0.5rem; font-size:0.85rem; padding:0.3rem 0.8rem;">Refresh</button>
-        </div>
-      </div>
-      <div id="preview-loading" style="display:none; text-align:center; padding:2rem; color:#6b7280;">
-        Loading preview...
-      </div>
-      <div id="preview-error" style="display:none; padding:1rem; background:#fef2f2; border:1px solid #fecaca; border-radius:8px; color:#991b1b; margin-bottom:1rem;"></div>
-      <div id="preview-results"></div>
-    </div>
-
-    <!-- Query Inspector -->
-    <div id="query-inspector" style="display:none; margin-top: 2rem;">
-      <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:1rem; border-bottom:2px solid #059669; padding-bottom:0.5rem;">
-        <h2 style="margin:0; color:#059669;">Query Structure</h2>
-        <button type="button" class="btn btn-secondary" onclick="document.getElementById('query-inspector').style.display='none'" style="font-size:0.85rem; padding:0.3rem 0.8rem;">Close</button>
-      </div>
-      <div id="query-loading" style="display:none; text-align:center; padding:2rem; color:#6b7280;">
-        Loading query structure...
-      </div>
-      <div id="query-error" style="display:none; padding:1rem; background:#fef2f2; border:1px solid #fecaca; border-radius:8px; color:#991b1b; margin-bottom:1rem;"></div>
-      <div id="query-results" style="background:#f9fafb; border:1px solid #e5e7eb; border-radius:8px; padding:1.5rem; font-family:monospace; font-size:0.85rem; overflow-x:auto;">
-        <pre id="query-json" style="margin:0; white-space:pre-wrap; word-wrap:break-word;"></pre>
-      </div>
-    </div>
-    {{/if}}
-  </div>
-
-  <!-- Add Display Modal -->
-  <div id="add-display-modal" class="modal-overlay" style="display: none;">
-    <div class="modal-content">
-      <div class="modal-header">
-        <h3>Add Display</h3>
-        <button type="button" class="modal-close" onclick="hideAddDisplay()">&times;</button>
-      </div>
-      <div class="modal-body">
-        <p>Select a display type to add:</p>
-        <div class="display-type-grid">
-          <button type="button" class="display-type-card" onclick="addDisplay('page')">
-            <span class="display-icon">&#128196;</span>
-            <span class="display-type-name">Page</span>
-            <span class="display-type-desc">Creates a page at a specific URL path</span>
-          </button>
-          <button type="button" class="display-type-card" onclick="addDisplay('block')">
-            <span class="display-icon">&#9638;</span>
-            <span class="display-type-name">Block</span>
-            <span class="display-type-desc">Embeddable block for sidebars/regions</span>
-          </button>
-          <button type="button" class="display-type-card" onclick="addDisplay('feed')">
-            <span class="display-icon">&#128246;</span>
-            <span class="display-type-name">Feed</span>
-            <span class="display-type-desc">RSS or JSON feed output</span>
-          </button>
-        </div>
-      </div>
-    </div>
-  </div>
-
-  <!-- Remove Display Confirmation Form (hidden) -->
-  <form id="remove-display-form" method="POST" action="" style="display:none;">
-    {{csrfField}}
-  </form>
-
-  <!-- Add Field Modal - Categorized Field Chooser -->
-  <div id="add-field-modal" class="modal-overlay" style="display: none;">
-    <div class="modal-content" style="max-width: 600px;">
-      <div class="modal-header">
-        <h3>Add Field</h3>
-        <button type="button" class="modal-close" onclick="hideAddFieldModal()">&times;</button>
-      </div>
-      <div class="modal-body">
-        <p style="margin-bottom: 1rem; color: #6b7280; font-size: 0.9rem;">Select a field to add to the view output. Fields are grouped by category.</p>
-        <input type="text" id="field-search-input" placeholder="Search fields..." style="width: 100%; padding: 0.5rem; border: 1px solid #d1d5db; border-radius: 4px; margin-bottom: 1rem; font-size: 0.9rem;" oninput="filterFieldChooser(this.value)">
-        <div id="field-categories-container"></div>
-      </div>
-    </div>
   </div>
 
   <style>
     .view-form {
-      max-width: 960px;
-    }
-    .display-tabs {
-      display: flex;
-      gap: 0;
-      border-bottom: 2px solid #e5e7eb;
-      margin-bottom: 1.5rem;
-      overflow-x: auto;
-    }
-    .display-tab {
-      padding: 0.75rem 1.25rem;
-      cursor: pointer;
-      border: 1px solid transparent;
-      border-bottom: 2px solid transparent;
-      margin-bottom: -2px;
-      background: #f9fafb;
-      border-radius: 6px 6px 0 0;
-      display: flex;
-      flex-direction: column;
-      align-items: center;
-      gap: 2px;
-      min-width: 100px;
-      transition: all 0.15s;
-    }
-    .display-tab:hover {
-      background: #eff6ff;
-      border-color: #bfdbfe;
-    }
-    .display-tab.active {
-      background: white;
-      border-color: #e5e7eb;
-      border-bottom-color: white;
-      font-weight: 600;
-    }
-    .display-tab .tab-label {
-      font-size: 0.9rem;
-      color: #111827;
-    }
-    .display-tab .tab-type {
-      font-size: 0.7rem;
-      color: #6b7280;
-      text-transform: uppercase;
-    }
-    .display-tab-add {
-      border: 1px dashed #d1d5db;
-      background: transparent;
-      color: #6b7280;
-      font-size: 0.85rem;
-      min-width: auto;
-      padding: 0.75rem 1rem;
-    }
-    .display-tab-add:hover {
-      background: #f0fdf4;
-      border-color: #86efac;
-      color: #16a34a;
+      max-width: 900px;
     }
     .form-section {
       background: #f9fafb;
@@ -451,20 +214,15 @@
       margin-bottom: 1.5rem;
     }
     .form-section h2 {
-      margin: 0 0 0.5rem 0;
+      margin: 0 0 1rem 0;
       font-size: 1.1rem;
       color: #111827;
-    }
-    .section-description {
-      margin: 0 0 1rem 0;
-      font-size: 0.85rem;
-      color: #6b7280;
     }
     .section-header-row {
       display: flex;
       justify-content: space-between;
       align-items: center;
-      margin-bottom: 0.5rem;
+      margin-bottom: 1rem;
     }
     .section-header-row h2 {
       margin: 0;
@@ -507,68 +265,18 @@
       font-weight: normal;
       cursor: pointer;
     }
-    .checkbox-sm {
-      font-size: 0.8rem;
-      white-space: nowrap;
-    }
-    .field-row {
+    .field-checkboxes {
       display: grid;
-      grid-template-columns: 30px 2fr 1.5fr 1fr auto;
-      gap: 0.5rem;
-      margin-bottom: 0.5rem;
-      align-items: center;
-      padding: 0.5rem;
-      background: white;
-      border: 1px solid #e5e7eb;
-      border-radius: 4px;
+      grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+      gap: 0.75rem;
     }
-    .field-row:hover {
-      border-color: #93c5fd;
-    }
-    .drag-handle {
-      cursor: grab;
-      color: #9ca3af;
-      font-size: 1.1rem;
-      text-align: center;
-    }
-    .drag-handle:hover {
-      color: #374151;
-    }
-    .field-row select,
-    .field-row input {
-      padding: 0.4rem;
-      border: 1px solid #d1d5db;
-      border-radius: 4px;
-      font-size: 0.85rem;
-    }
-    .filter-row {
-      display: grid;
-      grid-template-columns: 2fr 1.5fr 2fr auto auto;
-      gap: 0.5rem;
-      margin-bottom: 0.5rem;
-      align-items: center;
-    }
+    .filter-row,
     .sort-row {
       display: grid;
-      grid-template-columns: auto 2fr 1.5fr auto;
+      grid-template-columns: 2fr 1.5fr 2fr auto;
       gap: 0.5rem;
       margin-bottom: 0.5rem;
-      padding: 0.5rem;
       align-items: center;
-      background: white;
-      border: 1px solid #e5e7eb;
-      border-radius: 4px;
-      transition: border-color 0.15s;
-    }
-    .sort-row:hover {
-      border-color: #93c5fd;
-    }
-    .sort-row.dragging {
-      opacity: 0.4;
-      border-color: #3b82f6;
-    }
-    .sort-row.drag-over {
-      border-top: 2px solid #3b82f6;
     }
     .filter-row select,
     .filter-row input,
@@ -593,7 +301,6 @@
       font-size: 0.9rem;
       cursor: pointer;
       text-decoration: none;
-      text-align: center;
     }
     .btn-primary {
       background: #2563eb;
@@ -626,812 +333,83 @@
       font-style: italic;
       margin: 0.5rem 0;
     }
-    /* Modal */
-    .modal-overlay {
-      position: fixed;
-      top: 0;
-      left: 0;
-      right: 0;
-      bottom: 0;
-      background: rgba(0,0,0,0.5);
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      z-index: 1000;
-    }
-    .modal-content {
-      background: white;
-      border-radius: 12px;
-      padding: 0;
-      max-width: 500px;
-      width: 90%;
-      box-shadow: 0 20px 60px rgba(0,0,0,0.2);
-    }
-    .modal-header {
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-      padding: 1rem 1.5rem;
-      border-bottom: 1px solid #e5e7eb;
-    }
-    .modal-header h3 { margin: 0; }
-    .modal-close {
-      background: none;
-      border: none;
-      font-size: 1.5rem;
-      cursor: pointer;
-      color: #6b7280;
-    }
-    .modal-body {
-      padding: 1.5rem;
-    }
-    .display-type-grid {
-      display: grid;
-      gap: 0.75rem;
-    }
-    .display-type-card {
-      display: flex;
-      align-items: center;
-      gap: 1rem;
-      padding: 1rem;
-      border: 1px solid #e5e7eb;
-      border-radius: 8px;
-      background: #f9fafb;
-      cursor: pointer;
-      text-align: left;
-      width: 100%;
-    }
-    .display-type-card:hover {
-      border-color: #93c5fd;
-      background: #eff6ff;
-    }
-    .display-icon {
-      font-size: 1.5rem;
-    }
-    .display-type-name {
-      font-weight: 600;
-      font-size: 0.95rem;
-      display: block;
-    }
-    .display-type-desc {
-      font-size: 0.8rem;
-      color: #6b7280;
-      display: block;
-    }
-    .flash {
-      padding: 0.75rem 1rem;
-      border-radius: 6px;
-      margin-bottom: 1rem;
-      font-size: 0.9rem;
-    }
-    .flash-success { background: #dcfce7; color: #166534; border: 1px solid #86efac; }
-    .flash-error { background: #fef2f2; color: #991b1b; border: 1px solid #fecaca; }
-    .flash-info { background: #eff6ff; color: #1e40af; border: 1px solid #bfdbfe; }
-    .breadcrumb {
-      margin-bottom: 1.5rem;
-      font-size: 0.85rem;
-      color: #6b7280;
-    }
-    .breadcrumb a { color: #2563eb; text-decoration: none; }
-    .breadcrumb a:hover { text-decoration: underline; }
-    /* Display settings panels */
-    .display-settings-panel {
-      padding: 1rem;
-      background: white;
-      border: 1px solid #e5e7eb;
-      border-radius: 6px;
-      margin-bottom: 0.75rem;
-    }
-    .display-settings-panel h3 {
-      margin: 0 0 1rem 0;
-      font-size: 1rem;
-      color: #111827;
-      display: flex;
-      align-items: center;
-      gap: 0.5rem;
-    }
-    .display-type-badge {
-      font-size: 0.7rem;
-      background: #e5e7eb;
-      color: #374151;
-      padding: 0.15rem 0.5rem;
-      border-radius: 10px;
-      text-transform: uppercase;
-      font-weight: 500;
-    }
-    /* Add Field Modal - Categorized Field Chooser */
-    .field-category {
-      margin-bottom: 1rem;
-    }
-    .field-category-header {
-      font-size: 0.8rem;
-      font-weight: 600;
-      color: #6b7280;
-      text-transform: uppercase;
-      letter-spacing: 0.05em;
-      padding-bottom: 0.35rem;
-      border-bottom: 1px solid #e5e7eb;
-      margin-bottom: 0.5rem;
-    }
-    .field-category-items {
-      display: grid;
-      grid-template-columns: 1fr 1fr;
-      gap: 0.35rem;
-    }
-    .field-chooser-item {
-      display: flex;
-      align-items: center;
-      gap: 0.5rem;
-      padding: 0.45rem 0.65rem;
-      border: 1px solid #e5e7eb;
-      border-radius: 4px;
-      background: white;
-      cursor: pointer;
-      font-size: 0.85rem;
-      color: #374151;
-      transition: all 0.1s;
-      width: 100%;
-      text-align: left;
-    }
-    .field-chooser-item:hover {
-      border-color: #93c5fd;
-      background: #eff6ff;
-      color: #1d4ed8;
-    }
-    .field-chooser-item.already-added {
-      opacity: 0.5;
-      cursor: not-allowed;
-      background: #f3f4f6;
-    }
-    .field-chooser-item.already-added:hover {
-      border-color: #e5e7eb;
-      background: #f3f4f6;
-      color: #374151;
-    }
-    .field-chooser-icon {
-      font-size: 0.75rem;
-      color: #9ca3af;
-    }
-    .field-chooser-badge {
-      font-size: 0.65rem;
-      background: #dbeafe;
-      color: #1e40af;
-      padding: 0.1rem 0.35rem;
-      border-radius: 3px;
-      margin-left: auto;
-    }
-    .field-chooser-badge.added-badge {
-      background: #dcfce7;
-      color: #166534;
-    }
-    #field-search-input:focus {
-      outline: none;
-      border-color: #93c5fd;
-      box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.15);
-    }
-    .filter-logic-toggle {
-      display: flex;
-      align-items: center;
-      gap: 1rem;
-      margin-bottom: 0.75rem;
-      padding: 0.5rem 0.75rem;
-      background: #f0f4ff;
-      border-radius: 4px;
-      font-size: 0.85rem;
-    }
-    .filter-logic-toggle label:first-child {
-      font-weight: 600;
-      margin-right: 0.25rem;
-    }
-    .radio-inline {
-      display: inline-flex;
-      align-items: center;
-      gap: 0.25rem;
-      cursor: pointer;
-    }
-    .radio-inline input[type="radio"] {
-      margin: 0;
-    }
-    .text-muted {
-      color: #6b7280;
-      font-size: 0.8rem;
-    }
   </style>
 
   <script>
-    // Track indices for dynamic rows
-    let fieldIndex = {{fieldCount}};
-    let filterIndex = {{filterCount}};
-    let sortIndex = {{sortCount}};
+    let filterIndex = {{#if view.filters}}{{view.filters.length}}{{else}}0{{/if}};
+    let sortIndex = {{#if view.sort}}{{view.sort.length}}{{else}}0{{/if}};
 
-    // Available fields JSON for dynamic row creation
-    const availableFieldsJSON = {{availableFieldsJSON}};
-
-    // Categorized fields for the add-field modal chooser
-    const categorizedFieldsJSON = {{categorizedFieldsJSON}};
-
-    // View ID for display management
-    const viewId = '{{viewId}}';
-
-    function buildFieldOptions(selectedValue) {
-      return availableFieldsJSON.map(f =>
-        '<option value="' + f.value + '"' + (f.value === selectedValue ? ' selected' : '') + '>' + f.label + '</option>'
-      ).join('');
-    }
-
-    // ---- Add Field Modal (Categorized Field Chooser) ----
-
-    /**
-     * Get list of currently configured field names
-     * WHY: To show which fields are already added in the modal
-     */
-    function getCurrentFieldNames() {
-      var selects = document.querySelectorAll('#fields-container .field-select');
-      var names = [];
-      selects.forEach(function(s) { if (s.value) names.push(s.value); });
-      return names;
-    }
-
-    /**
-     * Build and show the categorized field chooser modal
-     * WHY: Drupal Views uses a categorized field chooser modal rather than
-     * a plain dropdown. This helps users discover fields organized by type.
-     */
-    function showAddFieldModal() {
-      var container = document.getElementById('field-categories-container');
-      var currentFields = getCurrentFieldNames();
-      var html = '';
-
-      for (var category in categorizedFieldsJSON) {
-        var fields = categorizedFieldsJSON[category];
-        if (!fields || fields.length === 0) continue;
-
-        html += '<div class="field-category" data-category="' + category + '">';
-        html += '<div class="field-category-header">' + category + '</div>';
-        html += '<div class="field-category-items">';
-
-        for (var i = 0; i < fields.length; i++) {
-          var f = fields[i];
-          var isAdded = currentFields.indexOf(f.value) !== -1;
-          var cls = 'field-chooser-item' + (isAdded ? ' already-added' : '');
-          var badge = isAdded
-            ? '<span class="field-chooser-badge added-badge">Added</span>'
-            : '<span class="field-chooser-badge">+ Add</span>';
-
-          html += '<button type="button" class="' + cls + '" data-field="' + f.value + '" data-label="' + f.label + '"' +
-            (isAdded ? ' disabled' : ' onclick="addFieldFromChooser(\'' + f.value + '\', \'' + f.label.replace(/'/g, "\\'") + '\')"') + '>' +
-            '<span class="field-chooser-icon">&#9632;</span> ' +
-            '<span>' + f.label + '</span>' +
-            badge +
-            '</button>';
-        }
-        html += '</div></div>';
-      }
-
-      container.innerHTML = html;
-      document.getElementById('add-field-modal').style.display = 'flex';
-      // Focus search input
-      var searchInput = document.getElementById('field-search-input');
-      searchInput.value = '';
-      setTimeout(function() { searchInput.focus(); }, 100);
-    }
-
-    function hideAddFieldModal() {
-      document.getElementById('add-field-modal').style.display = 'none';
-    }
-
-    /**
-     * Filter fields in the chooser by search text
-     * WHY: With many fields, searching is faster than scanning categories
-     */
-    function filterFieldChooser(query) {
-      var items = document.querySelectorAll('.field-chooser-item');
-      var categories = document.querySelectorAll('.field-category');
-      var q = query.toLowerCase().trim();
-
-      categories.forEach(function(cat) {
-        var hasVisible = false;
-        var catItems = cat.querySelectorAll('.field-chooser-item');
-        catItems.forEach(function(item) {
-          var fieldName = (item.getAttribute('data-field') || '').toLowerCase();
-          var fieldLabel = (item.getAttribute('data-label') || '').toLowerCase();
-          var matches = !q || fieldName.indexOf(q) !== -1 || fieldLabel.indexOf(q) !== -1;
-          item.style.display = matches ? '' : 'none';
-          if (matches) hasVisible = true;
-        });
-        cat.style.display = hasVisible ? '' : 'none';
-      });
-    }
-
-    /**
-     * Add a field from the chooser modal and close
-     * WHY: Selecting a field in the modal adds it directly with the correct
-     * name pre-selected, rather than requiring manual dropdown selection.
-     */
-    function addFieldFromChooser(fieldValue, fieldLabel) {
-      // Add the field row with pre-selected value
-      addFieldWithValue(fieldValue);
-      hideAddFieldModal();
-    }
-
-    /**
-     * Add a field row with a specific pre-selected value
-     */
-    function addFieldWithValue(preselectedValue) {
-      var container = document.getElementById('fields-container');
-      var empty = container.querySelector('.empty-message');
-      if (empty) empty.remove();
-
-      var row = document.createElement('div');
-      row.className = 'field-row';
-      row.draggable = true;
-      row.innerHTML =
-        '<span class="drag-handle" title="Drag to reorder">&#9776;</span>' +
-        '<select name="fields[' + fieldIndex + '][name]" class="field-select" required>' +
-          '<option value="">-- Select Field --</option>' +
-          buildFieldOptions(preselectedValue || '') +
-        '</select>' +
-        '<input type="text" name="fields[' + fieldIndex + '][label]" placeholder="Custom label (optional)" class="field-label-input">' +
-        '<select name="fields[' + fieldIndex + '][formatter]" class="field-formatter">' +
-          '<option value="default">Default</option>' +
-          '<option value="trimmed">Trimmed</option>' +
-          '<option value="raw">Raw</option>' +
-          '<option value="date">Date</option>' +
-          '<option value="link">Link</option>' +
-        '</select>' +
-        '<button type="button" class="btn btn-sm btn-danger" onclick="removeField(this)">Remove</button>';
-      container.appendChild(row);
-      fieldIndex++;
-    }
-
-    // Keep legacy addField for backward compat (opens modal)
-    function addField() {
-      showAddFieldModal();
-    }
-
-    function removeField(btn) {
-      var container = document.getElementById('fields-container');
-      btn.closest('.field-row').remove();
-      if (!container.querySelector('.field-row')) {
-        container.innerHTML = '<p class="empty-message">No fields configured. Add fields to control what data is displayed.</p>';
-      }
-    }
-
-    // ---- Filters ----
     function addFilter() {
-      var container = document.getElementById('filters-container');
-      var empty = container.querySelector('.empty-message');
+      const container = document.getElementById('filters-container');
+      const empty = container.querySelector('.empty-message');
       if (empty) empty.remove();
 
-      var row = document.createElement('div');
+      const row = document.createElement('div');
       row.className = 'filter-row';
-      row.innerHTML =
-        '<select name="filters[' + filterIndex + '][field]" class="filter-field" required>' +
-          '<option value="">-- Select Field --</option>' +
-          buildFieldOptions('') +
-        '</select>' +
-        '<select name="filters[' + filterIndex + '][operator]" class="filter-operator" required>' +
-          '<option value="=">Equals</option>' +
-          '<option value="!=">Not Equals</option>' +
-          '<option value="contains">Contains</option>' +
-          '<option value="&gt;">Greater Than</option>' +
-          '<option value="&lt;">Less Than</option>' +
-          '<option value="&gt;=">Greater or Equal</option>' +
-          '<option value="&lt;=">Less or Equal</option>' +
-        '</select>' +
-        '<input type="text" name="filters[' + filterIndex + '][value]" placeholder="Value" required>' +
-        '<label class="checkbox-label checkbox-sm" title="Expose this filter to end users">' +
-          '<input type="checkbox" name="filters[' + filterIndex + '][exposed]" value="true">' +
-          ' Exposed' +
-        '</label>' +
-        '<button type="button" class="btn btn-sm btn-danger" onclick="removeFilter(this)">Remove</button>';
+      row.innerHTML = `
+        <select name="filters[${filterIndex}][field]" class="filter-field" required>
+          <option value="">-- Select Field --</option>
+          <option value="title">Title</option>
+          <option value="status">Status</option>
+          <option value="author">Author</option>
+          <option value="created">Created Date</option>
+          <option value="updated">Updated Date</option>
+        </select>
+        <select name="filters[${filterIndex}][operator]" class="filter-operator" required>
+          <option value="=">Equals</option>
+          <option value="!=">Not Equals</option>
+          <option value="contains">Contains</option>
+          <option value=">">Greater Than</option>
+          <option value="<">Less Than</option>
+          <option value=">=">Greater or Equal</option>
+          <option value="<=">Less or Equal</option>
+        </select>
+        <input type="text" name="filters[${filterIndex}][value]" placeholder="Value" required>
+        <button type="button" class="btn btn-sm btn-danger" onclick="removeFilter(this)">Remove</button>
+      `;
       container.appendChild(row);
       filterIndex++;
     }
 
     function removeFilter(btn) {
-      var container = document.getElementById('filters-container');
+      const container = document.getElementById('filters-container');
       btn.closest('.filter-row').remove();
       if (!container.querySelector('.filter-row')) {
         container.innerHTML = '<p class="empty-message">No filters defined. Add filters to restrict which content is displayed.</p>';
       }
     }
 
-    // ---- Sorts ----
     function addSort() {
-      var container = document.getElementById('sort-container');
-      var empty = container.querySelector('.empty-message');
+      const container = document.getElementById('sort-container');
+      const empty = container.querySelector('.empty-message');
       if (empty) empty.remove();
 
-      var row = document.createElement('div');
+      const row = document.createElement('div');
       row.className = 'sort-row';
-      row.draggable = true;
-      row.innerHTML =
-        '<span class="drag-handle" title="Drag to reorder">&#9776;</span>' +
-        '<select name="sort[' + sortIndex + '][field]" class="sort-field" required>' +
-          '<option value="">-- Select Field --</option>' +
-          buildFieldOptions('') +
-        '</select>' +
-        '<select name="sort[' + sortIndex + '][direction]" class="sort-direction" required>' +
-          '<option value="ASC">Ascending</option>' +
-          '<option value="DESC">Descending</option>' +
-        '</select>' +
-        '<button type="button" class="btn btn-sm btn-danger" onclick="removeSort(this)">Remove</button>';
+      row.innerHTML = `
+        <select name="sort[${sortIndex}][field]" class="sort-field" required>
+          <option value="">-- Select Field --</option>
+          <option value="title">Title</option>
+          <option value="created">Created Date</option>
+          <option value="updated">Updated Date</option>
+          <option value="author">Author</option>
+        </select>
+        <select name="sort[${sortIndex}][direction]" class="sort-direction" required>
+          <option value="ASC">Ascending</option>
+          <option value="DESC">Descending</option>
+        </select>
+        <button type="button" class="btn btn-sm btn-danger" onclick="removeSort(this)">Remove</button>
+      `;
       container.appendChild(row);
       sortIndex++;
-      initSortDragDrop();
     }
 
     function removeSort(btn) {
-      var container = document.getElementById('sort-container');
+      const container = document.getElementById('sort-container');
       btn.closest('.sort-row').remove();
       if (!container.querySelector('.sort-row')) {
         container.innerHTML = '<p class="empty-message">No sorting defined. Add sort fields to control result order.</p>';
       }
-      reindexSorts();
-    }
-
-    // WHY: Sort priority determines which sort criteria is applied first.
-    // Drag-and-drop reordering lets users visually set sort priority without
-    // manually typing index numbers. After each reorder, form field names
-    // are re-indexed so the server receives sorts in the correct order.
-    var sortDragItem = null;
-    function initSortDragDrop() {
-      var container = document.getElementById('sort-container');
-      var rows = container.querySelectorAll('.sort-row');
-      rows.forEach(function(row) {
-        row.removeEventListener('dragstart', handleSortDragStart);
-        row.removeEventListener('dragover', handleSortDragOver);
-        row.removeEventListener('dragenter', handleSortDragEnter);
-        row.removeEventListener('dragleave', handleSortDragLeave);
-        row.removeEventListener('drop', handleSortDrop);
-        row.removeEventListener('dragend', handleSortDragEnd);
-
-        row.addEventListener('dragstart', handleSortDragStart);
-        row.addEventListener('dragover', handleSortDragOver);
-        row.addEventListener('dragenter', handleSortDragEnter);
-        row.addEventListener('dragleave', handleSortDragLeave);
-        row.addEventListener('drop', handleSortDrop);
-        row.addEventListener('dragend', handleSortDragEnd);
-      });
-    }
-
-    function handleSortDragStart(e) {
-      sortDragItem = this;
-      this.classList.add('dragging');
-      e.dataTransfer.effectAllowed = 'move';
-      e.dataTransfer.setData('text/plain', '');
-    }
-
-    function handleSortDragOver(e) {
-      e.preventDefault();
-      e.dataTransfer.dropEffect = 'move';
-    }
-
-    function handleSortDragEnter(e) {
-      e.preventDefault();
-      if (this !== sortDragItem) {
-        this.classList.add('drag-over');
-      }
-    }
-
-    function handleSortDragLeave(e) {
-      this.classList.remove('drag-over');
-    }
-
-    function handleSortDrop(e) {
-      e.preventDefault();
-      e.stopPropagation();
-      this.classList.remove('drag-over');
-      if (sortDragItem && sortDragItem !== this) {
-        var container = document.getElementById('sort-container');
-        var rows = Array.from(container.querySelectorAll('.sort-row'));
-        var fromIdx = rows.indexOf(sortDragItem);
-        var toIdx = rows.indexOf(this);
-        if (fromIdx < toIdx) {
-          container.insertBefore(sortDragItem, this.nextSibling);
-        } else {
-          container.insertBefore(sortDragItem, this);
-        }
-        reindexSorts();
-      }
-    }
-
-    function handleSortDragEnd(e) {
-      this.classList.remove('dragging');
-      var container = document.getElementById('sort-container');
-      container.querySelectorAll('.sort-row').forEach(function(row) {
-        row.classList.remove('drag-over');
-      });
-    }
-
-    // WHY: After drag-and-drop reorder, re-index the form field names so
-    // sort[0], sort[1], sort[2]... match the visual order. This ensures
-    // the server receives sorts in the correct priority order.
-    function reindexSorts() {
-      var container = document.getElementById('sort-container');
-      var rows = container.querySelectorAll('.sort-row');
-      rows.forEach(function(row, idx) {
-        var fieldSelect = row.querySelector('.sort-field');
-        var dirSelect = row.querySelector('.sort-direction');
-        if (fieldSelect) fieldSelect.name = 'sort[' + idx + '][field]';
-        if (dirSelect) dirSelect.name = 'sort[' + idx + '][direction]';
-      });
-      sortIndex = rows.length;
-    }
-
-    // ---- Relationships ----
-    var relationshipIndex = {{#if relationships}}{{relationships.length}}{{else}}0{{/if}};
-
-    function addRelationship() {
-      var container = document.getElementById('relationships-container');
-      var empty = container.querySelector('.empty-message');
-      if (empty) empty.remove();
-
-      var row = document.createElement('div');
-      row.className = 'relationship-row';
-      row.innerHTML =
-        '<select name="relationships[' + relationshipIndex + '][field]" class="relationship-field" required>' +
-          '<option value="">-- Select Field --</option>' +
-          '<option value="author">Author</option>' +
-          '<option value="category">Category</option>' +
-          '<option value="tags">Tags</option>' +
-        '</select>' +
-        '<select name="relationships[' + relationshipIndex + '][contentType]" class="relationship-type" required>' +
-          '<option value="">-- Target Type --</option>' +
-          '<option value="user">User</option>' +
-          '<option value="term">Term</option>' +
-          '<option value="article">Article</option>' +
-        '</select>' +
-        '<input type="text" name="relationships[' + relationshipIndex + '][alias]" placeholder="Alias (e.g., author_ref)" class="relationship-alias">' +
-        '<button type="button" class="btn btn-sm btn-danger" onclick="this.parentElement.remove()">Remove</button>';
-      container.appendChild(row);
-      relationshipIndex++;
-    }
-
-    // ---- Aggregation ----
-    function toggleAggregation() {
-      var enabled = document.getElementById('aggregation_enabled').checked;
-      var config = document.getElementById('aggregation-config');
-      config.style.display = enabled ? 'block' : 'none';
-
-      if (!enabled) {
-        // Clear values when disabled
-        document.getElementById('aggregation_function').value = '';
-        document.getElementById('aggregation_field').value = '';
-      }
-    }
-
-    function toggleAggregationField() {
-      var func = document.getElementById('aggregation_function').value;
-      var fieldGroup = document.getElementById('aggregation-field-group');
-      // Count doesn't need a field, all others do
-      fieldGroup.style.display = (func === 'count' || func === '') ? 'none' : 'block';
-    }
-
-    // ---- Display Tabs ----
-    function switchDisplay(displayId) {
-      // Update tab active state
-      document.querySelectorAll('.display-tab[data-display-id]').forEach(function(tab) {
-        tab.classList.toggle('active', tab.getAttribute('data-display-id') === displayId);
-      });
-      // Show/hide display settings panels
-      document.querySelectorAll('.display-settings-panel').forEach(function(panel) {
-        panel.style.display = panel.getAttribute('data-display-id') === displayId ? 'block' : 'none';
-      });
-    }
-
-    function showAddDisplay() {
-      document.getElementById('add-display-modal').style.display = 'flex';
-    }
-
-    function hideAddDisplay() {
-      document.getElementById('add-display-modal').style.display = 'none';
-    }
-
-    function addDisplay(type) {
-      hideAddDisplay();
-      // WHY FETCH: Dynamic form.submit() can lose session cookies in some browser
-      // contexts. Using fetch with credentials ensures reliable CSRF + auth handling.
-      var csrfInput = document.querySelector('input[name="_csrf"]');
-      var token = csrfInput ? csrfInput.value : '';
-      fetch('/admin/views/' + viewId + '/display/add', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-        body: '_csrf=' + encodeURIComponent(token) + '&display_type=' + encodeURIComponent(type),
-        credentials: 'same-origin',
-        redirect: 'follow'
-      }).then(function() {
-        // Reload page to show updated displays
-        window.location.href = '/admin/views/' + viewId + '/edit';
-      }).catch(function(err) {
-        alert('Error adding display: ' + err.message);
-      });
-    }
-
-    function removeDisplay(displayId) {
-      if (!confirm('Remove display "' + displayId + '"? This cannot be undone.')) return;
-      // WHY FETCH: Same reliability improvement as addDisplay - ensures session cookies
-      var csrfInput = document.querySelector('input[name="_csrf"]');
-      var token = csrfInput ? csrfInput.value : '';
-      fetch('/admin/views/' + viewId + '/display/' + displayId + '/remove', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-        body: '_csrf=' + encodeURIComponent(token),
-        credentials: 'same-origin',
-        redirect: 'follow'
-      }).then(function() {
-        window.location.href = '/admin/views/' + viewId + '/edit';
-      }).catch(function(err) {
-        alert('Error removing display: ' + err.message);
-      });
-    }
-
-    // Close modal on backdrop click
-    var modal = document.getElementById('add-display-modal');
-    if (modal) {
-      modal.addEventListener('click', function(e) {
-        if (e.target === this) hideAddDisplay();
-      });
-    }
-
-    // Close add-field modal on backdrop click
-    var fieldModal = document.getElementById('add-field-modal');
-    if (fieldModal) {
-      fieldModal.addEventListener('click', function(e) {
-        if (e.target === this) hideAddFieldModal();
-      });
-    }
-
-    // WHY FETCH SUBMIT: Traditional form.submit() can fail in some browser contexts
-    // (e.g., Playwright, iframes) due to cookie handling. Using fetch ensures reliable
-    // CSRF token and session cookie transmission for the Save View form.
-    var viewEditForm = document.getElementById('view-edit-form');
-    if (viewEditForm) {
-      viewEditForm.addEventListener('submit', function(e) {
-        e.preventDefault();
-        var formData = new FormData(viewEditForm);
-        var urlEncoded = new URLSearchParams(formData).toString();
-        var action = viewEditForm.action;
-        fetch(action, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-          body: urlEncoded,
-          credentials: 'same-origin',
-          redirect: 'follow'
-        }).then(function(resp) {
-          // Redirect to the response URL (which includes success/error params)
-          window.location.href = resp.url;
-        }).catch(function(err) {
-          alert('Error saving view: ' + err.message);
-        });
-      });
-    }
-
-    // Initialize sort drag-and-drop on page load
-    initSortDragDrop();
-
-    // WHY: Inline preview loads view results via AJAX and renders them
-    // in a table below the configuration form. This lets users see the
-    // effect of their changes without navigating away from the edit page.
-    function loadPreview() {
-      var previewSection = document.getElementById('view-preview');
-      var previewLoading = document.getElementById('preview-loading');
-      var previewError = document.getElementById('preview-error');
-      var previewResults = document.getElementById('preview-results');
-      var previewCount = document.getElementById('preview-count');
-
-      // Show the preview section
-      previewSection.style.display = 'block';
-      previewLoading.style.display = 'block';
-      previewError.style.display = 'none';
-      previewResults.innerHTML = '';
-
-      var viewId = document.querySelector('input[name="machine_name"]').value;
-
-      fetch('/admin/views/' + viewId + '/preview.json', {
-        credentials: 'same-origin'
-      })
-      .then(function(resp) { return resp.json(); })
-      .then(function(data) {
-        previewLoading.style.display = 'none';
-
-        if (data.error) {
-          previewError.style.display = 'block';
-          previewError.textContent = 'Error: ' + data.error;
-          return;
-        }
-
-        previewCount.textContent = data.count + ' of ' + data.total + ' items';
-
-        if (data.items.length === 0) {
-          previewResults.innerHTML = '<p style="text-align:center;color:#6b7280;padding:2rem;">No results found.</p>';
-          return;
-        }
-
-        // Build table
-        var html = '<table class="admin-table" style="width:100%;">';
-        html += '<thead><tr>';
-        var labels = data.fieldLabels.length > 0 ? data.fieldLabels : ['ID', 'Title', 'Status', 'Created'];
-        var names = data.fieldNames.length > 0 ? data.fieldNames : ['id', 'title', 'status', 'created'];
-        for (var i = 0; i < labels.length; i++) {
-          html += '<th>' + labels[i] + '</th>';
-        }
-        html += '</tr></thead><tbody>';
-
-        for (var j = 0; j < data.items.length; j++) {
-          var item = data.items[j];
-          html += '<tr>';
-          for (var k = 0; k < names.length; k++) {
-            var val = item[names[k]];
-            if (val === undefined || val === null) val = '';
-            // Format dates
-            if (names[k] === 'created' || names[k] === 'updated') {
-              try { val = new Date(val).toLocaleString(); } catch(e) {}
-            }
-            html += '<td>' + String(val) + '</td>';
-          }
-          html += '</tr>';
-        }
-        html += '</tbody></table>';
-        previewResults.innerHTML = html;
-
-        // Scroll to preview
-        previewSection.scrollIntoView({ behavior: 'smooth', block: 'start' });
-      })
-      .catch(function(err) {
-        previewLoading.style.display = 'none';
-        previewError.style.display = 'block';
-        previewError.textContent = 'Failed to load preview: ' + err.message;
-      });
-    }
-
-    /**
-     * Show query structure for debugging
-     * WHY: Developers need to see how view configuration (filters, sorts, fields)
-     * translates into the actual query sent to content.list(). This helps debug
-     * complex views and understand query generation.
-     */
-    function showQuery() {
-      var queryInspector = document.getElementById('query-inspector');
-      var queryLoading = document.getElementById('query-loading');
-      var queryError = document.getElementById('query-error');
-      var queryResults = document.getElementById('query-results');
-      var queryJson = document.getElementById('query-json');
-
-      // Show inspector panel
-      queryInspector.style.display = 'block';
-      queryLoading.style.display = 'block';
-      queryError.style.display = 'none';
-      queryResults.style.display = 'none';
-
-      var viewId = document.querySelector('input[name="machine_name"]').value;
-
-      fetch('/admin/views/' + viewId + '/query.json', {
-        credentials: 'same-origin'
-      })
-      .then(function(resp) { return resp.json(); })
-      .then(function(data) {
-        queryLoading.style.display = 'none';
-
-        if (data.error) {
-          queryError.style.display = 'block';
-          queryError.textContent = 'Error: ' + data.error;
-          return;
-        }
-
-        // Display formatted query structure
-        queryResults.style.display = 'block';
-        queryJson.textContent = JSON.stringify(data.query, null, 2);
-
-        // Scroll to query inspector
-        queryInspector.scrollIntoView({ behavior: 'smooth', block: 'start' });
-      })
-      .catch(function(err) {
-        queryLoading.style.display = 'none';
-        queryError.style.display = 'block';
-        queryError.textContent = 'Failed to load query: ' + err.message;
-      });
     }
   </script>
   <script src="/public/js/shortcuts.js"></script>

@@ -393,18 +393,6 @@ export async function getDerivative(mediaId, styleName) {
 }
 
 /**
- * Get URL for derivative image (convenience wrapper around getDerivative)
- *
- * @param {string} mediaId - Media file relative path
- * @param {string} styleName - Style name
- * @returns {Promise<string>} URL to derivative
- */
-export async function getUrl(mediaId, styleName) {
-  const derivative = await getDerivative(mediaId, styleName);
-  return derivative.url;
-}
-
-/**
  * Generate derivative image
  *
  * @param {string} mediaId - Media file relative path
@@ -769,7 +757,6 @@ export default {
   listStyles,
   getImageDimensions,
   getDerivative,
-  getUrl,
   generateDerivative,
   getResponsiveSrcset,
   getPlaceholder,

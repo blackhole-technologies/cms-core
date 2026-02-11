@@ -1,32 +1,36 @@
-# cms-core-fields Feature Specification
+# cms-core-ai Feature Specification
 
 ## Project Overview
 
-**Name:** cms-core-fields
-**Description:** Field enhancements - grouping, tokens, utilities, linking, icons, tagging
+**Name:** cms-core-ai
+**Description:** AI ecosystem - dashboard, providers, image tools
 **Path:** /Users/Alchemy/Projects/experiments/cms-core
 
 ## Feature Count
 
-**feature_count: 6**
+**feature_count: 8**
 
 ---
 
-## TIER 1: ICON SYSTEM (Features 0-5)
+## TIER 1: AI DASHBOARD (Features 0-7)
 
 These must pass before any functional features.
 
 ### Features
 
-### Feature 0: Icon discovery and registry service
+### Feature 0: AI module registry service
 
-### Feature 1: Icon autocomplete form element
+### Feature 1: Dashboard admin route with module status overview
 
-### Feature 2: Icon pack plugin system
+### Feature 2: Provider health check endpoint
 
-### Feature 3: SVG icon rendering service
+### Feature 3: Usage statistics tracking service
 
-### Feature 4: Icon preview in admin UI
+### Feature 4: API endpoint for AI module metrics
 
-### Feature 5: Twig function for icon rendering
+### Feature 5: CLI command: ai:dashboard:status
+
+### Feature 6: Dashboard widget system with pluggable panels
+
+### Feature 7: AI activity log viewer
 

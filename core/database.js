@@ -127,14 +127,7 @@ export class Database {
     const tablePath = this.getTablePath(table);
     try {
       const data = await fs.readFile(tablePath, 'utf-8');
-      const parsed = JSON.parse(data);
-
-      // WHY: Schema.createTable stores {_schema, _rows}, but queries expect array
-      // Return _rows if present (schema-managed table), otherwise whole array (legacy)
-      if (parsed && typeof parsed === 'object' && '_rows' in parsed) {
-        return parsed._rows;
-      }
-      return parsed;
+      return JSON.parse(data);
     } catch (error) {
       if (error.code === 'ENOENT') {
         return [];
@@ -149,21 +142,7 @@ export class Database {
   async saveTable(table, data) {
     const tablePath = this.getTablePath(table);
     try {
-      // WHY: Need to preserve _schema metadata if table was created with schema
-      // Check if file exists and has schema
-      let tableData = data;
-      try {
-        const existing = await fs.readFile(tablePath, 'utf-8');
-        const parsed = JSON.parse(existing);
-        if (parsed && typeof parsed === 'object' && '_schema' in parsed) {
-          // Preserve schema, update rows
-          tableData = { ...parsed, _rows: data };
-        }
-      } catch (e) {
-        // File doesn't exist or can't be read, save as-is
-      }
-
-      await fs.writeFile(tablePath, JSON.stringify(tableData, null, 2), 'utf-8');
+      await fs.writeFile(tablePath, JSON.stringify(data, null, 2), 'utf-8');
     } catch (error) {
       throw new DatabaseError(`Failed to save table ${table}: ${error.message}`);
     }

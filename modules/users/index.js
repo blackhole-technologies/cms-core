@@ -478,22 +478,14 @@ export function hook_middleware(use, context) {
 
     // Public API routes that don't require authentication
     const publicPaths = [
-      '/api/conscious/stats',
-      '/api/conscious/bridges',
-      '/api/conscious/featured',
-      '/api/conscious/connections',
-      '/api/conscious/personalities',
-      '/api/conscious/chat',
-      '/api/conscious/interpret',
-      '/api/conscious/recent',
+      '/api/consciousness/stats',
+      '/api/consciousness/bridges',
+      '/api/consciousness/featured',
+      '/api/consciousness/connections',
+      '/api/consciousness/personalities',
+      '/api/consciousness/chat',
+      '/api/consciousness/interpret',
       '/api/health',
-      '/api/tagify/autocomplete',
-      '/api/tagify/create-tag',
-      '/api/linkit/autocomplete',
-      '/api/icons/search',
-      '/api/icons/render',
-      '/api/icons/packs',
-      '/api/icons/list',
     ];
     
     if (publicPaths.some(p => path.startsWith(p))) {

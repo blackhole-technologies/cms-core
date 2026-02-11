@@ -250,9 +250,6 @@
             {{#if ../workflowEnabled}}
             <span class="status-badge status-{{status}}">{{status}}</span>
             {{/if}}
-            {{#if hasPendingRevisions}}
-            <span class="pending-revision-badge" title="{{pendingRevisionCount}} pending draft(s)">⚡ Pending</span>
-            {{/if}}
             <span class="content-date">{{createdFormatted}}</span>
           </div>
           <div class="content-card-body">
@@ -358,16 +355,6 @@
       display: flex;
       align-items: center;
       gap: 0.5rem;
-    }
-    .pending-revision-badge {
-      display: inline-block;
-      padding: 2px 8px;
-      background: #fff3cd;
-      color: #856404;
-      border: 1px solid #ffc107;
-      border-radius: 3px;
-      font-size: 0.75rem;
-      font-weight: 600;
     }
     </style>
 

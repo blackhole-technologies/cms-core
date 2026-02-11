@@ -29,7 +29,6 @@
 import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { readFileSync } from 'node:fs';
-import crypto from 'node:crypto';
 
 // Get the directory of this module for loading templates
 const __dirname = dirname(fileURLToPath(import.meta.url));
@@ -40,18 +39,6 @@ const __dirname = dirname(fileURLToPath(import.meta.url));
 function loadTemplate(name) {
   const templatePath = join(__dirname, 'templates', name);
   return readFileSync(templatePath, 'utf-8');
-}
-
-/**
- * Format bytes to human-readable size string
- * @param {number} bytes - Size in bytes
- * @returns {string} - e.g. "1.5 MB"
- */
-function formatMediaSize(bytes) {
-  if (!bytes || bytes === 0) return '0 B';
-  const units = ['B', 'KB', 'MB', 'GB'];
-  const i = Math.floor(Math.log(bytes) / Math.log(1024));
-  return (bytes / Math.pow(1024, i)).toFixed(i > 0 ? 1 : 0) + ' ' + units[i];
 }
 
 /**
@@ -96,40 +83,6 @@ function parseFormBody(req) {
         resolve(data);
       } catch (error) {
         reject(new Error('Invalid form data'));
-      }
-    });
-
-    req.on('error', reject);
-  });
-}
-
-/**
- * Parse JSON request body
- * WHY: API routes need to parse JSON payloads for REST operations.
- * Used for PUT/POST/PATCH requests with Content-Type: application/json.
- */
-function parseJsonBody(req) {
-  return new Promise((resolve, reject) => {
-    let body = '';
-
-    req.on('data', chunk => {
-      body += chunk.toString();
-      // WHY 1MB LIMIT: Prevents memory exhaustion attacks
-      if (body.length > 1024 * 1024) {
-        reject(new Error('Request body too large'));
-      }
-    });
-
-    req.on('end', () => {
-      try {
-        if (!body) {
-          resolve({});
-          return;
-        }
-        const data = JSON.parse(body);
-        resolve(data);
-      } catch (error) {
-        reject(new Error('Invalid JSON body: ' + error.message));
       }
     });
 
@@ -2893,7 +2846,6 @@ export function hook_cli(register, context) {
 
   /**
    * views:list - List all views
-   * WHY: Provides overview of all defined views with key metadata
    */
   register('views:list', async (args, ctx) => {
     const viewsService = ctx.services.get('views');
@@ -2902,12 +2854,7 @@ export function hook_cli(register, context) {
       return;
     }
 
-    const typeArg = args.find(a => a.startsWith('--type='));
-    const contentType = typeArg ? typeArg.split('=')[1] : undefined;
-    const displayArg = args.find(a => a.startsWith('--display='));
-    const display = displayArg ? displayArg.split('=')[1] : undefined;
-
-    const views = viewsService.listViews({ contentType, display });
+    const views = viewsService.listViews();
     if (views.length === 0) {
       console.log('No views defined');
       return;
@@ -2915,30 +2862,13 @@ export function hook_cli(register, context) {
 
     console.log(`\nViews (${views.length}):\n`);
     for (const view of views) {
-      const filterCount = view.filters?.length || 0;
-      const sortCount = view.sort?.length || 0;
-      const fieldCount = view.fields?.length || 0;
-      const displayMode = view.display || 'page';
-      // WHY: Views can have multiple displays (page, block, feed).
-      // Show actual count from the displays array if it exists,
-      // otherwise fall back to 1 for legacy views without displays array.
-      const displayCount = view.displays?.length || 1;
-      const displayTypes = view.displays?.map(d => d.type).join(', ') || displayMode;
-      console.log(`  ${view.id}`);
-      console.log(`    Label: ${view.name}`);
-      console.log(`    Content Type: ${view.contentType}`);
-      console.log(`    Displays: ${displayCount} (${displayTypes})`);
-      console.log(`    Fields: ${fieldCount}, Filters: ${filterCount}, Sorts: ${sortCount}`);
-      if (view.description) {
-        console.log(`    Description: ${view.description}`);
-      }
-      console.log('');
+      console.log(`  ${view.id} - ${view.contentType} (${view.filters?.length || 0} filters, ${view.sorts?.length || 0} sorts)`);
     }
+    console.log('');
   }, 'List all views');
 
   /**
-   * views:show <id> - Show full view configuration
-   * WHY: getViewConfig() is the correct API method name in views.js
+   * views:show <id> - Show view config
    */
   register('views:show', async (args, ctx) => {
     const viewsService = ctx.services.get('views');
@@ -2953,43 +2883,21 @@ export function hook_cli(register, context) {
       return;
     }
 
-    const view = viewsService.getViewConfig(id);
+    const view = viewsService.getView(id);
     if (!view) {
       console.log(`View not found: ${id}`);
       return;
     }
 
-    console.log(`\nView: ${view.id}`);
-    console.log(`  Label: ${view.name}`);
-    console.log(`  Description: ${view.description || '(none)'}`);
-    console.log(`  Content Type: ${view.contentType}`);
-    console.log(`  Display: ${view.display}`);
-    console.log(`  Path: ${view.path || '(none)'}`);
-    console.log(`  Pager: ${view.pager.type} (limit: ${view.pager.limit})`);
-    console.log(`  Cache: ${view.cache.enabled ? 'enabled' : 'disabled'} (TTL: ${view.cache.ttl}s)`);
-    console.log(`  Created: ${view.created}`);
-    console.log(`  Updated: ${view.updated}`);
-    if (view.filters.length > 0) {
-      console.log(`  Filters:`);
-      for (const f of view.filters) {
-        console.log(`    - ${f.field} ${f.op} ${f.value}`);
-      }
-    }
-    if (view.sort.length > 0) {
-      console.log(`  Sort:`);
-      for (const s of view.sort) {
-        console.log(`    - ${s.field} ${s.dir || 'asc'}`);
-      }
-    }
-    if (view.fields.length > 0) {
-      console.log(`  Fields: ${view.fields.join(', ')}`);
-    }
+    console.log('\nView:', id);
+    console.log('Content Type:', view.contentType);
+    console.log('Filters:', JSON.stringify(view.filters, null, 2));
+    console.log('Sorts:', JSON.stringify(view.sorts, null, 2));
     console.log('');
   }, 'Show view config');
 
   /**
-   * views:create <id> --name=<label> --type=<contentType> [--display=<mode>] [--description=<desc>] [--path=<path>]
-   * WHY: createView() requires name (label) and contentType; async for hooks
+   * views:create <id> --type=<contentType> - Create view
    */
   register('views:create', async (args, ctx) => {
     const viewsService = ctx.services.get('views');
@@ -3000,7 +2908,7 @@ export function hook_cli(register, context) {
 
     const id = args[0];
     if (!id) {
-      console.log('Usage: views:create <id> --label=<label> --type=<contentType> [--display=<mode>] [--description=<desc>] [--path=<path>]');
+      console.log('Usage: views:create <id> --type=<contentType>');
       return;
     }
 
@@ -3010,43 +2918,13 @@ export function hook_cli(register, context) {
       return;
     }
 
-    // WHY --label alias: Feature spec uses --label, but --name also accepted
-    const nameArg = args.find(a => a.startsWith('--name=')) || args.find(a => a.startsWith('--label='));
-    const descArg = args.find(a => a.startsWith('--description='));
-    const displayArg = args.find(a => a.startsWith('--display='));
-    const pathArg = args.find(a => a.startsWith('--path='));
-
     const contentType = typeArg.split('=')[1];
-    // Default name to id if not provided, for convenience
-    const name = nameArg ? nameArg.split('=').slice(1).join('=') : id;
-    const description = descArg ? descArg.split('=').slice(1).join('=') : '';
-    const display = displayArg ? displayArg.split('=')[1] : 'page';
-    const path = pathArg ? pathArg.split('=').slice(1).join('=') : null;
-
-    try {
-      const view = await viewsService.createView(id, {
-        name,
-        description,
-        contentType,
-        display,
-        path,
-        filters: [],
-        sort: [],
-      });
-      console.log(`\nCreated view: ${view.id}`);
-      console.log(`  Label: ${view.name}`);
-      console.log(`  Content Type: ${view.contentType}`);
-      console.log(`  Display: ${view.display}`);
-      console.log(`  Persisted to: config/views.json`);
-      console.log('');
-    } catch (e) {
-      console.log(`Error creating view: ${e.message}`);
-    }
+    viewsService.createView(id, { contentType, filters: [], sorts: [] });
+    console.log(`Created view: ${id}`);
   }, 'Create view');
 
   /**
    * views:delete <id> - Delete view
-   * WHY: deleteView() is async for hooks
    */
   register('views:delete', async (args, ctx) => {
     const viewsService = ctx.services.get('views');
@@ -3061,66 +2939,12 @@ export function hook_cli(register, context) {
       return;
     }
 
-    try {
-      await viewsService.deleteView(id);
-      console.log(`Deleted view: ${id}`);
-    } catch (e) {
-      console.log(`Error: ${e.message}`);
-    }
+    viewsService.deleteView(id);
+    console.log(`Deleted view: ${id}`);
   }, 'Delete view');
 
   /**
-   * views:clone <sourceId> <newId> [--name=<name>] [--label=<label>] [--description=<desc>]
-   * Clone an existing view to create a copy
-   * WHY: Cloning is faster than building from scratch when creating similar views
-   */
-  register('views:clone', async (args, ctx) => {
-    const viewsService = ctx.services.get('views');
-    if (!viewsService) {
-      console.log('Views service not available');
-      return;
-    }
-
-    const sourceId = args[0];
-    const newId = args[1];
-    if (!sourceId || !newId) {
-      console.log('Usage: views:clone <sourceId> <newId> [--name=<name>] [--label=<label>] [--description=<desc>]');
-      console.log('');
-      console.log('Clone an existing view to create a copy with a new ID.');
-      console.log('');
-      console.log('Examples:');
-      console.log('  views:clone article_list article_archive');
-      console.log('  views:clone article_list featured_articles --name="Featured" --label="Featured Articles"');
-      return;
-    }
-
-    const options = {};
-    for (const arg of args.slice(2)) {
-      const match = arg.match(/^--([^=]+)=(.+)$/);
-      if (match) {
-        const [, key, value] = match;
-        options[key] = value;
-      }
-    }
-
-    try {
-      const cloned = await viewsService.cloneView(sourceId, newId, options);
-      console.log(`✓ Cloned view: ${sourceId} → ${newId}`);
-      console.log(`  Name: ${cloned.name}`);
-      console.log(`  Label: ${cloned.label}`);
-      console.log(`  Content Type: ${cloned.contentType}`);
-      console.log(`  Displays: ${cloned.displays?.length || 0}`);
-      console.log(`  Filters: ${cloned.filters?.length || 0}`);
-      console.log(`  Sorts: ${cloned.sort?.length || 0}`);
-      console.log(`  Fields: ${cloned.fields?.length || 0}`);
-    } catch (e) {
-      console.log(`✗ Error: ${e.message}`);
-    }
-  }, 'Clone view');
-
-  /**
-   * views:execute <id> [--limit=N] - Run view query and show results
-   * WHY: executeView() is async and returns {items, total, pager} object
+   * views:execute <id> [--limit=N] - Run view query
    */
   register('views:execute', async (args, ctx) => {
     const viewsService = ctx.services.get('views');
@@ -3135,29 +2959,20 @@ export function hook_cli(register, context) {
       return;
     }
 
-    try {
-      const result = await viewsService.executeView(id, {});
-      console.log(`\nView: ${result.view.name} (${result.total} total results)\n`);
-      if (result.items.length === 0) {
-        console.log('  No results');
-      } else {
-        for (const item of result.items) {
-          const title = item.title || item.name || item.id;
-          console.log(`  - ${item.id}: ${title}`);
-        }
-      }
-      console.log(`\n  Page ${result.pager.currentPage + 1} of ${result.pager.totalPages}`);
-      console.log('');
-    } catch (e) {
-      console.log(`Error executing view: ${e.message}`);
+    const limitArg = args.find(a => a.startsWith('--limit='));
+    const limit = limitArg ? parseInt(limitArg.split('=')[1]) : undefined;
+
+    const results = viewsService.executeView(id, { limit });
+    console.log(`\nView: ${id} (${results.length} results)\n`);
+    for (const item of results) {
+      const title = item.title || item.name || item.id;
+      console.log(`  - ${item.id}: ${title}`);
     }
+    console.log('');
   }, 'Run view query');
 
   /**
-   * views:export <id> [--file=<path>] - Export view config as JSON
-   * WHY: getViewConfig() is the correct API method name.
-   * Optional --file flag writes JSON to a file instead of stdout,
-   * enabling round-trip export/import workflows.
+   * views:export <id> - Export view config
    */
   register('views:export', async (args, ctx) => {
     const viewsService = ctx.services.get('views');
@@ -3168,147 +2983,18 @@ export function hook_cli(register, context) {
 
     const id = args[0];
     if (!id) {
-      console.log('Usage: views:export <id> [--file=<path>]');
+      console.log('Usage: views:export <id>');
       return;
     }
 
-    const view = viewsService.getViewConfig(id);
+    const view = viewsService.getView(id);
     if (!view) {
       console.log(`View not found: ${id}`);
       return;
     }
 
-    const json = JSON.stringify(view, null, 2);
-
-    // WHY --file: Allows saving export to a file for backup/transfer/import
-    const fileArg = args.find(a => a.startsWith('--file='));
-    if (fileArg) {
-      const filePath = fileArg.split('=').slice(1).join('=');
-      const { writeFileSync } = await import('node:fs');
-      const { resolve } = await import('node:path');
-      const resolvedPath = resolve(filePath);
-      writeFileSync(resolvedPath, json + '\n');
-      console.log(`\nExported view "${id}" to: ${resolvedPath}`);
-      console.log(`  Configuration includes:`);
-      console.log(`    - Display: ${view.display}`);
-      console.log(`    - Fields: ${view.fields?.length || 0}`);
-      console.log(`    - Filters: ${view.filters?.length || 0}`);
-      console.log(`    - Sorts: ${view.sort?.length || 0}`);
-      console.log(`    - Contextual Filters: ${view.contextualFilters?.length || 0}`);
-      console.log(`    - Relationships: ${view.relationships?.length || 0}`);
-      console.log(`    - Cache: ${view.cache?.enabled ? 'enabled' : 'disabled'} (TTL: ${view.cache?.ttl || 0}s)`);
-      console.log('');
-    } else {
-      // WHY stdout: Default behavior outputs JSON for piping to other tools
-      console.log(json);
-    }
+    console.log(JSON.stringify(view, null, 2));
   }, 'Export view config');
-
-  /**
-   * views:import <file|json> [--id=<newId>] - Import view from JSON file or inline JSON
-   * WHY: Enables round-trip export/import for backup, migration, and sharing.
-   * The --id flag allows importing under a different ID to avoid conflicts.
-   * Validates the JSON structure before importing to prevent corrupt views.
-   */
-  register('views:import', async (args, ctx) => {
-    const viewsService = ctx.services.get('views');
-    if (!viewsService) {
-      console.log('Views service not available');
-      return;
-    }
-
-    if (args.length === 0) {
-      console.log('Usage: views:import <file.json> [--id=<newId>]');
-      console.log('       views:import \'{"id":"myview","name":"My View",...}\' [--id=<newId>]');
-      return;
-    }
-
-    // WHY --id override: When importing, the user may want a different ID
-    // to avoid conflicts with existing views or to create copies
-    const idArg = args.find(a => a.startsWith('--id='));
-    const overrideId = idArg ? idArg.split('=').slice(1).join('=') : null;
-
-    // Determine if input is a file path or inline JSON
-    let jsonStr;
-    const input = args.filter(a => !a.startsWith('--')).join(' ');
-
-    if (input.trim().startsWith('{')) {
-      // WHY: Allow inline JSON for quick imports and scripting
-      jsonStr = input;
-    } else {
-      // WHY: File-based import for round-trip with views:export --file
-      const { readFileSync, existsSync } = await import('node:fs');
-      const { resolve } = await import('node:path');
-      const filePath = resolve(input);
-
-      if (!existsSync(filePath)) {
-        console.log(`Error: File not found: ${filePath}`);
-        return;
-      }
-
-      try {
-        jsonStr = readFileSync(filePath, 'utf-8');
-      } catch (e) {
-        console.log(`Error reading file: ${e.message}`);
-        return;
-      }
-    }
-
-    // Parse and validate JSON
-    let viewConfig;
-    try {
-      viewConfig = JSON.parse(jsonStr);
-    } catch (e) {
-      console.log(`Error: Invalid JSON - ${e.message}`);
-      return;
-    }
-
-    // WHY: Validate required fields before attempting to create
-    if (!viewConfig.name && !viewConfig.id) {
-      console.log('Error: JSON must include at least "name" or "id"');
-      return;
-    }
-
-    if (!viewConfig.contentType) {
-      console.log('Error: JSON must include "contentType"');
-      return;
-    }
-
-    // Determine the view ID to use
-    const viewId = overrideId || viewConfig.id;
-    if (!viewId) {
-      console.log('Error: No view ID found. Provide --id=<id> or include "id" in JSON');
-      return;
-    }
-
-    // Check if view already exists
-    const existing = viewsService.getViewConfig(viewId);
-    if (existing) {
-      console.log(`Error: View "${viewId}" already exists. Use --id=<newId> to import with a different ID, or delete the existing view first.`);
-      return;
-    }
-
-    // WHY: Strip timestamps so createView generates fresh ones
-    // This ensures imported views get proper creation timestamps
-    const { created, updated, id: _stripId, ...importConfig } = viewConfig;
-
-    try {
-      const view = await viewsService.createView(viewId, importConfig);
-      console.log(`\nImported view: ${view.id}`);
-      console.log(`  Label: ${view.name}`);
-      console.log(`  Content Type: ${view.contentType}`);
-      console.log(`  Display: ${view.display}`);
-      console.log(`  Fields: ${view.fields?.length || 0}`);
-      console.log(`  Filters: ${view.filters?.length || 0}`);
-      console.log(`  Sorts: ${view.sort?.length || 0}`);
-      console.log(`  Contextual Filters: ${view.contextualFilters?.length || 0}`);
-      console.log(`  Relationships: ${view.relationships?.length || 0}`);
-      console.log(`  Persisted to: config/views.json`);
-      console.log('');
-    } catch (e) {
-      console.log(`Error importing view: ${e.message}`);
-    }
-  }, 'Import view from JSON');
 
   // ===== Workflows Commands =====
 
@@ -3812,35 +3498,24 @@ export function hook_cli(register, context) {
 
   /**
    * config:list - List config items
-   *
-   * WHY USE configManagement SERVICE:
-   * The 'config' service returns the raw config object (context.config).
-   * The 'configManagement' service provides the registry of tracked configs
-   * with methods like getRegistry(), getConfig(), exportConfig(), etc.
    */
   register('config:list', async (args, ctx) => {
-    const configMgmt = ctx.services.get('configManagement');
-    if (!configMgmt) {
-      console.log('Config management service not available');
+    const configService = ctx.services.get('config');
+    if (!configService) {
+      console.log('Config service not available');
       return;
     }
 
-    const registryInfo = configMgmt.getRegistry();
-    const configNames = Object.keys(registryInfo.configs);
-
-    if (configNames.length === 0) {
-      console.log('No config items registered');
+    const items = configService.listItems();
+    if (items.length === 0) {
+      console.log('No config items');
       return;
     }
 
-    console.log(`\nRegistered Configs (${configNames.length}):\n`);
-    for (const name of configNames.sort()) {
-      const meta = registryInfo.configs[name];
-      const locked = registryInfo.locked.includes(name) ? ' [LOCKED]' : '';
-      console.log(`  ${name} (${meta.file})${locked}`);
+    console.log(`\nConfig Items (${items.length}):\n`);
+    for (const item of items) {
+      console.log(`  ${item.key} = ${JSON.stringify(item.value)}`);
     }
-    console.log(`\nEnvironments: ${Object.keys(registryInfo.environments).join(', ')}`);
-    console.log(`History entries: ${registryInfo.historyCount}`);
     console.log('');
   }, 'List config items');
 
@@ -3848,75 +3523,52 @@ export function hook_cli(register, context) {
    * config:export [--items=a,b,c] - Export config
    */
   register('config:export', async (args, ctx) => {
-    const configMgmt = ctx.services.get('configManagement');
-    if (!configMgmt) {
-      console.log('Config management service not available');
+    const configService = ctx.services.get('config');
+    if (!configService) {
+      console.log('Config service not available');
       return;
     }
 
     const itemsArg = args.find(a => a.startsWith('--items='));
-    const items = itemsArg ? itemsArg.split('=')[1].split(',') : null;
+    const items = itemsArg ? itemsArg.split('=')[1].split(',') : undefined;
 
-    try {
-      const archivePath = await configMgmt.exportConfig(items);
-      console.log(`Config exported to: ${archivePath}`);
-    } catch (error) {
-      console.log(`Error: ${error.message}`);
-    }
+    const exported = configService.exportConfig(items);
+    console.log(JSON.stringify(exported, null, 2));
   }, 'Export config');
 
   /**
-   * config:import <file> [--overwrite] [--dry-run] - Import config
+   * config:import <file> - Import config
    */
   register('config:import', async (args, ctx) => {
-    const configMgmt = ctx.services.get('configManagement');
-    if (!configMgmt) {
-      console.log('Config management service not available');
+    const configService = ctx.services.get('config');
+    if (!configService) {
+      console.log('Config service not available');
       return;
     }
 
-    const file = args.find(a => !a.startsWith('--'));
+    const file = args[0];
     if (!file) {
-      console.log('Usage: config:import <file> [--overwrite] [--dry-run]');
+      console.log('Usage: config:import <file>');
       return;
     }
-
-    const overwrite = args.includes('--overwrite');
-    const dryRun = args.includes('--dry-run');
 
     try {
-      const result = await configMgmt.importConfig(file, { overwrite, dryRun });
-      if (dryRun) {
-        console.log('\n[DRY RUN] No changes applied.\n');
-      }
-      console.log(`Imported: ${result.imported.length}`);
-      console.log(`Skipped: ${result.skipped.length}`);
-      console.log(`Failed: ${result.failed.length}`);
-      if (result.skipped.length > 0) {
-        console.log('\nSkipped:');
-        for (const s of result.skipped) {
-          console.log(`  ${s.name}: ${s.reason}`);
-        }
-      }
-      if (result.failed.length > 0) {
-        console.log('\nFailed:');
-        for (const f of result.failed) {
-          console.log(`  ${f.name}: ${f.reason}`);
-        }
-      }
-      console.log('');
+      const { readFileSync } = await import('node:fs');
+      const data = JSON.parse(readFileSync(file, 'utf-8'));
+      configService.importConfig(data);
+      console.log(`Imported config from ${file}`);
     } catch (error) {
       console.log(`Error: ${error.message}`);
     }
   }, 'Import config');
 
   /**
-   * config:diff <file> - Show diff between current config and archive
+   * config:diff <file> - Show diff
    */
   register('config:diff', async (args, ctx) => {
-    const configMgmt = ctx.services.get('configManagement');
-    if (!configMgmt) {
-      console.log('Config management service not available');
+    const configService = ctx.services.get('config');
+    if (!configService) {
+      console.log('Config service not available');
       return;
     }
 
@@ -3927,23 +3579,15 @@ export function hook_cli(register, context) {
     }
 
     try {
-      const diff = await configMgmt.diffConfig(file);
+      const { readFileSync } = await import('node:fs');
+      const data = JSON.parse(readFileSync(file, 'utf-8'));
+      const diff = configService.diffConfig(data);
 
       console.log('\nConfig Diff:\n');
-      if (diff.added.length > 0) {
-        console.log(`  Added (${diff.added.length}): ${diff.added.join(', ')}`);
-      }
-      if (diff.modified.length > 0) {
-        console.log(`  Modified (${diff.modified.length}):`);
-        for (const m of diff.modified) {
-          console.log(`    ${m.name}`);
-        }
-      }
-      if (diff.removed.length > 0) {
-        console.log(`  Removed (${diff.removed.length}): ${diff.removed.join(', ')}`);
-      }
-      if (diff.unchanged.length > 0) {
-        console.log(`  Unchanged (${diff.unchanged.length}): ${diff.unchanged.join(', ')}`);
+      for (const item of diff) {
+        console.log(`  ${item.key}:`);
+        console.log(`    current: ${JSON.stringify(item.current)}`);
+        console.log(`    incoming: ${JSON.stringify(item.incoming)}`);
       }
       console.log('');
     } catch (error) {
@@ -4094,284 +3738,31 @@ export function hook_cli(register, context) {
   }, 'List redirects');
 
   /**
-   * tokens:list [options] - List available tokens
-   * Options:
-   *   --type=<type>     Filter by token type (node, user, date, site, etc.)
-   *   --filter=<term>   Search tokens containing term
-   *   --verbose         Show examples and additional metadata
-   *   --format=json     Output as JSON
+   * tokens:list [type] - List available tokens
    */
   register('tokens:list', async (args, ctx) => {
-    const tokenService = ctx.services.get('tokens');
+    const tokenService = ctx.services.get('token');
     if (!tokenService) {
       console.error('Token service not available');
       return;
     }
 
-    // Parse options
-    const options = {
-      type: null,
-      filter: null,
-      verbose: false,
-      format: 'text',
-    };
+    const type = args[0];
+    const tokens = tokenService.getAvailableTokens(type);
 
-    for (const arg of args) {
-      if (arg.startsWith('--type=')) {
-        options.type = arg.substring(7);
-      } else if (arg.startsWith('--filter=')) {
-        options.filter = arg.substring(9);
-      } else if (arg === '--verbose') {
-        options.verbose = true;
-      } else if (arg.startsWith('--format=')) {
-        options.format = arg.substring(9);
-      } else if (arg.startsWith('--')) {
-        console.error(`Error: Unknown option: ${arg}`);
-        console.error('Run "node index.js help tokens:list" for usage information');
-        return;
-      }
+    console.log(`\nAvailable tokens${type ? ` (${type})` : ''}:\n`);
+    for (const [name, info] of Object.entries(tokens)) {
+      console.log(`  [${name}]`);
+      console.log(`    ${info.description || 'No description'}`);
     }
-
-    // Get all token types
-    const allTypes = tokenService.getTypes();
-
-    // Check if no tokens registered
-    if (Object.keys(allTypes).length === 0) {
-      console.log('\nNo tokens available. Enable modules to register tokens.\n');
-      return;
-    }
-
-    // Filter by type if specified
-    let typesToShow = allTypes;
-    if (options.type) {
-      if (!allTypes[options.type]) {
-        console.error(`Error: Unknown token type: ${options.type}`);
-        console.error(`Available types: ${Object.keys(allTypes).join(', ')}`);
-        return;
-      }
-      typesToShow = { [options.type]: allTypes[options.type] };
-    }
-
-    // Build output data structure
-    const output = [];
-    for (const [typeKey, typeInfo] of Object.entries(typesToShow)) {
-      const typeOutput = {
-        type: typeKey,
-        name: typeInfo.name,
-        description: typeInfo.description,
-        tokens: [],
-      };
-
-      // Process tokens for this type
-      for (const [tokenKey, tokenInfo] of Object.entries(typeInfo.tokens || {})) {
-        const tokenStr = `[${typeKey}:${tokenKey}]`;
-
-        // Apply filter if specified
-        if (options.filter) {
-          const searchTerm = options.filter.toLowerCase();
-          const matchesToken = tokenKey.toLowerCase().includes(searchTerm);
-          const matchesName = (tokenInfo.name || '').toLowerCase().includes(searchTerm);
-          const matchesDesc = (tokenInfo.description || '').toLowerCase().includes(searchTerm);
-
-          if (!matchesToken && !matchesName && !matchesDesc) {
-            continue;
-          }
-        }
-
-        const tokenOutput = {
-          token: tokenStr,
-          name: tokenInfo.name,
-          description: tokenInfo.description,
-        };
-
-        if (options.verbose && tokenInfo.example) {
-          tokenOutput.example = tokenInfo.example;
-        }
-
-        typeOutput.tokens.push(tokenOutput);
-      }
-
-      // Only add type if it has tokens (after filtering)
-      if (typeOutput.tokens.length > 0) {
-        output.push(typeOutput);
-      }
-    }
-
-    // Output based on format
-    if (options.format === 'json') {
-      console.log(JSON.stringify(output, null, 2));
-      return;
-    }
-
-    // Text format output
-    if (output.length === 0) {
-      console.log('\nNo tokens found matching your criteria.\n');
-      return;
-    }
-
-    console.log('\nAvailable tokens:\n');
-
-    for (const typeData of output) {
-      console.log(`${typeData.name} (${typeData.type})`);
-      if (typeData.description) {
-        console.log(`  ${typeData.description}`);
-      }
-      console.log('');
-
-      for (const token of typeData.tokens) {
-        console.log(`  ${token.token} - ${token.name}`);
-        if (token.description) {
-          console.log(`    ${token.description}`);
-        }
-        if (options.verbose && token.example) {
-          console.log(`    Example: ${token.example}`);
-        }
-      }
-      console.log('');
-    }
+    console.log('');
   }, 'List available tokens');
-
-  /**
-   * token:list - Alias for tokens:list (singular form)
-   * Drupal convention uses singular, but we support both for compatibility
-   */
-  const tokenListHandler = async (args, ctx) => {
-    const tokenService = ctx.services.get('tokens');
-    if (!tokenService) {
-      console.error('Token service not available');
-      return;
-    }
-
-    // Parse options
-    const options = {
-      type: null,
-      filter: null,
-      verbose: false,
-      format: 'text',
-    };
-
-    for (const arg of args) {
-      if (arg.startsWith('--type=')) {
-        options.type = arg.substring(7);
-      } else if (arg.startsWith('--filter=')) {
-        options.filter = arg.substring(9);
-      } else if (arg === '--verbose') {
-        options.verbose = true;
-      } else if (arg.startsWith('--format=')) {
-        options.format = arg.substring(9);
-      } else if (arg.startsWith('--')) {
-        console.error(`Error: Unknown option: ${arg}`);
-        console.error('Run "node index.js help token:list" for usage information');
-        return;
-      }
-    }
-
-    // Get all token types
-    const allTypes = tokenService.getTypes();
-
-    // Check if no tokens registered
-    if (Object.keys(allTypes).length === 0) {
-      console.log('\nNo tokens available. Enable modules to register tokens.\n');
-      return;
-    }
-
-    // Filter by type if specified
-    let typesToShow = allTypes;
-    if (options.type) {
-      if (!allTypes[options.type]) {
-        console.error(`Error: Unknown token type: ${options.type}`);
-        console.error(`Available types: ${Object.keys(allTypes).join(', ')}`);
-        return;
-      }
-      typesToShow = { [options.type]: allTypes[options.type] };
-    }
-
-    // Build output data structure
-    const output = [];
-    for (const [typeKey, typeInfo] of Object.entries(typesToShow)) {
-      const typeOutput = {
-        type: typeKey,
-        name: typeInfo.name,
-        description: typeInfo.description,
-        tokens: [],
-      };
-
-      // Process tokens for this type
-      for (const [tokenKey, tokenInfo] of Object.entries(typeInfo.tokens || {})) {
-        const tokenStr = `[${typeKey}:${tokenKey}]`;
-
-        // Apply filter if specified
-        if (options.filter) {
-          const searchTerm = options.filter.toLowerCase();
-          const matchesToken = tokenKey.toLowerCase().includes(searchTerm);
-          const matchesName = (tokenInfo.name || '').toLowerCase().includes(searchTerm);
-          const matchesDesc = (tokenInfo.description || '').toLowerCase().includes(searchTerm);
-
-          if (!matchesToken && !matchesName && !matchesDesc) {
-            continue;
-          }
-        }
-
-        const tokenOutput = {
-          token: tokenStr,
-          name: tokenInfo.name,
-          description: tokenInfo.description,
-        };
-
-        if (options.verbose && tokenInfo.example) {
-          tokenOutput.example = tokenInfo.example;
-        }
-
-        typeOutput.tokens.push(tokenOutput);
-      }
-
-      // Only add type if it has tokens (after filtering)
-      if (typeOutput.tokens.length > 0) {
-        output.push(typeOutput);
-      }
-    }
-
-    // Output based on format
-    if (options.format === 'json') {
-      console.log(JSON.stringify(output, null, 2));
-      return;
-    }
-
-    // Text format output
-    if (output.length === 0) {
-      console.log('\nNo tokens found matching your criteria.\n');
-      return;
-    }
-
-    console.log('\nAvailable tokens:\n');
-
-    for (const typeData of output) {
-      console.log(`${typeData.name} (${typeData.type})`);
-      if (typeData.description) {
-        console.log(`  ${typeData.description}`);
-      }
-      console.log('');
-
-      for (const token of typeData.tokens) {
-        console.log(`  ${token.token} - ${token.name}`);
-        if (token.description) {
-          console.log(`    ${token.description}`);
-        }
-        if (options.verbose && token.example) {
-          console.log(`    Example: ${token.example}`);
-        }
-      }
-      console.log('');
-    }
-  };
-
-  register('token:list', tokenListHandler, 'List available tokens (alias)');
 
   /**
    * tokens:replace <text> - Replace tokens in text (for testing)
    */
   register('tokens:replace', async (args, ctx) => {
-    const tokenService = ctx.services.get('tokens');
+    const tokenService = ctx.services.get('token');
     if (!tokenService) {
       console.error('Token service not available');
       return;
@@ -4571,7 +3962,7 @@ export function hook_cli(register, context) {
    * actions:list - List available actions
    */
   register('actions:list', async (args, ctx) => {
-    const actionService = ctx.services.get('actions');
+    const actionService = ctx.services.get('action');
     if (!actionService) {
       console.error('Action service not available');
       return;
@@ -4594,7 +3985,7 @@ export function hook_cli(register, context) {
    * actions:execute <action> [--target=type:id] - Execute action
    */
   register('actions:execute', async (args, ctx) => {
-    const actionService = ctx.services.get('actions');
+    const actionService = ctx.services.get('action');
     if (!actionService) {
       console.error('Action service not available');
       return;
@@ -4752,7 +4143,7 @@ export function hook_cli(register, context) {
    * theme:list - List themes
    */
   register('theme:list', async (args, ctx) => {
-    const themeService = ctx.services.get('themeEngine');
+    const themeService = ctx.services.get('theme');
     if (!themeService) {
       console.error('Theme service not available');
       return;
@@ -4778,7 +4169,7 @@ export function hook_cli(register, context) {
    * theme:active - Show active theme
    */
   register('theme:active', async (args, ctx) => {
-    const themeService = ctx.services.get('themeEngine');
+    const themeService = ctx.services.get('theme');
     if (!themeService) {
       console.error('Theme service not available');
       return;
@@ -4800,7 +4191,7 @@ export function hook_cli(register, context) {
    * theme:activate <name> - Activate theme
    */
   register('theme:activate', async (args, ctx) => {
-    const themeService = ctx.services.get('themeEngine');
+    const themeService = ctx.services.get('theme');
     if (!themeService) {
       console.error('Theme service not available');
       return;
@@ -4825,7 +4216,7 @@ export function hook_cli(register, context) {
    * theme:settings <name> - Show theme settings
    */
   register('theme:settings', async (args, ctx) => {
-    const themeService = ctx.services.get('themeEngine');
+    const themeService = ctx.services.get('theme');
     if (!themeService) {
       console.error('Theme service not available');
       return;
@@ -4848,7 +4239,7 @@ export function hook_cli(register, context) {
    * theme:set <name> <key> <value> - Set theme setting
    */
   register('theme:set', async (args, ctx) => {
-    const themeService = ctx.services.get('themeEngine');
+    const themeService = ctx.services.get('theme');
     if (!themeService) {
       console.error('Theme service not available');
       return;
@@ -4869,180 +4260,6 @@ export function hook_cli(register, context) {
       console.error(`Error: ${error.message}`);
     }
   }, 'Set theme setting');
-
-  // ========================================
-  // Theme Engine CLI Commands
-  // (Layouts + Skins system)
-  // ========================================
-
-  /**
-   * layouts:list - List available layouts
-   */
-  register('layouts:list', async (args, ctx) => {
-    const engine = ctx.services.get('themeEngine');
-    if (!engine) {
-      console.error('Theme engine not available');
-      return;
-    }
-
-    const layouts = engine.listLayouts();
-    console.log(`\nLayouts (${layouts.length}):\n`);
-    for (const layout of layouts) {
-      const active = layout.id === engine.getActiveLayout()?.id ? ' [active]' : '';
-      console.log(`  ${layout.id}${active}`);
-      console.log(`    Name: ${layout.name}`);
-      if (layout.description) console.log(`    ${layout.description}`);
-      console.log(`    Regions: ${layout.regions.join(', ')}`);
-    }
-    console.log('');
-  }, 'List available layouts');
-
-  /**
-   * skins:list - List available skins
-   */
-  register('skins:list', async (args, ctx) => {
-    const engine = ctx.services.get('themeEngine');
-    if (!engine) {
-      console.error('Theme engine not available');
-      return;
-    }
-
-    const layoutId = args[0] || null;
-    const skins = engine.listSkins(layoutId);
-    const filterNote = layoutId ? ` (compatible with ${layoutId})` : '';
-
-    console.log(`\nSkins (${skins.length})${filterNote}:\n`);
-    for (const skin of skins) {
-      const active = skin.id === engine.getActiveSkin()?.id ? ' [active]' : '';
-      console.log(`  ${skin.id}${active}`);
-      console.log(`    Name: ${skin.name}`);
-      if (skin.description) console.log(`    ${skin.description}`);
-    }
-    console.log('');
-  }, 'List available skins (optionally filter by layout)');
-
-  /**
-   * skins:admin - List admin skins
-   */
-  register('skins:admin', async (args, ctx) => {
-    const engine = ctx.services.get('themeEngine');
-    if (!engine) {
-      console.error('Theme engine not available');
-      return;
-    }
-
-    const skins = engine.listAdminSkins();
-    console.log(`\nAdmin Skins (${skins.length}):\n`);
-    for (const skin of skins) {
-      const active = skin.id === engine.getActiveAdminSkin()?.id ? ' [active]' : '';
-      console.log(`  ${skin.id}${active}`);
-      console.log(`    Name: ${skin.name}`);
-      if (skin.description) console.log(`    ${skin.description}`);
-    }
-    console.log('');
-  }, 'List admin skins');
-
-  /**
-   * theme-engine:status - Show current theme engine status
-   */
-  register('theme-engine:status', async (args, ctx) => {
-    const engine = ctx.services.get('themeEngine');
-    if (!engine) {
-      console.error('Theme engine not available');
-      return;
-    }
-
-    const theme = engine.getActiveTheme();
-    const adminSkin = engine.getActiveAdminSkin();
-    const stats = engine.refresh();
-
-    console.log('\nTheme Engine Status:');
-    console.log(`  Layouts: ${stats.layouts}`);
-    console.log(`  Skins: ${stats.skins}`);
-    console.log(`  Admin Skins: ${stats.adminSkins}`);
-    console.log('\nActive Configuration:');
-    console.log(`  Layout: ${theme.layout?.id || 'none'} (${theme.layout?.name || 'N/A'})`);
-    console.log(`  Skin: ${theme.skin?.id || 'none'} (${theme.skin?.name || 'N/A'})`);
-    console.log(`  Admin Skin: ${adminSkin?.id || 'none'} (${adminSkin?.name || 'N/A'})`);
-    if (theme.skin?.cssPaths?.length) {
-      console.log('\nSkin CSS:');
-      for (const path of theme.skin.cssPaths) {
-        console.log(`  ${path}`);
-      }
-    }
-    console.log('');
-  }, 'Show theme engine status');
-
-  /**
-   * theme-engine:set <layout> <skin> - Set active layout and skin
-   */
-  register('theme-engine:set', async (args, ctx) => {
-    const engine = ctx.services.get('themeEngine');
-    if (!engine) {
-      console.error('Theme engine not available');
-      return;
-    }
-
-    if (args.length < 2) {
-      console.error('Usage: theme-engine:set <layout> <skin>');
-      console.log('  Example: theme-engine:set immersive consciousness-dark');
-      return;
-    }
-
-    const [layoutId, skinId] = args;
-
-    try {
-      const result = engine.setActiveTheme(layoutId, skinId);
-      console.log(`\nTheme updated:`);
-      console.log(`  Layout: ${result.layout?.id}`);
-      console.log(`  Skin: ${result.skin?.id}\n`);
-    } catch (error) {
-      console.error(`Error: ${error.message}`);
-    }
-  }, 'Set active layout and skin');
-
-  /**
-   * theme-engine:admin <skin> - Set admin skin
-   */
-  register('theme-engine:admin', async (args, ctx) => {
-    const engine = ctx.services.get('themeEngine');
-    if (!engine) {
-      console.error('Theme engine not available');
-      return;
-    }
-
-    if (args.length === 0) {
-      console.error('Usage: theme-engine:admin <skin>');
-      console.log('  Example: theme-engine:admin dark');
-      return;
-    }
-
-    const skinId = args[0];
-
-    try {
-      const result = engine.setAdminSkin(skinId);
-      console.log(`\nAdmin skin updated: ${result.id}\n`);
-    } catch (error) {
-      console.error(`Error: ${error.message}`);
-    }
-  }, 'Set admin skin');
-
-  /**
-   * theme-engine:refresh - Refresh theme discovery
-   */
-  register('theme-engine:refresh', async (args, ctx) => {
-    const engine = ctx.services.get('themeEngine');
-    if (!engine) {
-      console.error('Theme engine not available');
-      return;
-    }
-
-    const stats = engine.refresh();
-    console.log(`\nTheme engine refreshed:`);
-    console.log(`  Layouts: ${stats.layouts}`);
-    console.log(`  Skins: ${stats.skins}`);
-    console.log(`  Admin Skins: ${stats.adminSkins}\n`);
-  }, 'Refresh theme discovery');
 
   /**
    * batch:list - List active batches
@@ -5605,215 +4822,6 @@ export function hook_cli(register, context) {
   }, 'Render layout to HTML');
 
   // ========================================
-  // LAYOUT TEMPLATE CLI COMMANDS (Feature #85)
-  // ========================================
-
-  /**
-   * layout:template:save <templateId> <name> --type=<contentType> --id=<contentId> [--category=<cat>] [--description=<desc>]
-   * Save a content item's layout as a reusable template.
-   */
-  register('layout:template:save', async (args, ctx) => {
-    const layoutBuilder = ctx.services.get('layoutBuilder');
-    if (!layoutBuilder) {
-      console.log('Layout Builder service not available');
-      return;
-    }
-
-    const templateId = args[0];
-    const templateName = args.slice(1).filter(a => !a.startsWith('--')).join(' ');
-
-    if (!templateId || !templateName) {
-      console.log('Usage: layout:template:save <templateId> <name> --type=<contentType> --id=<contentId> [--category=<cat>] [--description=<desc>]');
-      return;
-    }
-
-    let contentType = null;
-    let contentId = null;
-    let category = 'General';
-    let description = '';
-
-    for (const arg of args) {
-      if (arg.startsWith('--type=')) contentType = arg.substring(7);
-      else if (arg.startsWith('--id=')) contentId = arg.substring(5);
-      else if (arg.startsWith('--category=')) category = arg.substring(11);
-      else if (arg.startsWith('--description=')) description = arg.substring(14);
-    }
-
-    if (!contentType || !contentId) {
-      console.log('Error: --type=<contentType> and --id=<contentId> are required');
-      return;
-    }
-
-    try {
-      const template = layoutBuilder.saveContentAsTemplate(contentType, contentId, templateId, templateName, {
-        category,
-        description,
-      });
-
-      console.log(`\n✓ Template saved: ${template.name} (${template.id})`);
-      console.log(`  Category: ${template.category}`);
-      console.log(`  Sections: ${template.sectionCount}`);
-      console.log(`  Components: ${template.componentCount}`);
-      console.log(`  Source: ${contentType}/${contentId}`);
-      console.log('');
-    } catch (error) {
-      console.log(`Error: ${error.message}`);
-    }
-  }, 'Save content layout as reusable template');
-
-  /**
-   * layout:template:load <templateId> --type=<contentType> --id=<contentId>
-   * Load/apply a layout template onto a content item.
-   */
-  register('layout:template:load', async (args, ctx) => {
-    const layoutBuilder = ctx.services.get('layoutBuilder');
-    if (!layoutBuilder) {
-      console.log('Layout Builder service not available');
-      return;
-    }
-
-    const templateId = args[0];
-    if (!templateId) {
-      console.log('Usage: layout:template:load <templateId> --type=<contentType> --id=<contentId>');
-      return;
-    }
-
-    let contentType = null;
-    let contentId = null;
-
-    for (const arg of args) {
-      if (arg.startsWith('--type=')) contentType = arg.substring(7);
-      else if (arg.startsWith('--id=')) contentId = arg.substring(5);
-    }
-
-    if (!contentType || !contentId) {
-      console.log('Error: --type=<contentType> and --id=<contentId> are required');
-      return;
-    }
-
-    try {
-      const layout = await layoutBuilder.applyLayoutTemplate(templateId, contentType, contentId);
-
-      console.log(`\n✓ Template "${templateId}" applied to ${contentType}/${contentId}`);
-      console.log(`  Sections: ${layout.sections.length}`);
-      console.log(`  Updated: ${layout.updated}`);
-      console.log('');
-    } catch (error) {
-      console.log(`Error: ${error.message}`);
-    }
-  }, 'Load/apply layout template to content');
-
-  /**
-   * layout:template:list [--category=<cat>]
-   * List all available layout templates.
-   */
-  register('layout:template:list', async (args, ctx) => {
-    const layoutBuilder = ctx.services.get('layoutBuilder');
-    if (!layoutBuilder) {
-      console.log('Layout Builder service not available');
-      return;
-    }
-
-    let category = null;
-    for (const arg of args) {
-      if (arg.startsWith('--category=')) category = arg.substring(11);
-    }
-
-    const templates = layoutBuilder.listLayoutTemplates(category ? { category } : {});
-
-    console.log(`\n=== Layout Templates (${templates.length}) ===\n`);
-
-    if (templates.length === 0) {
-      console.log('  No templates saved yet.');
-      console.log('  Use layout:template:save to create a template from existing content.');
-    } else {
-      for (const t of templates) {
-        console.log(`  ${t.id}`);
-        console.log(`    Name: ${t.name}`);
-        console.log(`    Category: ${t.category}`);
-        if (t.description) console.log(`    Description: ${t.description}`);
-        console.log(`    Sections: ${t.sectionCount} | Components: ${t.componentCount}`);
-        console.log(`    Created: ${t.created}`);
-        console.log('');
-      }
-    }
-  }, 'List available layout templates');
-
-  /**
-   * layout:template:delete <templateId>
-   * Delete a layout template.
-   */
-  register('layout:template:delete', async (args, ctx) => {
-    const layoutBuilder = ctx.services.get('layoutBuilder');
-    if (!layoutBuilder) {
-      console.log('Layout Builder service not available');
-      return;
-    }
-
-    const templateId = args[0];
-    if (!templateId) {
-      console.log('Usage: layout:template:delete <templateId>');
-      return;
-    }
-
-    try {
-      layoutBuilder.deleteLayoutTemplate(templateId);
-      console.log(`\n✓ Template "${templateId}" deleted successfully.\n`);
-    } catch (error) {
-      console.log(`Error: ${error.message}`);
-    }
-  }, 'Delete a layout template');
-
-  /**
-   * layout:template:info <templateId>
-   * Show detailed information about a template.
-   */
-  register('layout:template:info', async (args, ctx) => {
-    const layoutBuilder = ctx.services.get('layoutBuilder');
-    if (!layoutBuilder) {
-      console.log('Layout Builder service not available');
-      return;
-    }
-
-    const templateId = args[0];
-    if (!templateId) {
-      console.log('Usage: layout:template:info <templateId>');
-      return;
-    }
-
-    const template = layoutBuilder.getLayoutTemplate(templateId);
-    if (!template) {
-      console.log(`Template not found: ${templateId}`);
-      return;
-    }
-
-    console.log(`\n=== Template: ${template.name} ===\n`);
-    console.log(`  ID: ${template.id}`);
-    console.log(`  Category: ${template.category}`);
-    if (template.description) console.log(`  Description: ${template.description}`);
-    console.log(`  Created: ${template.created}`);
-    console.log(`  Updated: ${template.updated}`);
-    if (template.sourceContentType) {
-      console.log(`  Source: ${template.sourceContentType}/${template.sourceContentId}`);
-    }
-    console.log(`\n  Sections (${template.sectionCount}):`);
-
-    for (let i = 0; i < template.sections.length; i++) {
-      const section = template.sections[i];
-      const layoutDef = layoutBuilder.getLayout(section.layoutId);
-      const layoutLabel = layoutDef ? layoutDef.label : section.layoutId;
-      console.log(`    ${i + 1}. ${layoutLabel} (${section.layoutId})`);
-
-      for (const [regionId, components] of Object.entries(section.components || {})) {
-        if (components.length > 0) {
-          console.log(`       ${regionId}: ${components.map(c => `${c.type}${c.fieldName ? ':' + c.fieldName : c.blockId ? ':' + c.blockId : ''}`).join(', ')}`);
-        }
-      }
-    }
-    console.log('');
-  }, 'Show layout template details');
-
-  // ========================================
   // MEDIA LIBRARY CLI COMMANDS
   // ========================================
 
@@ -5927,171 +4935,6 @@ export function hook_cli(register, context) {
     }
     console.log('');
   }, 'Show where a media item is used');
-
-  /**
-   * media:replace <id> <filepath> - Replace media file while preserving all references
-   *
-   * WHY: Allows updating a media file (e.g., corrected image, updated logo) without
-   * breaking any content references. The entity ID stays the same; only the file changes.
-   */
-  register('media:replace', async (args, ctx) => {
-    const mediaLibrary = ctx.services.get('mediaLibrary');
-    if (!mediaLibrary) {
-      console.log('Media Library not enabled');
-      return;
-    }
-
-    if (args.length < 2) {
-      console.error('Usage: media:replace <media-id> <filepath> [--keep-old]');
-      return;
-    }
-
-    const id = args[0];
-    const filepath = args[1];
-    const keepOldFile = args.includes('--keep-old');
-
-    // Read the replacement file from disk
-    const { readFileSync, existsSync } = await import('node:fs');
-    const { basename, extname } = await import('node:path');
-
-    if (!existsSync(filepath)) {
-      console.error(`File not found: ${filepath}`);
-      return;
-    }
-
-    const data = readFileSync(filepath);
-    const filename = basename(filepath);
-    const ext = extname(filepath).toLowerCase();
-
-    // Determine MIME type from extension
-    const mimeMap = {
-      '.jpg': 'image/jpeg', '.jpeg': 'image/jpeg', '.png': 'image/png',
-      '.gif': 'image/gif', '.webp': 'image/webp', '.svg': 'image/svg+xml',
-      '.mp4': 'video/mp4', '.webm': 'video/webm', '.pdf': 'application/pdf',
-      '.doc': 'application/msword', '.txt': 'text/plain', '.csv': 'text/csv',
-    };
-    const mimeType = mimeMap[ext] || 'application/octet-stream';
-
-    try {
-      const result = await mediaLibrary.replaceMedia(id, {
-        name: filename,
-        data,
-        type: mimeType,
-        size: data.length,
-      }, { keepOldFile });
-
-      console.log(`\n=== Media Replaced ===\n`);
-      console.log(`  ID: ${id}`);
-      console.log(`  Old file: ${result.oldFilename}`);
-      console.log(`  New file: ${result.newFilename}`);
-      console.log(`  New path: ${result.newPath}`);
-      console.log(`  References updated: ${result.referencesUpdated}`);
-      console.log(`  Old file ${keepOldFile ? 'kept' : 'deleted'}`);
-      console.log('');
-    } catch (err) {
-      console.error(`Replace failed: ${err.message}`);
-    }
-  }, 'Replace media file (update all references)');
-
-  /**
-   * media:create-from-url <url> - Create media entity from remote URL with oEmbed metadata
-   *
-   * WHY: Tests the full oEmbed metadata extraction pipeline.
-   * Fetches oEmbed data from the provider, extracts title/author/dimensions,
-   * and stores everything with the media entity for later retrieval.
-   */
-  register('media:create-from-url', async (args, ctx) => {
-    const mediaLibrary = ctx.services.get('mediaLibrary');
-    if (!mediaLibrary) {
-      console.log('Media library not enabled');
-      return;
-    }
-
-    if (args.length < 1) {
-      console.error('Usage: media:create-from-url <url> [--name="Video Title"]');
-      return;
-    }
-
-    const url = args[0];
-    const nameFlag = args.find(a => a.startsWith('--name='));
-    const name = nameFlag ? nameFlag.replace('--name=', '') : undefined;
-
-    try {
-      const entity = await mediaLibrary.createFromUrl(url, { name });
-      console.log(`\n=== Media Entity Created ===\n`);
-      console.log(`  ID: ${entity.id}`);
-      console.log(`  Name: ${entity.name}`);
-      console.log(`  Type: ${entity.mediaType}`);
-      console.log(`  Credit: ${entity.credit}`);
-      console.log(`  Thumbnail: ${entity.thumbnail || 'none'}`);
-      if (entity.metadata && entity.metadata.oembed) {
-        const oe = entity.metadata.oembed;
-        console.log(`\n  oEmbed Metadata:`);
-        console.log(`    Title: ${oe.title || 'N/A'}`);
-        console.log(`    Author: ${oe.author_name || 'N/A'}`);
-        console.log(`    Provider: ${oe.provider_name || 'N/A'}`);
-        console.log(`    Dimensions: ${oe.width || '?'}x${oe.height || '?'}`);
-        console.log(`    Thumbnail: ${oe.thumbnail_url || 'N/A'}`);
-      } else {
-        console.log(`\n  oEmbed Metadata: not available (fetch may have failed)`);
-      }
-      console.log('');
-    } catch (err) {
-      console.error(`Error: ${err.message}`);
-    }
-  }, 'Create media entity from remote URL with oEmbed metadata');
-
-  /**
-   * media:show <id> - Show full media entity details including oEmbed metadata
-   */
-  register('media:show', async (args, ctx) => {
-    const mediaLibrary = ctx.services.get('mediaLibrary');
-    if (!mediaLibrary) {
-      console.log('Media library not enabled');
-      return;
-    }
-
-    if (args.length < 1) {
-      console.error('Usage: media:show <media-entity-id>');
-      return;
-    }
-
-    const entity = mediaLibrary.get(args[0]);
-    if (!entity) {
-      console.error('Media entity not found');
-      return;
-    }
-
-    console.log(`\n=== Media Entity: ${entity.id} ===\n`);
-    console.log(`  Name: ${entity.name}`);
-    console.log(`  Type: ${entity.mediaType}`);
-    console.log(`  Path: ${entity.path}`);
-    console.log(`  Credit: ${entity.credit || 'N/A'}`);
-    console.log(`  Alt: ${entity.alt || 'N/A'}`);
-    console.log(`  Thumbnail: ${entity.thumbnail || 'N/A'}`);
-    console.log(`  Status: ${entity.status}`);
-    console.log(`  Created: ${entity.created}`);
-
-    if (entity.metadata) {
-      console.log(`\n  Metadata:`);
-      console.log(`    URL: ${entity.metadata.url || 'N/A'}`);
-      console.log(`    Provider: ${entity.metadata.provider || 'N/A'}`);
-      console.log(`    Video ID: ${entity.metadata.videoId || 'N/A'}`);
-      console.log(`    Embed URL: ${entity.metadata.embedUrl || 'N/A'}`);
-
-      if (entity.metadata.oembed) {
-        const oe = entity.metadata.oembed;
-        console.log(`\n  oEmbed Metadata:`);
-        console.log(`    Type: ${oe.type || 'N/A'}`);
-        console.log(`    Title: ${oe.title || 'N/A'}`);
-        console.log(`    Author: ${oe.author_name || 'N/A'} (${oe.author_url || 'N/A'})`);
-        console.log(`    Provider: ${oe.provider_name || 'N/A'} (${oe.provider_url || 'N/A'})`);
-        console.log(`    Dimensions: ${oe.width || '?'}x${oe.height || '?'}`);
-        console.log(`    Thumbnail: ${oe.thumbnail_url || 'N/A'} (${oe.thumbnail_width || '?'}x${oe.thumbnail_height || '?'})`);
-      }
-    }
-    console.log('');
-  }, 'Show full media entity details including oEmbed metadata');
 
   // ========================================
   // EDITOR CLI COMMANDS
@@ -6371,29 +5214,6 @@ export function hook_middleware(use, context) {
       return;
     }
 
-    // Skip JSON requests - they send CSRF in headers, not body
-    // The route handler will parse JSON body itself
-    if (contentType.includes('application/json')) {
-      const token = req.headers['x-csrf-token'];
-
-      if (!token) {
-        console.warn(`[csrf] Missing token for ${method} ${req.url}`);
-        res.writeHead(403, { 'Content-Type': 'application/json' });
-        res.end(JSON.stringify({ error: 'Missing CSRF token' }));
-        return;
-      }
-
-      if (!auth.validateCSRFToken(req, token)) {
-        console.warn(`[csrf] Invalid token for ${method} ${req.url}`);
-        res.writeHead(403, { 'Content-Type': 'application/json' });
-        res.end(JSON.stringify({ error: 'Invalid CSRF token' }));
-        return;
-      }
-
-      await next();
-      return;
-    }
-
     // Parse URL-encoded body and store in context
     try {
       const body = await parseFormBodyOnce(req);
@@ -6490,18 +5310,6 @@ export function hook_routes(register, context) {
     // Get CSRF token for current session
     const csrfToken = req ? auth.getCSRFToken(req) : null;
 
-    // Get workspace context for switcher and status indicator
-    const workspacesService = ctx.services?.get('workspaces');
-    let activeWorkspace = null;
-    let workspaceList = [];
-    if (workspacesService) {
-      activeWorkspace = workspacesService.getWorkspaceContext(req);
-      workspaceList = workspacesService.list({ status: 'active' }).map(ws => ({
-        ...ws,
-        isCurrent: activeWorkspace && activeWorkspace.id === ws.id,
-      }));
-    }
-
     const adminTemplate = loadTemplate(templateName);
     const pageContent = template.renderString(adminTemplate, {
       ...data,
@@ -6511,7 +5319,7 @@ export function hook_routes(register, context) {
     // Determine active nav item from request path
     const path = req?.url?.split('?')[0] || '/admin';
     const navDashboard = path === '/admin';
-    const navContent = path.startsWith('/admin/content') || path.startsWith('/admin/comments') || path.startsWith('/admin/trash') || path.startsWith('/admin/moderation');
+    const navContent = path.startsWith('/admin/content') || path.startsWith('/admin/comments') || path.startsWith('/admin/trash');
     const navStructure = path.startsWith('/admin/structure') || path.startsWith('/admin/views') || path.startsWith('/admin/menus') || path.startsWith('/admin/taxonomy') || path.startsWith('/admin/blocks') || path.startsWith('/admin/blueprints');
     const navAppearance = path.startsWith('/admin/appearance') || path.startsWith('/admin/themes');
     const navModules = path === '/admin/modules' || path.startsWith('/admin/modules/');
@@ -6529,13 +5337,6 @@ export function hook_routes(register, context) {
       username,
       navDashboard, navContent, navStructure, navAppearance,
       navModules, navConfig, navPeople, navReports,
-      // Workspace data for switcher and status indicator
-      hasWorkspaces: workspaceList.length > 0,
-      workspaces: workspaceList,
-      hasActiveWorkspace: !!activeWorkspace,
-      activeWorkspaceName: activeWorkspace ? activeWorkspace.label : 'Live',
-      activeWorkspaceId: activeWorkspace ? activeWorkspace.id : '',
-      isLiveWorkspace: !activeWorkspace,
     });
   }
 
@@ -6669,453 +5470,6 @@ export function hook_routes(register, context) {
     server.html(res, html);
   }, 'Admin dashboard');
 
-  /**
-   * POST /admin/workspace/switch - Switch active workspace
-   *
-   * WHY FORM POST:
-   * Uses a standard HTML form POST for workspace switching.
-   * This follows Drupal's workspace switcher pattern where the
-   * workspace context is set server-side via session/cookies.
-   */
-  register('POST', '/admin/workspace/switch', async (req, res, params, ctx) => {
-    const workspacesService = ctx.services.get('workspaces');
-    if (!workspacesService) {
-      redirect(res, '/admin?message=Workspaces+not+available&type=error');
-      return;
-    }
-
-    const formData = ctx._parsedBody || {};
-    const workspaceId = formData.workspace_id || '';
-
-    try {
-      if (!workspaceId || workspaceId === 'live') {
-        // Switch to live
-        workspacesService.setActiveWorkspace(null);
-        // Also clear HTTP session workspace
-        if (req.sessionId) {
-          workspacesService.setSessionWorkspace(req.sessionId, null);
-        }
-        redirect(res, '/admin?message=Switched+to+Live+workspace&type=success');
-      } else {
-        // Switch to specific workspace
-        workspacesService.setActiveWorkspace(workspaceId);
-        if (req.sessionId) {
-          workspacesService.setSessionWorkspace(req.sessionId, workspaceId);
-        }
-        const ws = workspacesService.get(workspaceId) || workspacesService.getByMachineName(workspaceId);
-        const label = ws ? ws.label : workspaceId;
-        redirect(res, `/admin?message=Switched+to+${encodeURIComponent(label)}+workspace&type=success`);
-      }
-    } catch (err) {
-      redirect(res, `/admin?message=${encodeURIComponent(err.message)}&type=error`);
-    }
-  }, 'Switch workspace');
-
-  /**
-   * GET /workspace/:id/preview - Preview workspace content
-   *
-   * WHY PREVIEW URL:
-   * Provides a standalone URL to view all content staged in a workspace
-   * without switching the active workspace. Useful for reviewing changes,
-   * sharing workspace state with stakeholders, or auditing content before
-   * publishing.
-   *
-   * WORKSPACE ID RESOLUTION:
-   * The :id parameter can be either the workspace UUID or machine name.
-   * This mirrors Drupal's flexible entity loading patterns.
-   */
-  register('GET', '/workspace/:id/preview', async (req, res, params, ctx) => {
-    try {
-      const workspacesService = ctx.services.get('workspaces');
-      const workspaceId = params.id;
-
-      // Resolve workspace by UUID or machine name
-      let workspace = workspacesService.get(workspaceId);
-      if (!workspace) {
-        workspace = workspacesService.getByMachineName(workspaceId);
-      }
-
-      if (!workspace) {
-        const html = renderAdmin('workspace-preview.html', {
-          pageTitle: 'Workspace Preview',
-          error: 'Workspace not found',
-        }, ctx, req);
-        return server.html(res, html);
-      }
-
-      // Get all content associations for this workspace
-      const associations = workspacesService.getAssociations(workspace.id);
-      const contentItems = [];
-
-      // WHY SKIP WORKSPACE FLAG:
-      // We're reading workspace copies directly, not relying on active workspace
-      // context. The content.read() function normally checks for workspace copies
-      // based on the active workspace, but we want to explicitly read the workspace
-      // version here regardless of what workspace is currently active.
-      //
-      // For "edit" operations: read ws-{first8chars}-{originalId}
-      // For "create" operations: read {id} directly (created in workspace)
-      for (const assoc of associations.items || []) {
-        try {
-          let actualId;
-          let displayId = assoc.id;
-
-          if (assoc.operation === 'edit') {
-            // Workspace copy ID pattern: ws-{first8chars}-{originalId}
-            actualId = `ws-${workspace.id.substring(0, 8)}-${assoc.id}`;
-          } else {
-            // Created directly in workspace
-            actualId = assoc.id;
-          }
-
-          // Read the content item (skip workspace resolution to get exact copy)
-          const item = content.read(assoc.type, actualId, { skipWorkspace: true });
-
-          if (item) {
-            // Generate a preview (first 100 chars of JSON or title field)
-            let preview = '';
-            if (item.title) {
-              preview = item.title;
-            } else if (item.name) {
-              preview = item.name;
-            } else {
-              const json = JSON.stringify(item, null, 2);
-              preview = json.substring(0, 100) + (json.length > 100 ? '...' : '');
-            }
-
-            contentItems.push({
-              type: assoc.type,
-              actualId, // The actual ID to use for links (workspace copy ID)
-              displayId, // The original ID for display
-              preview,
-              operation: assoc.operation,
-              timestamp: assoc.timestamp,
-              timestampFormatted: new Date(assoc.timestamp).toLocaleString(),
-            });
-          }
-        } catch (err) {
-          // WHY SKIP ERRORS:
-          // If a workspace copy is missing or corrupt, we still want to show
-          // other items. Log the error but continue processing.
-          console.error(`[workspace-preview] Failed to load ${assoc.type}:${assoc.id}:`, err.message);
-        }
-      }
-
-      // Format workspace timestamps
-      const workspaceData = {
-        ...workspace,
-        createdFormatted: new Date(workspace.created).toLocaleString(),
-        updatedFormatted: new Date(workspace.updated).toLocaleString(),
-      };
-
-      const html = renderAdmin('workspace-preview.html', {
-        pageTitle: `Workspace Preview: ${workspace.label}`,
-        workspace: workspaceData,
-        contentItems,
-        hasContent: contentItems.length > 0,
-      }, ctx, req);
-
-      server.html(res, html);
-    } catch (err) {
-      const html = renderAdmin('workspace-preview.html', {
-        pageTitle: 'Workspace Preview',
-        error: `Error loading workspace preview: ${err.message}`,
-      }, ctx, req);
-      server.html(res, html);
-    }
-  }, 'Workspace preview');
-
-  // GET /workspace/:id/activity - Workspace activity log page
-  register('GET', '/workspace/:id/activity', async (req, res, params, ctx) => {
-    const workspacesService = ctx.services.get('workspaces');
-    if (!workspacesService) {
-      res.writeHead(500, { 'Content-Type': 'text/plain' });
-      res.end('Workspaces service not available');
-      return;
-    }
-
-    // Resolve workspace by UUID or machine name
-    let workspace = workspacesService.get(params.id);
-    if (!workspace) {
-      workspace = workspacesService.getByMachineName(params.id);
-    }
-
-    if (!workspace) {
-      res.writeHead(404, { 'Content-Type': 'text/html' });
-      res.end('<h1>Workspace not found</h1>');
-      return;
-    }
-
-    let log = [];
-    try {
-      log = workspacesService.getActivityLog(workspace.id, { limit: 100 });
-    } catch (e) { /* ignore */ }
-
-    // Build activity rows
-    const rows = log.map(entry => {
-      const time = new Date(entry.timestamp).toLocaleString();
-      const user = entry.user ? (entry.user.name || entry.user.id) : 'system';
-      const details = Object.entries(entry.details || {})
-        .map(([k, v]) => `<strong>${k}:</strong> ${typeof v === 'object' ? JSON.stringify(v) : v}`)
-        .join(', ');
-      return `<tr>
-      <td>${time}</td>
-      <td><code>${entry.action}</code></td>
-      <td>${user}</td>
-      <td>${details || '—'}</td>
-    </tr>`;
-    }).join('\n');
-
-    const html = `<!DOCTYPE html>
-<html lang="en">
-<head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Activity Log: ${workspace.label}</title>
-  <style>
-    body { font-family: -apple-system, BlinkMacSystemFont, sans-serif; margin: 0; padding: 20px; background: #f5f5f5; color: #333; }
-    .container { max-width: 1000px; margin: 0 auto; }
-    h1 { color: #0073aa; }
-    .meta { color: #666; margin-bottom: 20px; }
-    table { width: 100%; border-collapse: collapse; background: white; border-radius: 4px; box-shadow: 0 1px 3px rgba(0,0,0,0.1); }
-    th, td { padding: 10px 14px; text-align: left; border-bottom: 1px solid #eee; }
-    th { background: #f9f9f9; font-weight: 600; border-bottom: 2px solid #ddd; }
-    code { background: #f0f0f0; padding: 2px 6px; border-radius: 3px; font-size: 0.9em; }
-    .empty { text-align: center; padding: 40px; color: #999; }
-    a { color: #0073aa; text-decoration: none; }
-    a:hover { text-decoration: underline; }
-    .nav { margin-bottom: 20px; }
-  </style>
-</head>
-<body>
-  <div class="container">
-    <div class="nav">
-      <a href="/admin">&larr; Admin</a> |
-      <a href="/workspace/${workspace.machineName}/preview">Preview</a>
-    </div>
-    <h1>Activity Log: ${workspace.label}</h1>
-    <div class="meta">
-      <strong>Machine name:</strong> ${workspace.machineName} &nbsp;|&nbsp;
-      <strong>Status:</strong> ${workspace.status} &nbsp;|&nbsp;
-      <strong>Created:</strong> ${new Date(workspace.created).toLocaleString()}
-    </div>
-    ${log.length === 0
-      ? '<div class="empty">No activity recorded for this workspace.</div>'
-      : `<table>
-        <thead>
-          <tr>
-            <th>Time</th>
-            <th>Action</th>
-            <th>User</th>
-            <th>Details</th>
-          </tr>
-        </thead>
-        <tbody>
-          ${rows}
-        </tbody>
-      </table>
-      <p style="color:#666;margin-top:10px;">Showing ${log.length} entries</p>`
-    }
-  </div>
-</body>
-</html>`;
-
-    res.writeHead(200, { 'Content-Type': 'text/html' });
-    res.end(html);
-  }, 'Workspace activity log');
-
-  // GET /workspace/:id/analytics - Workspace analytics page
-  register('GET', '/workspace/:id/analytics', async (req, res, params, ctx) => {
-    const workspacesService = ctx.services.get('workspaces');
-    if (!workspacesService) {
-      res.writeHead(500, { 'Content-Type': 'text/plain' });
-      res.end('Workspaces service not available');
-      return;
-    }
-
-    // Resolve workspace by UUID or machine name
-    let workspace = workspacesService.get(params.id);
-    if (!workspace) {
-      workspace = workspacesService.getByMachineName(params.id);
-    }
-
-    if (!workspace) {
-      res.writeHead(404, { 'Content-Type': 'text/html' });
-      res.end('<h1>Workspace not found</h1>');
-      return;
-    }
-
-    let analytics;
-    try {
-      analytics = workspacesService.getWorkspaceAnalytics(workspace.id);
-    } catch (err) {
-      res.writeHead(500, { 'Content-Type': 'text/html' });
-      res.end(`<h1>Error loading analytics: ${err.message}</h1>`);
-      return;
-    }
-
-    // Build content type breakdown rows
-    const typeRows = analytics.contentTypeBreakdown.map(t => {
-      const ops = Object.entries(t.operations)
-        .filter(([, v]) => v > 0)
-        .map(([k, v]) => `<span class="badge badge-${k === 'create' ? 'success' : 'info'}">${v} ${k}</span>`)
-        .join(' ');
-      const latest = t.latestChange ? new Date(t.latestChange).toLocaleString() : '—';
-      return `<tr>
-        <td><strong>${t.type}</strong></td>
-        <td>${t.count}</td>
-        <td>${ops}</td>
-        <td>${latest}</td>
-      </tr>`;
-    }).join('\n');
-
-    // Build activity breakdown rows
-    const activityRows = Object.entries(analytics.activity.actionBreakdown)
-      .sort((a, b) => b[1] - a[1])
-      .map(([action, count]) => `<tr>
-        <td><code>${action}</code></td>
-        <td>${count}</td>
-      </tr>`)
-      .join('\n');
-
-    // Build children list
-    const childrenList = analytics.children.map(c =>
-      `<li><a href="/workspace/${c.machineName}/analytics">${c.label}</a> (${c.machineName})</li>`
-    ).join('\n');
-
-    // Staleness badge
-    const staleBadge = analytics.staleness.isStale
-      ? `<span class="badge badge-warning">⚠ Stale (${analytics.staleness.daysSinceLastActivity} days inactive)</span>`
-      : analytics.staleness.daysSinceLastActivity !== null
-        ? `<span class="badge badge-success">Active (${analytics.staleness.daysSinceLastActivity}d since last activity)</span>`
-        : '<span class="badge">No activity recorded</span>';
-
-    const html = `<!DOCTYPE html>
-<html lang="en">
-<head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Workspace Analytics: ${analytics.workspace.label}</title>
-  <style>
-    body { font-family: -apple-system, BlinkMacSystemFont, sans-serif; margin: 0; padding: 20px; background: #f5f5f5; color: #333; }
-    .container { max-width: 1100px; margin: 0 auto; }
-    h1 { color: #0073aa; margin-bottom: 5px; }
-    h2 { color: #333; margin-top: 30px; border-bottom: 2px solid #0073aa; padding-bottom: 8px; }
-    .subtitle { color: #666; margin-bottom: 20px; font-size: 0.95em; }
-    .stats-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 16px; margin: 20px 0; }
-    .stat-card { background: white; border-radius: 8px; padding: 20px; box-shadow: 0 1px 3px rgba(0,0,0,0.1); text-align: center; }
-    .stat-card .value { font-size: 2em; font-weight: bold; color: #0073aa; }
-    .stat-card .label { color: #666; margin-top: 4px; font-size: 0.9em; }
-    table { width: 100%; border-collapse: collapse; background: white; border-radius: 4px; box-shadow: 0 1px 3px rgba(0,0,0,0.1); margin: 10px 0 20px; }
-    th, td { padding: 10px 14px; text-align: left; border-bottom: 1px solid #eee; }
-    th { background: #f9f9f9; font-weight: 600; border-bottom: 2px solid #ddd; }
-    code { background: #f0f0f0; padding: 2px 6px; border-radius: 3px; font-size: 0.9em; }
-    .badge { display: inline-block; padding: 3px 10px; border-radius: 12px; font-size: 0.85em; font-weight: 500; }
-    .badge-success { background: #d4edda; color: #155724; }
-    .badge-info { background: #d1ecf1; color: #0c5460; }
-    .badge-warning { background: #fff3cd; color: #856404; }
-    .empty { text-align: center; padding: 30px; color: #999; background: white; border-radius: 4px; }
-    a { color: #0073aa; text-decoration: none; }
-    a:hover { text-decoration: underline; }
-    .nav { margin-bottom: 20px; }
-    .meta-row { display: flex; gap: 20px; flex-wrap: wrap; margin: 10px 0; color: #555; }
-    .meta-row strong { color: #333; }
-    ul { padding-left: 20px; }
-    li { margin: 4px 0; }
-  </style>
-</head>
-<body>
-  <div class="container">
-    <div class="nav">
-      <a href="/admin">&larr; Admin</a> |
-      <a href="/workspace/${analytics.workspace.machineName}/preview">Preview</a> |
-      <a href="/workspace/${analytics.workspace.machineName}/activity">Activity Log</a>
-    </div>
-
-    <h1>Workspace Analytics: ${analytics.workspace.label}</h1>
-    <div class="subtitle">
-      Machine name: <code>${analytics.workspace.machineName}</code> &nbsp;|&nbsp;
-      Status: <strong>${analytics.workspace.status}</strong> &nbsp;|&nbsp;
-      ${staleBadge}
-    </div>
-
-    <div class="stats-grid">
-      <div class="stat-card">
-        <div class="value">${analytics.changeCount}</div>
-        <div class="label">Content Changes</div>
-      </div>
-      <div class="stat-card">
-        <div class="value">${analytics.age.display}</div>
-        <div class="label">Workspace Age</div>
-      </div>
-      <div class="stat-card">
-        <div class="value">${analytics.activity.totalActions}</div>
-        <div class="label">Total Activities</div>
-      </div>
-      <div class="stat-card">
-        <div class="value">${analytics.childrenCount}</div>
-        <div class="label">Child Workspaces</div>
-      </div>
-    </div>
-
-    <div class="meta-row">
-      <span><strong>Created:</strong> ${new Date(analytics.workspace.created).toLocaleString()}</span>
-      <span><strong>Updated:</strong> ${new Date(analytics.workspace.updated).toLocaleString()}</span>
-      ${analytics.workspace.parent ? `<span><strong>Parent:</strong> ${analytics.workspace.parent}</span>` : ''}
-      ${analytics.workspace.description ? `<span><strong>Description:</strong> ${analytics.workspace.description}</span>` : ''}
-    </div>
-
-    <h2>Content Type Breakdown</h2>
-    ${analytics.contentTypeBreakdown.length === 0
-      ? '<div class="empty">No content changes in this workspace.</div>'
-      : `<table>
-        <thead>
-          <tr>
-            <th>Content Type</th>
-            <th>Changes</th>
-            <th>Operations</th>
-            <th>Latest Change</th>
-          </tr>
-        </thead>
-        <tbody>
-          ${typeRows}
-        </tbody>
-      </table>`
-    }
-
-    <h2>Activity Breakdown</h2>
-    ${Object.keys(analytics.activity.actionBreakdown).length === 0
-      ? '<div class="empty">No activity recorded for this workspace.</div>'
-      : `<table>
-        <thead>
-          <tr>
-            <th>Action Type</th>
-            <th>Count</th>
-          </tr>
-        </thead>
-        <tbody>
-          ${activityRows}
-        </tbody>
-      </table>
-      <div class="meta-row">
-        ${analytics.activity.latestActivity ? `<span><strong>Latest Activity:</strong> ${new Date(analytics.activity.latestActivity).toLocaleString()}</span>` : ''}
-        ${analytics.activity.oldestActivity ? `<span><strong>Oldest Activity:</strong> ${new Date(analytics.activity.oldestActivity).toLocaleString()}</span>` : ''}
-      </div>`
-    }
-
-    ${analytics.children.length > 0 ? `
-    <h2>Child Workspaces</h2>
-    <ul>
-      ${childrenList}
-    </ul>` : ''}
-  </div>
-</body>
-</html>`;
-
-    res.writeHead(200, { 'Content-Type': 'text/html' });
-    res.end(html);
-  }, 'Workspace analytics');
-
   // ==========================================
   // Content Management
   // ==========================================
@@ -7155,121 +5509,6 @@ export function hook_routes(register, context) {
 
     server.html(res, html);
   }, 'List content types');
-
-  /**
-   * GET /admin/moderation - Content moderation dashboard
-   * Shows all content items with pending revisions
-   */
-  register('GET', '/admin/moderation', async (req, res, params, ctx) => {
-    const types = content.listTypes();
-    const pendingItems = [];
-    let totalPending = 0;
-
-    // Internal content types to exclude
-    const internalTypes = new Set([
-      'user', 'apitoken', 'webhook', 'media', 'taskrun',
-      'comment', 'term', 'menu', 'menu-item', 'greeting',
-    ]);
-
-    for (const { type } of types) {
-      if (internalTypes.has(type)) continue;
-
-      const result = content.list(type, { limit: 1000 });
-      for (const item of result.items) {
-        if (content.hasPendingRevisions(type, item.id)) {
-          const count = content.countPendingRevisions(type, item.id);
-          const pending = content.getPendingRevisions(type, item.id);
-          const oldest = pending[pending.length - 1];
-          const newest = pending[0];
-
-          // Calculate age of oldest pending revision
-          const oldestDate = new Date(oldest?.updated || oldest?.created || Date.now());
-          const ageMs = Date.now() - oldestDate.getTime();
-          const ageDays = Math.floor(ageMs / (1000 * 60 * 60 * 24));
-          const ageHours = Math.floor(ageMs / (1000 * 60 * 60));
-          const ageDisplay = ageDays > 0 ? `${ageDays} day(s)` : `${ageHours} hour(s)`;
-
-          totalPending += count;
-          pendingItems.push({
-            type,
-            id: item.id,
-            title: item.title || item.name || item.id,
-            status: item.status || 'draft',
-            pendingCount: count,
-            oldestPending: oldest?.updated || oldest?.created || '',
-            newestPending: newest?.updated || newest?.created || '',
-            ageDisplay,
-            editUrl: `/admin/content/${type}/${item.id}/edit`,
-            revisionsUrl: `/admin/content/${type}/${item.id}/revisions`,
-          });
-        }
-      }
-    }
-
-    // Sort: most pending first, then by age (oldest first)
-    pendingItems.sort((a, b) => b.pendingCount - a.pendingCount ||
-      new Date(a.oldestPending) - new Date(b.oldestPending));
-
-    const flash = getFlashMessage(req.url);
-
-    const html = renderAdmin('moderation-dashboard.html', {
-      pageTitle: 'Content Moderation',
-      pendingItems,
-      hasPendingItems: pendingItems.length > 0,
-      totalItems: pendingItems.length,
-      totalPending,
-      hasFlash: !!flash,
-      flash,
-    }, ctx, req);
-
-    res.writeHead(200, { 'Content-Type': 'text/html' });
-    res.end(html);
-  }, 'Content moderation dashboard - pending items');
-
-  /**
-   * POST /admin/moderation/bulk-publish - Bulk publish all pending revisions
-   * WHY: Enables editors to approve and publish all pending drafts in one click.
-   * Iterates all content types, finds items with pending revisions, and publishes
-   * the most recent pending revision for each item.
-   */
-  register('POST', '/admin/moderation/bulk-publish', async (req, res, params, ctx) => {
-    const types = content.listTypes();
-    const internalTypes = new Set([
-      'user', 'apitoken', 'webhook', 'media', 'taskrun',
-      'comment', 'term', 'menu', 'menu-item', 'greeting',
-    ]);
-
-    let published = 0;
-    let failed = 0;
-    const errors = [];
-
-    for (const { type } of types) {
-      if (internalTypes.has(type)) continue;
-
-      const result = content.list(type, { limit: 1000 });
-      for (const item of result.items) {
-        if (content.hasPendingRevisions(type, item.id)) {
-          try {
-            await content.publishPendingRevision(type, item.id);
-            published++;
-          } catch (err) {
-            failed++;
-            errors.push(`${type}/${item.id}: ${err.message}`);
-          }
-        }
-      }
-    }
-
-    // Flush audit buffer so revision changes are persisted immediately
-    const auditService = ctx.services.get('audit');
-    if (auditService?.flush) auditService.flush();
-
-    if (failed > 0) {
-      redirect(res, `/admin/moderation?error=${encodeURIComponent(`Published ${published} item(s), ${failed} failed: ${errors.join('; ')}`)}`);
-    } else {
-      redirect(res, `/admin/moderation?success=${encodeURIComponent(`Successfully published ${published} pending revision(s).`)}`);
-    }
-  }, 'Bulk publish all pending revisions');
 
   /**
    * GET /admin/content/:type - List content items with filters
@@ -7349,10 +5588,6 @@ export function hook_routes(register, context) {
       const isFavorite = user && favoritesService ?
         favoritesService.isFavorite(user.id, type, item.id) : false;
 
-      // Check for pending revisions (non-default drafts)
-      const hasPendingRevisions = content.hasPendingRevisions(type, item.id);
-      const pendingRevisionCount = hasPendingRevisions ? content.countPendingRevisions(type, item.id) : 0;
-
       return {
         ...item,
         type, // Include type for links
@@ -7362,8 +5597,6 @@ export function hook_routes(register, context) {
         scheduledAtFormatted: item.scheduledAt ? formatDate(item.scheduledAt) : null,
         preview: previewParts.join('\n'),
         isFavorite,
-        hasPendingRevisions,
-        pendingRevisionCount,
       };
     });
 
@@ -7528,43 +5761,7 @@ export function hook_routes(register, context) {
       await content.create(type, data);
       redirect(res, `/admin/content/${type}?success=` + encodeURIComponent('Content created successfully'));
     } catch (error) {
-      // Handle constraint violations with field-level error display
-      if (error.code === 'CONSTRAINT_VIOLATION' && Array.isArray(error.violations)) {
-        // Re-render form with validation errors and preserved values
-        const workflowConfig = content.getWorkflowConfig();
-        const workflowEnabled = workflowConfig.enabled;
-
-        // Build errors map: { fieldName: errorMessage }
-        const errors = {};
-        for (const v of error.violations) {
-          errors[v.field] = v.message;
-        }
-
-        // Build fields with preserved values and errors
-        const fields = Object.entries(schema).map(([name, def]) => ({
-          name,
-          type: def.type,
-          required: def.required,
-          value: formData[name] || '',
-          error: errors[name] || null,
-        }));
-
-        const html = renderAdmin('content-form.html', {
-          pageTitle: `Create ${type}`,
-          isCreate: true,
-          type,
-          fields,
-          hasErrors: true,
-          errors,
-          // Workflow data
-          workflowEnabled,
-          currentStatus: formData.status || workflowConfig.defaultStatus || 'draft',
-        }, ctx, req);
-
-        server.html(res, html);
-      } else {
-        redirect(res, `/admin/content/${type}/new?error=` + encodeURIComponent(error.message));
-      }
+      redirect(res, `/admin/content/${type}/new?error=` + encodeURIComponent(error.message));
     }
   }, 'Create content');
 
@@ -7747,53 +5944,6 @@ export function hook_routes(register, context) {
         redirect(res, `/admin/content/${type}/${id}/edit?error=` + encodeURIComponent(`Content is locked by ${error.lockedBy}. Try again when they're done editing.`));
         return;
       }
-
-      // Handle constraint violations with field-level error display
-      if (error.code === 'CONSTRAINT_VIOLATION' && Array.isArray(error.violations)) {
-        // Re-render form with validation errors and preserved values
-        const item = content.read(type, id);
-        const schema = content.getSchema(type);
-        const workflowConfig = content.getWorkflowConfig();
-        const workflowEnabled = workflowConfig.enabled;
-
-        // Build errors map: { fieldName: errorMessage }
-        const errors = {};
-        for (const v of error.violations) {
-          errors[v.field] = v.message;
-        }
-
-        // Build fields with submitted values (from formData) and errors
-        const fields = Object.entries(schema).map(([name, def]) => ({
-          name,
-          type: def.type,
-          required: def.required,
-          value: formData[name] !== undefined ? formData[name] : (item[name] || ''),
-          error: errors[name] || null,
-        }));
-
-        const html = renderAdmin('content-form.html', {
-          pageTitle: `Edit ${type}`,
-          isCreate: false,
-          isEdit: true,
-          type,
-          id,
-          fields,
-          hasErrors: true,
-          errors,
-          createdFormatted: formatDate(item.created),
-          updatedFormatted: formatDate(item.updated),
-          workflowEnabled,
-          currentStatus: formData.status || item.status || 'draft',
-          publishedAt: item.publishedAt,
-          publishedAtFormatted: item.publishedAt ? formatDate(item.publishedAt) : null,
-          scheduledAt: item.scheduledAt,
-          scheduledAtFormatted: item.scheduledAt ? formatDate(item.scheduledAt) : null,
-        }, ctx, req);
-
-        server.html(res, html);
-        return;
-      }
-
       redirect(res, `/admin/content/${type}/${id}/edit?error=` + encodeURIComponent(error.message));
     }
   }, 'Update content');
@@ -13218,29 +11368,13 @@ export function hook_routes(register, context) {
         return;
       }
 
-      // Build attributes object from form data
-      const attributes = {};
-      if (formData.css_class?.trim()) {
-        attributes.class = formData.css_class.trim();
-      }
-      if (formData.target?.trim()) {
-        attributes.target = formData.target.trim();
-      }
-      if (formData.rel?.trim()) {
-        attributes.rel = formData.rel.trim();
-      }
-      if (formData.icon_class?.trim()) {
-        attributes.icon = formData.icon_class.trim();
-      }
-
       const item = await menuService.createMenuItem({
         menuId: name,
         title: itemData.title,
         link: itemData.url,
         weight: itemData.weight,
         parentId: itemData.parent,
-        enabled: itemData.enabled,
-        attributes: attributes
+        enabled: itemData.enabled
       });
       redirect(res, `/admin/menus/${name}?success=` + encodeURIComponent(`Item created: ${item.title}`));
     } catch (error) {
@@ -13314,28 +11448,12 @@ export function hook_routes(register, context) {
         return;
       }
 
-      // Build attributes object from form data
-      const attributes = {};
-      if (formData.css_class?.trim()) {
-        attributes.class = formData.css_class.trim();
-      }
-      if (formData.target?.trim()) {
-        attributes.target = formData.target.trim();
-      }
-      if (formData.rel?.trim()) {
-        attributes.rel = formData.rel.trim();
-      }
-      if (formData.icon_class?.trim()) {
-        attributes.icon = formData.icon_class.trim();
-      }
-
       await menuService.updateMenuItem(id, {
         title: updates.title,
         link: updates.url,
         weight: updates.weight,
         parentId: updates.parent,
-        enabled: updates.enabled,
-        attributes: attributes
+        enabled: updates.enabled
       });
       redirect(res, `/admin/menus/${name}?success=` + encodeURIComponent(`Item updated: ${updates.title}`));
     } catch (error) {
@@ -13365,130 +11483,6 @@ export function hook_routes(register, context) {
       redirect(res, `/admin/menus/${name}?error=` + encodeURIComponent(error.message));
     }
   }, 'Delete menu item');
-
-  // ==========================================
-  // Menu Attributes Configuration
-  // ==========================================
-
-  /**
-   * GET /admin/config/system/menu-attributes - Menu attributes configuration
-   */
-  register('GET', '/admin/config/system/menu-attributes', async (req, res, params, ctx) => {
-    const configService = ctx.services.get('config');
-    if (!configService) {
-      res.writeHead(404, { 'Content-Type': 'text/plain' });
-      res.end('Config service not available');
-      return;
-    }
-
-    try {
-      // Load menu attributes configuration
-      const config = configService.get('menu-attributes') || {
-        availableAttributes: {
-          class: { enabled: true, label: 'CSS Classes', description: 'Space-separated CSS class names', type: 'text' },
-          target: { enabled: true, label: 'Target', description: 'Where to open the link', type: 'select' },
-          rel: { enabled: true, label: 'Rel Attribute', description: 'Link relationship', type: 'text' },
-          icon: { enabled: true, label: 'Icon Class', description: 'Icon class names', type: 'text' }
-        }
-      };
-
-      const attributes = config.availableAttributes || {};
-      const flash = getFlashMessage(req.url);
-
-      // Count enabled/disabled attributes
-      let enabledCount = 0;
-      let disabledCount = 0;
-      for (const attr of Object.values(attributes)) {
-        if (attr.enabled) enabledCount++;
-        else disabledCount++;
-      }
-
-      // Build attribute items HTML
-      let attributeItemsHtml = '';
-      for (const [key, attr] of Object.entries(attributes)) {
-        const checked = attr.enabled ? 'checked' : '';
-        const disabledClass = attr.enabled ? '' : ' disabled';
-        const badge = attr.enabled ?
-          '<span class="badge badge-enabled">Enabled</span>' :
-          '<span class="badge badge-disabled">Disabled</span>';
-
-        attributeItemsHtml += `
-          <div class="attribute-item${disabledClass}">
-            <div class="attribute-toggle">
-              <input type="checkbox" name="attr_${key}" id="attr_${key}" value="1" ${checked}>
-            </div>
-            <div class="attribute-info">
-              <div class="attribute-name">
-                <label for="attr_${key}">${escapeHtml(key)}</label>
-              </div>
-              <div class="attribute-label">${escapeHtml(attr.label || key)}</div>
-              <div class="attribute-description">${escapeHtml(attr.description || '')}</div>
-              <div class="attribute-meta">
-                ${badge}
-                Type: ${escapeHtml(attr.type || 'text')}
-                ${attr.placeholder ? `· Placeholder: "${escapeHtml(attr.placeholder)}"` : ''}
-              </div>
-            </div>
-          </div>
-        `;
-      }
-
-      const html = loadTemplate('menu-attributes-config.html')
-        .replace('{{SITE_NAME}}', 'My Site')
-        .replace('{{SUCCESS_MESSAGE}}', flash.success ? `<div class="alert alert-success">${escapeHtml(flash.success)}</div>` : '')
-        .replace('{{ERROR_MESSAGE}}', flash.error ? `<div class="alert alert-error">${escapeHtml(flash.error)}</div>` : '')
-        .replace('{{ENABLED_COUNT}}', enabledCount)
-        .replace('{{DISABLED_COUNT}}', disabledCount)
-        .replace('{{TOTAL_COUNT}}', Object.keys(attributes).length)
-        .replace('{{ATTRIBUTE_ITEMS}}', attributeItemsHtml);
-
-      res.writeHead(200, { 'Content-Type': 'text/html' });
-      res.end(html);
-    } catch (error) {
-      console.error('[admin] Error loading menu attributes config:', error);
-      res.writeHead(500, { 'Content-Type': 'text/plain' });
-      res.end('Error loading menu attributes configuration');
-    }
-  }, 'Menu attributes configuration page');
-
-  /**
-   * POST /admin/config/system/menu-attributes - Save menu attributes configuration
-   */
-  register('POST', '/admin/config/system/menu-attributes', async (req, res, params, ctx) => {
-    const configService = ctx.services.get('config');
-    if (!configService) {
-      res.writeHead(404, { 'Content-Type': 'text/plain' });
-      res.end('Config service not available');
-      return;
-    }
-
-    try {
-      const formData = await parseFormBody(req);
-
-      // Load existing configuration
-      const config = configService.get('menu-attributes') || {
-        availableAttributes: {
-          class: { enabled: true, label: 'CSS Classes', description: 'Space-separated CSS class names', type: 'text' },
-          target: { enabled: true, label: 'Target', description: 'Where to open the link', type: 'select' },
-          rel: { enabled: true, label: 'Rel Attribute', description: 'Link relationship', type: 'text' },
-          icon: { enabled: true, label: 'Icon Class', description: 'Icon class names', type: 'text' }
-        }
-      };
-
-      // Update enabled status for each attribute
-      for (const key of Object.keys(config.availableAttributes)) {
-        config.availableAttributes[key].enabled = formData[`attr_${key}`] === '1';
-      }
-
-      // Save configuration
-      configService.set('menu-attributes', config);
-
-      redirect(res, '/admin/config/system/menu-attributes?success=' + encodeURIComponent('Menu attributes configuration saved'));
-    } catch (error) {
-      console.error('[admin] Error saving menu attributes config:', error);
-      redirect(res, '/admin/config/system/menu-attributes?error=' + encodeURIComponent(error.message));
-    }
-  }, 'Save menu attributes configuration');
 
   // ==========================================
   // Contact Forms Management
@@ -13953,1216 +11947,6 @@ export function hook_routes(register, context) {
   }, 'Clear user history');
 
   // ==========================================
-  // Views Management
-  // ==========================================
-
-  /**
-   * GET /admin/views - Views admin list page
-   * WHY: Provides admin UI for managing views (saved queries)
-   */
-  register('GET', '/admin/views', async (req, res, params, ctx) => {
-    const viewsService = ctx.services.get('views');
-    if (!viewsService) {
-      res.writeHead(404, { 'Content-Type': 'text/plain' });
-      res.end('Views service not available');
-      return;
-    }
-
-    const viewsList = viewsService.listViews();
-    const flash = getFlashMessage(req.url);
-
-    // Enrich views with computed display properties
-    const views = viewsList.map(v => ({
-      ...v,
-      displayMode: v.display || 'page',
-      filterCount: v.filters?.length || 0,
-      sortCount: v.sort?.length || 0,
-      enabled: true, // Views are always enabled if they exist
-    }));
-
-    const html = renderAdmin('views-list.html', {
-      pageTitle: 'Views',
-      views,
-      hasViews: views.length > 0,
-      flash,
-      hasFlash: !!flash,
-    }, ctx, req);
-
-    server.html(res, html);
-  }, 'Views list');
-
-  /**
-   * Helper: Build template data for view edit/create form
-   * WHY: Shared between create and edit routes to avoid duplication.
-   * Pre-computes all boolean flags since template engine only supports {{#if var}}.
-   */
-  function buildViewEditData(view, viewsService, isEdit, flash) {
-    // Get content types for dropdown
-    const contentTypes = content.listTypes().map(t => ({
-      value: t.type,
-      label: t.type.charAt(0).toUpperCase() + t.type.slice(1).replace(/-/g, ' '),
-      selected: view ? t.type === view.contentType : false,
-    }));
-
-    // WHY CATEGORIZED FIELDS: Drupal Views organizes fields by category
-    // (Content, System, Meta, Relationships) so users can quickly find the
-    // field they need. We mirror this pattern for usability.
-    const fieldCategories = {
-      'Content': [
-        { value: 'title', label: 'Title' },
-        { value: 'body', label: 'Body' },
-        { value: 'summary', label: 'Summary' },
-        { value: 'image', label: 'Image' },
-      ],
-      'Taxonomy': [
-        { value: 'tags', label: 'Tags' },
-        { value: 'category', label: 'Category' },
-      ],
-      'Meta': [
-        { value: 'status', label: 'Status' },
-        { value: 'published', label: 'Published' },
-        { value: 'author', label: 'Author' },
-        { value: 'slug', label: 'Slug' },
-      ],
-      'System': [
-        { value: 'id', label: 'ID' },
-        { value: 'type', label: 'Content Type' },
-        { value: 'created', label: 'Created Date' },
-        { value: 'updated', label: 'Updated Date' },
-      ],
-    };
-
-    // Build flat available fields list from all categories
-    const commonFields = [];
-    for (const cat of Object.keys(fieldCategories)) {
-      for (const f of fieldCategories[cat]) {
-        commonFields.push({ ...f, category: cat });
-      }
-    }
-
-    // If view has a content type, try to get schema fields
-    let availableFields = [...commonFields];
-    if (view && view.contentType) {
-      const schema = content.getSchema ? content.getSchema(view.contentType) : null;
-      if (schema && schema.fields) {
-        const schemaFieldNames = Object.keys(schema.fields);
-        for (const fname of schemaFieldNames) {
-          if (!availableFields.find(f => f.value === fname)) {
-            availableFields.push({
-              value: fname,
-              label: fname.charAt(0).toUpperCase() + fname.slice(1).replace(/[_-]/g, ' '),
-              category: 'Type Fields',
-            });
-          }
-        }
-        // Add 'Type Fields' category if new fields were added
-        if (schemaFieldNames.some(fn => !commonFields.find(f => f.value === fn))) {
-          if (!fieldCategories['Type Fields']) {
-            fieldCategories['Type Fields'] = availableFields.filter(f => f.category === 'Type Fields');
-          }
-        }
-      }
-    }
-
-    // Build categorized fields JSON for the add-field modal
-    // WHY: The template renders a categorized field chooser modal where
-    // fields are grouped under headings (Content, Meta, System, etc.)
-    const categorizedFieldsJSON = JSON.stringify(fieldCategories);
-
-    // Build display tabs from actual displays array
-    // WHY: Each view can have multiple displays (page, block, feed).
-    // The tabs let users switch between displays to configure each one independently.
-    const displays = [];
-    const activeDisplayId = null; // first display is active by default
-    if (view && view.displays && Array.isArray(view.displays) && view.displays.length > 0) {
-      view.displays.forEach((d, idx) => {
-        displays.push({
-          id: d.id,
-          type: d.type,
-          label: d.label || d.type.charAt(0).toUpperCase() + d.type.slice(1),
-          tabClass: idx === 0 ? 'active' : '',
-          path: d.path || '',
-          displayMode: d.displayMode || 'table',
-          pagerType: d.pager?.type || 'full',
-          pagerLimit: d.pager?.limit || 10,
-        });
-      });
-    } else {
-      // Legacy: single display from top-level display field
-      const displayType = view ? (view.display || 'page') : 'page';
-      displays.push({
-        id: 'default',
-        type: displayType,
-        label: displayType.charAt(0).toUpperCase() + displayType.slice(1),
-        tabClass: 'active',
-        path: view ? (view.path || '') : '',
-        displayMode: view ? (view.displayMode || view.format || 'table') : 'table',
-        pagerType: view ? (view.pager?.type || 'full') : 'full',
-        pagerLimit: view ? (view.pager?.limit || 10) : 10,
-      });
-    }
-    const hasMultipleDisplays = displays.length > 1;
-    const displaysJSON = JSON.stringify(displays);
-
-    // Build fields array with pre-computed flags
-    // WHY PRE-RENDER: Template engine doesn't support nested {{#each ../parent}}
-    // So we pre-render option HTML for select elements in each row
-    function buildOptionsHtml(options, selectedValue) {
-      return options.map(o =>
-        `<option value="${o.value}"${o.value === selectedValue ? ' selected' : ''}>${o.label}</option>`
-      ).join('\n              ');
-    }
-
-    const viewFields = [];
-    // WHY: Pre-render complete field row HTML to avoid nested template issues
-    let fieldsRowsHtml = '';
-    if (view && view.fields && Array.isArray(view.fields)) {
-      view.fields.forEach((field, idx) => {
-        const fieldName = typeof field === 'string' ? field : (field.name || field);
-        const fieldLabel = typeof field === 'object' ? (field.label || '') : '';
-        const fieldFormatter = typeof field === 'object' ? (field.formatter || 'default') : 'default';
-
-        const fieldOptionsHtml = buildOptionsHtml(availableFields, fieldName);
-
-        viewFields.push({
-          name: fieldName,
-          label: fieldLabel,
-          formatter: fieldFormatter,
-        });
-
-        fieldsRowsHtml += `
-          <div class="field-row" draggable="true">
-            <span class="drag-handle" title="Drag to reorder">&#9776;</span>
-            <select name="fields[${idx}][name]" class="field-select" required>
-              <option value="">-- Select Field --</option>
-              ${fieldOptionsHtml}
-            </select>
-            <input type="text" name="fields[${idx}][label]" value="${fieldLabel}" placeholder="Custom label (optional)" class="field-label-input">
-            <select name="fields[${idx}][formatter]" class="field-formatter">
-              <option value="default"${fieldFormatter === 'default' ? ' selected' : ''}>Default</option>
-              <option value="trimmed"${fieldFormatter === 'trimmed' ? ' selected' : ''}>Trimmed</option>
-              <option value="raw"${fieldFormatter === 'raw' ? ' selected' : ''}>Raw</option>
-              <option value="date"${fieldFormatter === 'date' ? ' selected' : ''}>Date</option>
-              <option value="link"${fieldFormatter === 'link' ? ' selected' : ''}>Link</option>
-            </select>
-            <button type="button" class="btn btn-sm btn-danger" onclick="removeField(this)">Remove</button>
-          </div>`;
-      });
-    }
-
-    // Build filters array - pre-render HTML to avoid nested template issues
-    const viewFilters = [];
-    let filtersRowsHtml = '';
-    const operators = [
-      { value: '=', label: 'Equals' },
-      { value: '!=', label: 'Not Equals' },
-      { value: 'contains', label: 'Contains' },
-      { value: '>', label: 'Greater Than' },
-      { value: '<', label: 'Less Than' },
-      { value: '>=', label: 'Greater or Equal' },
-      { value: '<=', label: 'Less or Equal' },
-    ];
-    if (view && view.filters && Array.isArray(view.filters)) {
-      view.filters.forEach((filter, idx) => {
-        const filterOp = filter.op || filter.operator || '=';
-        const filterVal = filter.value !== undefined ? String(filter.value) : '';
-        const isExposed = !!filter.exposed;
-
-        viewFilters.push({
-          field: filter.field,
-          operator: filterOp,
-          filterValue: filterVal,
-          exposed: isExposed,
-        });
-
-        const fieldOptsHtml = buildOptionsHtml(availableFields, filter.field);
-        const operatorOptsHtml = buildOptionsHtml(operators, filterOp);
-
-        filtersRowsHtml += `
-          <div class="filter-row">
-            <select name="filters[${idx}][field]" class="filter-field" required>
-              <option value="">-- Select Field --</option>
-              ${fieldOptsHtml}
-            </select>
-            <select name="filters[${idx}][operator]" class="filter-operator" required>
-              ${operatorOptsHtml}
-            </select>
-            <input type="text" name="filters[${idx}][value]" value="${filterVal}" placeholder="Value" required>
-            <label class="checkbox-label checkbox-sm" title="Expose this filter to end users">
-              <input type="checkbox" name="filters[${idx}][exposed]" value="true"${isExposed ? ' checked' : ''}>
-              Exposed
-            </label>
-            <button type="button" class="btn btn-sm btn-danger" onclick="removeFilter(this)">Remove</button>
-          </div>`;
-      });
-    }
-
-    // Build sorts array - pre-render HTML to avoid nested template issues
-    const viewSorts = [];
-    let sortsRowsHtml = '';
-    if (view && view.sort && Array.isArray(view.sort)) {
-      view.sort.forEach((s, idx) => {
-        const dir = (s.dir || s.direction || 'ASC').toUpperCase();
-        viewSorts.push({
-          field: s.field,
-          direction: dir,
-        });
-
-        const sortFieldOptsHtml = buildOptionsHtml(availableFields, s.field);
-
-        sortsRowsHtml += `
-          <div class="sort-row" draggable="true">
-            <span class="drag-handle" title="Drag to reorder">&#9776;</span>
-            <select name="sort[${idx}][field]" class="sort-field" required>
-              <option value="">-- Select Field --</option>
-              ${sortFieldOptsHtml}
-            </select>
-            <select name="sort[${idx}][direction]" class="sort-direction" required>
-              <option value="ASC"${dir === 'ASC' ? ' selected' : ''}>Ascending</option>
-              <option value="DESC"${dir === 'DESC' ? ' selected' : ''}>Descending</option>
-            </select>
-            <button type="button" class="btn btn-sm btn-danger" onclick="removeSort(this)">Remove</button>
-          </div>`;
-      });
-    }
-
-    // Pager
-    const pagerType = view ? (view.pager?.type || 'full') : 'full';
-    const itemsPerPage = view ? (view.pager?.limit || 10) : 10;
-
-    // Display type flags
-    const dt = view ? (view.display || 'page') : 'page';
-    const displayMode = view ? (view.displayMode || view.format || 'table') : 'table';
-
-    // WHY: Pre-render display settings panel HTML for the active display.
-    // Each display has its own title, format, path, and pager settings.
-    const activeDisplay = displays[0] || {};
-    let displaySettingsHtml = '';
-    displays.forEach((d, idx) => {
-      const isActive = idx === 0;
-      const isPage = d.type === 'page';
-      const isFeed = d.type === 'feed';
-      displaySettingsHtml += `
-        <div class="display-settings-panel" data-display-id="${d.id}" style="display: ${isActive ? 'block' : 'none'};">
-          <h3>Display: ${d.label} <span class="display-type-badge">${d.type}</span></h3>
-          <div class="form-row">
-            <div class="form-group">
-              <label for="display_label_${d.id}">Display Title</label>
-              <input type="text" id="display_label_${d.id}" name="display_settings[${d.id}][label]" value="${d.label}" placeholder="Display title">
-            </div>
-            <div class="form-group">
-              <label for="display_format_${d.id}">Format</label>
-              <select id="display_format_${d.id}" name="display_settings[${d.id}][displayMode]">
-                <option value="table"${d.displayMode === 'table' ? ' selected' : ''}>Table</option>
-                <option value="grid"${d.displayMode === 'grid' ? ' selected' : ''}>Grid</option>
-                <option value="list"${d.displayMode === 'list' ? ' selected' : ''}>Unformatted List</option>
-                <option value="custom"${d.displayMode === 'custom' ? ' selected' : ''}>Custom Template</option>
-              </select>
-            </div>
-          </div>
-          <div class="form-row">
-            <div class="form-group">
-              <label for="display_pager_type_${d.id}">Pager Type</label>
-              <select id="display_pager_type_${d.id}" name="display_settings[${d.id}][pager_type]">
-                <option value="full"${d.pagerType === 'full' ? ' selected' : ''}>Full Pager</option>
-                <option value="mini"${d.pagerType === 'mini' ? ' selected' : ''}>Mini Pager</option>
-                <option value="none"${d.pagerType === 'none' ? ' selected' : ''}>No Pager</option>
-              </select>
-            </div>
-            <div class="form-group">
-              <label for="display_pager_limit_${d.id}">Items Per Page</label>
-              <input type="number" id="display_pager_limit_${d.id}" name="display_settings[${d.id}][pager_limit]" value="${d.pagerLimit}" min="1" max="100">
-            </div>
-          </div>
-          ${isPage ? `
-          <div class="form-group">
-            <label for="display_path_${d.id}">URL Path</label>
-            <input type="text" id="display_path_${d.id}" name="display_settings[${d.id}][path]" value="${d.path}" placeholder="e.g., /articles">
-            <small>Make this display accessible at a specific URL path.</small>
-          </div>` : ''}
-          ${isFeed ? `
-          <div class="form-group">
-            <label for="display_path_${d.id}">Feed URL Path</label>
-            <input type="text" id="display_path_${d.id}" name="display_settings[${d.id}][path]" value="${d.path}" placeholder="e.g., /articles/feed">
-            <small>URL path for the RSS/JSON feed.</small>
-          </div>` : ''}
-          <button type="button" class="btn btn-sm btn-danger" onclick="removeDisplay('${d.id}')" ${displays.length <= 1 ? 'disabled title="Cannot remove the only display"' : ''}>Remove Display</button>
-        </div>`;
-    });
-
-    return {
-      pageTitle: isEdit ? 'Edit View: ' + view.name : 'Create View',
-      breadcrumbLabel: isEdit ? 'Edit: ' + view.name : 'Create View',
-      formAction: isEdit ? '/admin/views/' + view.id : '/admin/views/create',
-      isEdit,
-      isCreate: !isEdit,
-      viewId: view ? view.id : '',
-      viewName: view ? view.name : '',
-      viewMachineName: view ? view.id : '',
-      viewDescription: view ? (view.description || '') : '',
-      viewEnabled: view ? true : true,
-      viewPath: view ? (view.path || '') : '',
-      viewTemplate: view ? (view.template || '') : '',
-      viewHeader: view ? (view.header || '') : '',
-      viewFooter: view ? (view.footer || '') : '',
-      viewItemsPerPage: itemsPerPage,
-      contentTypes,
-      availableFields: availableFields.map(f => ({ ...f, selected: false })),
-      availableFieldsJSON: JSON.stringify(availableFields),
-      categorizedFieldsJSON: categorizedFieldsJSON,
-      displaysJSON: displaysJSON,
-      displays,
-      hasMultipleDisplays,
-      displaySettingsHtml,
-      // Fields - pre-rendered HTML for rows (avoids nested template issues)
-      viewFields,
-      hasFields: viewFields.length > 0,
-      fieldCount: viewFields.length,
-      fieldsRowsHtml,
-      // Filters - pre-rendered HTML for rows
-      viewFilters,
-      hasFilters: viewFilters.length > 0,
-      filterCount: viewFilters.length,
-      filterLogic: view?.filterLogic || 'AND',
-      filterLogicAndChecked: (view?.filterLogic || 'AND') === 'AND' ? 'checked' : '',
-      filterLogicOrChecked: (view?.filterLogic || 'AND') === 'OR' ? 'checked' : '',
-      filtersRowsHtml,
-      // Sorts - pre-rendered HTML for rows
-      viewSorts,
-      hasSorts: viewSorts.length > 0,
-      sortCount: viewSorts.length,
-      sortsRowsHtml,
-      // Pager
-      pagerFull: pagerType === 'full',
-      pagerMini: pagerType === 'mini',
-      pagerNone: pagerType === 'none',
-      // Display type
-      displayPage: dt === 'page',
-      displayBlock: dt === 'block',
-      displayFeed: dt === 'feed',
-      displayEmbed: dt === 'embed',
-      displayAttachment: dt === 'attachment',
-      // Format
-      formatTable: displayMode === 'table',
-      formatGrid: displayMode === 'grid',
-      formatList: displayMode === 'list',
-      formatCustom: displayMode === 'custom',
-      // Relationships
-      relationships: view?.relationships || [],
-      // Aggregation
-      aggregation: view?.aggregation || null,
-      // Empty State
-      emptyState: view?.emptyState || '',
-      // Flash
-      hasFlash: !!flash,
-      flashType: flash ? flash.type : '',
-      flashMessage: flash ? flash.message : '',
-    };
-  }
-
-  /**
-   * GET /admin/views/create - Create view form
-   * WHY: Admin UI for creating a new view
-   */
-  register('GET', '/admin/views/create', async (req, res, params, ctx) => {
-    const viewsService = ctx.services.get('views');
-    if (!viewsService) {
-      res.writeHead(404, { 'Content-Type': 'text/plain' });
-      res.end('Views service not available');
-      return;
-    }
-
-    const flash = getFlashMessage(req.url);
-    const templateData = buildViewEditData(null, viewsService, false, flash);
-
-    const html = renderAdmin('views-edit.html', templateData, ctx, req);
-    server.html(res, html);
-  }, 'Create view form');
-
-  /**
-   * POST /admin/views/create - Create a new view
-   * WHY: Process form submission to create a view
-   */
-  register('POST', '/admin/views/create', async (req, res, params, ctx) => {
-    const viewsService = ctx.services.get('views');
-    if (!viewsService) {
-      res.writeHead(404, { 'Content-Type': 'text/plain' });
-      res.end('Views service not available');
-      return;
-    }
-
-    try {
-      const formData = ctx._parsedBody || await parseFormBody(req);
-
-      const machineName = (formData.machine_name || '').trim().toLowerCase().replace(/[^a-z_]/g, '');
-      if (!machineName) {
-        redirect(res, '/admin/views/create?error=' + encodeURIComponent('Machine name is required'));
-        return;
-      }
-
-      // Parse fields from form
-      const fields = parseViewArrayFormData(formData, 'fields', ['name', 'label', 'formatter']);
-      // Parse filters from form
-      const filters = parseViewArrayFormData(formData, 'filters', ['field', 'operator', 'value', 'exposed']).map(f => ({
-        field: f.field,
-        op: f.operator || '=',
-        value: f.value,
-        exposed: f.exposed === 'true',
-      }));
-      const filterLogic = formData.filterLogic || 'AND';
-      // Parse sorts from form
-      const sorts = parseViewArrayFormData(formData, 'sort', ['field', 'direction']).map(s => ({
-        field: s.field,
-        dir: (s.direction || 'DESC').toLowerCase(),
-      }));
-
-      const viewConfig = {
-        name: (formData.name || '').trim(),
-        description: (formData.description || '').trim(),
-        contentType: (formData.content_type || '').trim(),
-        display: formData.display_type || 'page',
-        displayMode: formData.display_mode || 'table',
-        path: (formData.path || '').trim() || null,
-        template: (formData.template || '').trim() || null,
-        fields: fields.map(f => f.label ? { name: f.name, label: f.label, formatter: f.formatter || 'default' } : f.name),
-        filters,
-        filterLogic,
-        sort: sorts,
-        pager: {
-          type: formData.pager_type || 'full',
-          limit: parseInt(formData.items_per_page) || 10,
-        },
-      };
-
-      await viewsService.createView(machineName, viewConfig);
-      redirect(res, '/admin/views?success=' + encodeURIComponent('Created view: ' + viewConfig.name));
-    } catch (error) {
-      redirect(res, '/admin/views/create?error=' + encodeURIComponent(error.message));
-    }
-  }, 'Create view');
-
-  /**
-   * GET /admin/views/:id/edit - Edit view form
-   * WHY: Admin UI for editing an existing view configuration
-   */
-  register('GET', '/admin/views/:id/edit', async (req, res, params, ctx) => {
-    const viewsService = ctx.services.get('views');
-    if (!viewsService) {
-      res.writeHead(404, { 'Content-Type': 'text/plain' });
-      res.end('Views service not available');
-      return;
-    }
-
-    const { id } = params;
-    const view = viewsService.getViewConfig(id);
-    if (!view) {
-      redirect(res, '/admin/views?error=' + encodeURIComponent('View not found: ' + id));
-      return;
-    }
-
-    const flash = getFlashMessage(req.url);
-    const templateData = buildViewEditData(view, viewsService, true, flash);
-
-    const html = renderAdmin('views-edit.html', templateData, ctx, req);
-    server.html(res, html);
-  }, 'Edit view form');
-
-  /**
-   * POST /admin/views/:id - Update a view
-   * WHY: Process form submission to update view configuration
-   */
-  register('POST', '/admin/views/:id', async (req, res, params, ctx) => {
-    const viewsService = ctx.services.get('views');
-    if (!viewsService) {
-      res.writeHead(404, { 'Content-Type': 'text/plain' });
-      res.end('Views service not available');
-      return;
-    }
-
-    const { id } = params;
-    try {
-      const formData = ctx._parsedBody || await parseFormBody(req);
-
-      // Parse fields from form
-      const fields = parseViewArrayFormData(formData, 'fields', ['name', 'label', 'formatter']);
-      // Parse filters from form
-      const filters = parseViewArrayFormData(formData, 'filters', ['field', 'operator', 'value', 'exposed']).map(f => ({
-        field: f.field,
-        op: f.operator || '=',
-        value: f.value,
-        exposed: f.exposed === 'true',
-      }));
-      const filterLogic = formData.filterLogic || 'AND';
-      // Parse sorts from form
-      const sorts = parseViewArrayFormData(formData, 'sort', ['field', 'direction']).map(s => ({
-        field: s.field,
-        dir: (s.direction || 'DESC').toLowerCase(),
-      }));
-
-      // Parse relationships from form
-      const relationships = parseViewArrayFormData(formData, 'relationships', ['field', 'contentType', 'alias'])
-        .filter(r => r.field && r.contentType)
-        .map(r => ({
-          field: r.field,
-          contentType: r.contentType,
-          alias: r.alias || `${r.field}_ref`,
-        }));
-
-      // Parse aggregation from form
-      let aggregation = null;
-      if (formData.aggregation_enabled === 'on' && formData['aggregation[function]']) {
-        aggregation = {
-          function: formData['aggregation[function]'],
-          field: formData['aggregation[field]'] || null,
-        };
-      }
-
-      const updates = {
-        name: (formData.name || '').trim(),
-        description: (formData.description || '').trim(),
-        contentType: (formData.content_type || '').trim(),
-        display: formData.display_type || 'page',
-        displayMode: formData.display_mode || 'table',
-        path: (formData.path || '').trim() || null,
-        template: (formData.template || '').trim() || null,
-        header: (formData.header || '').trim() || null,
-        footer: (formData.footer || '').trim() || null,
-        fields: fields.map(f => f.label ? { name: f.name, label: f.label, formatter: f.formatter || 'default' } : f.name),
-        filters,
-        filterLogic,
-        sort: sorts,
-        relationships,
-        aggregation,
-        emptyState: (formData.emptyState || '').trim() || null,
-        pager: {
-          type: formData.pager_type || 'full',
-          limit: parseInt(formData.items_per_page) || 10,
-        },
-      };
-
-      await viewsService.updateView(id, updates);
-
-      // WHY: Also update per-display settings if provided.
-      // Display settings are submitted as display_settings[display_id][field] = value.
-      // Each display has its own label, format, pager, and path.
-      const displaySettingsKeys = Object.keys(formData).filter(k => k.startsWith('display_settings['));
-      if (displaySettingsKeys.length > 0) {
-        // Parse display_settings[display_id][field] pattern
-        const displayUpdates = {};
-        for (const key of displaySettingsKeys) {
-          const match = key.match(/display_settings\[([^\]]+)\]\[([^\]]+)\]/);
-          if (match) {
-            const [, dispId, field] = match;
-            if (!displayUpdates[dispId]) displayUpdates[dispId] = {};
-            displayUpdates[dispId][field] = formData[key];
-          }
-        }
-
-        // Apply updates to each display
-        for (const [dispId, dispUpdate] of Object.entries(displayUpdates)) {
-          try {
-            const updateObj = {};
-            if (dispUpdate.label) updateObj.label = dispUpdate.label;
-            if (dispUpdate.displayMode) updateObj.displayMode = dispUpdate.displayMode;
-            if (dispUpdate.path !== undefined) updateObj.path = dispUpdate.path.trim() || null;
-            if (dispUpdate.pager_type || dispUpdate.pager_limit) {
-              updateObj.pager = {};
-              if (dispUpdate.pager_type) updateObj.pager.type = dispUpdate.pager_type;
-              if (dispUpdate.pager_limit) updateObj.pager.limit = parseInt(dispUpdate.pager_limit) || 10;
-            }
-            await viewsService.updateDisplay(id, dispId, updateObj);
-          } catch (e) {
-            // Display might not exist yet (new view) - skip silently
-          }
-        }
-      }
-
-      redirect(res, '/admin/views/' + id + '/edit?success=' + encodeURIComponent('View saved successfully'));
-    } catch (error) {
-      redirect(res, '/admin/views/' + id + '/edit?error=' + encodeURIComponent(error.message));
-    }
-  }, 'Update view');
-
-  /**
-   * POST /admin/views/:id/display/add - Add a display to a view
-   * WHY: Drupal Views support multiple displays (page, block, feed).
-   * This route adds a new display to an existing view.
-   */
-  register('POST', '/admin/views/:id/display/add', async (req, res, params, ctx) => {
-    const viewsService = ctx.services.get('views');
-    if (!viewsService) {
-      res.writeHead(404, { 'Content-Type': 'text/plain' });
-      res.end('Views service not available');
-      return;
-    }
-
-    const { id } = params;
-    try {
-      const formData = ctx._parsedBody || await parseFormBody(req);
-      const displayType = (formData.display_type || 'page').trim();
-
-      if (!['page', 'block', 'feed'].includes(displayType)) {
-        redirect(res, '/admin/views/' + id + '/edit?error=' + encodeURIComponent('Invalid display type: ' + displayType));
-        return;
-      }
-
-      // WHY: Ensure the view has a displays array before adding.
-      // Legacy views may not have one - initialize it.
-      const view = viewsService.getViewConfig(id);
-      if (!view) {
-        redirect(res, '/admin/views?error=' + encodeURIComponent('View not found: ' + id));
-        return;
-      }
-
-      if (!view.displays || !Array.isArray(view.displays)) {
-        // Initialize displays array with current display config
-        const defaultDisplay = {
-          type: view.display || 'page',
-          label: (view.display || 'page').charAt(0).toUpperCase() + (view.display || 'page').slice(1),
-          path: view.path || null,
-          displayMode: view.displayMode || 'table',
-        };
-        await viewsService.addDisplay(id, defaultDisplay);
-      }
-
-      // Add the new display
-      const display = await viewsService.addDisplay(id, {
-        type: displayType,
-        label: displayType.charAt(0).toUpperCase() + displayType.slice(1),
-      });
-
-      redirect(res, '/admin/views/' + id + '/edit?success=' + encodeURIComponent('Added ' + displayType + ' display: ' + display.id));
-    } catch (error) {
-      redirect(res, '/admin/views/' + id + '/edit?error=' + encodeURIComponent(error.message));
-    }
-  }, 'Add display to view');
-
-  /**
-   * POST /admin/views/:id/display/:displayId/remove - Remove a display
-   * WHY: Users may want to remove a display they no longer need.
-   */
-  register('POST', '/admin/views/:id/display/:displayId/remove', async (req, res, params, ctx) => {
-    const viewsService = ctx.services.get('views');
-    if (!viewsService) {
-      res.writeHead(404, { 'Content-Type': 'text/plain' });
-      res.end('Views service not available');
-      return;
-    }
-
-    const { id, displayId } = params;
-    try {
-      await viewsService.removeDisplay(id, displayId);
-      redirect(res, '/admin/views/' + id + '/edit?success=' + encodeURIComponent('Removed display: ' + displayId));
-    } catch (error) {
-      redirect(res, '/admin/views/' + id + '/edit?error=' + encodeURIComponent(error.message));
-    }
-  }, 'Remove display from view');
-
-  /**
-   * GET /admin/views/:id/preview.json - JSON preview results for inline preview
-   * WHY: The edit page needs to fetch preview data via AJAX to display results
-   * inline without a full page navigation. Returns structured JSON for client rendering.
-   */
-  register('GET', '/admin/views/:id/preview.json', async (req, res, params, ctx) => {
-    const viewsService = ctx.services.get('views');
-    if (!viewsService) {
-      res.writeHead(404, { 'Content-Type': 'application/json' });
-      res.end(JSON.stringify({ error: 'Views service not available' }));
-      return;
-    }
-
-    const { id } = params;
-    const view = viewsService.getViewConfig(id);
-    if (!view) {
-      res.writeHead(404, { 'Content-Type': 'application/json' });
-      res.end(JSON.stringify({ error: 'View not found: ' + id }));
-      return;
-    }
-
-    let results = null;
-    let queryError = null;
-    try {
-      results = await viewsService.executeView(id, {});
-    } catch (error) {
-      queryError = error.message;
-    }
-
-    const items = results ? results.items : [];
-    const viewFields = view.fields || [];
-    const fieldNames = viewFields.map(f => typeof f === 'string' ? f : (f.name || f));
-    const fieldLabels = viewFields.map(f => {
-      if (typeof f === 'object' && f.label) return f.label;
-      const name = typeof f === 'string' ? f : (f.name || f);
-      return name.charAt(0).toUpperCase() + name.slice(1).replace(/[_-]/g, ' ');
-    });
-
-    res.writeHead(200, { 'Content-Type': 'application/json' });
-    res.end(JSON.stringify({
-      viewName: view.name,
-      contentType: view.contentType,
-      items: items,
-      total: results ? results.total : 0,
-      count: items.length,
-      fieldNames: fieldNames,
-      fieldLabels: fieldLabels,
-      error: queryError,
-    }));
-  }, 'View preview JSON API');
-
-  /**
-   * GET /admin/views/:id/query.json - Query inspection (debugging tool)
-   * WHY: Shows the generated query structure from view configuration.
-   * This helps developers understand how filters, sorts, fields, and contextual
-   * filters translate into the actual query sent to content.list().
-   */
-  register('GET', '/admin/views/:id/query.json', async (req, res, params, ctx) => {
-    const viewsService = ctx.services.get('views');
-    if (!viewsService) {
-      res.writeHead(404, { 'Content-Type': 'application/json' });
-      res.end(JSON.stringify({ error: 'Views service not available' }));
-      return;
-    }
-
-    const { id } = params;
-    const view = viewsService.getViewConfig(id);
-    if (!view) {
-      res.writeHead(404, { 'Content-Type': 'application/json' });
-      res.end(JSON.stringify({ error: 'View not found: ' + id }));
-      return;
-    }
-
-    let queryStructure = null;
-    let error = null;
-    try {
-      // buildQuery() generates the query structure without executing it
-      queryStructure = viewsService.buildQuery(id, {});
-    } catch (err) {
-      error = err.message;
-    }
-
-    if (error) {
-      res.writeHead(500, { 'Content-Type': 'application/json' });
-      res.end(JSON.stringify({ error }));
-      return;
-    }
-
-    res.writeHead(200, { 'Content-Type': 'application/json' });
-    res.end(JSON.stringify({
-      success: true,
-      viewId: id,
-      viewName: view.name,
-      query: queryStructure,
-    }));
-  }, 'View query inspection API');
-
-  /**
-   * GET /admin/views/:id/preview - Preview view results
-   * WHY: Show live query results for a view
-   */
-  register('GET', '/admin/views/:id/preview', async (req, res, params, ctx) => {
-    const viewsService = ctx.services.get('views');
-    if (!viewsService) {
-      res.writeHead(404, { 'Content-Type': 'text/plain' });
-      res.end('Views service not available');
-      return;
-    }
-
-    const { id } = params;
-    const view = viewsService.getViewConfig(id);
-    if (!view) {
-      redirect(res, '/admin/views?error=' + encodeURIComponent('View not found: ' + id));
-      return;
-    }
-
-    // Execute the view to get results
-    let results = null;
-    let queryError = null;
-    try {
-      results = await viewsService.executeView(id, {});
-    } catch (error) {
-      queryError = error.message;
-    }
-
-    // WHY PRE-RENDER: Template engine can't handle nested {{#each ../view.fields}}
-    // Pre-render the results table HTML server-side
-    const items = results ? results.items : [];
-    const viewFields = view.fields || [];
-    // Normalize fields - can be strings or objects with name/label/formatter
-    const fieldNames = viewFields.map(f => typeof f === 'string' ? f : (f.name || f));
-    // WHY: Custom labels override field names in table headers.
-    // Drupal Views allows each field to have a custom "Administrative title" that
-    // shows in the table header instead of the raw field name.
-    const fieldLabels = viewFields.map(f => {
-      if (typeof f === 'object' && f.label) return f.label;
-      const name = typeof f === 'string' ? f : (f.name || f);
-      return name.charAt(0).toUpperCase() + name.slice(1).replace(/[_-]/g, ' ');
-    });
-    // WHY: Formatters control how field values are displayed (e.g., trimmed, date, link, raw).
-    const fieldFormatters = viewFields.map(f => typeof f === 'object' ? (f.formatter || 'default') : 'default');
-
-    // Build table header HTML using custom labels
-    let tableHeaderHtml = '';
-    if (fieldNames.length > 0) {
-      tableHeaderHtml = fieldLabels.map(label => `<th>${label}</th>`).join('\n            ');
-    } else {
-      tableHeaderHtml = '<th>ID</th>\n            <th>Title</th>\n            <th>Status</th>\n            <th>Author</th>\n            <th>Created</th>';
-    }
-
-    /**
-     * Format a field value according to its formatter setting
-     * WHY: Different formatters present the same data differently:
-     * - default: as-is with HTML escaping
-     * - trimmed: first 200 characters with ellipsis
-     * - raw: unprocessed value
-     * - date: formatted date string
-     * - link: clickable link
-     */
-    function formatFieldValue(val, formatter) {
-      if (val === undefined || val === null) return '';
-      const str = String(val);
-      switch (formatter) {
-        case 'trimmed':
-          return str.length > 200 ? str.slice(0, 200) + '...' : str;
-        case 'date':
-          try {
-            return new Date(str).toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' });
-          } catch { return str; }
-        case 'link':
-          return `<a href="${str}" target="_blank">${str}</a>`;
-        case 'raw':
-          return str;
-        default:
-          return str;
-      }
-    }
-
-    // Build table body HTML with formatter support
-    let tableBodyHtml = '';
-    for (const item of items) {
-      let rowHtml = '<tr>';
-      if (fieldNames.length > 0) {
-        for (let fi = 0; fi < fieldNames.length; fi++) {
-          const val = item[fieldNames[fi]];
-          const formatted = formatFieldValue(val, fieldFormatters[fi]);
-          rowHtml += `<td>${formatted}</td>`;
-        }
-      } else {
-        const pubBadge = item.published
-          ? '<span class="status-badge status-published">Published</span>'
-          : '<span class="status-badge status-draft">Draft</span>';
-        rowHtml += `<td>${item.id || ''}</td>`;
-        rowHtml += `<td><strong>${item.title || ''}</strong></td>`;
-        rowHtml += `<td>${pubBadge}</td>`;
-        rowHtml += `<td>${item.author || ''}</td>`;
-        rowHtml += `<td>${item.created || ''}</td>`;
-      }
-      rowHtml += '</tr>';
-      tableBodyHtml += rowHtml + '\n          ';
-    }
-
-    // Build filters HTML
-    let filtersHtml = '';
-    if (view.filters && view.filters.length > 0) {
-      filtersHtml = view.filters.map(f =>
-        `<li><code>${f.field}</code> ${f.op || f.operator || '='} <strong>${f.value !== undefined ? f.value : ''}</strong></li>`
-      ).join('\n            ');
-    }
-
-    // Build sorts HTML
-    let sortsHtml = '';
-    if (view.sort && view.sort.length > 0) {
-      sortsHtml = view.sort.map(s =>
-        `<li><code>${s.field}</code> ${(s.dir || s.direction || 'desc').toUpperCase()}</li>`
-      ).join('\n            ');
-    }
-
-    const html = renderAdmin('views-preview.html', {
-      pageTitle: 'Preview: ' + view.name,
-      viewId: view.id,
-      viewName: view.name,
-      viewDescription: view.description || '',
-      hasDescription: !!(view.description),
-      viewContentType: view.contentType,
-      viewDisplayMode: view.displayMode || view.display || 'table',
-      viewPath: view.path || '',
-      hasPath: !!(view.path),
-      viewHeader: view.header || '',
-      viewFooter: view.footer || '',
-      hasHeader: !!(view.header),
-      hasFooter: !!(view.footer),
-      resultCount: items.length,
-      totalCount: results ? results.total : 0,
-      hasResults: items.length > 0,
-      tableHeaderHtml,
-      tableBodyHtml,
-      hasFilters: !!(view.filters && view.filters.length > 0),
-      filtersHtml,
-      hasSorts: !!(view.sort && view.sort.length > 0),
-      sortsHtml,
-      viewItemsPerPage: view.pager ? view.pager.limit : 10,
-      hasItemsPerPage: !!(view.pager),
-      queryError,
-      hasError: !!queryError,
-    }, ctx, req);
-
-    server.html(res, html);
-  }, 'Preview view');
-
-  /**
-   * GET /api/views/:id/query - Get generated query structure
-   * WHY: Debugging tool to show how view configuration translates to actual query
-   * Returns the query object that would be passed to content.list()
-   */
-  register('GET', '/api/views/:id/query', async (req, res, params, ctx) => {
-    const viewsService = ctx.services.get('views');
-    if (!viewsService) {
-      res.writeHead(404, { 'Content-Type': 'application/json' });
-      res.end(JSON.stringify({ error: 'Views service not available' }));
-      return;
-    }
-
-    const { id } = params;
-    try {
-      const queryStructure = viewsService.buildQuery(id, {});
-      res.writeHead(200, { 'Content-Type': 'application/json' });
-      res.end(JSON.stringify(queryStructure, null, 2));
-    } catch (error) {
-      res.writeHead(404, { 'Content-Type': 'application/json' });
-      res.end(JSON.stringify({ error: error.message }));
-    }
-  }, 'Get view query structure');
-
-  /**
-   * Helper: Parse array-style form data like fields[0][name], filters[1][field]
-   * WHY: HTML forms encode array items as indexed bracket notation.
-   */
-  function parseViewArrayFormData(formData, prefix, keys) {
-    const items = [];
-    // WHY: Track consecutive misses to handle sparse indices from add/remove cycles.
-    // When a user removes a field row and adds another, indices may have gaps
-    // (e.g., 0, 1, 3 with 2 removed). We skip gaps up to 10 consecutive misses.
-    let consecutiveMisses = 0;
-    let i = 0;
-    while (i < 200 && consecutiveMisses < 10) {
-      const hasKey = keys.some(k => formData[prefix + '[' + i + '][' + k + ']'] !== undefined);
-      if (!hasKey) {
-        consecutiveMisses++;
-        i++;
-        continue;
-      }
-
-      consecutiveMisses = 0;
-      const item = {};
-      for (const k of keys) {
-        item[k] = formData[prefix + '[' + i + '][' + k + ']'] || '';
-      }
-      items.push(item);
-      i++;
-    }
-
-    // Fallback: Also check for simple array like fields[]
-    if (items.length === 0 && formData[prefix + '[]'] !== undefined) {
-      const values = Array.isArray(formData[prefix + '[]'])
-        ? formData[prefix + '[]']
-        : [formData[prefix + '[]']];
-      return values.map(v => ({ name: v }));
-    }
-
-    return items;
-  }
-
-  /**
-   * POST /admin/views/:id/delete - Delete a view
-   * WHY: Admin UI delete action for views
-   */
-  register('POST', '/admin/views/:id/delete', async (req, res, params, ctx) => {
-    const viewsService = ctx.services.get('views');
-    if (!viewsService) {
-      res.writeHead(404, { 'Content-Type': 'text/plain' });
-      res.end('Views service not available');
-      return;
-    }
-
-    const { id } = params;
-    try {
-      await viewsService.deleteView(id);
-      redirect(res, '/admin/views?success=' + encodeURIComponent(`Deleted view: ${id}`));
-    } catch (error) {
-      redirect(res, '/admin/views?error=' + encodeURIComponent(error.message));
-    }
-  }, 'Delete view');
-
-  /**
-   * Register view page display routes
-   * WHY: Views with page displays and configured paths need to be served as actual
-   * URL routes. We register a handler for each path that renders the view results.
-   */
-  (function registerViewPageRoutes() {
-    const viewsService = context.services?.get('views');
-    if (!viewsService || !viewsService.getPageDisplayRoutes) return;
-
-    const pageRoutes = viewsService.getPageDisplayRoutes();
-    for (const route of pageRoutes) {
-      if (!route.path) continue;
-
-      const routePath = route.path.startsWith('/') ? route.path : '/' + route.path;
-
-      register('GET', routePath, async (req, res, params, ctx) => {
-        const vs = ctx.services.get('views');
-        if (!vs) {
-          res.writeHead(404, { 'Content-Type': 'text/plain' });
-          res.end('Views service not available');
-          return;
-        }
-
-        const view = vs.getViewConfig(route.viewId);
-        if (!view) {
-          res.writeHead(404, { 'Content-Type': 'text/plain' });
-          res.end('View not found');
-          return;
-        }
-
-        let results;
-        try {
-          results = await vs.executeView(route.viewId, {
-            params,
-            query: Object.fromEntries(new URL(req.url, 'http://localhost').searchParams),
-          });
-        } catch (error) {
-          res.writeHead(500, { 'Content-Type': 'text/html' });
-          res.end('<h1>View Error</h1><p>' + error.message + '</p>');
-          return;
-        }
-
-        const display = route.display || {};
-        const displayMode = display.displayMode || 'table';
-        const items = results.items || [];
-        const viewFields = view.fields || [];
-        const fieldNames = viewFields.map(function(f) { return typeof f === 'string' ? f : (f.name || f); });
-
-        let contentHtml = '';
-
-        if (displayMode === 'table') {
-          let headerHtml = '';
-          if (fieldNames.length > 0) {
-            headerHtml = fieldNames.map(function(f) { return '<th>' + f + '</th>'; }).join('');
-          } else {
-            headerHtml = '<th>Title</th><th>Status</th><th>Created</th>';
-          }
-
-          let rowsHtml = '';
-          for (const item of items) {
-            rowsHtml += '<tr>';
-            if (fieldNames.length > 0) {
-              for (const fname of fieldNames) {
-                const val = item[fname];
-                rowsHtml += '<td>' + (val !== undefined && val !== null ? String(val) : '') + '</td>';
-              }
-            } else {
-              rowsHtml += '<td>' + (item.title || '') + '</td>';
-              rowsHtml += '<td>' + (item.published ? 'Published' : 'Draft') + '</td>';
-              rowsHtml += '<td>' + (item.created || '') + '</td>';
-            }
-            rowsHtml += '</tr>';
-          }
-
-          contentHtml = '<table class="view-table"><thead><tr>' + headerHtml + '</tr></thead><tbody>' + rowsHtml + '</tbody></table>';
-        } else if (displayMode === 'list') {
-          contentHtml = '<ul class="view-list">';
-          for (const item of items) {
-            contentHtml += '<li>' + (item.title || item.id || JSON.stringify(item)) + '</li>';
-          }
-          contentHtml += '</ul>';
-        } else if (displayMode === 'grid') {
-          contentHtml = '<div class="view-grid">';
-          for (const item of items) {
-            contentHtml += '<div class="view-grid-item"><h3>' + (item.title || '') + '</h3>';
-            if (item.summary) contentHtml += '<p>' + item.summary + '</p>';
-            contentHtml += '</div>';
-          }
-          contentHtml += '</div>';
-        }
-
-        let pagerHtml = '';
-        if (results.pager && results.pager.totalPages > 1) {
-          pagerHtml = '<div class="view-pager">';
-          if (results.pager.hasPrev) {
-            pagerHtml += '<a href="' + routePath + '?page=' + (results.pager.currentPage - 1) + '">&laquo; Previous</a> ';
-          }
-          pagerHtml += '<span>Page ' + (results.pager.currentPage + 1) + ' of ' + results.pager.totalPages + '</span>';
-          if (results.pager.hasNext) {
-            pagerHtml += ' <a href="' + routePath + '?page=' + (results.pager.currentPage + 1) + '">Next &raquo;</a>';
-          }
-          pagerHtml += '</div>';
-        }
-
-        // WHY: Build exposed filter form HTML
-        // Exposed filters allow end users to interactively filter view results
-        // Each exposed filter renders as a form field, submits via GET to preserve URL state
-        let exposedFilterHtml = '';
-        const exposedFilters = (view.filters || []).filter(f => f.exposed === true);
-        if (exposedFilters.length > 0) {
-          const currentQuery = Object.fromEntries(new URL(req.url, 'http://localhost').searchParams);
-
-          exposedFilterHtml = '<form method="GET" action="' + routePath + '" class="exposed-filters">';
-
-          for (const filter of exposedFilters) {
-            const fieldName = filter.field;
-            const currentValue = currentQuery[fieldName] || '';
-            const labelText = fieldName.charAt(0).toUpperCase() + fieldName.slice(1);
-
-            exposedFilterHtml += '<div class="filter-field">';
-            exposedFilterHtml += '<label for="filter-' + fieldName + '">' + labelText + '</label>';
-            exposedFilterHtml += '<input type="text" id="filter-' + fieldName + '" name="' + fieldName + '" value="' + currentValue + '" />';
-            exposedFilterHtml += '</div>';
-          }
-
-          exposedFilterHtml += '<div class="filter-actions">';
-          exposedFilterHtml += '<button type="submit">Filter</button>';
-          exposedFilterHtml += '<a href="' + routePath + '" class="reset-link">Reset</a>';
-          exposedFilterHtml += '</div>';
-          exposedFilterHtml += '</form>';
-        }
-
-        const pageHtml = '<!DOCTYPE html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">'
-          + '<title>' + (view.name || 'View') + '</title>'
-          + '<style>'
-          + 'body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;margin:0;padding:2rem;color:#111827;background:#fff;max-width:1200px;margin:0 auto;}'
-          + 'h1{margin:0 0 1rem;font-size:1.5rem;color:#111827;}'
-          + '.exposed-filters{background:#f9fafb;border:1px solid #e5e7eb;border-radius:8px;padding:1rem;margin-bottom:1.5rem;display:flex;align-items:flex-end;gap:1rem;flex-wrap:wrap;}'
-          + '.filter-field{display:flex;flex-direction:column;gap:0.25rem;}'
-          + '.filter-field label{font-size:0.85rem;font-weight:500;color:#374151;}'
-          + '.filter-field input{padding:0.5rem;border:1px solid #d1d5db;border-radius:4px;font-size:0.9rem;min-width:200px;}'
-          + '.filter-actions{display:flex;gap:0.5rem;align-items:center;}'
-          + '.filter-actions button{background:#2563eb;color:#fff;border:none;padding:0.5rem 1rem;border-radius:4px;font-size:0.9rem;cursor:pointer;}'
-          + '.filter-actions button:hover{background:#1d4ed8;}'
-          + '.reset-link{color:#6b7280;text-decoration:none;font-size:0.85rem;padding:0.5rem;}'
-          + '.reset-link:hover{color:#374151;text-decoration:underline;}'
-          + '.view-table{width:100%;border-collapse:collapse;margin-bottom:1rem;}'
-          + '.view-table th{background:#f9fafb;border:1px solid #e5e7eb;padding:0.5rem 0.75rem;text-align:left;font-size:0.85rem;text-transform:uppercase;color:#6b7280;}'
-          + '.view-table td{border:1px solid #e5e7eb;padding:0.5rem 0.75rem;font-size:0.9rem;}'
-          + '.view-table tr:hover{background:#f9fafb;}'
-          + '.view-list{list-style:none;padding:0;}'
-          + '.view-list li{padding:0.5rem 0;border-bottom:1px solid #e5e7eb;}'
-          + '.view-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(250px,1fr));gap:1rem;}'
-          + '.view-grid-item{background:#f9fafb;border:1px solid #e5e7eb;border-radius:8px;padding:1rem;}'
-          + '.view-pager{margin-top:1rem;display:flex;align-items:center;gap:1rem;font-size:0.9rem;}'
-          + '.view-pager a{color:#2563eb;text-decoration:none;}'
-          + '.view-meta{font-size:0.85rem;color:#6b7280;margin-bottom:1rem;}'
-          + '</style></head><body>'
-          + '<h1>' + (view.name || 'View') + '</h1>'
-          + exposedFilterHtml
-          + '<div class="view-meta">' + items.length + ' of ' + (results.total || 0) + ' items</div>'
-          + contentHtml
-          + pagerHtml
-          + '</body></html>';
-
-        server.html(res, pageHtml);
-      }, 'View page display: ' + route.viewId + ' at ' + route.path);
-    }
-  })();
-
-  // ==========================================
   // Block Management
   // ==========================================
 
@@ -15561,13 +12345,10 @@ export function hook_routes(register, context) {
    * GET /admin/structure/types - List content types
    */
   register('GET', '/admin/structure/types', async (req, res, params, ctx) => {
-    const types = content.listTypes().map(t => ({
-      ...t,
-      fieldCount: Object.keys(t.schema || {}).length,
-    }));
+    const types = content.listTypes();
     const flash = getFlashMessage(req.url);
 
-    const html = renderAdmin('content-types-list.html', {
+    const html = renderAdmin('content-type-list.html', {
       pageTitle: 'Content Types',
       types,
       hasTypes: types.length > 0,
@@ -15582,7 +12363,7 @@ export function hook_routes(register, context) {
    * GET /admin/structure/types/new - Create content type form
    */
   register('GET', '/admin/structure/types/new', async (req, res, params, ctx) => {
-    const html = renderAdmin('content-types-edit.html', {
+    const html = renderAdmin('content-type-form.html', {
       pageTitle: 'Create Content Type',
       isNew: true,
     }, ctx, req);
@@ -15619,7 +12400,7 @@ export function hook_routes(register, context) {
     }
 
     const schema = content.getSchema(type);
-    const html = renderAdmin('content-types-edit.html', {
+    const html = renderAdmin('content-type-form.html', {
       pageTitle: `Edit Content Type: ${type}`,
       type,
       schemaJson: JSON.stringify(schema, null, 2),
@@ -15676,7 +12457,7 @@ export function hook_routes(register, context) {
 
     const flash = getFlashMessage(req.url);
 
-    const html = renderAdmin('content-types-fields.html', {
+    const html = renderAdmin('content-type-fields.html', {
       pageTitle: `Manage Fields: ${type}`,
       type,
       fields,
@@ -15728,7 +12509,7 @@ export function hook_routes(register, context) {
       return;
     }
 
-    const html = renderAdmin('content-types-field-edit.html', {
+    const html = renderAdmin('content-type-field-form.html', {
       pageTitle: `Edit Field: ${field}`,
       type,
       field,
@@ -15820,17 +12601,17 @@ export function hook_routes(register, context) {
    * GET /admin/config/actions - List actions
    */
   register('GET', '/admin/config/actions', async (req, res, params, ctx) => {
-    const actionsService = ctx.services.get('actions');
-    if (!actionsService) {
+    const actionService = ctx.services.get('action');
+    if (!actionService) {
       res.writeHead(404, { 'Content-Type': 'text/plain' });
-      res.end('Actions service not available');
+      res.end('Action service not available');
       return;
     }
 
-    const actions = actionsService.getActions ? actionsService.getActions() : [];
+    const actions = actionService.listActions();
     const flash = getFlashMessage(req.url);
 
-    const html = renderAdmin('actions-list.html', {
+    const html = renderAdmin('action-list.html', {
       pageTitle: 'Actions',
       actions,
       hasActions: actions && actions.length > 0,
@@ -15845,17 +12626,17 @@ export function hook_routes(register, context) {
    * GET /admin/config/rules - List rules
    */
   register('GET', '/admin/config/rules', async (req, res, params, ctx) => {
-    const actionsService = ctx.services.get('actions');
-    if (!actionsService) {
+    const ruleService = ctx.services.get('rule');
+    if (!ruleService) {
       res.writeHead(404, { 'Content-Type': 'text/plain' });
-      res.end('Actions service not available');
+      res.end('Rule service not available');
       return;
     }
 
-    const rules = actionsService.getRules ? actionsService.getRules() : [];
+    const rules = ruleService.listRules();
     const flash = getFlashMessage(req.url);
 
-    const html = renderAdmin('rules-list.html', {
+    const html = renderAdmin('rule-list.html', {
       pageTitle: 'Rules',
       rules,
       hasRules: rules && rules.length > 0,
@@ -15882,7 +12663,7 @@ export function hook_routes(register, context) {
    * POST /admin/config/rules - Create rule
    */
   register('POST', '/admin/config/rules', async (req, res, params, ctx) => {
-    const ruleService = ctx.services.get('actions');
+    const ruleService = ctx.services.get('rule');
     if (!ruleService) {
       res.writeHead(404, { 'Content-Type': 'text/plain' });
       res.end('Rule service not available');
@@ -15911,7 +12692,7 @@ export function hook_routes(register, context) {
    */
   register('GET', '/admin/config/rules/:id', async (req, res, params, ctx) => {
     const { id } = params;
-    const ruleService = ctx.services.get('actions');
+    const ruleService = ctx.services.get('rule');
     if (!ruleService) {
       res.writeHead(404, { 'Content-Type': 'text/plain' });
       res.end('Rule service not available');
@@ -15939,7 +12720,7 @@ export function hook_routes(register, context) {
    */
   register('POST', '/admin/config/rules/:id', async (req, res, params, ctx) => {
     const { id } = params;
-    const ruleService = ctx.services.get('actions');
+    const ruleService = ctx.services.get('rule');
     if (!ruleService) {
       res.writeHead(404, { 'Content-Type': 'text/plain' });
       res.end('Rule service not available');
@@ -15967,7 +12748,7 @@ export function hook_routes(register, context) {
    */
   register('POST', '/admin/config/rules/:id/delete', async (req, res, params, ctx) => {
     const { id } = params;
-    const ruleService = ctx.services.get('actions');
+    const ruleService = ctx.services.get('rule');
     if (!ruleService) {
       res.writeHead(404, { 'Content-Type': 'text/plain' });
       res.end('Rule service not available');
@@ -16131,27 +12912,15 @@ export function hook_routes(register, context) {
    * GET /admin/appearance - List themes
    */
   register('GET', '/admin/appearance', async (req, res, params, ctx) => {
-    const themeEngine = ctx.services.get('themeEngine');
-    if (!themeEngine) {
+    const themeService = ctx.services.get('theme');
+    if (!themeService) {
       res.writeHead(404, { 'Content-Type': 'text/plain' });
-      res.end('Theme engine not available');
+      res.end('Theme service not available');
       return;
     }
 
-    // Get layouts and skins from theme engine
-    const layouts = themeEngine.listLayouts ? themeEngine.listLayouts() : [];
-    const skins = themeEngine.listSkins ? themeEngine.listSkins() : [];
-    const activeTheme = themeEngine.getActiveTheme ? themeEngine.getActiveTheme() : {};
-
-    // Combine layouts and skins into theme entries for display
-    const themes = layouts.map(layout => ({
-      name: layout.id || layout.name,
-      description: layout.description || '',
-      version: layout.version,
-      isActive: activeTheme.layout === (layout.id || layout.name),
-      skins: skins.filter(s => !s.layoutId || s.layoutId === layout.id),
-    }));
-
+    const themes = themeService.listThemes ? themeService.listThemes() : [];
+    const activeTheme = ctx.config.site.theme || 'default';
     const flash = getFlashMessage(req.url);
 
     const html = renderAdmin('theme-list.html', {
@@ -16159,8 +12928,6 @@ export function hook_routes(register, context) {
       themes,
       hasThemes: themes.length > 0,
       activeTheme,
-      layouts,
-      skins,
       flash,
       hasFlash: !!flash,
     }, ctx, req);
@@ -16173,7 +12940,7 @@ export function hook_routes(register, context) {
    */
   register('GET', '/admin/appearance/:theme/settings', async (req, res, params, ctx) => {
     const { theme } = params;
-    const themeService = ctx.services.get('themeEngine');
+    const themeService = ctx.services.get('theme');
     if (!themeService) {
       res.writeHead(404, { 'Content-Type': 'text/plain' });
       res.end('Theme service not available');
@@ -16200,7 +12967,7 @@ export function hook_routes(register, context) {
    */
   register('POST', '/admin/appearance/:theme/settings', async (req, res, params, ctx) => {
     const { theme } = params;
-    const themeService = ctx.services.get('themeEngine');
+    const themeService = ctx.services.get('theme');
     if (!themeService) {
       res.writeHead(404, { 'Content-Type': 'text/plain' });
       res.end('Theme service not available');
@@ -16226,7 +12993,7 @@ export function hook_routes(register, context) {
    */
   register('POST', '/admin/appearance/:theme/activate', async (req, res, params, ctx) => {
     const { theme } = params;
-    const themeService = ctx.services.get('themeEngine');
+    const themeService = ctx.services.get('theme');
     if (!themeService) {
       res.writeHead(404, { 'Content-Type': 'text/plain' });
       res.end('Theme service not available');
@@ -16244,160 +13011,6 @@ export function hook_routes(register, context) {
       redirect(res, '/admin/appearance?error=' + encodeURIComponent(error.message));
     }
   }, 'Activate theme');
-
-  // ==========================================
-  // Theme Engine (Layouts + Skins)
-  // ==========================================
-
-  /**
-   * GET /admin/appearance/layouts - Layout + Skin manager
-   */
-  register('GET', '/admin/appearance/layouts', async (req, res, params, ctx) => {
-    const engine = ctx.services.get('themeEngine');
-    if (!engine) {
-      res.writeHead(404, { 'Content-Type': 'text/plain' });
-      res.end('Theme engine not available');
-      return;
-    }
-
-    const layouts = engine.listLayouts();
-    const skins = engine.listSkins();
-    const adminSkins = engine.listAdminSkins();
-    const activeTheme = engine.getActiveTheme();
-    const activeAdminSkin = engine.getActiveAdminSkin();
-    const flash = getFlashMessage(req.url);
-
-    const html = renderAdmin('theme-engine.html', {
-      pageTitle: 'Layouts & Skins',
-      layouts,
-      skins,
-      adminSkins,
-      activeLayout: activeTheme.layout?.id,
-      activeSkin: activeTheme.skin?.id,
-      activeAdminSkin: activeAdminSkin?.id,
-      hasLayouts: layouts.length > 0,
-      hasSkins: skins.length > 0,
-      hasAdminSkins: adminSkins.length > 0,
-      flash,
-      hasFlash: !!flash,
-    }, ctx, req);
-
-    server.html(res, html);
-  }, 'Layout and skin manager');
-
-  /**
-   * POST /admin/appearance/layouts - Set layout + skin
-   */
-  register('POST', '/admin/appearance/layouts', async (req, res, params, ctx) => {
-    const engine = ctx.services.get('themeEngine');
-    if (!engine) {
-      res.writeHead(404, { 'Content-Type': 'text/plain' });
-      res.end('Theme engine not available');
-      return;
-    }
-
-    try {
-      const formData = ctx._parsedBody || await parseFormBody(req);
-      const { layout, skin, adminSkin } = formData;
-
-      if (layout && skin) {
-        engine.setActiveTheme(layout, skin, true); // persist to site.json
-      }
-      if (adminSkin) {
-        engine.setAdminSkin(adminSkin, true); // persist to site.json
-      }
-
-      redirect(res, '/admin/appearance/layouts?success=' + encodeURIComponent('Theme updated and saved'));
-    } catch (error) {
-      redirect(res, '/admin/appearance/layouts?error=' + encodeURIComponent(error.message));
-    }
-  }, 'Update layout and skin');
-
-  /**
-   * GET /admin/appearance/layouts/preview/:layout/:skin - Preview layout + skin
-   */
-  register('GET', '/admin/appearance/layouts/preview/:layout/:skin', async (req, res, params, ctx) => {
-    const engine = ctx.services.get('themeEngine');
-    if (!engine) {
-      res.writeHead(404, { 'Content-Type': 'text/plain' });
-      res.end('Theme engine not available');
-      return;
-    }
-
-    const { layout, skin } = params;
-    const layoutData = engine.getLayout(layout);
-    const skinData = engine.getSkin(skin);
-
-    if (!layoutData || !skinData) {
-      redirect(res, '/admin/appearance/layouts?error=' + encodeURIComponent('Layout or skin not found'));
-      return;
-    }
-
-    const cssPaths = engine.getSkinCSSPaths(skin);
-
-    // Simple preview page
-    const html = `<!DOCTYPE html>
-<html>
-<head>
-  <meta charset="utf-8">
-  <title>Preview: ${layoutData.name} + ${skinData.name}</title>
-  ${cssPaths.map(p => `<link rel="stylesheet" href="${p}">`).join('\n  ')}
-  <style>
-    body { margin: 0; padding: 2rem; }
-    .preview-header { 
-      padding: 1rem; 
-      background: var(--color-surface, #f0f0f0); 
-      border-radius: var(--radius-md, 8px);
-      margin-bottom: 1rem;
-    }
-    .preview-content {
-      padding: 2rem;
-      background: var(--color-bg, #fff);
-      border: 1px solid var(--color-border, #ddd);
-      border-radius: var(--radius-md, 8px);
-    }
-    h1 { color: var(--color-primary, #333); }
-    p { color: var(--color-text, #666); }
-    .preview-actions {
-      margin-top: 2rem;
-      padding-top: 1rem;
-      border-top: 1px solid var(--color-border, #ddd);
-    }
-    .preview-actions a {
-      display: inline-block;
-      padding: 0.5rem 1rem;
-      background: var(--color-primary, #007bff);
-      color: white;
-      text-decoration: none;
-      border-radius: var(--radius-sm, 4px);
-      margin-right: 0.5rem;
-    }
-  </style>
-</head>
-<body>
-  <div class="preview-header">
-    <strong>Layout:</strong> ${layoutData.name} | 
-    <strong>Skin:</strong> ${skinData.name} |
-    <strong>Regions:</strong> ${layoutData.regions.join(', ')}
-  </div>
-  <div class="preview-content">
-    <h1>Sample Heading</h1>
-    <p>This is a preview of the <strong>${skinData.name}</strong> skin applied to the <strong>${layoutData.name}</strong> layout.</p>
-    <p>The CSS variables from this skin are being applied to style this preview.</p>
-    <div class="preview-actions">
-      <a href="/admin/appearance/layouts">← Back to Layouts</a>
-      <a href="/admin/appearance/layouts" onclick="document.getElementById('apply-form').submit(); return false;">Apply This Theme</a>
-      <form id="apply-form" method="POST" action="/admin/appearance/layouts" style="display:none;">
-        <input type="hidden" name="layout" value="${layout}">
-        <input type="hidden" name="skin" value="${skin}">
-      </form>
-    </div>
-  </div>
-</body>
-</html>`;
-
-    server.html(res, html);
-  }, 'Preview layout + skin');
 
   // ==========================================
   // Batch Operations
@@ -16533,26 +13146,15 @@ export function hook_routes(register, context) {
     const stats = layoutBuilder.getStats();
     const contentTypes = content.listTypes().map(t => t.type);
 
-    // Pre-render layouts HTML since nested iteration is complex for template engine
-    // WHY: Template engine supports {{#each}} but nested each with object-to-array
-    // conversion for regions is fragile. Pre-rendering guarantees correct output.
-    let layoutsHtml = '';
-    for (const cat of categories) {
-      const catLayouts = layouts.filter(l => l.category === cat);
-      layoutsHtml += `<div class="category-section"><h3>${cat}</h3><div class="layout-grid">`;
-      for (const l of catLayouts) {
-        const regionSpans = Object.entries(l.regions)
-          .map(([id, r]) => `<span>${r.label || id}</span>`)
-          .join(' ');
-        layoutsHtml += `<div class="layout-card">
-          <h4>${l.label}</h4>
-          <p>${l.description || ''}</p>
-          <p><strong>ID:</strong> <code>${l.id}</code></p>
-          <div class="layout-regions"><strong>Regions:</strong> ${regionSpans}</div>
-        </div>`;
-      }
-      layoutsHtml += '</div></div>';
-    }
+    // Group layouts by category
+    const layoutsByCategory = categories.map(cat => ({
+      category: cat,
+      layouts: layouts.filter(l => l.category === cat).map(l => ({
+        ...l,
+        regionCount: Object.keys(l.regions).length,
+        regionsList: Object.keys(l.regions).join(', '),
+      })),
+    }));
 
     // Get default layout info for each content type
     const defaultLayoutInfo = defaultLayoutTypes.map(type => {
@@ -16565,19 +13167,15 @@ export function hook_routes(register, context) {
       };
     });
 
-    // Convert content types to objects for {{#each}} template iteration
-    const contentTypeOptions = contentTypes.map(t => ({ value: t, label: t }));
-
     const flash = getFlashMessage(req.url);
 
     const html = renderAdmin('layout-builder.html', {
       pageTitle: 'Layout Builder',
-      layoutsHtml,
+      layoutsByCategory,
       hasLayouts: layouts.length > 0,
       defaultLayoutInfo,
       hasDefaults: defaultLayoutInfo.length > 0,
-      noDefaults: defaultLayoutInfo.length === 0,
-      contentTypeOptions,
+      contentTypes,
       stats,
       flash,
       hasFlash: !!flash,
@@ -16602,162 +13200,54 @@ export function hook_routes(register, context) {
     const storage = layoutBuilder.getDefaultLayout(type) || { sections: [] };
     const layouts = layoutBuilder.listLayouts();
     const blocks = blocksService ? blocksService.listBlocks({ enabled: true }).items : [];
-    const csrfToken = req ? (ctx.services.get('auth')?.getCSRFToken(req) || '') : '';
 
-    // Pre-render sections HTML
-    // WHY: Template engine doesn't support deeply nested Mustache-style sections.
-    // Pre-rendering in the handler guarantees correct output for sections → regions → components.
-    let sectionsHtml = '';
-    const sectionsList = storage.sections || [];
-    if (sectionsList.length === 0) {
-      sectionsHtml = '<div class="empty-section"><p>No sections yet.</p><p>Add a section from the sidebar to start building your layout.</p></div>';
-    } else {
-      for (let i = 0; i < sectionsList.length; i++) {
-        const section = sectionsList[i];
-        const layoutDef = layoutBuilder.getLayout(section.layoutId);
-        const layoutLabel = layoutDef?.label || section.layoutId;
-        const uuidShort = section.uuid.substring(0, 8);
+    // Enrich sections with layout info
+    const sections = (storage.sections || []).map((section, index) => {
+      const layoutDef = layoutBuilder.getLayout(section.layoutId);
+      const regions = Object.entries(layoutDef?.regions || {}).map(([regionId, region]) => {
+        const components = (section.components[regionId] || []).map(comp => ({
+          ...comp,
+          uuidShort: comp.uuid.substring(0, 8),
+          typeLabel: comp.type === 'block' ? `Block: ${comp.blockId}` :
+            comp.type === 'inline_block' ? `Inline: ${comp.blockType}` :
+            comp.type === 'field' ? `Field: ${comp.fieldName}` : comp.type,
+        }));
+        return {
+          id: regionId,
+          label: region.label,
+          components,
+          hasComponents: components.length > 0,
+        };
+      });
 
-        // Section action buttons (move up/down, remove)
-        let actionBtns = '';
-        if (i > 0) {
-          actionBtns += `<form action="/admin/layout/defaults/${type}/move-section" method="POST" class="inline-form">
-            <input type="hidden" name="sectionUuid" value="${section.uuid}">
-            <input type="hidden" name="direction" value="up">
-            <input type="hidden" name="_csrf" value="${csrfToken}">
-            <input type="submit" value="↑" title="Move up">
-          </form>`;
-        }
-        if (i < sectionsList.length - 1) {
-          actionBtns += `<form action="/admin/layout/defaults/${type}/move-section" method="POST" class="inline-form">
-            <input type="hidden" name="sectionUuid" value="${section.uuid}">
-            <input type="hidden" name="direction" value="down">
-            <input type="hidden" name="_csrf" value="${csrfToken}">
-            <input type="submit" value="↓" title="Move down">
-          </form>`;
-        }
-        actionBtns += `<form action="/admin/layout/defaults/${type}/remove-section" method="POST" class="inline-form" onsubmit="return confirm('Remove this section?')">
-          <input type="hidden" name="sectionUuid" value="${section.uuid}">
-          <input type="hidden" name="_csrf" value="${csrfToken}">
-          <input type="submit" value="×" title="Remove section">
-        </form>`;
-
-        // Regions with components
-        let regionsHtml = '';
-        for (const [regionId, region] of Object.entries(layoutDef?.regions || {})) {
-          const components = section.components[regionId] || [];
-          let componentsHtml = '';
-          if (components.length > 0) {
-            for (const comp of components) {
-              const typeLabel = comp.type === 'block' ? `Block: ${comp.blockId}` :
-                comp.type === 'inline_block' ? `Inline: ${comp.blockType}` :
-                comp.type === 'field' ? `Field: ${comp.fieldName}` : comp.type;
-              const configStr = comp.configuration && Object.keys(comp.configuration).length > 0
-                ? ` <span style="color:#999;font-size:0.8em">[configured]</span>` : '';
-              componentsHtml += `<div class="component-item">
-                <div class="component-info">
-                  <span class="component-type">${typeLabel}</span>${configStr}
-                  <span class="component-uuid">(${comp.uuid.substring(0, 8)}...)</span>
-                </div>
-                <div class="component-actions">
-                  <form action="/admin/layout/defaults/${type}/remove-component" method="POST" class="inline-form" onsubmit="return confirm('Remove this component?')">
-                    <input type="hidden" name="sectionUuid" value="${section.uuid}">
-                    <input type="hidden" name="componentUuid" value="${comp.uuid}">
-                    <input type="hidden" name="_csrf" value="${csrfToken}">
-                    <button type="submit">×</button>
-                  </form>
-                </div>
-              </div>`;
-            }
-          } else {
-            componentsHtml = '<p style="color: #999; font-size: 0.9em; text-align: center;">Drop blocks here</p>';
-          }
-
-          // Add block form for this region
-          let addBlockForm = '';
-          if (blocks.length > 0) {
-            const blockOptions = blocks.map(b =>
-              `<option value="${b.id}">${b.adminTitle || b.title || b.id}</option>`
-            ).join('');
-            addBlockForm = `<form action="/admin/layout/defaults/${type}/add-block" method="POST" style="margin-top: 10px;">
-              <input type="hidden" name="sectionUuid" value="${section.uuid}">
-              <input type="hidden" name="regionId" value="${regionId}">
-              <input type="hidden" name="_csrf" value="${csrfToken}">
-              <select name="blockId" style="width: 70%; padding: 4px; font-size: 0.85em;">
-                <option value="">Add block...</option>
-                ${blockOptions}
-              </select>
-              <button type="submit" class="btn btn-small" style="padding: 4px 8px;">+</button>
-            </form>`;
-          }
-
-          regionsHtml += `<div class="region-container">
-            <div class="region-header">${region.label || regionId}</div>
-            <div class="region-content">
-              ${componentsHtml}
-              ${addBlockForm}
-            </div>
-          </div>`;
-        }
-
-        sectionsHtml += `<div class="section-card">
-          <div class="section-header">
-            <h3>${layoutLabel}</h3>
-            <div class="section-actions">${actionBtns}</div>
-          </div>
-          <div class="section-body">
-            <small class="component-uuid">UUID: ${uuidShort}...</small>
-            <div class="section-regions">${regionsHtml}</div>
-          </div>
-        </div>`;
-      }
-    }
-
-    // Pre-render sidebar HTML
-    const layoutOptions = layouts.map(l =>
-      `<option value="${l.id}">${l.label} (${Object.keys(l.regions).join(', ')})</option>`
-    ).join('');
-
-    let blocksListHtml = '';
-    if (blocks.length > 0) {
-      const blockItems = blocks.map(b =>
-        `<li><strong>${b.adminTitle || b.title || b.id}</strong> <span style="color: #999;">(${b.type})</span></li>`
-      ).join('');
-      blocksListHtml = `<ul style="font-size: 0.9em; padding-left: 20px;">${blockItems}</ul>
-        <p style="font-size: 0.85em; color: #666;"><a href="/admin/blocks">Manage Blocks →</a></p>`;
-    } else {
-      blocksListHtml = '<p style="color: #999; font-size: 0.9em;">No blocks available. <a href="/admin/blocks/add">Create a block</a> first.</p>';
-    }
-
-    const sidebarHtml = `<h3>Add Section</h3>
-      <form action="/admin/layout/defaults/${type}/add-section" method="POST" class="add-form">
-        <input type="hidden" name="_csrf" value="${csrfToken}">
-        <label for="layoutId">Layout Template:</label>
-        <select name="layoutId" id="layoutId" required>
-          <option value="">Select layout...</option>
-          ${layoutOptions}
-        </select>
-        <button type="submit" class="btn btn-primary">Add Section</button>
-      </form>
-      <hr style="margin: 20px 0;">
-      <h3>Available Blocks</h3>
-      ${blocksListHtml}
-      <div class="danger-zone">
-        <h4>Danger Zone</h4>
-        <p style="font-size: 0.85em;">Clear all sections from this layout:</p>
-        <form action="/admin/layout/defaults/${type}/clear" method="POST" onsubmit="return confirm('Are you sure you want to clear all sections? This cannot be undone.')">
-          <input type="hidden" name="_csrf" value="${csrfToken}">
-          <button type="submit" class="btn btn-danger">Clear All Sections</button>
-        </form>
-      </div>`;
+      return {
+        ...section,
+        uuidShort: section.uuid.substring(0, 8),
+        layoutLabel: layoutDef?.label || section.layoutId,
+        regions,
+        index,
+        isFirst: index === 0,
+        isLast: index === storage.sections.length - 1,
+      };
+    });
 
     const flash = getFlashMessage(req.url);
 
     const html = renderAdmin('layout-builder-edit.html', {
       pageTitle: `Layout: ${type}`,
       contentType: type,
-      sectionsHtml,
-      sidebarHtml,
+      sections,
+      hasSections: sections.length > 0,
+      layouts: layouts.map(l => ({
+        ...l,
+        regionsList: Object.keys(l.regions).join(', '),
+      })),
+      blocks: blocks.map(b => ({
+        id: b.id,
+        adminTitle: b.adminTitle || b.title || b.id,
+        type: b.type,
+      })),
+      hasBlocks: blocks.length > 0,
       lastUpdated: storage.updated ? formatDate(storage.updated) : 'Never',
       flash,
       hasFlash: !!flash,
@@ -17014,634 +13504,6 @@ export function hook_routes(register, context) {
   }, 'Preview rendered layout');
 
   // ========================================
-  // LAYOUT BUILDER REST API ROUTES
-  // ========================================
-
-  /**
-   * GET /api/layout/:type/sections - Get default layout sections for a content type
-   *
-   * WHY REST API: Enables headless/decoupled usage of layout data.
-   * Returns sections with regions and components in JSON format.
-   */
-  register('GET', '/api/layout/:type/sections', async (req, res, params, ctx) => {
-    const { type } = params;
-    const layoutBuilder = ctx.services.get('layoutBuilder');
-
-    if (!layoutBuilder) {
-      server.json(res, { error: 'Layout Builder not enabled' }, 503);
-      return;
-    }
-
-    const storage = layoutBuilder.getDefaultLayout(type);
-    if (!storage) {
-      server.json(res, { error: `No default layout for content type: ${type}` }, 404);
-      return;
-    }
-
-    // Enrich sections with layout definition info
-    const sections = (storage.sections || []).map(section => {
-      const layoutDef = layoutBuilder.getLayout(section.layoutId);
-      return {
-        uuid: section.uuid,
-        layoutId: section.layoutId,
-        layoutLabel: layoutDef?.label || section.layoutId,
-        layoutCategory: layoutDef?.category || 'Unknown',
-        settings: section.settings,
-        weight: section.weight,
-        regions: Object.entries(layoutDef?.regions || {}).map(([regionId, region]) => ({
-          id: regionId,
-          label: region.label,
-          weight: region.weight || 0,
-          components: (section.components[regionId] || []).map(comp => ({
-            uuid: comp.uuid,
-            type: comp.type,
-            blockId: comp.blockId || null,
-            blockType: comp.blockType || null,
-            fieldName: comp.fieldName || null,
-            configuration: comp.configuration || {},
-            weight: comp.weight,
-          })),
-        })),
-      };
-    });
-
-    server.json(res, {
-      contentType: type,
-      sections,
-      sectionCount: sections.length,
-      updated: storage.updated || null,
-    });
-  }, 'Get layout sections for content type');
-
-  /**
-   * GET /api/layout/:type/:id/sections - Get effective layout for a specific content item
-   *
-   * WHY: Returns per-content override if exists, otherwise falls back to default.
-   * This is what a front-end would call to render a specific content item's layout.
-   */
-  register('GET', '/api/layout/:type/:id/sections', async (req, res, params, ctx) => {
-    const { type, id } = params;
-    const layoutBuilder = ctx.services.get('layoutBuilder');
-
-    if (!layoutBuilder) {
-      server.json(res, { error: 'Layout Builder not enabled' }, 503);
-      return;
-    }
-
-    // Get effective layout (per-content override or default)
-    const layout = layoutBuilder.getEffectiveLayout(type, id);
-
-    if (!layout) {
-      server.json(res, { error: `No layout found for ${type}/${id}` }, 404);
-      return;
-    }
-
-    // Determine if this is an override or default
-    const hasOverride = layoutBuilder.hasContentLayoutOverride(type, id);
-
-    // Enrich sections with layout definition info
-    const sections = (layout.sections || []).map(section => {
-      const layoutDef = layoutBuilder.getLayout(section.layoutId);
-      return {
-        uuid: section.uuid,
-        layoutId: section.layoutId,
-        layoutLabel: layoutDef?.label || section.layoutId,
-        layoutCategory: layoutDef?.category || 'Unknown',
-        settings: section.settings,
-        weight: section.weight,
-        regions: Object.entries(layoutDef?.regions || {}).map(([regionId, region]) => ({
-          id: regionId,
-          label: region.label,
-          weight: region.weight || 0,
-          components: (section.components[regionId] || []).map(comp => ({
-            uuid: comp.uuid,
-            type: comp.type,
-            blockId: comp.blockId || null,
-            blockType: comp.blockType || null,
-            fieldName: comp.fieldName || null,
-            configuration: comp.configuration || {},
-            weight: comp.weight,
-          })),
-        })),
-      };
-    });
-
-    server.json(res, {
-      contentType: type,
-      contentId: id,
-      isOverride: hasOverride,
-      sections,
-      sectionCount: sections.length,
-      updated: layout.updated || null,
-    });
-  }, 'Get effective layout sections for content item');
-
-  /**
-   * GET /api/layout/definitions - List all layout definitions
-   *
-   * WHY: Enables front-ends to know what layout options are available.
-   */
-  register('GET', '/api/layout/definitions', async (req, res, params, ctx) => {
-    const layoutBuilder = ctx.services.get('layoutBuilder');
-
-    if (!layoutBuilder) {
-      server.json(res, { error: 'Layout Builder not enabled' }, 503);
-      return;
-    }
-
-    const layouts = layoutBuilder.listLayouts();
-    const definitions = layouts.map(l => ({
-      id: l.id,
-      label: l.label,
-      description: l.description,
-      category: l.category,
-      icon: l.icon,
-      regions: Object.entries(l.regions).map(([id, r]) => ({
-        id,
-        label: r.label,
-        weight: r.weight || 0,
-      })),
-    }));
-
-    server.json(res, {
-      definitions,
-      count: definitions.length,
-      categories: layoutBuilder.listCategories(),
-    });
-  }, 'List layout definitions');
-
-  /**
-   * PUT /api/layout/:type/:id/sections - Set per-content layout override
-   *
-   * WHY: Enables creating custom layouts for individual content items.
-   * Body should contain: { sections: [...] }
-   */
-  register('PUT', '/api/layout/:type/:id/sections', async (req, res, params, ctx) => {
-    const { type, id } = params;
-    const layoutBuilder = ctx.services.get('layoutBuilder');
-
-    if (!layoutBuilder) {
-      server.json(res, { error: 'Layout Builder not enabled' }, 503);
-      return;
-    }
-
-    try {
-      const body = await parseJsonBody(req);
-      const { sections } = body;
-
-      if (!sections || !Array.isArray(sections)) {
-        server.json(res, { error: 'sections array is required' }, 400);
-        return;
-      }
-
-      await layoutBuilder.setContentLayout(type, id, { sections });
-
-      server.json(res, {
-        success: true,
-        contentType: type,
-        contentId: id,
-        sectionCount: sections.length,
-      });
-    } catch (error) {
-      server.json(res, { error: error.message }, 400);
-    }
-  }, 'Set per-content layout override');
-
-  /**
-   * DELETE /api/layout/:type/:id/sections - Remove per-content layout override
-   *
-   * WHY: Allows reverting to content type default layout.
-   */
-  register('DELETE', '/api/layout/:type/:id/sections', async (req, res, params, ctx) => {
-    const { type, id } = params;
-    const layoutBuilder = ctx.services.get('layoutBuilder');
-
-    if (!layoutBuilder) {
-      server.json(res, { error: 'Layout Builder not enabled' }, 503);
-      return;
-    }
-
-    try {
-      await layoutBuilder.removeContentLayout(type, id);
-
-      server.json(res, {
-        success: true,
-        contentType: type,
-        contentId: id,
-        reverted: true,
-      });
-    } catch (error) {
-      server.json(res, { error: error.message }, 400);
-    }
-  }, 'Remove per-content layout override');
-
-  // ========================================
-  // PER-CONTENT LAYOUT OVERRIDE ADMIN ROUTES
-  // ========================================
-
-  /**
-   * GET /admin/content/:type/:id/layout - Manage layout for specific content item
-   *
-   * WHY: Provides UI for creating custom layouts for individual content items.
-   * Shows current effective layout (override or default) with edit capabilities.
-   */
-  register('GET', '/admin/content/:type/:id/layout', async (req, res, params, ctx) => {
-    const { type, id } = params;
-    const layoutBuilder = ctx.services.get('layoutBuilder');
-    const blocksService = ctx.services.get('blocks');
-    const contentService = ctx.services.get('content');
-
-    if (!layoutBuilder) {
-      redirect(res, '/admin?error=' + encodeURIComponent('Layout Builder not enabled'));
-      return;
-    }
-
-    // Get content item for title display
-    const item = contentService ? contentService.read(type, id) : null;
-    if (!item) {
-      redirect(res, `/admin/content/${type}?error=` + encodeURIComponent('Content not found'));
-      return;
-    }
-    const itemTitle = item.title || item.name || id;
-
-    // Get effective layout (per-content override or default)
-    const storage = layoutBuilder.getEffectiveLayout(type, id) || { sections: [] };
-    const hasOverride = layoutBuilder.hasContentLayoutOverride(type, id);
-    const layouts = layoutBuilder.listLayouts();
-    const blocks = blocksService ? blocksService.listBlocks({ enabled: true }).items : [];
-    const csrfToken = req ? (ctx.services.get('auth')?.getCSRFToken(req) || '') : '';
-
-    // Pre-render sections HTML (same pattern as default layout edit)
-    // WHY: Template engine doesn't support deeply nested Mustache-style sections.
-    let sectionsHtml = '';
-    const sectionsList = storage.sections || [];
-    if (sectionsList.length === 0) {
-      sectionsHtml = '<div class="empty-section"><p>No sections yet.</p><p>Add a section from the sidebar to start building your layout.</p></div>';
-    } else {
-      for (let i = 0; i < sectionsList.length; i++) {
-        const section = sectionsList[i];
-        const layoutDef = layoutBuilder.getLayout(section.layoutId);
-        const layoutLabel = layoutDef?.label || section.layoutId;
-        const uuidShort = section.uuid.substring(0, 8);
-
-        // Section action buttons (move up/down, remove)
-        let actionBtns = '';
-        if (i > 0) {
-          actionBtns += `<form action="/admin/content/${type}/${id}/layout/move-section" method="POST" class="inline-form">
-            <input type="hidden" name="sectionUuid" value="${section.uuid}">
-            <input type="hidden" name="direction" value="up">
-            <input type="hidden" name="_csrf" value="${csrfToken}">
-            <input type="submit" value="↑" title="Move up">
-          </form>`;
-        }
-        if (i < sectionsList.length - 1) {
-          actionBtns += `<form action="/admin/content/${type}/${id}/layout/move-section" method="POST" class="inline-form">
-            <input type="hidden" name="sectionUuid" value="${section.uuid}">
-            <input type="hidden" name="direction" value="down">
-            <input type="hidden" name="_csrf" value="${csrfToken}">
-            <input type="submit" value="↓" title="Move down">
-          </form>`;
-        }
-        actionBtns += `<form action="/admin/content/${type}/${id}/layout/remove-section" method="POST" class="inline-form" onsubmit="return confirm('Remove this section?')">
-          <input type="hidden" name="sectionUuid" value="${section.uuid}">
-          <input type="hidden" name="_csrf" value="${csrfToken}">
-          <input type="submit" value="×" title="Remove section">
-        </form>`;
-
-        // Regions with components
-        let regionsHtml = '';
-        for (const [regionId, region] of Object.entries(layoutDef?.regions || {})) {
-          const components = section.components[regionId] || [];
-          let componentsHtml = '';
-          if (components.length > 0) {
-            for (const comp of components) {
-              const typeLabel = comp.type === 'block' ? `Block: ${comp.blockId}` :
-                comp.type === 'inline_block' ? `Inline: ${comp.blockType}` :
-                comp.type === 'field' ? `Field: ${comp.fieldName}` : comp.type;
-              const configStr = comp.configuration && Object.keys(comp.configuration).length > 0
-                ? ` <span style="color:#999;font-size:0.8em">[configured]</span>` : '';
-              componentsHtml += `<div class="component-item">
-                <div class="component-info">
-                  <span class="component-type">${typeLabel}</span>${configStr}
-                  <span class="component-uuid">(${comp.uuid.substring(0, 8)}...)</span>
-                </div>
-                <div class="component-actions">
-                  <form action="/admin/content/${type}/${id}/layout/remove-component" method="POST" class="inline-form" onsubmit="return confirm('Remove this component?')">
-                    <input type="hidden" name="sectionUuid" value="${section.uuid}">
-                    <input type="hidden" name="componentUuid" value="${comp.uuid}">
-                    <input type="hidden" name="_csrf" value="${csrfToken}">
-                    <button type="submit">×</button>
-                  </form>
-                </div>
-              </div>`;
-            }
-          } else {
-            componentsHtml = '<p style="color: #999; font-size: 0.9em; text-align: center;">Drop blocks here</p>';
-          }
-
-          // Add block form for this region
-          let addBlockForm = '';
-          if (blocks.length > 0) {
-            const blockOptions = blocks.map(b =>
-              `<option value="${b.id}">${b.adminTitle || b.title || b.id}</option>`
-            ).join('');
-            addBlockForm = `<form action="/admin/content/${type}/${id}/layout/add-block" method="POST" style="margin-top: 10px;">
-              <input type="hidden" name="sectionUuid" value="${section.uuid}">
-              <input type="hidden" name="regionId" value="${regionId}">
-              <input type="hidden" name="_csrf" value="${csrfToken}">
-              <select name="blockId" style="width: 70%; padding: 4px; font-size: 0.85em;">
-                <option value="">Add block...</option>
-                ${blockOptions}
-              </select>
-              <button type="submit" class="btn btn-small" style="padding: 4px 8px;">+</button>
-            </form>`;
-          }
-
-          regionsHtml += `<div class="region-container">
-            <div class="region-header">${region.label || regionId}</div>
-            <div class="region-content">
-              ${componentsHtml}
-              ${addBlockForm}
-            </div>
-          </div>`;
-        }
-
-        sectionsHtml += `<div class="section-card">
-          <div class="section-header">
-            <h3>${layoutLabel}</h3>
-            <div class="section-actions">${actionBtns}</div>
-          </div>
-          <div class="section-body">
-            <small class="component-uuid">UUID: ${uuidShort}...</small>
-            <div class="section-regions">${regionsHtml}</div>
-          </div>
-        </div>`;
-      }
-    }
-
-    // Pre-render sidebar HTML
-    const layoutOptions = layouts.map(l =>
-      `<option value="${l.id}">${l.label} (${Object.keys(l.regions).join(', ')})</option>`
-    ).join('');
-
-    let blocksListHtml = '';
-    if (blocks.length > 0) {
-      const blockItems = blocks.map(b =>
-        `<li><strong>${b.adminTitle || b.title || b.id}</strong> <span style="color: #999;">(${b.type})</span></li>`
-      ).join('');
-      blocksListHtml = `<ul style="font-size: 0.9em; padding-left: 20px;">${blockItems}</ul>
-        <p style="font-size: 0.85em; color: #666;"><a href="/admin/blocks">Manage Blocks →</a></p>`;
-    } else {
-      blocksListHtml = '<p style="color: #999; font-size: 0.9em;">No blocks available. <a href="/admin/blocks/add">Create a block</a> first.</p>';
-    }
-
-    const overrideStatusHtml = hasOverride
-      ? '<div class="info-banner" style="background: #e3f2fd; border-left: 4px solid #2196f3; padding: 12px; margin-bottom: 16px;">This content item has a custom layout override.</div>'
-      : '<div class="info-banner" style="background: #fff8e1; border-left: 4px solid #ff9800; padding: 12px; margin-bottom: 16px;">This content item uses the default layout for <strong>' + type + '</strong>. Changes will create an override.</div>';
-
-    let revertButtonHtml = '';
-    if (hasOverride) {
-      revertButtonHtml = `<form action="/admin/content/${type}/${id}/layout/revert" method="POST" onsubmit="return confirm('Revert to default layout? This will remove all custom sections.')">
-        <input type="hidden" name="_csrf" value="${csrfToken}">
-        <button type="submit" class="btn btn-danger">Revert to Default Layout</button>
-      </form>`;
-    }
-
-    const sidebarHtml = `<h3>Add Section</h3>
-      <form action="/admin/content/${type}/${id}/layout/add-section" method="POST" class="add-form">
-        <input type="hidden" name="_csrf" value="${csrfToken}">
-        <label for="layoutId">Layout Template:</label>
-        <select name="layoutId" id="layoutId" required>
-          <option value="">Select layout...</option>
-          ${layoutOptions}
-        </select>
-        <button type="submit" class="btn btn-primary">Add Section</button>
-      </form>
-      <hr style="margin: 20px 0;">
-      <h3>Available Blocks</h3>
-      ${blocksListHtml}
-      ${hasOverride ? '<hr style="margin: 20px 0;"><div class="danger-zone"><h4>Danger Zone</h4><p style="font-size: 0.85em;">Revert to default layout:</p>' + revertButtonHtml + '</div>' : ''}`;
-
-    const flash = getFlashMessage(req.url);
-
-    const html = renderAdmin('layout-builder-edit.html', {
-      pageTitle: `Layout: ${itemTitle}`,
-      contentType: type,
-      sectionsHtml: overrideStatusHtml + sectionsHtml,
-      sidebarHtml,
-      lastUpdated: storage.updated ? formatDate(storage.updated) : 'Never',
-      flash,
-      hasFlash: !!flash,
-    }, ctx, req);
-
-    server.html(res, html);
-  }, 'Edit per-content layout override');
-
-  /**
-   * POST /admin/content/:type/:id/layout/add-section - Add section to content layout
-   */
-  register('POST', '/admin/content/:type/:id/layout/add-section', async (req, res, params, ctx) => {
-    const { type, id } = params;
-    const layoutBuilder = ctx.services.get('layoutBuilder');
-
-    if (!layoutBuilder) {
-      redirect(res, '/admin?error=' + encodeURIComponent('Layout Builder not enabled'));
-      return;
-    }
-
-    try {
-      const body = ctx._parsedBody || await parseFormBody(req);
-      const layoutId = body.layoutId;
-
-      if (!layoutId) {
-        redirect(res, `/admin/content/${type}/${id}/layout?error=` + encodeURIComponent('Layout is required'));
-        return;
-      }
-
-      let storage = layoutBuilder.getEffectiveLayout(type, id) || { sections: [] };
-      const section = layoutBuilder.createSection(layoutId);
-      storage = layoutBuilder.addSection(storage, section);
-      await layoutBuilder.setContentLayout(type, id, storage);
-
-      redirect(res, `/admin/content/${type}/${id}/layout?success=` + encodeURIComponent('Section added'));
-    } catch (error) {
-      redirect(res, `/admin/content/${type}/${id}/layout?error=` + encodeURIComponent(error.message));
-    }
-  }, 'Add section to content layout');
-
-  /**
-   * POST /admin/content/:type/:id/layout/remove-section - Remove section from content layout
-   */
-  register('POST', '/admin/content/:type/:id/layout/remove-section', async (req, res, params, ctx) => {
-    const { type, id } = params;
-    const layoutBuilder = ctx.services.get('layoutBuilder');
-
-    if (!layoutBuilder) {
-      redirect(res, '/admin?error=' + encodeURIComponent('Layout Builder not enabled'));
-      return;
-    }
-
-    try {
-      const body = ctx._parsedBody || await parseFormBody(req);
-      const sectionUuid = body.sectionUuid;
-
-      let storage = layoutBuilder.getEffectiveLayout(type, id);
-      if (!storage) {
-        redirect(res, `/admin/content/${type}/${id}/layout?error=` + encodeURIComponent('No layout found'));
-        return;
-      }
-
-      storage = layoutBuilder.removeSection(storage, sectionUuid);
-      await layoutBuilder.setContentLayout(type, id, storage);
-
-      redirect(res, `/admin/content/${type}/${id}/layout?success=` + encodeURIComponent('Section removed'));
-    } catch (error) {
-      redirect(res, `/admin/content/${type}/${id}/layout?error=` + encodeURIComponent(error.message));
-    }
-  }, 'Remove section from content layout');
-
-  /**
-   * POST /admin/content/:type/:id/layout/move-section - Move section up/down in content layout
-   */
-  register('POST', '/admin/content/:type/:id/layout/move-section', async (req, res, params, ctx) => {
-    const { type, id } = params;
-    const layoutBuilder = ctx.services.get('layoutBuilder');
-
-    if (!layoutBuilder) {
-      redirect(res, '/admin?error=' + encodeURIComponent('Layout Builder not enabled'));
-      return;
-    }
-
-    try {
-      const body = ctx._parsedBody || await parseFormBody(req);
-      const sectionUuid = body.sectionUuid;
-      const direction = body.direction; // 'up' or 'down'
-
-      let storage = layoutBuilder.getEffectiveLayout(type, id);
-      if (!storage) {
-        redirect(res, `/admin/content/${type}/${id}/layout?error=` + encodeURIComponent('No layout found'));
-        return;
-      }
-
-      const currentIndex = storage.sections.findIndex(s => s.uuid === sectionUuid);
-      if (currentIndex === -1) {
-        redirect(res, `/admin/content/${type}/${id}/layout?error=` + encodeURIComponent('Section not found'));
-        return;
-      }
-
-      const newIndex = direction === 'up' ? currentIndex - 1 : currentIndex + 1;
-      if (newIndex >= 0 && newIndex < storage.sections.length) {
-        storage = layoutBuilder.moveSection(storage, sectionUuid, newIndex);
-        await layoutBuilder.setContentLayout(type, id, storage);
-      }
-
-      redirect(res, `/admin/content/${type}/${id}/layout?success=` + encodeURIComponent('Section moved'));
-    } catch (error) {
-      redirect(res, `/admin/content/${type}/${id}/layout?error=` + encodeURIComponent(error.message));
-    }
-  }, 'Move section in content layout');
-
-  /**
-   * POST /admin/content/:type/:id/layout/add-block - Add block to content layout section
-   */
-  register('POST', '/admin/content/:type/:id/layout/add-block', async (req, res, params, ctx) => {
-    const { type, id } = params;
-    const layoutBuilder = ctx.services.get('layoutBuilder');
-
-    if (!layoutBuilder) {
-      redirect(res, '/admin?error=' + encodeURIComponent('Layout Builder not enabled'));
-      return;
-    }
-
-    try {
-      const body = ctx._parsedBody || await parseFormBody(req);
-      const { sectionUuid, regionId, blockId } = body;
-
-      if (!sectionUuid || !regionId || !blockId) {
-        redirect(res, `/admin/content/${type}/${id}/layout?error=` + encodeURIComponent('Missing required fields'));
-        return;
-      }
-
-      let storage = layoutBuilder.getEffectiveLayout(type, id);
-      if (!storage) {
-        redirect(res, `/admin/content/${type}/${id}/layout?error=` + encodeURIComponent('No layout found'));
-        return;
-      }
-
-      const section = layoutBuilder.getSection(storage, sectionUuid);
-      if (!section) {
-        redirect(res, `/admin/content/${type}/${id}/layout?error=` + encodeURIComponent('Section not found'));
-        return;
-      }
-
-      const component = layoutBuilder.createBlockComponent(blockId);
-      layoutBuilder.addComponent(section, regionId, component);
-      await layoutBuilder.setContentLayout(type, id, storage);
-
-      redirect(res, `/admin/content/${type}/${id}/layout?success=` + encodeURIComponent('Block added'));
-    } catch (error) {
-      redirect(res, `/admin/content/${type}/${id}/layout?error=` + encodeURIComponent(error.message));
-    }
-  }, 'Add block to content layout section');
-
-  /**
-   * POST /admin/content/:type/:id/layout/remove-component - Remove component from content layout section
-   */
-  register('POST', '/admin/content/:type/:id/layout/remove-component', async (req, res, params, ctx) => {
-    const { type, id } = params;
-    const layoutBuilder = ctx.services.get('layoutBuilder');
-
-    if (!layoutBuilder) {
-      redirect(res, '/admin?error=' + encodeURIComponent('Layout Builder not enabled'));
-      return;
-    }
-
-    try {
-      const body = ctx._parsedBody || await parseFormBody(req);
-      const { sectionUuid, componentUuid } = body;
-
-      let storage = layoutBuilder.getEffectiveLayout(type, id);
-      if (!storage) {
-        redirect(res, `/admin/content/${type}/${id}/layout?error=` + encodeURIComponent('No layout found'));
-        return;
-      }
-
-      const section = layoutBuilder.getSection(storage, sectionUuid);
-      if (!section) {
-        redirect(res, `/admin/content/${type}/${id}/layout?error=` + encodeURIComponent('Section not found'));
-        return;
-      }
-
-      layoutBuilder.removeComponent(section, componentUuid);
-      await layoutBuilder.setContentLayout(type, id, storage);
-
-      redirect(res, `/admin/content/${type}/${id}/layout?success=` + encodeURIComponent('Component removed'));
-    } catch (error) {
-      redirect(res, `/admin/content/${type}/${id}/layout?error=` + encodeURIComponent(error.message));
-    }
-  }, 'Remove component from content layout section');
-
-  /**
-   * POST /admin/content/:type/:id/layout/revert - Revert to default layout (remove override)
-   */
-  register('POST', '/admin/content/:type/:id/layout/revert', async (req, res, params, ctx) => {
-    const { type, id } = params;
-    const layoutBuilder = ctx.services.get('layoutBuilder');
-
-    if (!layoutBuilder) {
-      redirect(res, '/admin?error=' + encodeURIComponent('Layout Builder not enabled'));
-      return;
-    }
-
-    try {
-      await layoutBuilder.removeContentLayout(type, id);
-      redirect(res, `/admin/content/${type}/${id}/layout?success=` + encodeURIComponent('Reverted to default layout'));
-    } catch (error) {
-      redirect(res, `/admin/content/${type}/${id}/layout?error=` + encodeURIComponent(error.message));
-    }
-  }, 'Revert to default layout');
-
-  // ========================================
   // MEDIA LIBRARY ROUTES
   // ========================================
 
@@ -17660,103 +13522,27 @@ export function hook_routes(register, context) {
 
     const url = new URL(req.url, 'http://localhost');
     const mediaType = url.searchParams.get('type') || null;
-    const searchQuery = url.searchParams.get('search') || '';
-    const viewMode = url.searchParams.get('view') || 'grid';
     const page = parseInt(url.searchParams.get('page')) || 1;
     const limit = 24;
 
-    const listOptions = { mediaType, page, limit };
-    if (searchQuery) {
-      listOptions.search = searchQuery;
-    }
-
-    const result = mediaLibrary.list(listOptions);
+    const result = mediaLibrary.list({ mediaType, page, limit });
     const types = mediaLibrary.listMediaTypes();
     const stats = mediaLibrary.getStats();
 
-    // Pre-compute media icon and type flags for template (template engine is simple)
-    const mediaIcons = { video: '🎬', audio: '🎵', document: '📄', remote_video: '🔗' };
-    const items = (result.items || []).map(item => ({
-      ...item,
-      _isImage: item.mediaType === 'image',
-      _icon: mediaIcons[item.mediaType] || '📁',
-      _sizeFormatted: item.size ? formatMediaSize(item.size) : '-',
-      _createdFormatted: item.created ? new Date(item.created).toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' }) : '-',
-    }));
-
-    // Pre-compute filter tabs with href and active class
-    const searchSuffix = searchQuery ? '&search=' + encodeURIComponent(searchQuery) : '';
-    const filterTabs = [
-      { label: 'All', href: '/admin/media/library' + (searchQuery ? '?search=' + encodeURIComponent(searchQuery) : ''), activeClass: !mediaType ? 'active' : '' },
-      ...types.map(t => ({
-        label: t.label || t.id,
-        href: '/admin/media/library?type=' + t.id + searchSuffix,
-        activeClass: mediaType === t.id ? 'active' : '',
-      })),
-    ];
-
-    // Pre-compute pagination URLs
-    const hasNext = page * limit < result.total;
-    const hasPrev = page > 1;
-    const baseParams = (mediaType ? '&type=' + mediaType : '') + (searchQuery ? '&search=' + encodeURIComponent(searchQuery) : '');
-    const prevUrl = '/admin/media/library?page=' + (page - 1) + baseParams;
-    const nextUrl = '/admin/media/library?page=' + (page + 1) + baseParams;
-
-    const html = renderAdmin('media-library.html', {
-      items,
-      total: result.total,
-      hasItems: items.length > 0,
-      page,
-      limit,
-      filterTabs,
-      stats,
-      currentType: mediaType,
-      searchQuery,
-      viewMode,
-      typeQueryParam: mediaType ? '?type=' + mediaType : '',
-      hasNext,
-      hasPrev,
-      showPagination: hasNext || hasPrev,
-      prevUrl,
-      nextUrl,
-      pageTitle: 'Media Library',
-    }, ctx, req);
-
-    server.html(res, html);
-  }, 'Media library browser with search, grid/list view toggle');
-
-  /**
-   * GET /admin/media/library/browse/search - Search endpoint for media browser modal
-   * Returns JSON for dynamic filtering in the modal
-   */
-  register('GET', '/admin/media/library/browse/search', async (req, res, params, ctx) => {
-    const mediaLibrary = ctx.services.get('mediaLibrary');
-    const server = ctx.services.get('server');
-
-    if (!mediaLibrary) {
-      server.json(res, { error: 'Media Library not enabled' }, 404);
-      return;
-    }
-
-    const url = new URL(req.url, 'http://localhost');
-    const search = url.searchParams.get('search') || '';
-    const mediaType = url.searchParams.get('type') || null;
-    const limit = parseInt(url.searchParams.get('limit')) || 50;
-    const page = parseInt(url.searchParams.get('page')) || 1;
-
-    const listOptions = { page, limit };
-    if (mediaType) listOptions.mediaType = mediaType;
-    if (search) listOptions.search = search;
-
-    const result = mediaLibrary.list(listOptions);
-
-    server.json(res, {
+    const html = template.renderWithLayout('admin/media-library.html', {
       items: result.items,
       total: result.total,
       page,
       limit,
+      types,
+      stats,
+      currentType: mediaType,
+      hasNext: page * limit < result.total,
+      hasPrev: page > 1,
     });
-  }, 'Media browser search endpoint for modal filtering');
+
+    server.html(res, html);
+  }, 'Media library browser');
 
   /**
    * GET /admin/media/library/browse - Media browser modal (for WYSIWYG)
@@ -17777,102 +13563,6 @@ export function hook_routes(register, context) {
 
     server.json(res, data);
   }, 'Media browser data for modals');
-
-  /**
-   * GET /admin/media/upload - Render media bulk upload page
-   */
-  register('GET', '/admin/media/upload', async (req, res, params, ctx) => {
-    const server = ctx.services.get('server');
-
-    const html = renderAdmin('media-upload.html', {
-      pageTitle: 'Upload Media',
-      maxFileSize: 10 * 1024 * 1024,
-      maxFileSizeFormatted: '10 MB',
-    }, ctx, req);
-
-    server.html(res, html);
-  }, 'Media upload page');
-
-  /**
-   * POST /admin/media/upload - Handle file upload (one file per request)
-   * WHY: Each file is uploaded individually via XHR to provide granular progress tracking
-   * and error handling per file, similar to modern file upload UX patterns
-   */
-  register('POST', '/admin/media/upload', async (req, res, params, ctx) => {
-    const mediaService = ctx.services.get('media');
-    const contentService = ctx.services.get('content');
-    const server = ctx.services.get('server');
-
-    try {
-      const { fields, files } = await mediaService.parseUpload(req);
-
-      if (!files || files.length === 0) {
-        server.json(res, { error: 'No file uploaded' }, 400);
-        return;
-      }
-
-      const results = [];
-      for (const file of files) {
-        try {
-          // Save file to disk
-          const saved = mediaService.saveFile(file);
-
-          // WHY: Determine media type from extension to match Drupal's media type
-          // classification pattern (image, video, audio, document)
-          const ext = saved.filename.split('.').pop().toLowerCase();
-          const imageExts = ['jpg', 'jpeg', 'png', 'gif', 'webp', 'svg'];
-          const videoExts = ['mp4', 'webm', 'mov', 'avi', 'mkv', 'm4v'];
-          const audioExts = ['mp3', 'wav', 'ogg', 'flac'];
-          let mediaType = 'document';
-          if (imageExts.includes(ext)) mediaType = 'image';
-          else if (videoExts.includes(ext)) mediaType = 'video';
-          else if (audioExts.includes(ext)) mediaType = 'audio';
-
-          // Validate alt text for images (accessibility requirement)
-          // WHY: WCAG 2.1 Level A requires alt text on all images for screen reader accessibility
-          if (mediaType === 'image' && (!fields.alt || fields.alt.trim() === '')) {
-            throw new Error('Alt text is required for image uploads (accessibility requirement)');
-          }
-
-          // Create media entity
-          // WHY: Strip extension from filename to create a clean default name
-          const name = file.originalName ? file.originalName.replace(/\.[^.]+$/, '') : file.name.replace(/\.[^.]+$/, '');
-          const entity = await contentService.create('media-entity', {
-            name: name,
-            mediaType: mediaType,
-            filename: saved.filename,
-            path: saved.relativePath,
-            mimeType: saved.type,
-            size: saved.size,
-            metadata: {},
-            tags: [],
-            alt: fields.alt || '',
-            caption: fields.caption || '',
-            credit: fields.credit || '',
-            folder: fields.folder || '',  // Folder path for organization
-            status: 'published',
-          });
-
-          results.push({
-            success: true,
-            name: file.originalName || file.name,
-            id: entity.id,
-            mediaType
-          });
-        } catch (fileErr) {
-          results.push({
-            success: false,
-            name: file.originalName || file.name,
-            error: fileErr.message
-          });
-        }
-      }
-
-      server.json(res, { results });
-    } catch (err) {
-      server.json(res, { error: err.message }, 500);
-    }
-  }, 'Handle media file upload');
 
   /**
    * GET /admin/media/library/:id - View media item details
@@ -17898,258 +13588,15 @@ export function hook_routes(register, context) {
     const url = mediaLibrary.getUrl(item);
     const thumbnailUrl = mediaLibrary.getThumbnailUrl(item);
 
-    // WHY: Pre-compute flags since template engine doesn't support (eq ...) helper
-    const isImage = item.mediaType === 'image';
-    const isRemoteVideo = item.mediaType === 'remote_video';
-    const isVideo = item.mediaType === 'video';
-    const isAudio = item.mediaType === 'audio';
-    const isDocument = item.mediaType === 'document';
-
-    // WHY: Format date for display since template engine doesn't have formatDate helper
-    function formatDate(dateStr) {
-      if (!dateStr) return '';
-      const d = new Date(dateStr);
-      return d.toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' });
-    }
-
-    // WHY: Enrich usage entries with edit URLs and labels for template
-    const usageList = usage.map(u => ({
-      ...u,
-      editUrl: '/admin/content/' + u.contentType + '/' + u.contentId + '/edit',
-      label: u.contentType + '/' + u.contentId,
-    }));
-
-    // WHY: Parse flash messages from URL for replace/usage operations
-    const urlObj = new URL(req.url, 'http://localhost');
-    const successMsg = urlObj.searchParams.get('success');
-    const errorMsg = urlObj.searchParams.get('error');
-    const flash = successMsg ? { type: 'success', message: decodeURIComponent(successMsg) }
-      : errorMsg ? { type: 'error', message: decodeURIComponent(errorMsg) }
-      : null;
-
-    // WHY: Remote videos can't be replaced with file uploads
-    const canReplace = item.mediaType !== 'remote_video';
-
-    const html = renderAdmin('media-detail.html', {
-      item: {
-        ...item,
-        focalPoint: item.focalPoint || { x: 0.5, y: 0.5 } // Default to center
-      },
-      usage: usageList,
-      hasUsage: usageList.length > 0,
-      noUsage: usageList.length === 0,
-      usageCount: usageList.length,
+    const html = template.renderWithLayout('admin/media-detail.html', {
+      item,
+      usage,
       url,
       thumbnailUrl,
-      isImage,
-      isRemoteVideo,
-      isVideo,
-      isAudio,
-      isDocument,
-      canReplace,
-      sizeFormatted: formatMediaSize(item.size),
-      createdFormatted: formatDate(item.created),
-      updatedFormatted: formatDate(item.updated),
-      tagsFormatted: item.tags && item.tags.length ? item.tags.join(', ') : '',
-      hasTags: item.tags && item.tags.length > 0,
-      pageTitle: 'Media: ' + (item.name || item.id),
-      flash,
-      hasFlash: !!flash,
-    }, ctx, req);
+    });
 
     server.html(res, html);
   }, 'View media item details');
-
-  /**
-   * POST /admin/media/library/:id/track-usage - Track media usage
-   * WHY: Allows manual tracking of where media is used (for testing and manual workflows)
-   */
-  register('POST', '/admin/media/library/:id/track-usage', async (req, res, params, ctx) => {
-    const mediaLibrary = ctx.services.get('mediaLibrary');
-    const server = ctx.services.get('server');
-
-    try {
-      // WHY: Use ctx._parsedBody from CSRF middleware (body already consumed)
-      const body = ctx._parsedBody || {};
-
-      const { contentType, contentId, field } = body;
-
-      if (!contentType || !contentId || !field) {
-        server.json(res, { error: 'Missing required fields: contentType, contentId, field' }, 400);
-        return;
-      }
-
-      await mediaLibrary.trackUsage(params.id, contentType, contentId, field);
-      server.json(res, { success: true, mediaId: params.id, contentType, contentId, field });
-    } catch (err) {
-      server.json(res, { error: err.message }, 500);
-    }
-  }, 'Track media usage');
-
-  /**
-   * POST /admin/media/library/:id/set-focal-point - Set focal point for image
-   * WHY: Allows smart cropping by defining the important area of an image
-   */
-  register('POST', '/admin/media/library/:id/set-focal-point', async (req, res, params, ctx) => {
-    const mediaLibrary = ctx.services.get('mediaLibrary');
-    const server = ctx.services.get('server');
-
-    try {
-      const body = ctx._parsedBody || {};
-      const { x, y } = body;
-
-      // Validate coordinates (0-1 range)
-      const xNum = parseFloat(x);
-      const yNum = parseFloat(y);
-
-      if (isNaN(xNum) || isNaN(yNum) || xNum < 0 || xNum > 1 || yNum < 0 || yNum > 1) {
-        server.json(res, { error: 'Invalid focal point coordinates. Must be between 0 and 1.' }, 400);
-        return;
-      }
-
-      // Update media entity with focal point
-      await mediaLibrary.update(params.id, {
-        focalPoint: { x: xNum, y: yNum }
-      });
-
-      server.json(res, { success: true, focalPoint: { x: xNum, y: yNum } });
-    } catch (err) {
-      server.json(res, { error: err.message }, 500);
-    }
-  }, 'Set focal point for image');
-
-  /**
-   * POST /admin/media/library/:id/remove-usage - Remove media usage tracking
-   * WHY: Allows manual removal of usage references (for cleanup and testing)
-   */
-  register('POST', '/admin/media/library/:id/remove-usage', async (req, res, params, ctx) => {
-    const mediaLibrary = ctx.services.get('mediaLibrary');
-    const server = ctx.services.get('server');
-
-    try {
-      // WHY: Use ctx._parsedBody from CSRF middleware (body already consumed)
-      const body = ctx._parsedBody || {};
-
-      const { contentType, contentId } = body;
-
-      if (!contentType || !contentId) {
-        server.json(res, { error: 'Missing required fields: contentType, contentId' }, 400);
-        return;
-      }
-
-      await mediaLibrary.removeUsage(params.id, contentType, contentId);
-      server.json(res, { success: true, mediaId: params.id, contentType, contentId });
-    } catch (err) {
-      server.json(res, { error: err.message }, 500);
-    }
-  }, 'Remove media usage');
-
-  /**
-   * POST /admin/media/library/:id/replace - Replace media file
-   *
-   * WHY: Allows replacing a media file while preserving all content references.
-   * The entity ID stays the same; all content that uses this media automatically
-   * gets the new file. This is essential for correcting images, updating logos, etc.
-   */
-  register('POST', '/admin/media/library/:id/replace', async (req, res, params, ctx) => {
-    const mediaLibrary = ctx.services.get('mediaLibrary');
-    const mediaService = ctx.services.get('media');
-    const server = ctx.services.get('server');
-
-    try {
-      // Parse multipart upload
-      const { fields, files } = await mediaService.parseUpload(req);
-
-      if (!files || files.length === 0) {
-        redirect(res, `/admin/media/library/${params.id}?error=` + encodeURIComponent('No replacement file selected'));
-        return;
-      }
-
-      const file = files[0];
-
-      const result = await mediaLibrary.replaceMedia(params.id, {
-        name: file.originalName || file.name,
-        data: file.data,
-        type: file.type,
-        size: file.size,
-      }, {
-        keepOldFile: fields.keepOldFile === 'true',
-      });
-
-      const msg = `Replaced: ${result.oldFilename} → ${result.newFilename} (${result.referencesUpdated} reference(s) updated)`;
-      redirect(res, `/admin/media/library/${params.id}?success=` + encodeURIComponent(msg));
-    } catch (err) {
-      console.error('[media] Replace error:', err.message);
-      redirect(res, `/admin/media/library/${params.id}?error=` + encodeURIComponent(err.message));
-    }
-  }, 'Replace media file');
-
-  /**
-   * GET /api/media/:id/usage - API endpoint for media usage tracking
-   * WHY: Enables headless/decoupled frontends to query media usage
-   */
-  register('GET', '/api/media/:id/usage', async (req, res, params, ctx) => {
-    const mediaLibrary = ctx.services.get('mediaLibrary');
-    const server = ctx.services.get('server');
-
-    if (!req.user) {
-      server.json(res, { error: 'Unauthorized' }, 401);
-      return;
-    }
-
-    const usage = mediaLibrary.getUsage(params.id);
-    server.json(res, { mediaId: params.id, usage, count: usage.length });
-  }, 'API: Get media usage');
-
-  /**
-   * POST /api/media/:id/replace - API endpoint for media replacement
-   * WHY: Enables headless/decoupled frontends to replace media files
-   */
-  register('POST', '/api/media/:id/replace', async (req, res, params, ctx) => {
-    const mediaLibrary = ctx.services.get('mediaLibrary');
-    const mediaService = ctx.services.get('media');
-    const server = ctx.services.get('server');
-    const auth = ctx.services.get('auth');
-
-    if (!req.user) {
-      server.json(res, { error: 'Unauthorized' }, 401);
-      return;
-    }
-    if (!auth.hasPermission(req.user, 'content.update')) {
-      server.json(res, { error: 'Forbidden' }, 403);
-      return;
-    }
-
-    try {
-      const { fields, files } = await mediaService.parseUpload(req);
-
-      if (!files || files.length === 0) {
-        server.json(res, { error: 'No replacement file provided' }, 400);
-        return;
-      }
-
-      const file = files[0];
-      const result = await mediaLibrary.replaceMedia(params.id, {
-        name: file.originalName || file.name,
-        data: file.data,
-        type: file.type,
-        size: file.size,
-      }, {
-        keepOldFile: fields && fields.keepOldFile === 'true',
-      });
-
-      server.json(res, {
-        success: true,
-        mediaId: params.id,
-        oldPath: result.oldPath,
-        newPath: result.newPath,
-        referencesUpdated: result.referencesUpdated,
-        entity: result.entity,
-      });
-    } catch (err) {
-      server.json(res, { error: err.message }, 500);
-    }
-  }, 'API: Replace media file');
 
   // ========================================
   // EDITOR ROUTES
@@ -18199,146 +13646,6 @@ export function hook_routes(register, context) {
       server.json(res, { error: error.message }, 400);
     }
   }, 'Get editor configuration');
-
-  // ========================================
-  // TOKEN SYSTEM ROUTES
-  // ========================================
-
-  /**
-   * POST /api/tokens/replace - Replace tokens in text
-   * Body: { text: string, context: object }
-   */
-  register('POST', '/api/tokens/replace', async (req, res, params, ctx) => {
-    const tokens = ctx.services.get('tokens');
-    const server = ctx.services.get('server');
-
-    if (!tokens) {
-      server.json(res, { error: 'Token service not available' }, 500);
-      return;
-    }
-
-    try {
-      const body = await parseJsonBody(req);
-      const { text, context } = body;
-
-      if (!text || typeof text !== 'string') {
-        server.json(res, { error: 'Missing or invalid "text" field' }, 400);
-        return;
-      }
-
-      const result = await tokens.replace(text, context || {});
-      server.json(res, { original: text, replaced: result });
-    } catch (error) {
-      server.json(res, { error: error.message }, 500);
-    }
-  }, 'Replace tokens in text');
-
-  /**
-   * GET /api/tokens/types - Get all registered token types
-   */
-  register('GET', '/api/tokens/types', async (req, res, params, ctx) => {
-    const tokens = ctx.services.get('tokens');
-    const server = ctx.services.get('server');
-
-    if (!tokens) {
-      server.json(res, { error: 'Token service not available' }, 500);
-      return;
-    }
-
-    const types = tokens.getTypes();
-    server.json(res, types);
-  }, 'Get all token types');
-
-  /**
-   * GET /api/tokens/browser - Get token browser data
-   */
-  register('GET', '/api/tokens/browser', async (req, res, params, ctx) => {
-    const tokens = ctx.services.get('tokens');
-    const server = ctx.services.get('server');
-
-    if (!tokens) {
-      server.json(res, { error: 'Token service not available' }, 500);
-      return;
-    }
-
-    const data = tokens.getBrowserData(ctx);
-    server.json(res, data);
-  }, 'Get token browser data');
-
-  /**
-   * GET /admin/config/development/tokens - Token browser UI
-   */
-  register('GET', '/admin/config/development/tokens', async (req, res, params, ctx) => {
-    const tokens = ctx.services.get('tokens');
-
-    if (!tokens) {
-      redirect(res, '/admin?error=' + encodeURIComponent('Token service not available'));
-      return;
-    }
-
-    // Get all token types and their tokens
-    const allTypes = tokens.getTypes();
-
-    // Build HTML for token types
-    let typesHtml = '';
-
-    for (const typeId of Object.keys(allTypes).sort()) {
-      const type = allTypes[typeId];
-      const tokenKeys = Object.keys(type.tokens).sort();
-
-      if (tokenKeys.length === 0) continue;
-
-      typesHtml += `<div class="token-type-section">`;
-      typesHtml += `<div class="token-type-header collapsed">`;
-      typesHtml += `<div>`;
-      typesHtml += `<h2>${type.name}</h2>`;
-      if (type.description) {
-        typesHtml += `<p class="token-type-description">${type.description}</p>`;
-      }
-      typesHtml += `</div>`;
-      typesHtml += `<span class="toggle-icon">▼</span>`;
-      typesHtml += `</div>`;
-
-      typesHtml += `<ul class="token-list">`;
-
-      for (const tokenName of tokenKeys) {
-        const token = type.tokens[tokenName];
-        const tokenString = `[${typeId}:${tokenName}]`;
-
-        typesHtml += `<li class="token-item">`;
-        typesHtml += `<div class="token-name">${token.name || tokenName}</div>`;
-        typesHtml += `<div><span class="token-code" title="Click to copy">${tokenString}</span></div>`;
-        if (token.description) {
-          typesHtml += `<div class="token-description">${token.description}</div>`;
-        }
-        if (token.example) {
-          typesHtml += `<div class="token-example">Example: ${token.example}</div>`;
-        }
-        typesHtml += `</li>`;
-      }
-
-      typesHtml += `</ul>`;
-      typesHtml += `</div>`;
-    }
-
-    const flash = getFlashMessage(req.url);
-
-    const html = renderAdmin('tokens-browser.html', {
-      pageTitle: 'Token Browser',
-      typesHtml,
-      flash,
-      hasFlash: !!flash,
-    }, ctx, req);
-
-    server.html(res, html);
-  }, 'Token browser UI');
-
-  /**
-   * GET /admin/tokens - Redirect to token browser
-   */
-  register('GET', '/admin/tokens', async (req, res, params, ctx) => {
-    redirect(res, '/admin/config/development/tokens');
-  }, 'Token browser redirect');
 
   // ========================================
   // RESPONSIVE IMAGES ROUTES
@@ -18397,1175 +13704,6 @@ export function hook_routes(register, context) {
 
     server.html(res, html);
   }, 'JSON:API explorer');
-
-  // ========================================
-  // LAYOUT BUILDER PAGE ROUTE (Feature #67)
-  // ========================================
-
-  /**
-   * GET /node/:id/layout - Layout builder page for a specific content item
-   *
-   * WHY /node/:id/layout:
-   * Follows Drupal's convention where /node/{nid}/layout opens the layout builder.
-   * Auto-detects content type by searching across all registered types.
-   *
-   * FEATURES IMPLEMENTED:
-   * - Feature #67: Dedicated page route for the layout builder interface
-   * - Feature #68: Layout builder HTML shell with sections grid
-   * - Feature #70: Drag handle for sections (via draggable attribute + JS)
-   */
-  register('GET', '/node/:id/layout', async (req, res, params, ctx) => {
-    const { id } = params;
-    const layoutBuilder = ctx.services.get('layoutBuilder');
-    const server = ctx.services.get('server');
-
-    if (!layoutBuilder) {
-      redirect(res, '/admin?error=' + encodeURIComponent('Layout Builder not enabled'));
-      return;
-    }
-
-    // Auto-detect content type by searching across all registered types
-    // WHY: Drupal's /node/{id}/layout doesn't include type in the URL,
-    // so we need to find which type this content belongs to.
-    const types = content.listTypes();
-    let contentItem = null;
-    let contentType = null;
-
-    for (const { type } of types) {
-      const item = content.read(type, id);
-      if (item) {
-        contentItem = item;
-        contentType = type;
-        break;
-      }
-    }
-
-    // 404 for non-existent content
-    if (!contentItem) {
-      res.writeHead(404, { 'Content-Type': 'text/html' });
-      res.end(`<!DOCTYPE html><html><head><title>404 Not Found</title><link rel="stylesheet" href="/css/admin.css"></head>
-<body><main class="admin-main"><h1>404 - Content Not Found</h1>
-<p>No content found with ID "${id.replace(/[<>"'&]/g, '')}".</p>
-<a href="/admin/content" class="btn btn-primary">← Back to Content</a></main></body></html>`);
-      return;
-    }
-
-    const contentId = contentItem.id || id;
-    const contentTitle = contentItem.title || contentItem.name || contentItem.subject || contentId;
-
-    // Get the effective layout (override > default > empty)
-    const effectiveLayout = layoutBuilder.getEffectiveLayout(contentType, contentId, contentItem);
-    const hasOverride = layoutBuilder.hasContentLayoutOverride(contentType, contentId);
-    const layouts = layoutBuilder.listLayouts();
-
-    // Get blocks service early for component preview rendering (Features #76, #77, #78)
-    const blocksService = ctx.services.get('blocks');
-
-    // Build sections HTML (Feature #68: sections grid)
-    let sectionsHtml = '';
-
-    if (effectiveLayout && effectiveLayout.sections && effectiveLayout.sections.length > 0) {
-      const sortedSections = [...effectiveLayout.sections].sort((a, b) => (a.weight || 0) - (b.weight || 0));
-
-      for (const section of sortedSections) {
-        const layoutDef = layoutBuilder.getLayout(section.layoutId);
-        const layoutLabel = layoutDef ? layoutDef.label : section.layoutId;
-        const regions = layoutDef ? layoutDef.regions : {};
-        const regionCount = Object.keys(regions).length;
-
-        // Build regions HTML
-        let regionsHtml = '';
-        const sortedRegions = Object.entries(regions)
-          .sort((a, b) => (a[1].weight || 0) - (b[1].weight || 0));
-
-        for (const [regionId, regionDef] of sortedRegions) {
-          const components = (section.components && section.components[regionId]) || [];
-
-          let componentsHtml = '';
-          if (components.length > 0) {
-            for (const comp of components.sort((a, b) => (a.weight || 0) - (b.weight || 0))) {
-              let typeLabel = comp.type;
-              let detailLabel = '';
-              let previewHtml = '';
-
-              if (comp.type === 'block') {
-                typeLabel = 'Block';
-                detailLabel = comp.blockId || '(no block ID)';
-
-                // Feature #78: Existing block reference - render block preview
-                if (comp.blockId && blocksService && typeof blocksService.getBlock === 'function') {
-                  const referencedBlock = blocksService.getBlock(comp.blockId);
-                  if (referencedBlock) {
-                    const blockTitle = (referencedBlock.title || referencedBlock.adminTitle || comp.blockId).replace(/[<>"'&]/g, c => ({'<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;','&':'&amp;'}[c]));
-                    const blockType = (referencedBlock.type || 'custom').replace(/[<>"'&]/g, c => ({'<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;','&':'&amp;'}[c]));
-                    const blockBody = referencedBlock.config && referencedBlock.config.body
-                      ? referencedBlock.config.body.replace(/[<>"'&]/g, c => ({'<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;','&':'&amp;'}[c])).substring(0, 200)
-                      : '';
-                    previewHtml = `<div class="component-preview-wrapper"><div class="component-block-preview">
-                      <div class="block-title">${blockTitle}<span class="block-type">${blockType}</span></div>
-                      ${blockBody ? `<div>${blockBody}</div>` : '<div style="color:#9e9e9e;font-style:italic;">Block content</div>'}
-                    </div></div>`;
-                  } else {
-                    previewHtml = `<div class="component-preview-wrapper"><div class="component-block-preview"><span class="block-not-found">Block "${comp.blockId.replace(/[<>"'&]/g, '')}" not found</span></div></div>`;
-                  }
-                }
-              } else if (comp.type === 'inline_block') {
-                typeLabel = 'Inline Block';
-                detailLabel = comp.blockType || '';
-
-                // Feature #77: Custom block (inline content) - render inline block preview
-                const inlineTitle = (comp.configuration && comp.configuration.title)
-                  ? comp.configuration.title.replace(/[<>"'&]/g, c => ({'<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;','&':'&amp;'}[c]))
-                  : '';
-                const inlineBody = (comp.configuration && comp.configuration.body)
-                  ? comp.configuration.body.replace(/[<>"'&]/g, c => ({'<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;','&':'&amp;'}[c])).substring(0, 200)
-                  : '';
-                const blockTypeSafe = (comp.blockType || 'custom').replace(/[<>"'&]/g, c => ({'<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;','&':'&amp;'}[c]));
-                previewHtml = `<div class="component-preview-wrapper"><div class="component-inline-preview">
-                  <div class="inline-title">${inlineTitle || blockTypeSafe} block</div>
-                  ${inlineBody ? `<div class="inline-body">${inlineBody}</div>` : '<div style="color:#9e9e9e;font-style:italic;">Inline block content</div>'}
-                </div></div>`;
-              } else if (comp.type === 'field') {
-                typeLabel = 'Field';
-                detailLabel = comp.fieldName || '';
-
-                // Feature #76: Field block renders entity field - show actual field value
-                if (comp.fieldName && contentItem) {
-                  const fieldValue = contentItem[comp.fieldName];
-                  const fieldSchema = content.getSchema(contentType);
-                  const fieldDef = fieldSchema ? fieldSchema[comp.fieldName] : null;
-                  const fieldType = fieldDef ? (fieldDef.type || 'text') : 'text';
-
-                  if (fieldValue !== undefined && fieldValue !== null && fieldValue !== '') {
-                    const safeValue = String(fieldValue).replace(/[<>"'&]/g, c => ({'<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;','&':'&amp;'}[c]));
-                    const displayValue = safeValue.length > 300 ? safeValue.substring(0, 300) + '...' : safeValue;
-                    previewHtml = `<div class="component-preview-wrapper"><div class="component-field-preview">
-                      <div class="field-label">${comp.fieldName}<span class="field-type-badge">${fieldType}</span></div>
-                      <div class="field-value">${displayValue}</div>
-                    </div></div>`;
-                  } else {
-                    previewHtml = `<div class="component-preview-wrapper"><div class="component-field-preview">
-                      <div class="field-label">${comp.fieldName}<span class="field-type-badge">${fieldType}</span></div>
-                      <div class="field-empty">(empty)</div>
-                    </div></div>`;
-                  }
-                }
-              }
-
-              // Serialize component data for the config modal (Feature #75)
-              const compData = JSON.stringify({
-                type: comp.type,
-                fieldName: comp.fieldName || '',
-                blockId: comp.blockId || '',
-                blockType: comp.blockType || '',
-                configuration: comp.configuration || {}
-              }).replace(/"/g, '&quot;').replace(/'/g, '&#39;');
-
-              // Show config label if present
-              const configLabel = comp.configuration && comp.configuration.label
-                ? ` <span style="color:#9c27b0;font-size:0.85em;font-style:italic;">[${comp.configuration.label.replace(/[<>"'&]/g, '')}]</span>`
-                : '';
-
-              componentsHtml += `
-                <div class="component-chip${previewHtml ? ' component-chip-with-preview' : ''}" draggable="true" data-component-uuid="${comp.uuid}" data-section-uuid="${section.uuid}" data-region="${regionId}">
-                  <div class="component-drag-handle" role="button" aria-label="Drag to reorder ${typeLabel} ${detailLabel}" aria-roledescription="drag handle" tabindex="0" title="Drag to reorder">
-                    <span class="drag-grip">⠿</span>
-                  </div>
-                  <div class="component-chip-info">
-                    <span class="component-chip-type">${typeLabel}</span>
-                    <span class="component-chip-detail">${detailLabel}${configLabel}</span>
-                  </div>
-                  <div class="component-chip-actions">
-                    <button class="btn-configure" title="Configure component" onclick="openConfigModal('${contentType}', '${contentId}', '${section.uuid}', '${comp.uuid}', '${comp.type}', JSON.parse(this.dataset.compdata))" data-compdata="${compData}">⚙</button>
-                    <button title="Remove component" onclick="if(confirm('Remove this component?')) removeComponent('${contentType}', '${contentId}', '${section.uuid}', '${comp.uuid}')">✕</button>
-                  </div>
-                  ${previewHtml}
-                </div>`;
-            }
-          } else {
-            componentsHtml = '<div class="region-empty">Drop a component here</div>';
-          }
-
-          regionsHtml += `
-            <div class="region-slot" data-region="${regionId}">
-              <div class="region-slot-header">
-                <span>${regionDef.label || regionId}</span>
-                <button class="add-component-btn" onclick="addComponent('${contentType}', '${contentId}', '${section.uuid}', '${regionId}')">+ Add</button>
-              </div>
-              <div class="region-slot-content">
-                ${componentsHtml}
-              </div>
-            </div>`;
-        }
-
-        // Section wrapper with drag handle (Feature #70)
-        sectionsHtml += `
-          <div class="section-wrapper" draggable="true" data-section-uuid="${section.uuid}">
-            <div class="section-drag-handle" role="button" aria-label="Drag to reorder ${layoutLabel} section" aria-roledescription="drag handle" tabindex="0" title="Drag to reorder">
-              <div class="drag-dots"></div>
-              <div class="drag-dots"></div>
-              <div class="drag-dots"></div>
-              <div class="drag-dots"></div>
-              <div class="drag-dots"></div>
-            </div>
-            <div class="section-header">
-              <div class="section-header-info">
-                <h3>${layoutLabel}</h3>
-                <span class="section-layout-badge">${section.layoutId}</span>
-              </div>
-              <div class="section-header-actions">
-                <button onclick="if(confirm('Delete this section?')) deleteSection('${contentType}', '${contentId}', '${section.uuid}')" class="btn-delete-section">Delete</button>
-              </div>
-            </div>
-            <div class="section-body">
-              <div class="section-regions-grid regions-${regionCount}">
-                ${regionsHtml}
-              </div>
-            </div>
-          </div>`;
-      }
-    } else {
-      sectionsHtml = `
-        <div class="empty-layout">
-          <div class="empty-icon">📐</div>
-          <h3>No Layout Defined</h3>
-          <p>This content has no layout sections yet. Click "Add Section" below to start building.</p>
-        </div>`;
-    }
-
-    // Build layout options HTML for the layout chooser
-    let layoutOptionsHtml = '';
-    for (const layout of layouts) {
-      const regionCount = Object.keys(layout.regions).length;
-      // Simple column icons based on region count
-      const icon = regionCount === 1 ? '▮' :
-                   regionCount === 2 ? '▮▮' :
-                   regionCount === 3 ? '▮▮▮' :
-                   regionCount === 4 ? '▮▮▮▮' : '▦';
-
-      layoutOptionsHtml += `
-        <div class="layout-option" onclick="addSection('${contentType}', '${contentId}', '${layout.id}')">
-          <div class="layout-icon">${icon}</div>
-          <div class="layout-name">${layout.label}</div>
-        </div>`;
-    }
-
-    const flash = getFlashMessage(req.url);
-
-    // Build field options for component chooser (Feature #70)
-    const schema = content.getSchema(contentType);
-    let fieldOptionsHtml = '<option value="">-- Choose a field --</option>';
-    if (schema) {
-      for (const [fieldName, fieldDef] of Object.entries(schema)) {
-        fieldOptionsHtml += `<option value="${fieldName}">${fieldName} (${fieldDef.type || 'text'})</option>`;
-      }
-    }
-
-    // Build block options for component chooser (Feature #70)
-    // blocksService already obtained above for component preview rendering
-    let blockOptionsHtml = '';
-    let hasBlocks = false;
-    if (blocksService && typeof blocksService.listBlocks === 'function') {
-      const blocks = blocksService.listBlocks({ enabled: true });
-      const blockItems = blocks.items || blocks || [];
-      if (blockItems.length > 0) {
-        hasBlocks = true;
-        for (const block of blockItems) {
-          const blockId = block.id || block.name || '';
-          const blockLabel = block.title || block.label || blockId;
-          blockOptionsHtml += `<option value="${blockId}">${blockLabel}</option>`;
-        }
-      }
-    }
-
-    const html = renderAdmin('layout-builder-page.html', {
-      pageTitle: `Layout: ${contentTitle}`,
-      contentType,
-      contentId,
-      contentTitle,
-      hasOverride,
-      overrideClass: hasOverride ? 'has-override' : 'using-default',
-      overrideLabel: hasOverride ? 'Override' : 'Default Layout',
-      sectionsHtml,
-      layoutOptionsHtml,
-      fieldOptionsHtml,
-      blockOptionsHtml,
-      hasBlocks,
-      flash,
-      hasFlash: !!flash,
-    }, ctx, req);
-
-    server.html(res, html);
-  }, 'Layout builder page for content item');
-
-  /**
-   * POST /node/:id/layout/add-section - Add a section to content layout
-   */
-  register('POST', '/node/:id/layout/add-section', async (req, res, params, ctx) => {
-    const { id } = params;
-    const layoutBuilder = ctx.services.get('layoutBuilder');
-
-    // Parse form body
-    const body = await parseFormBody(req);
-    const layoutId = body.layoutId;
-    const contentType = body.contentType;
-
-    if (!layoutId || !contentType) {
-      redirect(res, `/node/${id}/layout?error=` + encodeURIComponent('Missing layoutId or contentType'));
-      return;
-    }
-
-    try {
-      const item = content.read(contentType, id);
-      if (!item) {
-        redirect(res, `/node/${id}/layout?error=` + encodeURIComponent('Content not found'));
-        return;
-      }
-
-      // Get or create layout storage
-      let storage = layoutBuilder.getEffectiveLayout(contentType, id, item);
-      if (!storage || !layoutBuilder.hasContentLayoutOverride(contentType, id)) {
-        storage = storage ? layoutBuilder.cloneLayout(storage) : { sections: [] };
-      }
-
-      // Create and add section
-      const section = layoutBuilder.createSection(layoutId);
-      layoutBuilder.addSection(storage, section);
-
-      // Save as per-content override
-      await layoutBuilder.setContentLayout(contentType, id, storage);
-
-      redirect(res, `/node/${id}/layout?success=` + encodeURIComponent(`Section "${layoutBuilder.getLayout(layoutId).label}" added`));
-    } catch (err) {
-      redirect(res, `/node/${id}/layout?error=` + encodeURIComponent(err.message));
-    }
-  }, 'Add section to content layout');
-
-  /**
-   * POST /node/:id/layout/add-component - Add a component to a section region
-   *
-   * WHY FORM-BASED:
-   * The layout builder page uses session cookies for auth, not API tokens.
-   * This form-based route handles all component types (field, block, inline_block)
-   * using the same auth as the admin pages.
-   *
-   * Features #76 (field), #77 (inline_block), #78 (block)
-   */
-  register('POST', '/node/:id/layout/add-component', async (req, res, params, ctx) => {
-    const { id } = params;
-    const layoutBuilder = ctx.services.get('layoutBuilder');
-
-    const body = await parseFormBody(req);
-    const { contentType: ct, sectionUuid, region, type: compType, fieldName, blockId, blockType, inlineTitle, inlineBody } = body;
-
-    if (!ct || !sectionUuid || !region || !compType) {
-      redirect(res, `/node/${id}/layout?error=` + encodeURIComponent('Missing required fields'));
-      return;
-    }
-
-    try {
-      const item = content.read(ct, id);
-      if (!item) {
-        redirect(res, `/node/${id}/layout?error=` + encodeURIComponent('Content not found'));
-        return;
-      }
-
-      // Get or create layout storage
-      let storage = layoutBuilder.getEffectiveLayout(ct, id, item);
-      if (!storage || !layoutBuilder.hasContentLayoutOverride(ct, id)) {
-        storage = storage ? layoutBuilder.cloneLayout(storage) : { sections: [] };
-      }
-
-      const section = layoutBuilder.getSection(storage, sectionUuid);
-      if (!section) {
-        redirect(res, `/node/${id}/layout?error=` + encodeURIComponent('Section not found'));
-        return;
-      }
-
-      let component;
-      if (compType === 'field') {
-        component = layoutBuilder.createFieldComponent(fieldName || '', {});
-      } else if (compType === 'block') {
-        component = layoutBuilder.createBlockComponent(blockId || '', {});
-      } else if (compType === 'inline_block') {
-        component = layoutBuilder.createInlineBlockComponent(blockType || '', {
-          title: inlineTitle || '',
-          body: inlineBody || '',
-        });
-      } else {
-        redirect(res, `/node/${id}/layout?error=` + encodeURIComponent('Invalid component type'));
-        return;
-      }
-
-      layoutBuilder.addComponent(section, region, component);
-      await layoutBuilder.setContentLayout(ct, id, storage);
-
-      redirect(res, `/node/${id}/layout?success=` + encodeURIComponent(`${compType} component added`));
-    } catch (err) {
-      redirect(res, `/node/${id}/layout?error=` + encodeURIComponent(err.message));
-    }
-  }, 'Add component to layout section (form-based)');
-
-  /**
-   * POST /node/:id/layout/remove-component - Remove a component from a section
-   *
-   * WHY: Form-based route for removing components using session auth.
-   */
-  register('POST', '/node/:id/layout/remove-component', async (req, res, params, ctx) => {
-    const { id } = params;
-    const layoutBuilder = ctx.services.get('layoutBuilder');
-
-    const body = await parseFormBody(req);
-    const { contentType: ct, sectionUuid, componentUuid } = body;
-
-    if (!ct || !sectionUuid || !componentUuid) {
-      redirect(res, `/node/${id}/layout?error=` + encodeURIComponent('Missing required fields'));
-      return;
-    }
-
-    try {
-      const item = content.read(ct, id);
-      if (!item) {
-        redirect(res, `/node/${id}/layout?error=` + encodeURIComponent('Content not found'));
-        return;
-      }
-
-      let storage = layoutBuilder.getEffectiveLayout(ct, id, item);
-      if (!storage) {
-        redirect(res, `/node/${id}/layout?error=` + encodeURIComponent('No layout found'));
-        return;
-      }
-
-      if (!layoutBuilder.hasContentLayoutOverride(ct, id)) {
-        storage = layoutBuilder.cloneLayout(storage);
-      }
-
-      const section = layoutBuilder.getSection(storage, sectionUuid);
-      if (!section) {
-        redirect(res, `/node/${id}/layout?error=` + encodeURIComponent('Section not found'));
-        return;
-      }
-
-      layoutBuilder.removeComponent(section, componentUuid);
-      await layoutBuilder.setContentLayout(ct, id, storage);
-
-      redirect(res, `/node/${id}/layout?success=` + encodeURIComponent('Component removed'));
-    } catch (err) {
-      redirect(res, `/node/${id}/layout?error=` + encodeURIComponent(err.message));
-    }
-  }, 'Remove component from layout section (form-based)');
-
-  /**
-   * POST /node/:id/layout/delete-section - Delete a section (form-based)
-   */
-  register('POST', '/node/:id/layout/delete-section', async (req, res, params, ctx) => {
-    const { id } = params;
-    const layoutBuilder = ctx.services.get('layoutBuilder');
-
-    const body = await parseFormBody(req);
-    const { contentType: ct, sectionUuid } = body;
-
-    if (!ct || !sectionUuid) {
-      redirect(res, `/node/${id}/layout?error=` + encodeURIComponent('Missing required fields'));
-      return;
-    }
-
-    try {
-      const item = content.read(ct, id);
-      if (!item) {
-        redirect(res, `/node/${id}/layout?error=` + encodeURIComponent('Content not found'));
-        return;
-      }
-
-      let storage = layoutBuilder.getEffectiveLayout(ct, id, item);
-      if (!storage) {
-        redirect(res, `/node/${id}/layout?error=` + encodeURIComponent('No layout found'));
-        return;
-      }
-
-      if (!layoutBuilder.hasContentLayoutOverride(ct, id)) {
-        storage = layoutBuilder.cloneLayout(storage);
-      }
-
-      layoutBuilder.removeSection(storage, sectionUuid);
-      await layoutBuilder.setContentLayout(ct, id, storage);
-
-      redirect(res, `/node/${id}/layout?success=` + encodeURIComponent('Section deleted'));
-    } catch (err) {
-      redirect(res, `/node/${id}/layout?error=` + encodeURIComponent(err.message));
-    }
-  }, 'Delete section from layout (form-based)');
-
-  /**
-   * POST /node/:id/layout/revert - Revert content layout to default
-   */
-  register('POST', '/node/:id/layout/revert', async (req, res, params, ctx) => {
-    const { id } = params;
-    const layoutBuilder = ctx.services.get('layoutBuilder');
-
-    // Find content type
-    const types = content.listTypes();
-    let contentType = null;
-    for (const { type } of types) {
-      const item = content.read(type, id);
-      if (item) {
-        contentType = type;
-        break;
-      }
-    }
-
-    if (!contentType) {
-      redirect(res, `/admin/content?error=` + encodeURIComponent('Content not found'));
-      return;
-    }
-
-    try {
-      await layoutBuilder.removeContentLayout(contentType, id);
-      redirect(res, `/node/${id}/layout?success=` + encodeURIComponent('Layout reverted to default'));
-    } catch (err) {
-      redirect(res, `/node/${id}/layout?error=` + encodeURIComponent(err.message));
-    }
-  }, 'Revert content layout to default');
-
-  /**
-   * POST /node/:id/layout/save - Save layout with revision tracking (Feature #79)
-   *
-   * WHY: Explicit save button creates a revision snapshot so editors
-   * can track changes and revert if needed.
-   */
-  register('POST', '/node/:id/layout/save', async (req, res, params, ctx) => {
-    const { id } = params;
-    const layoutBuilder = ctx.services.get('layoutBuilder');
-
-    // Find content type
-    const types = content.listTypes();
-    let contentType = null;
-    let contentItem = null;
-    for (const { type } of types) {
-      const item = content.read(type, id);
-      if (item) {
-        contentType = type;
-        contentItem = item;
-        break;
-      }
-    }
-
-    if (!contentType) {
-      redirect(res, `/admin/content?error=` + encodeURIComponent('Content not found'));
-      return;
-    }
-
-    try {
-      const layout = layoutBuilder.getEffectiveLayout(contentType, id, contentItem);
-      if (layout && layout.sections) {
-        layoutBuilder.saveLayoutRevision(contentType, id, layout, 'Manual save');
-      }
-      redirect(res, `/node/${id}/layout?success=` + encodeURIComponent('Layout saved successfully'));
-    } catch (err) {
-      redirect(res, `/node/${id}/layout?error=` + encodeURIComponent(err.message));
-    }
-  }, 'Save layout with revision (Feature #79)');
-
-  /**
-   * POST /node/:id/layout/discard - Discard changes, revert to last saved revision (Feature #80)
-   *
-   * WHY: Allows editors to undo layout changes when they made mistakes.
-   * Reverts to the last saved revision or removes the override entirely.
-   */
-  register('POST', '/node/:id/layout/discard', async (req, res, params, ctx) => {
-    const { id } = params;
-    const layoutBuilder = ctx.services.get('layoutBuilder');
-
-    // Find content type
-    const types = content.listTypes();
-    let contentType = null;
-    for (const { type } of types) {
-      const item = content.read(type, id);
-      if (item) {
-        contentType = type;
-        break;
-      }
-    }
-
-    if (!contentType) {
-      redirect(res, `/admin/content?error=` + encodeURIComponent('Content not found'));
-      return;
-    }
-
-    try {
-      // Get the last saved revision
-      const revisions = layoutBuilder.getLayoutRevisions(contentType, id, 1);
-      if (revisions.length > 0) {
-        await layoutBuilder.revertToLayoutRevision(contentType, id, revisions[0].id);
-        redirect(res, `/node/${id}/layout?success=` + encodeURIComponent('Changes discarded - reverted to last saved state'));
-      } else {
-        // No revisions, revert to default
-        await layoutBuilder.removeContentLayout(contentType, id);
-        redirect(res, `/node/${id}/layout?success=` + encodeURIComponent('Changes discarded - reverted to default layout'));
-      }
-    } catch (err) {
-      redirect(res, `/node/${id}/layout?error=` + encodeURIComponent(err.message));
-    }
-  }, 'Discard layout changes (Feature #80)');
-
-  /**
-   * GET /node/:id/layout/revisions - Layout revision history page (Feature #83)
-   *
-   * WHY: Provides a dedicated page for viewing and reverting layout history.
-   * Supplements the inline revision panel in the layout builder.
-   */
-  register('GET', '/node/:id/layout/revisions', async (req, res, params, ctx) => {
-    const { id } = params;
-    const layoutBuilder = ctx.services.get('layoutBuilder');
-    const server = ctx.services.get('server');
-
-    // Find content type
-    const types = content.listTypes();
-    let contentType = null;
-    let contentItem = null;
-    for (const { type } of types) {
-      const item = content.read(type, id);
-      if (item) {
-        contentType = type;
-        contentItem = item;
-        break;
-      }
-    }
-
-    if (!contentItem) {
-      res.writeHead(404, { 'Content-Type': 'text/html' });
-      res.end('<!DOCTYPE html><html><body><h1>404 - Content Not Found</h1></body></html>');
-      return;
-    }
-
-    const contentTitle = contentItem.title || contentItem.name || id;
-    const revisions = layoutBuilder.getLayoutRevisions(contentType, id, 50);
-
-    // Support JSON format for the inline revision panel (AJAX)
-    const reqUrl = new URL(req.url, `http://${req.headers.host}`);
-    if (reqUrl.searchParams.get('format') === 'json') {
-      res.writeHead(200, { 'Content-Type': 'application/json' });
-      res.end(JSON.stringify({ revisions, count: revisions.length }));
-      return;
-    }
-
-    const flash = getFlashMessage(req.url);
-
-    let revisionsHtml = '';
-    if (revisions.length === 0) {
-      revisionsHtml = '<tr><td colspan="5" style="text-align:center; padding:30px; color:#999;">No revisions yet. Save the layout to create the first revision.</td></tr>';
-    } else {
-      for (let i = 0; i < revisions.length; i++) {
-        const rev = revisions[i];
-        const date = new Date(rev.timestamp);
-        const dateStr = date.toLocaleDateString() + ' ' + date.toLocaleTimeString();
-        const isCurrent = i === 0 ? ' <span style="background:#4caf50;color:white;padding:1px 6px;border-radius:10px;font-size:0.8em;">current</span>' : '';
-
-        revisionsHtml += `
-          <tr style="border-bottom:1px solid #eee;">
-            <td style="padding:10px;">${dateStr}${isCurrent}</td>
-            <td style="padding:10px; color:#666;">${rev.message || '-'}</td>
-            <td style="text-align:center; padding:10px;">${rev.sectionCount || 0}</td>
-            <td style="text-align:center; padding:10px;">${rev.componentCount || 0}</td>
-            <td style="text-align:center; padding:10px;">
-              ${i > 0 ?
-                `<form action="/node/${id}/layout/revisions/${rev.id}/revert" method="POST" style="display:inline;">
-                  <button type="submit" style="background:#ff9800;color:white;border:none;padding:5px 12px;border-radius:4px;cursor:pointer;" onclick="return confirm('Revert to this revision?')">Revert</button>
-                </form>` :
-                '<span style="color:#999; font-size:0.9em;">Latest</span>'
-              }
-            </td>
-          </tr>`;
-      }
-    }
-
-    const html = `<!DOCTYPE html>
-<html lang="en">
-<head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Layout Revisions: ${contentTitle}</title>
-  <link rel="stylesheet" href="/css/admin.css">
-</head>
-<body>
-  <nav class="admin-nav">
-    <a href="/node/${id}/layout">&larr; Back to Layout Builder</a>
-    <span style="margin: 0 10px; color: #999;">|</span>
-    <a href="/admin/content/${contentType}/${id}/edit">Edit Content</a>
-  </nav>
-  <main class="admin-main">
-    <h1>📋 Layout Revision History</h1>
-    <p style="color:#666;">Content: <strong>${contentTitle}</strong> (${contentType}/${id})</p>
-    ${flash ? `<div class="flash flash-${flash.type}">${flash.message}</div>` : ''}
-    <table style="width:100%; border-collapse:collapse; background:white; border-radius:8px; overflow:hidden; box-shadow:0 1px 4px rgba(0,0,0,0.1);">
-      <thead>
-        <tr style="background:#f5f5f5; border-bottom:2px solid #ddd;">
-          <th style="text-align:left; padding:12px;">Timestamp</th>
-          <th style="text-align:left; padding:12px;">Message</th>
-          <th style="text-align:center; padding:12px;">Sections</th>
-          <th style="text-align:center; padding:12px;">Components</th>
-          <th style="text-align:center; padding:12px;">Actions</th>
-        </tr>
-      </thead>
-      <tbody>
-        ${revisionsHtml}
-      </tbody>
-    </table>
-  </main>
-</body>
-</html>`;
-
-    server.html(res, html);
-  }, 'Layout revision history page (Feature #83)');
-
-  /**
-   * POST /node/:id/layout/revisions/:revisionId/revert - Revert to revision (Feature #83)
-   */
-  register('POST', '/node/:id/layout/revisions/:revisionId/revert', async (req, res, params, ctx) => {
-    const { id, revisionId } = params;
-    const layoutBuilder = ctx.services.get('layoutBuilder');
-
-    // Find content type
-    const types = content.listTypes();
-    let contentType = null;
-    for (const { type } of types) {
-      const item = content.read(type, id);
-      if (item) {
-        contentType = type;
-        break;
-      }
-    }
-
-    if (!contentType) {
-      redirect(res, `/admin/content?error=` + encodeURIComponent('Content not found'));
-      return;
-    }
-
-    try {
-      await layoutBuilder.revertToLayoutRevision(contentType, id, revisionId);
-      redirect(res, `/node/${id}/layout?success=` + encodeURIComponent('Layout reverted to previous revision'));
-    } catch (err) {
-      redirect(res, `/node/${id}/layout?error=` + encodeURIComponent(err.message));
-    }
-  }, 'Revert to layout revision (Feature #83)');
-
-  /**
-   * GET /node/:id/layout/preview - Layout preview as visitor (Feature #82)
-   *
-   * WHY: Editors need to see how the layout will render to site visitors
-   * without edit controls, drag handles, or admin UI. This renders the
-   * layout with actual content field data, exactly as a visitor would see it.
-   */
-  register('GET', '/node/:id/layout/preview', async (req, res, params, ctx) => {
-    const { id } = params;
-    const layoutBuilder = ctx.services.get('layoutBuilder');
-    const server = ctx.services.get('server');
-    const blocksService = ctx.services.get('blocks');
-
-    if (!layoutBuilder) {
-      res.writeHead(503, { 'Content-Type': 'text/html' });
-      res.end('<!DOCTYPE html><html><body><p>Layout Builder not enabled</p></body></html>');
-      return;
-    }
-
-    // Auto-detect content type
-    const types = content.listTypes();
-    let contentItem = null;
-    let contentType = null;
-    for (const { type } of types) {
-      const item = content.read(type, id);
-      if (item) {
-        contentItem = item;
-        contentType = type;
-        break;
-      }
-    }
-
-    if (!contentItem) {
-      res.writeHead(404, { 'Content-Type': 'text/html' });
-      res.end(`<!DOCTYPE html><html><body><h1>404 - Content Not Found</h1><p>No content found with ID "${id.replace(/[<>"'&]/g, '')}".</p></body></html>`);
-      return;
-    }
-
-    const contentId = contentItem.id || id;
-    const contentTitle = contentItem.title || contentItem.name || contentItem.subject || contentId;
-    const effectiveLayout = layoutBuilder.getEffectiveLayout(contentType, contentId, contentItem);
-
-    if (!effectiveLayout || !effectiveLayout.sections || effectiveLayout.sections.length === 0) {
-      const html = `<!DOCTYPE html>
-<html lang="en">
-<head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>${contentTitle} - Preview</title>
-  <style>
-    body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; margin: 0; padding: 20px; background: #f5f5f5; color: #333; }
-    .preview-banner { background: #2196f3; color: white; padding: 8px 20px; text-align: center; font-size: 0.85em; margin: -20px -20px 20px -20px; }
-    .preview-banner a { color: white; margin-left: 20px; }
-    .content-wrapper { max-width: 960px; margin: 0 auto; background: white; padding: 40px; border-radius: 8px; box-shadow: 0 1px 4px rgba(0,0,0,0.1); }
-    h1 { margin-top: 0; }
-  </style>
-</head>
-<body>
-  <div class="preview-banner">
-    📋 Layout Preview Mode &mdash; Viewing as a visitor would see this page
-    <a href="/node/${contentId}/layout">← Back to Layout Builder</a>
-  </div>
-  <div class="content-wrapper">
-    <h1>${contentTitle.replace(/[<>"'&]/g, c => ({'<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;','&':'&amp;'}[c]))}</h1>
-    <p style="color: #999; font-style: italic;">No layout defined for this content.</p>
-  </div>
-</body>
-</html>`;
-      server.html(res, html);
-      return;
-    }
-
-    // Render each section as a visitor would see it
-    const sortedSections = [...effectiveLayout.sections].sort((a, b) => (a.weight || 0) - (b.weight || 0));
-    let sectionsHtml = '';
-
-    for (const section of sortedSections) {
-      const layoutDef = layoutBuilder.getLayout(section.layoutId);
-      if (!layoutDef) continue;
-
-      const regions = layoutDef.regions || {};
-      const regionCount = Object.keys(regions).length;
-      const sortedRegions = Object.entries(regions).sort((a, b) => (a[1].weight || 0) - (b[1].weight || 0));
-
-      let regionsHtml = '';
-      for (const [regionId, regionDef] of sortedRegions) {
-        const components = (section.components && section.components[regionId]) || [];
-        let componentsHtml = '';
-
-        for (const comp of components.sort((a, b) => (a.weight || 0) - (b.weight || 0))) {
-          let componentHtml = '';
-
-          if (comp.type === 'field' && comp.fieldName && contentItem) {
-            // Render actual field value
-            const value = contentItem[comp.fieldName];
-            if (value !== undefined && value !== null && value !== '') {
-              const safeValue = String(value).replace(/[<>"'&]/g, c => ({'<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;','&':'&amp;'}[c]));
-              const label = comp.configuration && comp.configuration.hideLabel ? '' : `<div class="field-label">${comp.fieldName}</div>`;
-              componentHtml = `<div class="layout-field layout-field-${comp.fieldName}">
-                ${label}
-                <div class="field-value">${safeValue}</div>
-              </div>`;
-            }
-          } else if (comp.type === 'block' && comp.blockId) {
-            // Render block reference
-            if (blocksService && typeof blocksService.getBlock === 'function') {
-              const block = blocksService.getBlock(comp.blockId);
-              if (block) {
-                const blockTitle = (block.title || block.adminTitle || '').replace(/[<>"'&]/g, c => ({'<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;','&':'&amp;'}[c]));
-                const blockBody = (block.config && block.config.body) ? block.config.body.replace(/[<>"'&]/g, c => ({'<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;','&':'&amp;'}[c])) : '';
-                componentHtml = `<div class="layout-block">
-                  ${blockTitle ? `<h3 class="block-title">${blockTitle}</h3>` : ''}
-                  ${blockBody ? `<div class="block-body">${blockBody}</div>` : ''}
-                </div>`;
-              }
-            }
-          } else if (comp.type === 'inline_block') {
-            // Render inline block content
-            const title = (comp.configuration && comp.configuration.title) ? comp.configuration.title.replace(/[<>"'&]/g, c => ({'<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;','&':'&amp;'}[c])) : '';
-            const body = (comp.configuration && comp.configuration.body) ? comp.configuration.body.replace(/[<>"'&]/g, c => ({'<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;','&':'&amp;'}[c])) : '';
-            componentHtml = `<div class="layout-inline-block">
-              ${title ? `<h3>${title}</h3>` : ''}
-              ${body ? `<div>${body}</div>` : ''}
-            </div>`;
-          }
-
-          if (componentHtml) {
-            const label = comp.configuration && comp.configuration.label
-              ? `<div class="component-label">${comp.configuration.label.replace(/[<>"'&]/g, c => ({'<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;','&':'&amp;'}[c]))}</div>`
-              : '';
-            const cssClass = comp.configuration && comp.configuration.cssClass ? ' ' + comp.configuration.cssClass.replace(/[<>"'&]/g, '') : '';
-            componentsHtml += `<div class="layout-component${cssClass}">${label}${componentHtml}</div>`;
-          }
-        }
-
-        regionsHtml += `<div class="layout-region layout-region-${regionId}">${componentsHtml}</div>`;
-      }
-
-      // Determine grid columns
-      const colWidths = section.settings && section.settings.columnWidths;
-      let gridStyle = '';
-      if (colWidths) {
-        const cols = colWidths.split('-').map(w => w + 'fr').join(' ');
-        gridStyle = `grid-template-columns: ${cols};`;
-      } else if (regionCount > 1) {
-        gridStyle = `grid-template-columns: repeat(${regionCount}, 1fr);`;
-      }
-
-      sectionsHtml += `<div class="layout-section layout-${section.layoutId}" style="${regionCount > 1 ? 'display:grid;gap:24px;' + gridStyle : ''}">${regionsHtml}</div>`;
-    }
-
-    const previewHtml = `<!DOCTYPE html>
-<html lang="en">
-<head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>${contentTitle.replace(/[<>"'&]/g, c => ({'<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;','&':'&amp;'}[c]))} - Preview</title>
-  <style>
-    /* Clean visitor-facing styles - no admin chrome */
-    * { box-sizing: border-box; }
-    body {
-      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
-      margin: 0; padding: 0; background: #f8f9fa; color: #333; line-height: 1.6;
-    }
-    .preview-banner {
-      background: #2196f3; color: white; padding: 8px 20px;
-      text-align: center; font-size: 0.85em; position: sticky; top: 0; z-index: 1000;
-    }
-    .preview-banner a { color: white; margin-left: 20px; text-decoration: underline; }
-    .content-wrapper {
-      max-width: 1100px; margin: 24px auto; background: white;
-      padding: 40px; border-radius: 8px; box-shadow: 0 1px 6px rgba(0,0,0,0.08);
-    }
-    .content-title { margin: 0 0 24px 0; font-size: 2em; color: #1a1a1a; }
-    .layout-section { margin-bottom: 32px; }
-    .layout-region { padding: 0; }
-    .layout-component { margin-bottom: 16px; }
-    .component-label { font-size: 0.8em; text-transform: uppercase; letter-spacing: 0.5px; color: #888; margin-bottom: 4px; }
-    .layout-field .field-label { font-weight: 600; color: #555; font-size: 0.9em; margin-bottom: 4px; text-transform: capitalize; }
-    .layout-field .field-value { color: #333; }
-    .layout-block .block-title { margin: 0 0 8px 0; font-size: 1.2em; color: #1a1a1a; }
-    .layout-block .block-body { color: #444; }
-    .layout-inline-block h3 { margin: 0 0 8px 0; font-size: 1.1em; }
-    @media (max-width: 768px) {
-      .layout-section { display: block !important; }
-      .content-wrapper { padding: 20px; margin: 12px; }
-    }
-  </style>
-</head>
-<body>
-  <div class="preview-banner">
-    👁️ Layout Preview &mdash; Viewing as a visitor would see this page
-    <a href="/node/${contentId}/layout">← Back to Layout Builder</a>
-  </div>
-  <div class="content-wrapper">
-    <h1 class="content-title">${contentTitle.replace(/[<>"'&]/g, c => ({'<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;','&':'&amp;'}[c]))}</h1>
-    ${sectionsHtml}
-  </div>
-</body>
-</html>`;
-
-    server.html(res, previewHtml);
-  }, 'Layout preview as visitor (Feature #82)');
-
-  /**
-   * POST /node/:id/layout/copy-from - Copy layout from another content item (Feature #84)
-   *
-   * WHY: Content editors often want to reuse a layout they've built for one
-   * content item on another. This copies the full layout structure (sections,
-   * components, settings) from source to target without modifying the source.
-   */
-  register('POST', '/node/:id/layout/copy-from', async (req, res, params, ctx) => {
-    const { id } = params;
-    const layoutBuilder = ctx.services.get('layoutBuilder');
-
-    // Parse form body to get source content ID
-    const body = await parseFormBody(req);
-    const sourceId = body.sourceId;
-
-    if (!sourceId) {
-      redirect(res, `/node/${id}/layout?error=` + encodeURIComponent('Source content ID is required'));
-      return;
-    }
-
-    // Find target content type and item
-    const types = content.listTypes();
-    let targetType = null;
-    let targetItem = null;
-    for (const { type } of types) {
-      const item = content.read(type, id);
-      if (item) {
-        targetType = type;
-        targetItem = item;
-        break;
-      }
-    }
-
-    if (!targetItem) {
-      redirect(res, `/admin/content?error=` + encodeURIComponent('Target content not found'));
-      return;
-    }
-
-    // Find source content type and item
-    let sourceType = null;
-    let sourceItem = null;
-    for (const { type } of types) {
-      const item = content.read(type, sourceId);
-      if (item) {
-        sourceType = type;
-        sourceItem = item;
-        break;
-      }
-    }
-
-    if (!sourceItem) {
-      redirect(res, `/node/${id}/layout?error=` + encodeURIComponent(`Source content "${sourceId}" not found`));
-      return;
-    }
-
-    try {
-      // Get the source layout
-      const sourceLayout = layoutBuilder.getEffectiveLayout(sourceType, sourceId, sourceItem);
-      if (!sourceLayout || !sourceLayout.sections || sourceLayout.sections.length === 0) {
-        redirect(res, `/node/${id}/layout?error=` + encodeURIComponent('Source content has no layout to copy'));
-        return;
-      }
-
-      // Deep clone the layout and regenerate all UUIDs to avoid conflicts
-      const clonedLayout = layoutBuilder.cloneLayout(sourceLayout);
-
-      // Regenerate UUIDs for sections and components so they're independent
-      for (const section of clonedLayout.sections) {
-        section.uuid = crypto.randomBytes(16).toString('hex');
-        for (const regionId of Object.keys(section.components || {})) {
-          for (const comp of section.components[regionId] || []) {
-            comp.uuid = crypto.randomBytes(16).toString('hex');
-          }
-        }
-      }
-
-      clonedLayout.updated = new Date().toISOString();
-
-      // Save as the target content's layout override
-      await layoutBuilder.setContentLayout(targetType, id, clonedLayout);
-
-      // Save a revision noting the copy
-      const sourceTitle = sourceItem.title || sourceItem.name || sourceId;
-      layoutBuilder.saveLayoutRevision(targetType, id, clonedLayout, `Copied layout from "${sourceTitle}" (${sourceType}/${sourceId})`);
-
-      redirect(res, `/node/${id}/layout?success=` + encodeURIComponent(`Layout copied from "${sourceTitle}" successfully`));
-    } catch (err) {
-      redirect(res, `/node/${id}/layout?error=` + encodeURIComponent(err.message));
-    }
-  }, 'Copy layout from another content (Feature #84)');
-
-  /**
-   * GET /admin/structure/entity/:entity_type/:bundle/field-groups/:mode
-   * Field groups management UI (Feature #7)
-   */
-  register('GET', '/admin/structure/entity/:entity_type/:bundle/field-groups/:mode', async (req, res, params, ctx) => {
-    const { entity_type, bundle, mode } = params;
-    const fieldGroup = ctx.services.get('field-group');
-
-    try {
-      const groups = await fieldGroup.getGroupsByMode(entity_type, bundle, mode);
-
-      const templateContent = loadTemplate('field-groups-manage.html');
-      const html = render(res, templateContent, {
-        entityType: entity_type,
-        bundle: bundle,
-        mode: mode,
-        groups: groups
-      }, ctx);
-
-      server.html(res, html);
-    } catch (err) {
-      server.json(res, { error: err.message }, 500);
-    }
-  }, 'Field groups management UI');
-
-  /**
-   * POST /admin/structure/entity/:entity_type/:bundle/field-groups/:mode
-   * Create or update field group (Feature #7)
-   */
-  register('POST', '/admin/structure/entity/:entity_type/:bundle/field-groups/:mode', async (req, res, params, ctx) => {
-    const { entity_type, bundle, mode } = params;
-    const fieldGroup = ctx.services.get('field-group');
-
-    try {
-      // Parse request body
-      const body = await new Promise((resolve, reject) => {
-        if (req.body) { resolve(req.body); return; }
-        let data = '';
-        req.on('data', chunk => { data += chunk; });
-        req.on('end', () => {
-          try { resolve(data ? JSON.parse(data) : {}); }
-          catch (e) { reject(new Error('Invalid JSON body')); }
-        });
-        req.on('error', reject);
-      });
-
-      // Create or update group
-      const group = await fieldGroup.createGroup(body);
-      server.json(res, { success: true, group }, 201);
-    } catch (err) {
-      server.json(res, { error: err.message }, 400);
-    }
-  }, 'Create field group');
-
-  /**
-   * GET /api/field-groups/:id - Get single field group
-   */
-  register('GET', '/api/field-groups/:id', async (req, res, params, ctx) => {
-    const { id } = params;
-    const fieldGroup = ctx.services.get('field-group');
-
-    try {
-      const group = await fieldGroup.getGroup(id);
-      if (!group) {
-        server.json(res, { error: 'Group not found' }, 404);
-        return;
-      }
-      server.json(res, group);
-    } catch (err) {
-      server.json(res, { error: err.message }, 500);
-    }
-  }, 'Get field group by ID');
-
-  /**
-   * DELETE /api/field-groups/:id - Delete field group
-   */
-  register('DELETE', '/api/field-groups/:id', async (req, res, params, ctx) => {
-    const { id } = params;
-    const fieldGroup = ctx.services.get('field-group');
-
-    try {
-      const deleted = await fieldGroup.deleteGroup(id);
-      if (!deleted) {
-        server.json(res, { error: 'Group not found' }, 404);
-        return;
-      }
-      server.json(res, { success: true });
-    } catch (err) {
-      server.json(res, { error: err.message }, 500);
-    }
-  }, 'Delete field group');
-
-  /**
-   * POST /admin/structure/entity/:entity_type/:bundle/field-groups/:mode/reorder
-   * Reorder field groups (drag and drop)
-   */
-  register('POST', '/admin/structure/entity/:entity_type/:bundle/field-groups/:mode/reorder', async (req, res, params, ctx) => {
-    const fieldGroup = ctx.services.get('field-group');
-
-    try {
-      const body = await new Promise((resolve, reject) => {
-        if (req.body) { resolve(req.body); return; }
-        let data = '';
-        req.on('data', chunk => { data += chunk; });
-        req.on('end', () => {
-          try { resolve(data ? JSON.parse(data) : {}); }
-          catch (e) { reject(new Error('Invalid JSON body')); }
-        });
-        req.on('error', reject);
-      });
-
-      // Update weights for each group
-      const updates = body.updates || [];
-      for (const update of updates) {
-        await fieldGroup.updateGroup(update.id, { weight: update.weight });
-      }
-
-      server.json(res, { success: true });
-    } catch (err) {
-      server.json(res, { error: err.message }, 500);
-    }
-  }, 'Reorder field groups');
 
   /**
    * Helper: Format value for display

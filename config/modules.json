@@ -8,6 +8,9 @@
     "admin",
     "tasks",
     "consciousness",
-    "ai_test"
+    "ai_test",
+    "ai_test_provider2",
+    "ai_test_tool",
+    "ai_dashboard"
   ]
 }

@@ -216,34 +216,26 @@ function isPathSafe(publicDir, requestedPath) {
  * }
  */
 export function serve(baseDir, urlPath, res, method = 'GET', req = null) {
-  // Determine which static directory we're serving from
+  // Only handle /public/ URLs
   // WHY CHECK HERE:
   // Defense in depth - don't assume caller validated
-  let staticDir;
-  let relativePath;
-
-  if (urlPath.startsWith('/public/') || urlPath === '/public') {
-    // /public/css/style.css → <baseDir>/public/css/style.css
-    staticDir = join(baseDir, 'public');
-    relativePath = urlPath.slice(1);  // Remove leading /
-  } else if (urlPath.startsWith('/themes/')) {
-    // /themes/skins/consciousness-dark/variables.css → <baseDir>/themes/skins/consciousness-dark/variables.css
-    // Serves theme CSS files (layouts, skins, admin skins)
-    staticDir = join(baseDir, 'themes');
-    relativePath = urlPath.slice(1);  // Remove leading /
-  } else {
+  if (!urlPath.startsWith('/public/') && urlPath !== '/public') {
     return false;
   }
 
   // Convert URL path to file path
-  // WHY NOT STRIP prefix:
+  // /public/css/style.css → <baseDir>/public/css/style.css
+  //
+  // WHY NOT STRIP /public/:
   // The URL structure mirrors the directory structure.
   // Less magic, easier to understand.
+  const relativePath = urlPath.slice(1);  // Remove leading /
+  const publicDir = join(baseDir, 'public');
   const filePath = resolve(baseDir, relativePath);
 
   // SECURITY CHECK: Prevent directory traversal
   // This is the most important security measure
-  if (!isPathSafe(staticDir, filePath)) {
+  if (!isPathSafe(publicDir, filePath)) {
     // Log the attempt for security monitoring
     console.warn(`[static] Blocked directory traversal attempt: ${urlPath}`);
     return false;
@@ -394,15 +386,9 @@ function serveRangeRequest(filePath, fileSize, mimeType, req, res) {
  * WHY SEPARATE FUNCTION:
  * Server.js can quickly check if a path is static
  * without going through the full serve() logic.
- * 
- * STATIC PATHS:
- * - /public/* - General static assets (CSS, JS, images)
- * - /themes/* - Theme CSS files (layouts, skins, admin skins)
  */
 export function isStaticPath(urlPath) {
-  return urlPath.startsWith('/public/') || 
-         urlPath === '/public' ||
-         urlPath.startsWith('/themes/');
+  return urlPath.startsWith('/public/') || urlPath === '/public';
 }
 
 /**

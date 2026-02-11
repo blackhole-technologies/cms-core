@@ -2,10 +2,9 @@
   "id": "1769870756954-jymy1",
   "type": "user",
   "created": "2026-01-31T14:45:56.954Z",
-  "updated": "2026-02-11T07:39:55.893Z",
+  "updated": "2026-02-11T12:25:22.035Z",
   "username": "admin",
-  "password": "dc7751472b066e4d3908d63ae5a2c8a5:30975591dde2da162998f2282c36e15a38e5220bc97b43ea6bff50fdb6b1a5b4",
+  "password": "375e9bc0c2b09c6677188d24a4c22514:f9fa27768ad403309c46cc0fc002e88124452a2d2fc8d033ed8fb60c14c54e44",
   "role": "admin",
-  "lastLogin": "2026-02-11T07:39:55.892Z",
-  "isDefaultRevision": true
+  "lastLogin": "2026-02-11T12:25:22.035Z"
 }

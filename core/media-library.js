@@ -60,7 +60,6 @@ let mediaService = null;
 let contentService = null;
 let imageStylesService = null;
 let hooksService = null;
-let oembedService = null;
 
 /**
  * Media type definitions
@@ -140,7 +139,6 @@ export function init(options = {}) {
   contentService = options.content;
   imageStylesService = options.imageStyles;
   hooksService = options.hooks;
-  oembedService = options.oembed || null;
 
   if (options.config) {
     config = { ...config, ...options.config };
@@ -167,38 +165,21 @@ function registerMediaContentType() {
   }
 
   // Register via content service
-  // WHY try both names: content.js exports register() not registerType().
-  // We check both for forward compatibility.
-  const registerFn = contentService.registerType || contentService.register;
-  if (registerFn) {
-    try {
-      registerFn(config.contentType, {
-        name: { type: 'string', required: true },
-        mediaType: { type: 'string', required: true },
-        filename: {
-          type: 'string',
-          required: true,
-          constraints: {
-            FileExtension: ['jpg', 'jpeg', 'png', 'gif', 'pdf', 'doc', 'docx', 'mp4', 'webm']
-          }
-        },
-        path: { type: 'string', required: true },
-        mimeType: { type: 'string' },
-        size: { type: 'number' },
-        metadata: { type: 'object' },
-        thumbnail: { type: 'string' },
-        tags: { type: 'array' },
-        alt: { type: 'string', required: false },  // Required for images, validated in createMediaEntity
-        caption: { type: 'string' },
-        credit: { type: 'string' },
-        folder: { type: 'string', required: false },  // Folder path for organization (e.g., 'Photos/2024')
-      }, 'core:media-library');
-    } catch (err) {
-      // Type may already be registered by another module
-      if (!err.message.includes('already registered')) {
-        console.warn(`[media-library] Could not register content type: ${err.message}`);
-      }
-    }
+  if (contentService.registerType) {
+    contentService.registerType(config.contentType, {
+      name: { type: 'string', required: true },
+      mediaType: { type: 'string', required: true },
+      filename: { type: 'string', required: true },
+      path: { type: 'string', required: true },
+      mimeType: { type: 'string' },
+      size: { type: 'number' },
+      metadata: { type: 'object' },
+      thumbnail: { type: 'string' },
+      tags: { type: 'array' },
+      alt: { type: 'string' },
+      caption: { type: 'string' },
+      credit: { type: 'string' },
+    }, 'core:media-library');
   }
 }
 
@@ -402,16 +383,7 @@ export async function createFromUpload(file, options = {}) {
 
   // Validate file size
   if (file.size > config.maxFileSize) {
-    const actualMB = (file.size / (1024 * 1024)).toFixed(2);
-    const maxMB = (config.maxFileSize / (1024 * 1024)).toFixed(1);
-    throw new Error(`File too large: ${actualMB}MB (max: ${maxMB}MB)`);
-  }
-
-  // Validate alt text for images (accessibility requirement)
-  // WHY: WCAG 2.1 Level A requires alt text on all non-decorative images
-  // for screen reader accessibility. Enforcing at upload prevents inaccessible content.
-  if (mediaType === 'image' && (!options.alt || options.alt.trim() === '')) {
-    throw new Error('Alt text is required for image uploads (accessibility requirement)');
+    throw new Error(`File too large: ${file.size} bytes (max: ${config.maxFileSize})`);
   }
 
   // Fire before hook
@@ -467,7 +439,6 @@ export async function createFromUpload(file, options = {}) {
     alt: options.alt || '',
     caption: options.caption || '',
     credit: options.credit || '',
-    folder: options.folder || '',  // Folder path for organization
     status: options.status || 'published',
   };
 
@@ -501,22 +472,9 @@ export async function createFromUrl(url, options = {}) {
     await hooksService.trigger('media-library:beforeCreate', { url, options, mediaType: 'remote_video' });
   }
 
-  // Fetch oEmbed metadata to enrich entity with title, author, dimensions, etc.
-  // WHY: Basic URL parsing only gives us provider/videoId. oEmbed gives us
-  // rich metadata (title, author, thumbnail, dimensions) from the provider's API.
-  let oembedData = null;
-  if (oembedService) {
-    try {
-      oembedData = await oembedService.fetchEmbed(url);
-    } catch (err) {
-      // oEmbed fetch is best-effort; continue with basic URL-parsed info
-      console.warn(`[media-library] oEmbed fetch failed for ${url}: ${err.message}`);
-    }
-  }
-
-  // Create media entity with oEmbed-enriched metadata
+  // Create media entity
   const entity = {
-    name: options.name || (oembedData && oembedData.title) || `${videoInfo.provider} video`,
+    name: options.name || `${videoInfo.provider} video`,
     mediaType: 'remote_video',
     filename: url,
     path: url,
@@ -527,28 +485,12 @@ export async function createFromUrl(url, options = {}) {
       provider: videoInfo.provider,
       videoId: videoInfo.videoId,
       embedUrl: videoInfo.embedUrl,
-      // oEmbed-extracted metadata stored alongside parsed info
-      oembed: oembedData ? {
-        type: oembedData.type || null,
-        title: oembedData.title || null,
-        author_name: oembedData.author_name || null,
-        author_url: oembedData.author_url || null,
-        provider_name: oembedData.provider_name || null,
-        provider_url: oembedData.provider_url || null,
-        thumbnail_url: oembedData.thumbnail_url || null,
-        thumbnail_url_cached: oembedData.thumbnail_url_cached || null,
-        thumbnail_width: oembedData.thumbnail_width || null,
-        thumbnail_height: oembedData.thumbnail_height || null,
-        html: oembedData.html || null,
-        width: oembedData.width || null,
-        height: oembedData.height || null,
-      } : null,
     },
-    thumbnail: (oembedData && (oembedData.thumbnail_url_cached || oembedData.thumbnail_url)) || videoInfo.thumbnailUrl || null,
+    thumbnail: videoInfo.thumbnailUrl || null,
     tags: options.tags || [],
-    alt: options.alt || (oembedData && oembedData.title) || '',
+    alt: options.alt || '',
     caption: options.caption || '',
-    credit: options.credit || (oembedData && oembedData.author_name) || videoInfo.provider,
+    credit: options.credit || videoInfo.provider,
     status: options.status || 'published',
   };
 
@@ -689,20 +631,17 @@ export function list(options = {}) {
   const queryOptions = {
     page: options.page || 1,
     limit: options.limit || 20,
-    sortBy: options.sort || 'created',
-    sortOrder: options.order || 'desc',
-    filters: {},
+    sort: options.sort || 'created',
+    order: options.order || 'desc',
+    filters: [],
   };
 
-  // WHY OBJECT FORMAT:
-  // content.list() expects filters as { field: value } or { 'field__op': value }
-  // Array format was incorrectly used before and silently failed
   if (options.mediaType) {
-    queryOptions.filters.mediaType = options.mediaType;
-  }
-
-  if (options.folder !== undefined) {
-    queryOptions.filters.folder = options.folder;
+    queryOptions.filters.push({
+      field: 'mediaType',
+      op: 'eq',
+      value: options.mediaType,
+    });
   }
 
   if (options.search) {
@@ -718,42 +657,6 @@ export function list(options = {}) {
 // ============================================
 // USAGE TRACKING
 // ============================================
-
-/**
- * List all folders containing media
- * WHY: Provides folder structure for UI navigation and organization
- *
- * @returns {Array<{path: string, count: number}>} Array of folders with media counts
- */
-export function listFolders() {
-  const result = list({ limit: 10000 });
-  const entities = result.items || result || [];
-  const folderMap = new Map();
-
-  for (const entity of entities) {
-    const folder = entity.folder || '';
-    if (!folderMap.has(folder)) {
-      folderMap.set(folder, 0);
-    }
-    folderMap.set(folder, folderMap.get(folder) + 1);
-  }
-
-  return Array.from(folderMap.entries())
-    .map(([path, count]) => ({ path, count }))
-    .sort((a, b) => a.path.localeCompare(b.path));
-}
-
-/**
- * Move media entity to a different folder
- * WHY: Enables reorganization of media library without re-uploading files
- *
- * @param {string} mediaId - Media entity ID
- * @param {string} folder - Target folder path (e.g., 'Photos/2024')
- * @returns {Promise<Object>} Updated media entity
- */
-export async function moveToFolder(mediaId, folder) {
-  return await update(mediaId, { folder: folder || '' });
-}
 
 /**
  * Track where a media entity is used
@@ -826,146 +729,6 @@ export function getUsage(mediaId) {
 export function isInUse(mediaId) {
   const usage = getUsage(mediaId);
   return usage.length > 0;
-}
-
-// ============================================
-// MEDIA REPLACE
-// ============================================
-
-/**
- * Replace a media entity's file while preserving references
- *
- * WHY THIS EXISTS:
- * ================
- * When a media item needs to be replaced (e.g., updated logo, corrected image),
- * all content referencing it should automatically use the new file. This is the
- * Drupal "replace" pattern — the entity ID stays the same, only the file changes.
- *
- * ATOMICITY:
- * ==========
- * The replace operation updates the media entity in a single write. Since all
- * content references point to the media entity ID (not the file path), updating
- * the entity's path/filename atomically updates all references. No need to walk
- * through each referencing content item.
- *
- * @param {string} mediaId - ID of the media entity to replace
- * @param {Object} newFile - New file data
- * @param {Buffer} newFile.data - File data
- * @param {string} newFile.name - Filename
- * @param {string} newFile.type - MIME type
- * @param {number} newFile.size - File size in bytes
- * @param {Object} options - Replace options
- * @param {boolean} options.keepOldFile - If true, don't delete old file (default: false)
- * @returns {Promise<{entity: MediaEntity, oldPath: string, newPath: string, referencesUpdated: number}>}
- */
-export async function replaceMedia(mediaId, newFile, options = {}) {
-  const entity = get(mediaId);
-  if (!entity) {
-    throw new Error(`Media entity "${mediaId}" not found`);
-  }
-
-  // Remote videos can't be replaced with file uploads
-  if (entity.mediaType === 'remote_video') {
-    throw new Error('Cannot replace a remote video with a file upload. Update the URL instead.');
-  }
-
-  // Store old path for cleanup
-  const oldPath = entity.path;
-  const oldFilename = entity.filename;
-
-  // Fire before hook
-  if (hooksService) {
-    await hooksService.trigger('media-library:beforeReplace', {
-      mediaId,
-      entity,
-      newFile,
-      options,
-    });
-  }
-
-  // Save the new file via media service
-  // WHY use mediaService.saveFile: Consistent file naming (timestamp prefix),
-  // directory structure (year/month), and extension validation.
-  let savedFile;
-  if (mediaService && mediaService.saveFile) {
-    savedFile = mediaService.saveFile({
-      name: newFile.name,
-      originalName: newFile.name,
-      data: newFile.data,
-      size: newFile.size,
-      type: newFile.type,
-    });
-  } else {
-    throw new Error('Media service not available for file storage');
-  }
-
-  // Detect media type of new file
-  const newMediaType = detectMediaType(newFile.name, newFile.type);
-
-  // Update the media entity with new file info
-  // WHY: Entity ID stays the same, so all _usage references remain valid.
-  // Content items reference by media entity ID, not file path.
-  const updates = {
-    filename: newFile.name,
-    path: savedFile.relativePath,
-    mimeType: newFile.type || savedFile.type,
-    size: newFile.size,
-  };
-
-  // Update media type if it changed (e.g., replacing PNG with JPG is fine, both are 'image')
-  if (newMediaType && newMediaType !== entity.mediaType) {
-    updates.mediaType = newMediaType;
-  }
-
-  // Update thumbnail for images
-  if ((newMediaType === 'image' || entity.mediaType === 'image') && imageStylesService) {
-    try {
-      updates.thumbnail = await imageStylesService.generate(
-        savedFile.relativePath,
-        config.thumbnailStyle
-      );
-    } catch (e) {
-      // Thumbnail generation is best-effort
-      console.warn('[media-library] Thumbnail generation failed during replace:', e.message);
-    }
-  }
-
-  const updatedEntity = await update(mediaId, updates);
-
-  // Delete old file unless explicitly told to keep it
-  // WHY: Default is to remove — prevents orphaned files consuming disk space.
-  // Option to keep allows archival workflows.
-  if (!options.keepOldFile && mediaService && oldPath) {
-    try {
-      mediaService.deleteFile(oldPath);
-    } catch (e) {
-      // Old file deletion is best-effort (may already be gone)
-      console.warn('[media-library] Failed to delete old file during replace:', e.message);
-    }
-  }
-
-  // Count references (usage entries) that are now pointing to the new file
-  const usage = getUsage(mediaId);
-  const referencesUpdated = usage.length;
-
-  // Fire after hook
-  if (hooksService) {
-    await hooksService.trigger('media-library:afterReplace', {
-      entity: updatedEntity,
-      oldPath,
-      newPath: savedFile.relativePath,
-      referencesUpdated,
-    });
-  }
-
-  return {
-    entity: updatedEntity,
-    oldPath,
-    newPath: savedFile.relativePath,
-    oldFilename,
-    newFilename: newFile.name,
-    referencesUpdated,
-  };
 }
 
 // ============================================
@@ -1179,48 +942,4 @@ export function getConfig() {
  */
 export function isEnabled() {
   return config.enabled;
-}
-
-// ============================================
-// CLI REGISTRATION
-// ============================================
-
-/**
- * Register CLI commands
- *
- * @param {Function} registerCommand - CLI command registration function
- */
-export function register(registerCommand) {
-  registerCommand('media:folders', async () => {
-    const folders = listFolders();
-    console.log('\nMedia Folders:\n');
-    if (folders.length === 0) {
-      console.log('  No folders found.');
-      return;
-    }
-    for (const folder of folders) {
-      const path = folder.path || '(root)';
-      console.log(`  ${path} (${folder.count} items)`);
-    }
-  }, 'List all media folders');
-
-  registerCommand('media:move', async (args) => {
-    const [mediaId, folderPath] = args;
-    if (!mediaId) {
-      console.error('Usage: media:move <media-id> [folder-path]');
-      return;
-    }
-    const updated = await moveToFolder(mediaId, folderPath || '');
-    console.log(`Moved media ${mediaId} to folder: ${folderPath || '(root)'}`);
-  }, 'Move media to a folder');
-
-  registerCommand('media:list-folder', async (args) => {
-    const [folderPath] = args;
-    const result = list({ folder: folderPath || '', limit: 100 });
-    const items = result.items || result || [];
-    console.log(`\nMedia in folder "${folderPath || '(root)'}": ${items.length} items\n`);
-    for (const item of items) {
-      console.log(`  ${item.id} - ${item.name} (${item.mediaType})`);
-    }
-  }, 'List media in a specific folder');
 }

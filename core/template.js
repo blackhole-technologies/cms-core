@@ -62,7 +62,6 @@
 
 import { readFileSync, existsSync } from 'node:fs';
 import { join } from 'node:path';
-import { parseCvaHelper } from './lib/Twig/CvaExtension.js';
 
 /**
  * Base directory for templates (set by init)
@@ -75,26 +74,12 @@ let themeDir = null;
 let i18nService = null;
 
 /**
- * Icon renderer service reference (lazy loaded)
- */
-let iconRendererService = null;
-
-/**
  * Set i18n service for template translations
  *
  * @param {Object} service - i18n service instance
  */
 export function setI18n(service) {
   i18nService = service;
-}
-
-/**
- * Set icon-renderer service for icon helper
- *
- * @param {Object} service - icon-renderer service instance
- */
-export function setIconRenderer(service) {
-  iconRendererService = service;
 }
 
 /**
@@ -290,52 +275,6 @@ function processIfBlocks(template, data) {
 }
 
 /**
- * Render icon helper for templates
- *
- * @param {string} iconName - Icon ID (e.g., "hero:user" or "example:rocket")
- * @param {Object} options - Rendering options
- * @returns {string} - Rendered icon SVG HTML
- *
- * WHY HELPER FUNCTION:
- * - Provides simple syntax for icon rendering in templates
- * - Integrates with icon renderer service
- * - Handles errors gracefully (returns fallback icon)
- *
- * SUPPORTED OPTIONS:
- * - size: 'small'|'medium'|'large'|'xlarge'|number (pixel size)
- * - color: CSS color value
- * - class: Additional CSS classes
- * - title: Accessibility title
- * - aria_label: ARIA label for screen readers
- */
-function renderIconHelper(iconName, options = {}) {
-  try {
-    // Lazy load icon-renderer service if not yet set
-    if (!iconRendererService) {
-      console.warn('[template] Icon renderer service not initialized yet');
-      return '';
-    }
-
-    // Normalize option names (template uses hyphen, renderer uses underscore)
-    const rendererOptions = {
-      size: options.size,
-      color: options.color,
-      class: options.class,
-      title: options.title,
-      ariaLabel: options.aria_label || options.ariaLabel,
-    };
-
-    // renderIcon returns the SVG string directly, not an object
-    const svg = iconRendererService.renderIcon(iconName, rendererOptions);
-    return svg;
-  } catch (error) {
-    console.error(`[template] Icon helper error for "${iconName}":`, error.message);
-    // Return empty string on error (fail silently in templates)
-    return '';
-  }
-}
-
-/**
  * Process {{variable}} substitutions
  *
  * @param {string} template - Template string
@@ -354,81 +293,17 @@ function renderIconHelper(iconName, options = {}) {
  * {{t "key"}} → Translated string
  * {{t "key" param="value"}} → Translated string with interpolation
  * {{locale}} → Current locale code
- * {{icon("name")}} → Icon SVG
- * {{icon("name", {size: "large"})}} → Icon with options
  *
  * MISSING VARIABLES:
  * If a variable is not found, it's replaced with empty string.
  * This prevents {{undefined}} from appearing in output.
  */
 function processVariables(template, data) {
-  // First, handle {{cva element config props}} CVA helper
-  // Matches: {{cva button buttonConfig buttonProps}} or {{cva button {...} {...}}}
-  // NOTE: We need to handle nested braces in JSON objects, so we can't use a simple regex
-  let result = template;
-  let match;
-  const cvaStartRegex = /\{\{cva\s+/g;
-
-  while ((match = cvaStartRegex.exec(result)) !== null) {
-    const startIndex = match.index;
-    const contentStart = match.index + 2; // After {{
-
-    // Find the matching }} by tracking brace depth
-    let depth = 2; // Start with {{
-    let i = contentStart;
-    let inString = false;
-    let stringChar = null;
-
-    while (i < result.length && depth > 0) {
-      const char = result[i];
-      const prevChar = i > 0 ? result[i - 1] : '';
-
-      // Track string boundaries
-      if ((char === '"' || char === "'") && prevChar !== '\\') {
-        if (!inString) {
-          inString = true;
-          stringChar = char;
-        } else if (char === stringChar) {
-          inString = false;
-          stringChar = null;
-        }
-      }
-
-      // Track brace depth (only outside strings)
-      if (!inString) {
-        if (char === '{') depth++;
-        if (char === '}') depth--;
-      }
-
-      i++;
-    }
-
-    if (depth === 0) {
-      const endIndex = i;
-      const fullMatch = result.substring(startIndex, endIndex);
-      const helperString = result.substring(contentStart, endIndex - 2).trim();
-
-      try {
-        const replacement = parseCvaHelper(helperString, data);
-        result = result.substring(0, startIndex) + replacement + result.substring(endIndex);
-        // Reset regex position after replacement
-        cvaStartRegex.lastIndex = startIndex + replacement.length;
-      } catch (error) {
-        console.error(`CVA helper error: ${error.message}`);
-        // Remove the failed helper from output
-        result = result.substring(0, startIndex) + result.substring(endIndex);
-        cvaStartRegex.lastIndex = startIndex;
-      }
-    } else {
-      break; // Malformed template
-    }
-  }
-
-  // Handle {{t "key"}} translation helper
+  // First, handle {{t "key"}} translation helper
   // Matches: {{t "key"}} or {{t "key" param="value" param2="value2"}}
   const tRegex = /\{\{t\s+"([^"]+)"(?:\s+([^}]+))?\}\}/g;
 
-  result = result.replace(tRegex, (match, key, paramsStr) => {
+  let result = template.replace(tRegex, (match, key, paramsStr) => {
     if (!i18nService) {
       return key; // Return key if i18n not initialized
     }
@@ -450,31 +325,8 @@ function processVariables(template, data) {
     return i18nService.t(key, params, locale);
   });
 
-  // Handle {{icon("name", {...})}} function helper
-  // Matches: {{icon("hero:user")}} or {{icon("hero:user", {size: "large", class: "custom"})}}
-  const iconFuncRegex = /\{\{icon\s*\(\s*["']([^"']+)["'](?:\s*,\s*\{([^}]+)\})?\s*\)\}\}/g;
-
-  result = result.replace(iconFuncRegex, (match, iconName, optionsStr) => {
-    const options = {};
-
-    // Parse options if present
-    if (optionsStr) {
-      // Match key: value or key: "value" patterns
-      const optionRegex = /(\w+):\s*(?:"([^"]*)"|'([^']*)'|(\w+))/g;
-      let optionMatch;
-      while ((optionMatch = optionRegex.exec(optionsStr)) !== null) {
-        const key = optionMatch[1];
-        const value = optionMatch[2] || optionMatch[3] || optionMatch[4];
-        options[key] = value;
-      }
-    }
-
-    return renderIconHelper(iconName, options);
-  });
-
-  // Match {{varName}} or {{nested.path}} or {{@special}} or {{icon name:with/special}}
-  // Updated to support icon helper syntax with colons and slashes
-  const varRegex = /\{\{(@?\w+(?:\s+[\w:\/\-]+|(?:\.\w+))*)\}\}/g;
+  // Match {{varName}} or {{nested.path}} or {{@special}}
+  const varRegex = /\{\{(@?\w+(?:\.\w+)*)\}\}/g;
 
   return result.replace(varRegex, (match, varPath) => {
     // Handle CSRF helpers
@@ -505,14 +357,6 @@ function processVariables(template, data) {
       const fieldPath = varPath.substring(6).trim();
       const embedValue = getNestedValue(data, fieldPath);
       return renderEmbedField(embedValue);
-    }
-
-    // Handle icon helper
-    // Usage: {{icon iconName}} - renders icon SVG
-    // Note: For complex options, use the icon() function helper instead
-    if (varPath.startsWith('icon ')) {
-      const iconName = varPath.substring(5).trim();
-      return renderIconHelper(iconName, {});
     }
 
     const value = getNestedValue(data, varPath);

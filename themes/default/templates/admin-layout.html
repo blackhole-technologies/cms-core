@@ -7,13 +7,6 @@
   <link rel="stylesheet" href="/public/css/admin.css">
 </head>
 <body class="admin-page">
-  {{#if hasActiveWorkspace}}
-  <div class="workspace-environment-bar">
-    <span class="workspace-env-icon">⚠</span>
-    Workspace: <strong>{{activeWorkspaceName}}</strong>
-    <span class="workspace-env-note">Changes are isolated from live content</span>
-  </div>
-  {{/if}}
   <div class="admin-toolbar">
     <a href="/admin" class="toolbar-logo">CMS Core</a>
     <nav>
@@ -27,32 +20,6 @@
       <a href="/admin/reports/status" {{#if navReports}}class="active"{{/if}}>Reports</a>
     </nav>
     <div class="toolbar-user">
-      {{#if hasWorkspaces}}
-      <div class="workspace-switcher">
-        <button class="workspace-switcher-btn" onclick="document.getElementById('workspace-dropdown').classList.toggle('open')">
-          <span class="workspace-indicator {{#if hasActiveWorkspace}}workspace-active{{/if}} {{#if isLiveWorkspace}}workspace-live{{/if}}"></span>
-          {{activeWorkspaceName}}
-          <span class="workspace-arrow">▾</span>
-        </button>
-        <div class="workspace-dropdown" id="workspace-dropdown">
-          <div class="workspace-dropdown-header">Switch Workspace</div>
-          <div class="workspace-options">
-            <button type="button" onclick="switchWorkspace('live')" class="workspace-option {{#if isLiveWorkspace}}workspace-option-active{{/if}}">
-              <span class="workspace-indicator workspace-live"></span>
-              Live
-              {{#if isLiveWorkspace}}<span class="workspace-check">✓</span>{{/if}}
-            </button>
-            {{#each workspaces}}
-            <button type="button" onclick="switchWorkspace('{{id}}')" class="workspace-option {{#if isCurrent}}workspace-option-active{{/if}}">
-              <span class="workspace-indicator workspace-active"></span>
-              {{label}}
-              {{#if isCurrent}}<span class="workspace-check">✓</span>{{/if}}
-            </button>
-            {{/each}}
-          </div>
-        </div>
-      </div>
-      {{/if}}
       <span>{{username}}</span>
       <a href="/">View site</a>
       <a href="/logout">Log out</a>
@@ -63,49 +30,5 @@
   </div>
   <script src="/public/js/shortcuts.js"></script>
   <script>if(typeof Shortcuts!=='undefined')Shortcuts.init({context:'global'});</script>
-  <script>
-    // Close workspace dropdown when clicking outside
-    document.addEventListener('click', function(e) {
-      var dropdown = document.getElementById('workspace-dropdown');
-      if (dropdown && !e.target.closest('.workspace-switcher')) {
-        dropdown.classList.remove('open');
-      }
-    });
-
-    // Switch workspace via fetch API (avoids full form POST/redirect cycle)
-    function switchWorkspace(workspaceId) {
-      var csrfToken = '{{csrfToken}}';
-      fetch('/admin/workspace/switch', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/x-www-form-urlencoded',
-          'X-CSRF-Token': csrfToken
-        },
-        body: 'workspace_id=' + encodeURIComponent(workspaceId) + '&_csrf=' + encodeURIComponent(csrfToken),
-        redirect: 'follow'
-      }).then(function() {
-        // Reload page to reflect new workspace context
-        window.location.reload();
-      }).catch(function(err) {
-        console.error('Workspace switch failed:', err);
-        // Fallback: form submit
-        var form = document.createElement('form');
-        form.method = 'POST';
-        form.action = '/admin/workspace/switch';
-        var csrfInput = document.createElement('input');
-        csrfInput.type = 'hidden';
-        csrfInput.name = '_csrf';
-        csrfInput.value = csrfToken;
-        form.appendChild(csrfInput);
-        var wsInput = document.createElement('input');
-        wsInput.type = 'hidden';
-        wsInput.name = 'workspace_id';
-        wsInput.value = workspaceId;
-        form.appendChild(wsInput);
-        document.body.appendChild(form);
-        form.submit();
-      });
-    }
-  </script>
 </body>
 </html>

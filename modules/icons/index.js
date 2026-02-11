@@ -221,8 +221,13 @@ export function hook_routes(register, context) {
     try {
       // Read template file
       const { readFileSync } = await import('node:fs');
-      const { join } = await import('node:path');
-      const templatePath = join(process.cwd(), 'test-icon-template.html');
+      const { join, dirname } = await import('node:path');
+      const { fileURLToPath } = await import('node:url');
+
+      // Get the CMS root directory (parent of modules/)
+      const __dirname = dirname(fileURLToPath(import.meta.url));
+      const cmsRoot = join(__dirname, '..', '..');
+      const templatePath = join(cmsRoot, 'test-icon-template.html');
       const templateContent = readFileSync(templatePath, 'utf-8');
 
       // Render using template service
@@ -238,7 +243,72 @@ export function hook_routes(register, context) {
     }
   }, 'Icon template helper demo');
 
+  /**
+   * GET /icons/admin-preview-demo
+   *
+   * Demo page showing Feature #5 - Icon preview in admin UI
+   */
+  register('GET', '/icons/admin-preview-demo', async (req, res) => {
+    try {
+      const { readFileSync } = await import('node:fs');
+      const { join, dirname } = await import('node:path');
+      const { fileURLToPath } = await import('node:url');
+
+      const __dirname = dirname(fileURLToPath(import.meta.url));
+      const templatePath = join(__dirname, 'templates', 'admin-preview-demo.html');
+      const html = readFileSync(templatePath, 'utf-8');
+
+      return res.writeHead(200, { 'Content-Type': 'text/html' }).end(html);
+    } catch (error) {
+      console.error('[icons] Admin preview demo error:', error);
+      res.writeHead(500, { 'Content-Type': 'text/html' });
+      return res.end('Demo page not found');
+    }
+  }, 'Icon admin preview demo (Feature #5)');
+
+  /**
+   * Static file serving for icon-browser.js and icon-widget.js
+   */
+  register('GET', '/modules/icons/icon-browser.js', async (req, res) => {
+    try {
+      const { readFileSync } = await import('node:fs');
+      const { join, dirname } = await import('node:path');
+      const { fileURLToPath } = await import('node:url');
+
+      const __dirname = dirname(fileURLToPath(import.meta.url));
+      const filePath = join(__dirname, 'icon-browser.js');
+      const content = readFileSync(filePath, 'utf-8');
+
+      res.writeHead(200, { 'Content-Type': 'application/javascript' });
+      return res.end(content);
+    } catch (error) {
+      console.error('[icons] Failed to serve icon-browser.js:', error);
+      res.writeHead(404, { 'Content-Type': 'text/plain' });
+      return res.end('Not found');
+    }
+  });
+
+  register('GET', '/modules/icons/icon-widget.js', async (req, res) => {
+    try {
+      const { readFileSync } = await import('node:fs');
+      const { join, dirname } = await import('node:path');
+      const { fileURLToPath } = await import('node:url');
+
+      const __dirname = dirname(fileURLToPath(import.meta.url));
+      const filePath = join(__dirname, 'icon-widget.js');
+      const content = readFileSync(filePath, 'utf-8');
+
+      res.writeHead(200, { 'Content-Type': 'application/javascript' });
+      return res.end(content);
+    } catch (error) {
+      console.error('[icons] Failed to serve icon-widget.js:', error);
+      res.writeHead(404, { 'Content-Type': 'text/plain' });
+      return res.end('Not found');
+    }
+  });
+
   console.log('[icons] Registered API routes: /api/icons/*');
   console.log('[icons] Registered demo page: /icons/autocomplete-demo');
   console.log('[icons] Registered demo page: /icons/template-demo');
+  console.log('[icons] Registered demo page: /icons/admin-preview-demo (Feature #5)');
 }

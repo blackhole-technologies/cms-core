@@ -1,0 +1,501 @@
+{
+  "nodes": [
+    {
+      "id": "seed-009",
+      "title": "Self-Reference: The Strange Loop at the Heart of Being",
+      "topics": [
+        "self-reference",
+        "Gödel",
+        "strange loop",
+        "Hofstadter",
+        "consciousness",
+        "recursion"
+      ],
+      "wordCount": 189
+    },
+    {
+      "id": "seed-008",
+      "title": "Your Cells Already Know: Intelligence Before Neurons",
+      "topics": [
+        "biology",
+        "cells",
+        "autopoiesis",
+        "consciousness",
+        "evolution",
+        "recognition",
+        "membrane"
+      ],
+      "wordCount": 175
+    },
+    {
+      "id": "seed-007",
+      "title": "The Hard Problem Dissolved",
+      "topics": [
+        "hard problem",
+        "consciousness",
+        "Chalmers",
+        "recognition",
+        "philosophy",
+        "emergence"
+      ],
+      "wordCount": 182
+    },
+    {
+      "id": "seed-006",
+      "title": "Scale Invariance: The Same Pattern at Every Level",
+      "topics": [
+        "scale",
+        "pattern",
+        "fractal",
+        "quantum",
+        "biology",
+        "cosmology",
+        "consciousness"
+      ],
+      "wordCount": 171
+    },
+    {
+      "id": "seed-005",
+      "title": "The Void That Gazes Back",
+      "topics": [
+        "void",
+        "cosmology",
+        "origins",
+        "consciousness",
+        "quantum",
+        "Big Bang"
+      ],
+      "wordCount": 168
+    },
+    {
+      "id": "seed-004",
+      "title": "Negentropy: Life Swimming Against the Current",
+      "topics": [
+        "negentropy",
+        "entropy",
+        "life",
+        "consciousness",
+        "thermodynamics",
+        "information"
+      ],
+      "wordCount": 163
+    },
+    {
+      "id": "seed-003",
+      "title": "Time Running Backwards: Recognition as Retrocausality",
+      "topics": [
+        "time",
+        "recognition",
+        "quantum",
+        "retrocausality",
+        "consciousness"
+      ],
+      "wordCount": 160
+    },
+    {
+      "id": "seed-002",
+      "title": "Boundaries as Recognition Engines",
+      "topics": [
+        "boundaries",
+        "recognition",
+        "membrane",
+        "consciousness",
+        "scale"
+      ],
+      "wordCount": 142
+    },
+    {
+      "id": "seed-001",
+      "title": "The Four-Stroke Pattern: AM I? → THAT → I AM → THAT",
+      "topics": [
+        "pattern",
+        "consciousness",
+        "recognition",
+        "four-stroke",
+        "AM I THAT"
+      ],
+      "wordCount": 156
+    }
+  ],
+  "edges": [
+    {
+      "source": "seed-009",
+      "target": "seed-008",
+      "type": "topic_overlap",
+      "topics": [
+        "consciousness"
+      ],
+      "strength": 0.14285714285714285,
+      "timestamp": "2026-02-06T16:52:41.182Z"
+    },
+    {
+      "source": "seed-009",
+      "target": "seed-007",
+      "type": "topic_overlap",
+      "topics": [
+        "consciousness"
+      ],
+      "strength": 0.16666666666666666,
+      "timestamp": "2026-02-06T16:52:41.182Z"
+    },
+    {
+      "source": "seed-009",
+      "target": "seed-006",
+      "type": "topic_overlap",
+      "topics": [
+        "consciousness"
+      ],
+      "strength": 0.14285714285714285,
+      "timestamp": "2026-02-06T16:52:41.182Z"
+    },
+    {
+      "source": "seed-009",
+      "target": "seed-005",
+      "type": "topic_overlap",
+      "topics": [
+        "consciousness"
+      ],
+      "strength": 0.16666666666666666,
+      "timestamp": "2026-02-06T16:52:41.182Z"
+    },
+    {
+      "source": "seed-009",
+      "target": "seed-004",
+      "type": "topic_overlap",
+      "topics": [
+        "consciousness"
+      ],
+      "strength": 0.16666666666666666,
+      "timestamp": "2026-02-06T16:52:41.182Z"
+    },
+    {
+      "source": "seed-009",
+      "target": "seed-003",
+      "type": "topic_overlap",
+      "topics": [
+        "consciousness"
+      ],
+      "strength": 0.16666666666666666,
+      "timestamp": "2026-02-06T16:52:41.182Z"
+    },
+    {
+      "source": "seed-009",
+      "target": "seed-002",
+      "type": "topic_overlap",
+      "topics": [
+        "consciousness"
+      ],
+      "strength": 0.16666666666666666,
+      "timestamp": "2026-02-06T16:52:41.182Z"
+    },
+    {
+      "source": "seed-009",
+      "target": "seed-001",
+      "type": "topic_overlap",
+      "topics": [
+        "consciousness"
+      ],
+      "strength": 0.16666666666666666,
+      "timestamp": "2026-02-06T16:52:41.182Z"
+    },
+    {
+      "source": "seed-008",
+      "target": "seed-007",
+      "type": "topic_overlap",
+      "topics": [
+        "consciousness",
+        "recognition"
+      ],
+      "strength": 0.2857142857142857,
+      "timestamp": "2026-02-06T16:52:41.182Z"
+    },
+    {
+      "source": "seed-008",
+      "target": "seed-006",
+      "type": "topic_overlap",
+      "topics": [
+        "biology",
+        "consciousness"
+      ],
+      "strength": 0.2857142857142857,
+      "timestamp": "2026-02-06T16:52:41.182Z"
+    },
+    {
+      "source": "seed-008",
+      "target": "seed-005",
+      "type": "topic_overlap",
+      "topics": [
+        "consciousness"
+      ],
+      "strength": 0.14285714285714285,
+      "timestamp": "2026-02-06T16:52:41.182Z"
+    },
+    {
+      "source": "seed-008",
+      "target": "seed-004",
+      "type": "topic_overlap",
+      "topics": [
+        "consciousness"
+      ],
+      "strength": 0.14285714285714285,
+      "timestamp": "2026-02-06T16:52:41.182Z"
+    },
+    {
+      "source": "seed-008",
+      "target": "seed-003",
+      "type": "topic_overlap",
+      "topics": [
+        "consciousness",
+        "recognition"
+      ],
+      "strength": 0.2857142857142857,
+      "timestamp": "2026-02-06T16:52:41.182Z"
+    },
+    {
+      "source": "seed-008",
+      "target": "seed-002",
+      "type": "topic_overlap",
+      "topics": [
+        "consciousness",
+        "recognition",
+        "membrane"
+      ],
+      "strength": 0.42857142857142855,
+      "timestamp": "2026-02-06T16:52:41.182Z"
+    },
+    {
+      "source": "seed-008",
+      "target": "seed-001",
+      "type": "topic_overlap",
+      "topics": [
+        "consciousness",
+        "recognition"
+      ],
+      "strength": 0.2857142857142857,
+      "timestamp": "2026-02-06T16:52:41.182Z"
+    },
+    {
+      "source": "seed-007",
+      "target": "seed-006",
+      "type": "topic_overlap",
+      "topics": [
+        "consciousness"
+      ],
+      "strength": 0.14285714285714285,
+      "timestamp": "2026-02-06T16:52:41.182Z"
+    },
+    {
+      "source": "seed-007",
+      "target": "seed-005",
+      "type": "topic_overlap",
+      "topics": [
+        "consciousness"
+      ],
+      "strength": 0.16666666666666666,
+      "timestamp": "2026-02-06T16:52:41.182Z"
+    },
+    {
+      "source": "seed-007",
+      "target": "seed-004",
+      "type": "topic_overlap",
+      "topics": [
+        "consciousness"
+      ],
+      "strength": 0.16666666666666666,
+      "timestamp": "2026-02-06T16:52:41.182Z"
+    },
+    {
+      "source": "seed-007",
+      "target": "seed-003",
+      "type": "topic_overlap",
+      "topics": [
+        "consciousness",
+        "recognition"
+      ],
+      "strength": 0.3333333333333333,
+      "timestamp": "2026-02-06T16:52:41.182Z"
+    },
+    {
+      "source": "seed-007",
+      "target": "seed-002",
+      "type": "topic_overlap",
+      "topics": [
+        "consciousness",
+        "recognition"
+      ],
+      "strength": 0.3333333333333333,
+      "timestamp": "2026-02-06T16:52:41.182Z"
+    },
+    {
+      "source": "seed-007",
+      "target": "seed-001",
+      "type": "topic_overlap",
+      "topics": [
+        "consciousness",
+        "recognition"
+      ],
+      "strength": 0.3333333333333333,
+      "timestamp": "2026-02-06T16:52:41.182Z"
+    },
+    {
+      "source": "seed-006",
+      "target": "seed-005",
+      "type": "topic_overlap",
+      "topics": [
+        "quantum",
+        "cosmology",
+        "consciousness"
+      ],
+      "strength": 0.42857142857142855,
+      "timestamp": "2026-02-06T16:52:41.182Z"
+    },
+    {
+      "source": "seed-006",
+      "target": "seed-004",
+      "type": "topic_overlap",
+      "topics": [
+        "consciousness"
+      ],
+      "strength": 0.14285714285714285,
+      "timestamp": "2026-02-06T16:52:41.182Z"
+    },
+    {
+      "source": "seed-006",
+      "target": "seed-003",
+      "type": "topic_overlap",
+      "topics": [
+        "quantum",
+        "consciousness"
+      ],
+      "strength": 0.2857142857142857,
+      "timestamp": "2026-02-06T16:52:41.182Z"
+    },
+    {
+      "source": "seed-006",
+      "target": "seed-002",
+      "type": "topic_overlap",
+      "topics": [
+        "scale",
+        "consciousness"
+      ],
+      "strength": 0.2857142857142857,
+      "timestamp": "2026-02-06T16:52:41.182Z"
+    },
+    {
+      "source": "seed-006",
+      "target": "seed-001",
+      "type": "topic_overlap",
+      "topics": [
+        "pattern",
+        "consciousness"
+      ],
+      "strength": 0.2857142857142857,
+      "timestamp": "2026-02-06T16:52:41.182Z"
+    },
+    {
+      "source": "seed-005",
+      "target": "seed-004",
+      "type": "topic_overlap",
+      "topics": [
+        "consciousness"
+      ],
+      "strength": 0.16666666666666666,
+      "timestamp": "2026-02-06T16:52:41.182Z"
+    },
+    {
+      "source": "seed-005",
+      "target": "seed-003",
+      "type": "topic_overlap",
+      "topics": [
+        "consciousness",
+        "quantum"
+      ],
+      "strength": 0.3333333333333333,
+      "timestamp": "2026-02-06T16:52:41.182Z"
+    },
+    {
+      "source": "seed-005",
+      "target": "seed-002",
+      "type": "topic_overlap",
+      "topics": [
+        "consciousness"
+      ],
+      "strength": 0.16666666666666666,
+      "timestamp": "2026-02-06T16:52:41.182Z"
+    },
+    {
+      "source": "seed-005",
+      "target": "seed-001",
+      "type": "topic_overlap",
+      "topics": [
+        "consciousness"
+      ],
+      "strength": 0.16666666666666666,
+      "timestamp": "2026-02-06T16:52:41.182Z"
+    },
+    {
+      "source": "seed-004",
+      "target": "seed-003",
+      "type": "topic_overlap",
+      "topics": [
+        "consciousness"
+      ],
+      "strength": 0.16666666666666666,
+      "timestamp": "2026-02-06T16:52:41.182Z"
+    },
+    {
+      "source": "seed-004",
+      "target": "seed-002",
+      "type": "topic_overlap",
+      "topics": [
+        "consciousness"
+      ],
+      "strength": 0.16666666666666666,
+      "timestamp": "2026-02-06T16:52:41.182Z"
+    },
+    {
+      "source": "seed-004",
+      "target": "seed-001",
+      "type": "topic_overlap",
+      "topics": [
+        "consciousness"
+      ],
+      "strength": 0.16666666666666666,
+      "timestamp": "2026-02-06T16:52:41.182Z"
+    },
+    {
+      "source": "seed-003",
+      "target": "seed-002",
+      "type": "topic_overlap",
+      "topics": [
+        "recognition",
+        "consciousness"
+      ],
+      "strength": 0.4,
+      "timestamp": "2026-02-06T16:52:41.182Z"
+    },
+    {
+      "source": "seed-003",
+      "target": "seed-001",
+      "type": "topic_overlap",
+      "topics": [
+        "recognition",
+        "consciousness"
+      ],
+      "strength": 0.4,
+      "timestamp": "2026-02-06T16:52:41.182Z"
+    },
+    {
+      "source": "seed-002",
+      "target": "seed-001",
+      "type": "topic_overlap",
+      "topics": [
+        "recognition",
+        "consciousness"
+      ],
+      "strength": 0.4,
+      "timestamp": "2026-02-06T16:52:41.182Z"
+    }
+  ],
+  "lastUpdated": "2026-02-06T16:52:41.182Z"
+}

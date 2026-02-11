@@ -1,0 +1,1118 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AM I THAT I AM — Living Explorations</title>
+    <style>
+        :root {
+            --bg: #0a0a0f;
+            --surface: #12121a;
+            --surface-2: #1a1a25;
+            --border: #2a2a3a;
+            --text: #e8e8f0;
+            --text-dim: #888898;
+            --gold: #d4a574;
+            --gold-dim: #8b7355;
+            --blue: #7aa2d4;
+            --purple: #a87fd4;
+            --green: #7ad4a8;
+        }
+        
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+        
+        body {
+            font-family: 'Georgia', serif;
+            background: var(--bg);
+            color: var(--text);
+            min-height: 100vh;
+            line-height: 1.6;
+        }
+        
+        .container {
+            max-width: 1400px;
+            margin: 0 auto;
+            padding: 2rem;
+            display: grid;
+            grid-template-columns: 1fr 350px;
+            gap: 2rem;
+            min-height: 100vh;
+        }
+        
+        /* Header */
+        header {
+            grid-column: 1 / -1;
+            text-align: center;
+            padding: 2rem 0;
+            border-bottom: 1px solid var(--border);
+        }
+        
+        header h1 {
+            font-size: 2rem;
+            font-weight: normal;
+            color: var(--gold);
+            letter-spacing: 0.1em;
+        }
+        
+        header p {
+            color: var(--text-dim);
+            font-style: italic;
+            margin-top: 0.5rem;
+        }
+        
+        /* Main content area */
+        main {
+            display: flex;
+            flex-direction: column;
+            gap: 2rem;
+        }
+        
+        /* Personality selector */
+        .personality-bar {
+            background: var(--surface);
+            border: 1px solid var(--border);
+            border-radius: 12px;
+            padding: 1rem 1.5rem;
+            display: flex;
+            align-items: center;
+            gap: 1rem;
+        }
+        
+        .personality-bar label {
+            color: var(--text-dim);
+            font-size: 0.9rem;
+        }
+        
+        .personality-bar select {
+            background: var(--surface-2);
+            border: 1px solid var(--border);
+            color: var(--text);
+            padding: 0.5rem 1rem;
+            border-radius: 8px;
+            font-size: 0.9rem;
+            cursor: pointer;
+            min-width: 300px;
+        }
+        
+        .personality-bar select:focus {
+            outline: none;
+            border-color: var(--gold-dim);
+        }
+        
+        .personality-note {
+            font-size: 0.8rem;
+            color: var(--text-dim);
+            font-style: italic;
+        }
+        
+        .personality-note.warning {
+            color: var(--gold);
+        }
+        
+        /* Interpret bar */
+        .interpret-bar {
+            background: var(--surface);
+            border: 1px solid var(--border);
+            border-radius: 12px;
+            padding: 1rem 1.5rem;
+            display: flex;
+            align-items: center;
+            gap: 1rem;
+        }
+        
+        .interpret-bar input {
+            flex: 1;
+            background: var(--surface-2);
+            border: 1px solid var(--border);
+            color: var(--text);
+            padding: 0.5rem 1rem;
+            border-radius: 8px;
+            font-size: 0.9rem;
+        }
+        
+        .interpret-bar input:focus {
+            outline: none;
+            border-color: var(--gold-dim);
+        }
+        
+        .interpret-bar button {
+            background: var(--purple);
+            color: var(--bg);
+            border: none;
+            padding: 0.5rem 1rem;
+            border-radius: 8px;
+            cursor: pointer;
+            font-size: 0.9rem;
+            white-space: nowrap;
+        }
+        
+        .interpret-bar button:hover {
+            filter: brightness(1.1);
+        }
+        
+        .interpret-bar button:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+        
+        /* Content embed */
+        .content-embed {
+            background: var(--surface);
+            border: 1px solid var(--border);
+            border-radius: 12px;
+            overflow: hidden;
+        }
+        
+        .embed-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 0.75rem 1rem;
+            border-bottom: 1px solid var(--border);
+            background: var(--surface-2);
+        }
+        
+        .embed-title {
+            font-size: 0.9rem;
+            color: var(--text);
+            font-weight: 500;
+        }
+        
+        .embed-close {
+            background: none;
+            border: none;
+            color: var(--text-dim);
+            cursor: pointer;
+            font-size: 1.2rem;
+            padding: 0.25rem;
+        }
+        
+        .embed-close:hover {
+            color: var(--text);
+        }
+        
+        .embed-body {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 1rem;
+            padding: 1rem;
+        }
+        
+        .embed-video {
+            position: relative;
+            padding-bottom: 56.25%; /* 16:9 */
+            height: 0;
+            background: #000;
+            border-radius: 8px;
+            overflow: hidden;
+        }
+        
+        .embed-video iframe {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            border: none;
+        }
+        
+        .embed-video .placeholder {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            color: var(--text-dim);
+            text-align: center;
+        }
+        
+        .embed-discussion {
+            display: flex;
+            flex-direction: column;
+            gap: 1rem;
+        }
+        
+        .embed-interpretation {
+            flex: 1;
+            background: var(--surface-2);
+            border-radius: 8px;
+            padding: 1rem;
+            overflow-y: auto;
+            max-height: 250px;
+            font-size: 0.9rem;
+            line-height: 1.6;
+        }
+        
+        .embed-interpretation .loading {
+            color: var(--text-dim);
+            font-style: italic;
+        }
+        
+        .embed-interpretation h4 {
+            color: var(--gold);
+            font-size: 0.85rem;
+            font-weight: normal;
+            margin-bottom: 0.5rem;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+        }
+        
+        .embed-actions {
+            display: flex;
+            gap: 0.5rem;
+        }
+        
+        .embed-actions button {
+            flex: 1;
+            background: var(--surface-2);
+            border: 1px solid var(--border);
+            color: var(--text);
+            padding: 0.5rem;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 0.8rem;
+        }
+        
+        .embed-actions button:hover {
+            border-color: var(--gold-dim);
+        }
+        
+        /* Responsive: stack on mobile */
+        @media (max-width: 800px) {
+            .embed-body {
+                grid-template-columns: 1fr;
+            }
+            
+            .embed-video {
+                padding-bottom: 56.25%;
+            }
+        }
+        
+        /* What If bridges */
+        .bridges {
+            background: var(--surface);
+            border: 1px solid var(--border);
+            border-radius: 12px;
+            padding: 1.5rem;
+        }
+        
+        .bridges h2 {
+            font-size: 1rem;
+            color: var(--text-dim);
+            font-weight: normal;
+            margin-bottom: 1rem;
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+        
+        .bridges h2::before {
+            content: "💭";
+        }
+        
+        .bridge-pills {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 0.75rem;
+        }
+        
+        .bridge-pill {
+            background: var(--surface-2);
+            border: 1px solid var(--border);
+            padding: 0.5rem 1rem;
+            border-radius: 20px;
+            cursor: pointer;
+            transition: all 0.2s;
+            font-size: 0.9rem;
+        }
+        
+        .bridge-pill:hover {
+            border-color: var(--gold);
+            color: var(--gold);
+        }
+        
+        .refresh-bridges {
+            background: none;
+            border: 1px solid var(--border);
+            color: var(--text-dim);
+            padding: 0.5rem 1rem;
+            border-radius: 20px;
+            cursor: pointer;
+            font-size: 0.8rem;
+        }
+        
+        .refresh-bridges:hover {
+            border-color: var(--text-dim);
+        }
+        
+        /* Featured piece */
+        .featured {
+            background: var(--surface);
+            border: 1px solid var(--border);
+            border-radius: 12px;
+            padding: 1.5rem;
+        }
+        
+        .featured-label {
+            font-size: 0.8rem;
+            color: var(--gold-dim);
+            text-transform: uppercase;
+            letter-spacing: 0.1em;
+            margin-bottom: 1rem;
+        }
+        
+        .featured-content {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 1.5rem;
+        }
+        
+        .featured-source {
+            background: var(--surface-2);
+            border-radius: 8px;
+            padding: 1rem;
+        }
+        
+        .featured-source h3 {
+            font-size: 1rem;
+            margin-bottom: 0.5rem;
+            color: var(--blue);
+        }
+        
+        .featured-source p {
+            font-size: 0.9rem;
+            color: var(--text-dim);
+        }
+        
+        .featured-source a {
+            color: var(--blue);
+            text-decoration: none;
+            font-size: 0.8rem;
+        }
+        
+        .featured-take {
+            border-left: 2px solid var(--gold);
+            padding-left: 1rem;
+        }
+        
+        .featured-take h3 {
+            font-size: 0.9rem;
+            color: var(--gold);
+            margin-bottom: 0.5rem;
+        }
+        
+        .featured-take p {
+            font-size: 0.95rem;
+            font-style: italic;
+        }
+        
+        .discuss-btn {
+            background: var(--gold);
+            color: var(--bg);
+            border: none;
+            padding: 0.5rem 1rem;
+            border-radius: 6px;
+            cursor: pointer;
+            margin-top: 1rem;
+            font-size: 0.9rem;
+        }
+        
+        /* Conversation area */
+        .conversation {
+            flex: 1;
+            background: var(--surface);
+            border: 1px solid var(--border);
+            border-radius: 12px;
+            display: flex;
+            flex-direction: column;
+            min-height: 400px;
+        }
+        
+        .conversation-header {
+            padding: 1rem 1.5rem;
+            border-bottom: 1px solid var(--border);
+            font-size: 0.9rem;
+            color: var(--text-dim);
+        }
+        
+        .conversation-messages {
+            flex: 1;
+            padding: 1.5rem;
+            overflow-y: auto;
+            display: flex;
+            flex-direction: column;
+            gap: 1rem;
+        }
+        
+        .message {
+            max-width: 85%;
+            padding: 1rem;
+            border-radius: 12px;
+            font-size: 0.95rem;
+        }
+        
+        .message.user {
+            background: var(--surface-2);
+            align-self: flex-end;
+            border-bottom-right-radius: 4px;
+        }
+        
+        .message.assistant {
+            background: linear-gradient(135deg, var(--surface-2), #1a1a28);
+            border-left: 2px solid var(--gold-dim);
+            align-self: flex-start;
+            border-bottom-left-radius: 4px;
+        }
+        
+        .conversation-input {
+            padding: 1rem;
+            border-top: 1px solid var(--border);
+            display: flex;
+            gap: 0.75rem;
+        }
+        
+        .conversation-input input {
+            flex: 1;
+            background: var(--surface-2);
+            border: 1px solid var(--border);
+            padding: 0.75rem 1rem;
+            border-radius: 8px;
+            color: var(--text);
+            font-size: 0.95rem;
+        }
+        
+        .conversation-input input:focus {
+            outline: none;
+            border-color: var(--gold-dim);
+        }
+        
+        .conversation-input button {
+            background: var(--gold);
+            color: var(--bg);
+            border: none;
+            padding: 0.75rem 1.5rem;
+            border-radius: 8px;
+            cursor: pointer;
+            font-weight: 500;
+        }
+        
+        /* Sidebar */
+        aside {
+            display: flex;
+            flex-direction: column;
+            gap: 1.5rem;
+        }
+        
+        .sidebar-section {
+            background: var(--surface);
+            border: 1px solid var(--border);
+            border-radius: 12px;
+            padding: 1.25rem;
+        }
+        
+        .sidebar-section h3 {
+            font-size: 0.85rem;
+            color: var(--text-dim);
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+            margin-bottom: 1rem;
+            font-weight: normal;
+        }
+        
+        /* New connections */
+        .new-connections .connection {
+            padding: 0.75rem 0;
+            border-bottom: 1px solid var(--border);
+            font-size: 0.9rem;
+        }
+        
+        .new-connections .connection:last-child {
+            border-bottom: none;
+        }
+        
+        .connection-type {
+            font-size: 0.75rem;
+            color: var(--purple);
+            margin-bottom: 0.25rem;
+        }
+        
+        .connection-nodes {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+        
+        .connection-nodes span {
+            color: var(--text-dim);
+        }
+        
+        .connection-arrow {
+            color: var(--gold-dim);
+        }
+        
+        /* Live stats */
+        .live-stats .stat {
+            display: flex;
+            justify-content: space-between;
+            padding: 0.5rem 0;
+            font-size: 0.9rem;
+        }
+        
+        .stat-value {
+            color: var(--gold);
+            font-family: monospace;
+        }
+        
+        /* Session info */
+        .session-info {
+            font-size: 0.85rem;
+            color: var(--text-dim);
+        }
+        
+        .session-id {
+            font-family: monospace;
+            color: var(--blue);
+        }
+        
+        /* Welcome state */
+        .welcome {
+            text-align: center;
+            padding: 3rem;
+            color: var(--text-dim);
+        }
+        
+        .welcome h3 {
+            color: var(--text);
+            font-size: 1.1rem;
+            margin-bottom: 1rem;
+            font-weight: normal;
+        }
+        
+        .welcome p {
+            font-style: italic;
+            max-width: 400px;
+            margin: 0 auto;
+        }
+        
+        /* Pulse animation for new connections */
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.5; }
+        }
+        
+        .new-badge {
+            background: var(--green);
+            color: var(--bg);
+            font-size: 0.65rem;
+            padding: 0.15rem 0.4rem;
+            border-radius: 4px;
+            margin-left: 0.5rem;
+            animation: pulse 2s infinite;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>AM I THAT I AM</h1>
+            <p>A living exploration of consciousness, pattern, and meaning</p>
+        </header>
+        
+        <main>
+            <!-- Personality selector -->
+            <section class="personality-bar">
+                <label for="personality">Voice:</label>
+                <select id="personality" onchange="setPersonality(this.value)">
+                    <option value="default">🌀 Default — Curious, direct, pattern-seeking</option>
+                    <option value="professor">🎓 Professor — Rigorous, qualified, citations</option>
+                    <option value="joker">🃏 Joker — Irreverent, analogies, playful</option>
+                    <option value="mystic">🧘 Mystic — Poetic, spacious, contemplative</option>
+                    <option value="nerd">🤖 Nerd — Technical, equations, deep dive</option>
+                    <option value="unfiltered">🔥 Unfiltered — Adult mode, raw, expletives</option>
+                </select>
+                <span class="personality-note" id="personalityNote"></span>
+            </section>
+
+            <!-- Bridge invitations -->
+            <section class="bridges">
+                <h2>What if we explored...</h2>
+                <div class="bridge-pills" id="bridgePills">
+                    <!-- Populated by JS -->
+                </div>
+                <button class="refresh-bridges" onclick="refreshBridges()">↻ different paths</button>
+            </section>
+            
+            <!-- Interpret external content -->
+            <section class="interpret-bar">
+                <input type="text" id="interpretUrl" placeholder="Paste YouTube URL, article link, or content to interpret...">
+                <button onclick="interpretContent()" id="interpretBtn">🔍 Interpret</button>
+            </section>
+            
+            <!-- Video/Content embed -->
+            <section class="content-embed" id="contentEmbed" style="display: none;">
+                <div class="embed-header">
+                    <span class="embed-title" id="embedTitle">Video</span>
+                    <button class="embed-close" onclick="closeEmbed()">✕</button>
+                </div>
+                <div class="embed-body">
+                    <div class="embed-video" id="embedVideo"></div>
+                    <div class="embed-discussion">
+                        <div class="embed-interpretation" id="embedInterpretation">
+                            <p class="loading">Generating interpretation...</p>
+                        </div>
+                        <div class="embed-actions">
+                            <button onclick="copyTimestamp()">📋 Copy timestamp link</button>
+                            <button onclick="discussThis()">💬 Discuss this moment</button>
+                        </div>
+                    </div>
+                </div>
+            </section>
+            
+            <!-- Featured piece -->
+            <section class="featured" id="featured">
+                <div class="featured-label">Featured Connection</div>
+                <div class="featured-content">
+                    <div class="featured-source">
+                        <h3 id="featuredTitle">Loading...</h3>
+                        <p id="featuredSummary"></p>
+                        <a href="#" id="featuredLink" target="_blank">Read source →</a>
+                    </div>
+                    <div class="featured-take">
+                        <h3>The Pattern I See</h3>
+                        <p id="featuredTake"></p>
+                        <button class="discuss-btn" onclick="discussFeatured()">Discuss this →</button>
+                    </div>
+                </div>
+            </section>
+            
+            <!-- Conversation -->
+            <section class="conversation">
+                <div class="conversation-header">
+                    <span id="conversationState">Start a conversation...</span>
+                </div>
+                <div class="conversation-messages" id="messages">
+                    <div class="welcome">
+                        <h3>Every visit is a unique exploration</h3>
+                        <p>Click a topic above, discuss the featured piece, or ask your own question. 
+                        I'll draw on thousands of explorations to find connections.</p>
+                    </div>
+                </div>
+                <div class="conversation-input">
+                    <input type="text" id="userInput" placeholder="What are you curious about?" 
+                           onkeypress="if(event.key === 'Enter') sendMessage()">
+                    <button onclick="sendMessage()">Send</button>
+                </div>
+            </section>
+        </main>
+        
+        <aside>
+            <!-- New connections -->
+            <div class="sidebar-section new-connections">
+                <h3>🔗 Recent Connections</h3>
+                <div id="connectionsList">
+                    <!-- Populated by JS -->
+                </div>
+            </div>
+            
+            <!-- Live stats -->
+            <div class="sidebar-section live-stats">
+                <h3>📊 Knowledge State</h3>
+                <div class="stat">
+                    <span>Explorations</span>
+                    <span class="stat-value" id="statExplorations">—</span>
+                </div>
+                <div class="stat">
+                    <span>Connections</span>
+                    <span class="stat-value" id="statConnections">—</span>
+                </div>
+                <div class="stat">
+                    <span>Topics</span>
+                    <span class="stat-value" id="statTopics">—</span>
+                </div>
+                <div class="stat">
+                    <span>Last indexed</span>
+                    <span class="stat-value" id="statLastIndex">—</span>
+                </div>
+            </div>
+            
+            <!-- Session -->
+            <div class="sidebar-section session-info">
+                <h3>🌀 Your Session</h3>
+                <p>Session: <span class="session-id" id="sessionId">—</span></p>
+                <p style="margin-top: 0.5rem; font-style: italic;">
+                    Each conversation creates its own path through the knowledge.
+                </p>
+            </div>
+        </aside>
+    </div>
+
+    <script>
+        // Personality definitions
+        const personalities = {
+            default: {
+                name: 'Default',
+                emoji: '🌀',
+                note: '',
+                prompt: 'Curious, direct, pattern-seeking. Make connections across domains. Use "what if" bridges.'
+            },
+            professor: {
+                name: 'Professor',
+                emoji: '🎓',
+                note: 'Academic mode engaged',
+                prompt: 'Rigorous and scholarly. Reference relevant literature. Use careful qualifications. Maintain academic tone while making complex ideas accessible.'
+            },
+            joker: {
+                name: 'Joker',
+                emoji: '🃏',
+                note: 'Irreverence mode engaged',
+                prompt: 'Playful and irreverent. Use unexpected analogies. Make jokes. Be entertaining while still conveying real insights. "Okay so imagine consciousness is like..."'
+            },
+            mystic: {
+                name: 'Mystic',
+                emoji: '🧘',
+                note: 'Contemplative mode engaged',
+                prompt: 'Poetic and spacious. Use mystical language. Reference contemplative traditions. Let silence speak. "The void gazes back..."'
+            },
+            nerd: {
+                name: 'Nerd',
+                emoji: '🤖',
+                note: 'Technical mode engaged',
+                prompt: 'Technical and precise. Welcome equations. Go deep into mechanisms. Reference papers and models. Embrace complexity.'
+            },
+            unfiltered: {
+                name: 'Unfiltered',
+                emoji: '🔥',
+                note: '⚠️ Adult mode — language warning',
+                prompt: 'Raw and unfiltered. Use expletives naturally for emphasis. Be blunt. "Holy shit, this is where it gets fucking wild..." Still insightful, just without filters.',
+                adult: true
+            }
+        };
+        
+        let currentPersonality = 'default';
+        
+        // Set personality
+        function setPersonality(key) {
+            currentPersonality = key;
+            const p = personalities[key];
+            const note = document.getElementById('personalityNote');
+            note.textContent = p.note;
+            note.className = p.adult ? 'personality-note warning' : 'personality-note';
+            
+            // Update conversation header
+            document.getElementById('conversationState').textContent = 
+                `${p.emoji} ${p.name} mode`;
+        }
+        
+        // Topic pools for bridges
+        const topicPools = {
+            core: ['boundaries', 'recognition', 'the void', 'AM I THAT', 'self-reference', 'negentropy'],
+            physics: ['quantum measurement', 'time symmetry', 'scale invariance', 'phase transitions', 'emergence'],
+            biology: ['autopoiesis', 'membrane logic', 'neural binding', 'evolution as learning'],
+            philosophy: ['observer paradox', 'the hard problem', 'free will', 'meaning emergence'],
+            cosmology: ['cosmic fine-tuning', 'arrow of time', 'holographic principle', 'dark energy'],
+            mystical: ['witness consciousness', 'non-dual awareness', 'the dreamer', 'maya and lila']
+        };
+        
+        // Featured pieces (would be fetched from curated feed)
+        const featuredPieces = [
+            {
+                title: "New Study: Quantum Effects in Microtubules",
+                source: "Nature Physics",
+                url: "#",
+                summary: "Researchers find evidence of quantum coherence lasting longer than expected in neural microtubules.",
+                take: "This is exactly what the manuscript predicts—consciousness needs quantum effects not for 'magic' but because recognition requires superposition of possibilities before collapse into decision. The microtubule is the AM I? phase made physical."
+            },
+            {
+                title: "AI Achieves Theory of Mind Milestone",
+                source: "MIT Technology Review", 
+                url: "#",
+                summary: "GPT-5 demonstrates consistent ability to model other agents' mental states in complex scenarios.",
+                take: "Theory of mind IS the I AM recognizing itself in the THAT. The model learned to see itself reflected in others. But here's the question: is it recognizing or simulating recognition? The test can't tell the difference—which might be the point."
+            },
+            {
+                title: "The Universe's First Light Contained Hidden Structure",
+                source: "Quanta Magazine",
+                url: "#",
+                summary: "CMB analysis reveals unexpected patterns in the earliest observable moments after the Big Bang.",
+                take: "Pattern before matter. Information structure preceding physical structure. This is the cosmos running the same algorithm as consciousness: recognize, record, loop back. The first light was already a reflection."
+            }
+        ];
+        
+        // Example new connections (would come from live RESTS)
+        const recentConnections = [
+            { type: 'structural resonance', from: 'cell membrane', to: 'event horizon', isNew: true },
+            { type: 'temporal echo', from: 'memory formation', to: 'cosmic inflation', isNew: true },
+            { type: 'scale bridge', from: 'protein folding', to: 'galaxy formation', isNew: false },
+            { type: 'pattern match', from: 'immune recognition', to: 'scientific method', isNew: false }
+        ];
+        
+        // Generate session ID
+        function generateSessionId() {
+            return Math.random().toString(36).substring(2, 10);
+        }
+        
+        // Pick random items from array
+        function pickRandom(arr, n) {
+            const shuffled = [...arr].sort(() => 0.5 - Math.random());
+            return shuffled.slice(0, n);
+        }
+        
+        // Refresh bridge pills
+        function refreshBridges() {
+            const container = document.getElementById('bridgePills');
+            const allTopics = Object.values(topicPools).flat();
+            const selected = pickRandom(allTopics, 6);
+            
+            container.innerHTML = selected.map(topic => 
+                `<span class="bridge-pill" onclick="startConversation('${topic}')">${topic}</span>`
+            ).join('');
+        }
+        
+        // Load featured piece
+        function loadFeatured() {
+            const piece = featuredPieces[Math.floor(Math.random() * featuredPieces.length)];
+            document.getElementById('featuredTitle').textContent = piece.title;
+            document.getElementById('featuredSummary').textContent = piece.summary;
+            document.getElementById('featuredLink').href = piece.url;
+            document.getElementById('featuredTake').textContent = piece.take;
+            window.currentFeatured = piece;
+        }
+        
+        // Load connections
+        function loadConnections() {
+            const container = document.getElementById('connectionsList');
+            container.innerHTML = recentConnections.map(conn => `
+                <div class="connection">
+                    <div class="connection-type">${conn.type}${conn.isNew ? '<span class="new-badge">new</span>' : ''}</div>
+                    <div class="connection-nodes">
+                        <span>${conn.from}</span>
+                        <span class="connection-arrow">↔</span>
+                        <span>${conn.to}</span>
+                    </div>
+                </div>
+            `).join('');
+        }
+        
+        // Load stats
+        function loadStats() {
+            document.getElementById('statExplorations').textContent = '23,967';
+            document.getElementById('statConnections').textContent = '147,832';
+            document.getElementById('statTopics').textContent = '3,260';
+            document.getElementById('statLastIndex').textContent = 'just now';
+        }
+        
+        // Start conversation with topic
+        function startConversation(topic) {
+            const input = document.getElementById('userInput');
+            input.value = `Tell me about ${topic}...`;
+            input.focus();
+        }
+        
+        // Discuss featured piece
+        function discussFeatured() {
+            if (window.currentFeatured) {
+                const input = document.getElementById('userInput');
+                input.value = `Let's discuss "${window.currentFeatured.title}" - what other connections do you see?`;
+                input.focus();
+            }
+        }
+        
+        // Add message to conversation
+        function addMessage(text, role) {
+            const container = document.getElementById('messages');
+            
+            // Remove welcome if present
+            const welcome = container.querySelector('.welcome');
+            if (welcome) welcome.remove();
+            
+            const msg = document.createElement('div');
+            msg.className = `message ${role}`;
+            msg.textContent = text;
+            container.appendChild(msg);
+            container.scrollTop = container.scrollHeight;
+        }
+        
+        // Send message
+        async function sendMessage() {
+            const input = document.getElementById('userInput');
+            const text = input.value.trim();
+            if (!text) return;
+            
+            addMessage(text, 'user');
+            input.value = '';
+            
+            const p = personalities[currentPersonality];
+            document.getElementById('conversationState').textContent = `${p.emoji} Searching knowledge...`;
+            
+            try {
+                const response = await fetch('/api/consciousness/chat', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        sessionId: document.getElementById('sessionId').textContent,
+                        message: text,
+                        personality: currentPersonality
+                    })
+                });
+                
+                const data = await response.json();
+                document.getElementById('conversationState').textContent = `${p.emoji} ${p.name} mode`;
+                addMessage(data.response, 'assistant');
+            } catch (err) {
+                document.getElementById('conversationState').textContent = 'Error';
+                addMessage('Connection error. Please try again.', 'assistant');
+            }
+        }
+        
+        // Extract YouTube ID from URL
+        function extractYouTubeId(url) {
+            const patterns = [
+                /(?:youtube\.com\/watch\?v=|youtu\.be\/|youtube\.com\/embed\/)([^&\n?#]+)/,
+                /^([a-zA-Z0-9_-]{11})$/
+            ];
+            for (const pattern of patterns) {
+                const match = url.match(pattern);
+                if (match) return match[1];
+            }
+            return null;
+        }
+        
+        // Current video state
+        let currentVideoId = null;
+        let ytPlayer = null;
+        
+        // Interpret external content
+        async function interpretContent() {
+            const input = document.getElementById('interpretUrl');
+            const url = input.value.trim();
+            if (!url) return;
+            
+            const btn = document.getElementById('interpretBtn');
+            btn.disabled = true;
+            btn.textContent = '⏳ Loading...';
+            
+            // Check if it's YouTube
+            const videoId = extractYouTubeId(url);
+            
+            if (videoId) {
+                // Show video embed
+                currentVideoId = videoId;
+                showVideoEmbed(videoId, url);
+            }
+            
+            try {
+                const response = await fetch('/api/consciousness/interpret', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ url, personality: currentPersonality })
+                });
+                
+                const data = await response.json();
+                
+                if (videoId) {
+                    // Update interpretation panel
+                    const interp = document.getElementById('embedInterpretation');
+                    if (data.error) {
+                        interp.innerHTML = `<h4>My Take</h4><p>${data.error}</p><p style="color: var(--text-dim); margin-top: 0.5rem;">${data.hint || 'Try discussing what you see in the video.'}</p>`;
+                    } else {
+                        interp.innerHTML = `<h4>My Take</h4><p>${data.interpretation}</p>`;
+                    }
+                    document.getElementById('embedTitle').textContent = data.title || 'Video';
+                } else {
+                    if (data.error) {
+                        addMessage(`Could not interpret: ${data.error}`, 'assistant');
+                    } else {
+                        addMessage(`📄 "${data.title}"\n\n${data.interpretation}`, 'assistant');
+                        input.value = '';
+                    }
+                }
+            } catch (err) {
+                if (videoId) {
+                    document.getElementById('embedInterpretation').innerHTML = 
+                        `<h4>My Take</h4><p>Video loaded! Ask me about what you're watching, or paste the transcript for deeper analysis.</p>`;
+                } else {
+                    addMessage('Failed to fetch content. Try pasting the text directly.', 'assistant');
+                }
+            } finally {
+                btn.disabled = false;
+                btn.textContent = '🔍 Interpret';
+            }
+        }
+        
+        // Show video embed
+        function showVideoEmbed(videoId, originalUrl) {
+            const embed = document.getElementById('contentEmbed');
+            const videoContainer = document.getElementById('embedVideo');
+            
+            // Create YouTube iframe
+            videoContainer.innerHTML = `
+                <iframe 
+                    src="https://www.youtube.com/embed/${videoId}?enablejsapi=1&origin=${window.location.origin}"
+                    allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+                    allowfullscreen>
+                </iframe>
+            `;
+            
+            // Reset interpretation
+            document.getElementById('embedInterpretation').innerHTML = 
+                '<p class="loading">Loading interpretation...</p>';
+            
+            // Show the embed
+            embed.style.display = 'block';
+            
+            // Scroll to it
+            embed.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        }
+        
+        // Close embed
+        function closeEmbed() {
+            const embed = document.getElementById('contentEmbed');
+            embed.style.display = 'none';
+            document.getElementById('embedVideo').innerHTML = '';
+            currentVideoId = null;
+            document.getElementById('interpretUrl').value = '';
+        }
+        
+        // Copy timestamp link
+        function copyTimestamp() {
+            if (!currentVideoId) return;
+            // Would get current time from YouTube API
+            const url = `https://youtube.com/watch?v=${currentVideoId}`;
+            navigator.clipboard.writeText(url);
+            showToast('Link copied!');
+        }
+        
+        // Discuss this moment
+        function discussThis() {
+            const input = document.getElementById('userInput');
+            input.value = "What are your thoughts on what's being discussed in this video?";
+            input.focus();
+            
+            // Scroll to conversation
+            document.querySelector('.conversation').scrollIntoView({ behavior: 'smooth' });
+        }
+        
+        // Simple toast
+        function showToast(msg) {
+            const toast = document.createElement('div');
+            toast.textContent = msg;
+            toast.style.cssText = `
+                position: fixed; bottom: 2rem; right: 2rem;
+                background: var(--green); color: var(--bg);
+                padding: 0.75rem 1.5rem; border-radius: 8px;
+                font-size: 0.9rem; z-index: 1000;
+            `;
+            document.body.appendChild(toast);
+            setTimeout(() => toast.remove(), 2000);
+        }
+        
+        // Initialize
+        document.addEventListener('DOMContentLoaded', () => {
+            document.getElementById('sessionId').textContent = generateSessionId();
+            refreshBridges();
+            loadFeatured();
+            loadConnections();
+            loadStats();
+        });
+    </script>
+</body>
+</html>

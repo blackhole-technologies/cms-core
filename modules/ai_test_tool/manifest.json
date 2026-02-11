@@ -1,0 +1,11 @@
+{
+  "name": "ai_test_tool",
+  "version": "1.0.0",
+  "description": "Test AI tool",
+  "ai": true,
+  "aiType": "tool",
+  "aiCapabilities": {
+    "operations": ["image-generation", "text-to-speech"],
+    "formats": ["png", "jpg", "mp3", "wav"]
+  }
+}

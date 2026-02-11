@@ -119,33 +119,19 @@
       "locked": false,
       "registeredAt": "2026-02-06T16:42:44.170Z"
     },
-    "workspace-active": {
-      "name": "workspace-active",
-      "file": "workspace-active.json",
+    "icons": {
+      "name": "icons",
+      "file": "icons.json",
       "schema": null,
       "locked": false,
-      "registeredAt": "2026-02-07T04:01:05.959Z"
-    },
-    "server": {
-      "name": "server",
-      "file": "server.json",
-      "schema": null,
-      "locked": false,
-      "registeredAt": "2026-02-09T12:21:39.240Z"
+      "registeredAt": "2026-02-11T11:57:03.939Z"
     },
     "menu-attributes": {
       "name": "menu-attributes",
       "file": "menu-attributes.json",
       "schema": null,
       "locked": false,
-      "registeredAt": "2026-02-11T07:50:41.105Z"
-    },
-    "icons": {
-      "name": "icons",
-      "file": "icons.json",
-      "schema": null,
-      "locked": false,
-      "registeredAt": "2026-02-11T08:15:45.249Z"
+      "registeredAt": "2026-02-11T11:57:03.940Z"
     }
   },
   "environments": {
