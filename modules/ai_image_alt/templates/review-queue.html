@@ -1,0 +1,238 @@
+<!DOCTYPE html>
+<html>
+<head>
+<title>AI Alt Text Review Queue</title>
+<style>
+body { font-family: Arial, sans-serif; background: #f5f5f5; margin: 0; padding: 20px; }
+.container { max-width: 1400px; margin: 0 auto; background: white; padding: 30px; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); }
+h1 { color: #333; margin-top: 0; }
+.stats { display: flex; gap: 20px; margin-bottom: 30px; padding: 20px; background: #f8f9fa; border-radius: 4px; }
+.stat-box { flex: 1; text-align: center; }
+.stat-number { font-size: 32px; font-weight: bold; color: #007bff; }
+.stat-label { font-size: 14px; color: #666; margin-top: 5px; }
+.filters { display: flex; gap: 15px; margin-bottom: 20px; padding: 20px; background: #f8f9fa; border-radius: 4px; flex-wrap: wrap; }
+.filter-group { display: flex; flex-direction: column; }
+.filter-group label { font-size: 13px; font-weight: 500; margin-bottom: 5px; color: #555; }
+.filter-group select, .filter-group input { padding: 6px 10px; border: 1px solid #ccc; border-radius: 4px; font-size: 14px; }
+.filter-actions { display: flex; align-items: flex-end; gap: 10px; }
+.btn { padding: 8px 16px; border: none; border-radius: 4px; font-size: 14px; cursor: pointer; text-decoration: none; display: inline-block; white-space: nowrap; }
+.btn-primary { background: #007bff; color: white; }
+.btn-primary:hover { background: #0056b3; }
+.btn-secondary { background: #6c757d; color: white; }
+.btn-secondary:hover { background: #545b62; }
+.btn-success { background: #28a745; color: white; }
+.btn-success:hover { background: #218838; }
+.btn-danger { background: #dc3545; color: white; }
+.btn-danger:hover { background: #c82333; }
+.btn-sm { padding: 5px 10px; font-size: 12px; }
+.bulk-actions { margin-bottom: 20px; padding: 15px; background: #fff3cd; border: 1px solid #ffeeba; border-radius: 4px; }
+.review-table { width: 100%; border-collapse: collapse; }
+.review-table th { background: #f8f9fa; padding: 12px; text-align: left; border-bottom: 2px solid #dee2e6; font-weight: 600; }
+.review-table td { padding: 12px; border-bottom: 1px solid #dee2e6; vertical-align: top; }
+.review-table tr:hover { background: #f8f9fa; }
+.thumbnail { max-width: 120px; max-height: 80px; border-radius: 4px; }
+.alt-text { font-size: 14px; color: #333; margin-bottom: 8px; }
+.alt-text-input { width: 100%; padding: 8px; border: 1px solid #ccc; border-radius: 4px; font-family: inherit; font-size: 14px; }
+.quality-score { display: inline-block; padding: 4px 8px; border-radius: 4px; font-size: 12px; font-weight: bold; }
+.quality-high { background: #d4edda; color: #155724; }
+.quality-medium { background: #fff3cd; color: #856404; }
+.quality-low { background: #f8d7da; color: #721c24; }
+.ai-badge { display: inline-block; padding: 3px 6px; background: #17a2b8; color: white; font-size: 11px; border-radius: 3px; margin-left: 5px; }
+.content-info { font-size: 13px; color: #666; }
+.content-link { color: #007bff; text-decoration: none; }
+.content-link:hover { text-decoration: underline; }
+.actions { display: flex; gap: 8px; }
+.empty-state { text-align: center; padding: 60px 20px; color: #666; }
+.empty-state-icon { font-size: 64px; margin-bottom: 20px; }
+.alert { padding: 15px; margin-bottom: 20px; border-radius: 4px; }
+.alert-success { background: #d4edda; border: 1px solid #c3e6cb; color: #155724; }
+.alert-error { background: #f8d7da; border: 1px solid #f5c6cb; color: #721c24; }
+.pagination { display: flex; justify-content: center; gap: 10px; margin-top: 30px; }
+.page-btn { padding: 8px 12px; border: 1px solid #dee2e6; background: white; border-radius: 4px; cursor: pointer; text-decoration: none; color: #333; }
+.page-btn:hover { background: #f8f9fa; }
+.page-btn.active { background: #007bff; color: white; border-color: #007bff; }
+</style>
+</head>
+<body>
+<div class="container">
+<h1>AI Alt Text Review Queue</h1>
+<p>Review and approve AI-generated alt text for images across your site.</p>
+
+__FLASH__
+
+<div class="stats">
+  <div class="stat-box">
+    <div class="stat-number">__TOTAL__</div>
+    <div class="stat-label">Total Items</div>
+  </div>
+  <div class="stat-box">
+    <div class="stat-number">__HIGH_QUALITY__</div>
+    <div class="stat-label">High Quality (≥80)</div>
+  </div>
+  <div class="stat-box">
+    <div class="stat-number">__MEDIUM_QUALITY__</div>
+    <div class="stat-label">Medium Quality (60-79)</div>
+  </div>
+  <div class="stat-box">
+    <div class="stat-number">__LOW_QUALITY__</div>
+    <div class="stat-label">Low Quality (<60)</div>
+  </div>
+</div>
+
+<form method="GET" action="/admin/content/alt-text-review">
+<div class="filters">
+  <div class="filter-group">
+    <label for="contentType">Content Type</label>
+    <select id="contentType" name="contentType">
+      __CONTENT_TYPES__
+    </select>
+  </div>
+  <div class="filter-group">
+    <label for="minScore">Min Quality Score</label>
+    <input type="number" id="minScore" name="minScore" value="__MIN_SCORE__" min="0" max="100" style="width: 100px;">
+  </div>
+  <div class="filter-group">
+    <label for="maxScore">Max Quality Score</label>
+    <input type="number" id="maxScore" name="maxScore" value="__MAX_SCORE__" min="0" max="100" style="width: 100px;">
+  </div>
+  <div class="filter-group">
+    <label for="sortBy">Sort By</label>
+    <select id="sortBy" name="sortBy">
+      __SORT_OPTIONS__
+    </select>
+  </div>
+  <div class="filter-actions">
+    <button type="submit" class="btn btn-primary">Apply Filters</button>
+    <a href="/admin/content/alt-text-review" class="btn btn-secondary">Reset</a>
+  </div>
+</div>
+</form>
+
+__BULK_ACTIONS__
+
+<form method="POST" action="/admin/content/alt-text-review/bulk" id="reviewForm">
+<input type="hidden" name="csrf_token" value="__CSRF__">
+<input type="hidden" name="action" id="bulkAction" value="">
+
+<table class="review-table">
+  <thead>
+    <tr>
+      <th style="width: 40px;"><input type="checkbox" id="selectAll"></th>
+      <th style="width: 140px;">Thumbnail</th>
+      <th>Alt Text & Quality</th>
+      <th style="width: 200px;">Content Item</th>
+      <th style="width: 180px;">Actions</th>
+    </tr>
+  </thead>
+  <tbody>
+    __REVIEW_ITEMS__
+  </tbody>
+</table>
+</form>
+
+__PAGINATION__
+
+</div>
+
+<script>
+// Select all checkbox
+document.getElementById('selectAll').addEventListener('change', function() {
+  const checkboxes = document.querySelectorAll('input[name="items[]"]');
+  checkboxes.forEach(cb => cb.checked = this.checked);
+});
+
+// Bulk actions
+function bulkApprove() {
+  if (confirm('Approve all selected items?')) {
+    document.getElementById('bulkAction').value = 'approve';
+    document.getElementById('reviewForm').submit();
+  }
+}
+
+function bulkReject() {
+  if (confirm('Reject all selected items? Alt text will be cleared.')) {
+    document.getElementById('bulkAction').value = 'reject';
+    document.getElementById('reviewForm').submit();
+  }
+}
+
+// Individual actions
+function approveItem(entityType, entityId, fieldName) {
+  const form = document.createElement('form');
+  form.method = 'POST';
+  form.action = '/admin/content/alt-text-review/approve';
+
+  const csrf = document.createElement('input');
+  csrf.type = 'hidden';
+  csrf.name = 'csrf_token';
+  csrf.value = document.querySelector('input[name="csrf_token"]').value;
+
+  const typeInput = document.createElement('input');
+  typeInput.type = 'hidden';
+  typeInput.name = 'entityType';
+  typeInput.value = entityType;
+
+  const idInput = document.createElement('input');
+  idInput.type = 'hidden';
+  idInput.name = 'entityId';
+  idInput.value = entityId;
+
+  const fieldInput = document.createElement('input');
+  fieldInput.type = 'hidden';
+  fieldInput.name = 'fieldName';
+  fieldInput.value = fieldName;
+
+  form.appendChild(csrf);
+  form.appendChild(typeInput);
+  form.appendChild(idInput);
+  form.appendChild(fieldInput);
+
+  document.body.appendChild(form);
+  form.submit();
+}
+
+function rejectItem(entityType, entityId, fieldName) {
+  if (confirm('Reject this alt text? It will be cleared.')) {
+    const form = document.createElement('form');
+    form.method = 'POST';
+    form.action = '/admin/content/alt-text-review/reject';
+
+    const csrf = document.createElement('input');
+    csrf.type = 'hidden';
+    csrf.name = 'csrf_token';
+    csrf.value = document.querySelector('input[name="csrf_token"]').value;
+
+    const typeInput = document.createElement('input');
+    typeInput.type = 'hidden';
+    typeInput.name = 'entityType';
+    typeInput.value = entityType;
+
+    const idInput = document.createElement('input');
+    idInput.type = 'hidden';
+    idInput.name = 'entityId';
+    idInput.value = entityId;
+
+    const fieldInput = document.createElement('input');
+    fieldInput.type = 'hidden';
+    fieldInput.name = 'fieldName';
+    fieldInput.value = fieldName;
+
+    form.appendChild(csrf);
+    form.appendChild(typeInput);
+    form.appendChild(idInput);
+    form.appendChild(fieldInput);
+
+    document.body.appendChild(form);
+    form.submit();
+  }
+}
+
+function editItem(entityType, entityId, fieldName) {
+  const input = document.getElementById(`alt_${entityType}_${entityId}_${fieldName}`);
+  if (input) {
+    input.focus();
+  }
+}
+</script>
+</body>
+</html>

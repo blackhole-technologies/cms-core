@@ -481,6 +481,336 @@ export function hook_routes(register, context) {
       res.end(JSON.stringify({ error: error.message }));
     }
   });
+
+  // GET /admin/content/alt-text-review - Review queue for AI-generated alt text
+  register('GET', '/admin/content/alt-text-review', async (req, res) => {
+    try {
+      // Parse query parameters for filtering
+      const urlObj = new URL(req.url, 'http://localhost');
+      const contentTypeFilter = urlObj.searchParams.get('contentType') || '';
+      const minScore = parseInt(urlObj.searchParams.get('minScore') || '0', 10);
+      const maxScore = parseInt(urlObj.searchParams.get('maxScore') || '100', 10);
+      const sortBy = urlObj.searchParams.get('sortBy') || 'score';
+      const page = parseInt(urlObj.searchParams.get('page') || '1', 10);
+      const limit = 20;
+
+      // Flash messages
+      const success = urlObj.searchParams.get('success');
+      const error = urlObj.searchParams.get('error');
+      let flash = null;
+      if (success) {
+        flash = { type: 'success', message: decodeURIComponent(success) };
+      } else if (error) {
+        flash = { type: 'error', message: decodeURIComponent(error) };
+      }
+
+      // Get content service
+      const content = context.services.get('content');
+
+      // Find all content items with AI-generated, unreviewed alt text
+      const reviewItems = [];
+      const contentTypesInfo = content.listTypes();
+      const contentTypes = contentTypesInfo.map(ct => ct.type);
+
+      for (const type of contentTypes) {
+        try {
+          // Get all content of this type
+          const { items } = content.list(type, { limit: 1000 });
+
+          for (const item of items) {
+            // Check all fields for image fields with AI-generated alt text
+            for (const [fieldName, fieldValue] of Object.entries(item)) {
+              // Skip if not an image field (images are URLs)
+              if (typeof fieldValue !== 'string' || !fieldValue.match(/\.(jpg|jpeg|png|gif|webp)$/i)) {
+                continue;
+              }
+
+              // Check for alt text metadata
+              const altFieldName = `${fieldName}_alt`;
+              const aiGeneratedField = `${altFieldName}_ai_generated`;
+              const reviewedField = `${altFieldName}_reviewed`;
+              const scoreField = `${altFieldName}_score`;
+
+              // Only include if AI-generated and NOT reviewed
+              if (item[aiGeneratedField] === true && item[reviewedField] !== true) {
+                const altText = item[altFieldName] || '';
+                const score = item[scoreField] || 0;
+
+                // Apply filters
+                if (contentTypeFilter && type !== contentTypeFilter) continue;
+                if (score < minScore || score > maxScore) continue;
+
+                reviewItems.push({
+                  entityType: type,
+                  entityId: item.id,
+                  entityLabel: item.title || item.name || item.id,
+                  fieldName: fieldName,
+                  altFieldName: altFieldName,
+                  imageSrc: fieldValue,
+                  altText: altText,
+                  score: score,
+                  created: item.created
+                });
+              }
+            }
+          }
+        } catch (err) {
+          // Skip types that don't support listing
+          console.log(`[ai_image_alt] Skipping content type ${type}:`, err.message);
+        }
+      }
+
+      // Sort items
+      if (sortBy === 'score') {
+        reviewItems.sort((a, b) => a.score - b.score); // Low scores first
+      } else if (sortBy === 'score_desc') {
+        reviewItems.sort((a, b) => b.score - a.score); // High scores first
+      } else if (sortBy === 'date') {
+        reviewItems.sort((a, b) => new Date(a.created) - new Date(b.created));
+      } else if (sortBy === 'date_desc') {
+        reviewItems.sort((a, b) => new Date(b.created) - new Date(a.created));
+      }
+
+      // Calculate statistics
+      const total = reviewItems.length;
+      const highQuality = reviewItems.filter(item => item.score >= 80).length;
+      const mediumQuality = reviewItems.filter(item => item.score >= 60 && item.score < 80).length;
+      const lowQuality = reviewItems.filter(item => item.score < 60).length;
+
+      // Paginate
+      const totalPages = Math.ceil(total / limit);
+      const startIndex = (page - 1) * limit;
+      const endIndex = startIndex + limit;
+      const paginatedItems = reviewItems.slice(startIndex, endIndex);
+
+      // Get CSRF token
+      const auth = context.services.get('auth');
+      const csrfToken = auth.getCSRFToken(req);
+
+      // Load template
+      let html = loadTemplate('review-queue.html');
+
+      // Flash message
+      if (flash) {
+        const flashHtml = `<div class="alert alert-${flash.type}">${flash.message}</div>`;
+        html = html.replace('__FLASH__', flashHtml);
+      } else {
+        html = html.replace('__FLASH__', '');
+      }
+
+      // Stats
+      html = html.replace('__TOTAL__', total.toString());
+      html = html.replace('__HIGH_QUALITY__', highQuality.toString());
+      html = html.replace('__MEDIUM_QUALITY__', mediumQuality.toString());
+      html = html.replace('__LOW_QUALITY__', lowQuality.toString());
+
+      // Content type filter options
+      let contentTypeOptions = '<option value="">All Content Types</option>\n';
+      for (const type of contentTypes) {
+        const selected = type === contentTypeFilter ? 'selected' : '';
+        contentTypeOptions += `<option value="${type}" ${selected}>${type}</option>\n`;
+      }
+      html = html.replace('__CONTENT_TYPES__', contentTypeOptions);
+
+      // Filter values
+      html = html.replace('__MIN_SCORE__', minScore.toString());
+      html = html.replace('__MAX_SCORE__', maxScore.toString());
+
+      // Sort options
+      const sortOptions = [
+        { value: 'score', label: 'Quality Score (Low to High)' },
+        { value: 'score_desc', label: 'Quality Score (High to Low)' },
+        { value: 'date', label: 'Date (Oldest First)' },
+        { value: 'date_desc', label: 'Date (Newest First)' }
+      ];
+      let sortHtml = '';
+      for (const opt of sortOptions) {
+        const selected = sortBy === opt.value ? 'selected' : '';
+        sortHtml += `<option value="${opt.value}" ${selected}>${opt.label}</option>\n`;
+      }
+      html = html.replace('__SORT_OPTIONS__', sortHtml);
+
+      // Bulk actions (only show if there are items)
+      if (paginatedItems.length > 0) {
+        const bulkActionsHtml = `<div class="bulk-actions">
+  <strong>Bulk Actions:</strong>
+  <button type="button" class="btn btn-success btn-sm" onclick="bulkApprove()">Approve Selected</button>
+  <button type="button" class="btn btn-danger btn-sm" onclick="bulkReject()">Reject Selected</button>
+</div>`;
+        html = html.replace('__BULK_ACTIONS__', bulkActionsHtml);
+      } else {
+        html = html.replace('__BULK_ACTIONS__', '');
+      }
+
+      // Review items table rows
+      let rowsHtml = '';
+      if (paginatedItems.length === 0) {
+        rowsHtml = `<tr><td colspan="5" class="empty-state">
+  <div class="empty-state-icon">✓</div>
+  <p><strong>No items to review</strong></p>
+  <p>All AI-generated alt text has been reviewed!</p>
+</td></tr>`;
+      } else {
+        for (const item of paginatedItems) {
+          const qualityClass = item.score >= 80 ? 'quality-high' : (item.score >= 60 ? 'quality-medium' : 'quality-low');
+          const escapeHtml = (str) => String(str).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+
+          rowsHtml += `<tr>
+  <td><input type="checkbox" name="items[]" value="${item.entityType}:${item.entityId}:${item.fieldName}"></td>
+  <td><img src="${escapeHtml(item.imageSrc)}" alt="Preview" class="thumbnail" onerror="this.src='data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 width=%22120%22 height=%2280%22><rect fill=%22%23ddd%22 width=%22120%22 height=%2280%22/><text x=%2250%%22 y=%2250%%22 text-anchor=%22middle%22 fill=%22%23999%22 font-size=%2212%22>No Image</text></svg>'"></td>
+  <td>
+    <div class="alt-text"><strong>Alt Text:</strong> ${escapeHtml(item.altText)}</div>
+    <div><span class="quality-score ${qualityClass}">Score: ${item.score}</span> <span class="ai-badge">AI Generated</span></div>
+  </td>
+  <td class="content-info">
+    <div><strong>Type:</strong> ${item.entityType}</div>
+    <div><a href="/admin/content/${item.entityType}/${item.entityId}/edit" class="content-link">${escapeHtml(item.entityLabel)}</a></div>
+    <div><strong>Field:</strong> ${item.fieldName}</div>
+  </td>
+  <td class="actions">
+    <button type="button" class="btn btn-success btn-sm" onclick="approveItem('${item.entityType}', '${item.entityId}', '${item.fieldName}')">Approve</button>
+    <button type="button" class="btn btn-danger btn-sm" onclick="rejectItem('${item.entityType}', '${item.entityId}', '${item.fieldName}')">Reject</button>
+  </td>
+</tr>`;
+        }
+      }
+      html = html.replace('__REVIEW_ITEMS__', rowsHtml);
+
+      // Pagination
+      let paginationHtml = '';
+      if (totalPages > 1) {
+        paginationHtml = '<div class="pagination">';
+        for (let i = 1; i <= totalPages; i++) {
+          const activeClass = i === page ? 'active' : '';
+          const queryParams = new URLSearchParams({ contentType: contentTypeFilter, minScore: minScore.toString(), maxScore: maxScore.toString(), sortBy, page: i.toString() });
+          paginationHtml += `<a href="/admin/content/alt-text-review?${queryParams}" class="page-btn ${activeClass}">${i}</a>`;
+        }
+        paginationHtml += '</div>';
+      }
+      html = html.replace('__PAGINATION__', paginationHtml);
+
+      html = html.replace('__CSRF__', csrfToken);
+
+      res.writeHead(200, { 'Content-Type': 'text/html' });
+      res.end(html);
+    } catch (error) {
+      console.error('[ai_image_alt] Review queue error:', error);
+      res.writeHead(500, { 'Content-Type': 'text/plain' });
+      res.end('Error loading review queue: ' + error.message);
+    }
+  });
+
+  // POST /admin/content/alt-text-review/approve - Approve single item
+  register('POST', '/admin/content/alt-text-review/approve', async (req, res) => {
+    try {
+      const formData = await parseFormBody(req);
+      const { entityType, entityId, fieldName } = formData;
+
+      const content = context.services.get('content');
+      const entity = await content.get(entityId);
+
+      if (!entity) {
+        redirect(res, '/admin/content/alt-text-review?error=' + encodeURIComponent('Entity not found'));
+        return;
+      }
+
+      // Mark as reviewed (keep alt text)
+      const altFieldName = `${fieldName}_alt`;
+      entity[`${altFieldName}_reviewed`] = true;
+      entity[`${altFieldName}_ai_generated`] = true; // Keep AI generated flag
+
+      // Update entity
+      await content.update(entityId, entity);
+
+      redirect(res, '/admin/content/alt-text-review?success=' + encodeURIComponent('Alt text approved successfully'));
+    } catch (error) {
+      console.error('[ai_image_alt] Approve error:', error);
+      redirect(res, '/admin/content/alt-text-review?error=' + encodeURIComponent('Error approving: ' + error.message));
+    }
+  });
+
+  // POST /admin/content/alt-text-review/reject - Reject single item
+  register('POST', '/admin/content/alt-text-review/reject', async (req, res) => {
+    try {
+      const formData = await parseFormBody(req);
+      const { entityType, entityId, fieldName } = formData;
+
+      const content = context.services.get('content');
+      const entity = await content.get(entityId);
+
+      if (!entity) {
+        redirect(res, '/admin/content/alt-text-review?error=' + encodeURIComponent('Entity not found'));
+        return;
+      }
+
+      // Clear alt text and metadata
+      const altFieldName = `${fieldName}_alt`;
+      entity[altFieldName] = '';
+      entity[`${altFieldName}_ai_generated`] = false;
+      entity[`${altFieldName}_reviewed`] = false;
+      entity[`${altFieldName}_score`] = 0;
+
+      // Update entity
+      await content.update(entityId, entity);
+
+      redirect(res, '/admin/content/alt-text-review?success=' + encodeURIComponent('Alt text rejected and cleared'));
+    } catch (error) {
+      console.error('[ai_image_alt] Reject error:', error);
+      redirect(res, '/admin/content/alt-text-review?error=' + encodeURIComponent('Error rejecting: ' + error.message));
+    }
+  });
+
+  // POST /admin/content/alt-text-review/bulk - Bulk approve/reject
+  register('POST', '/admin/content/alt-text-review/bulk', async (req, res) => {
+    try {
+      const formData = await parseFormBody(req);
+      const { action, items } = formData;
+
+      if (!items || (action !== 'approve' && action !== 'reject')) {
+        redirect(res, '/admin/content/alt-text-review?error=' + encodeURIComponent('Invalid bulk action'));
+        return;
+      }
+
+      const itemList = Array.isArray(items) ? items : [items];
+      const content = context.services.get('content');
+      let processed = 0;
+
+      for (const item of itemList) {
+        try {
+          const [entityType, entityId, fieldName] = item.split(':');
+          const entity = await content.get(entityId);
+
+          if (!entity) continue;
+
+          const altFieldName = `${fieldName}_alt`;
+
+          if (action === 'approve') {
+            entity[`${altFieldName}_reviewed`] = true;
+            entity[`${altFieldName}_ai_generated`] = true;
+          } else if (action === 'reject') {
+            entity[altFieldName] = '';
+            entity[`${altFieldName}_ai_generated`] = false;
+            entity[`${altFieldName}_reviewed`] = false;
+            entity[`${altFieldName}_score`] = 0;
+          }
+
+          await content.update(entityId, entity);
+          processed++;
+        } catch (err) {
+          console.error(`[ai_image_alt] Error processing ${item}:`, err);
+        }
+      }
+
+      const message = action === 'approve'
+        ? `${processed} items approved successfully`
+        : `${processed} items rejected and cleared`;
+
+      redirect(res, '/admin/content/alt-text-review?success=' + encodeURIComponent(message));
+    } catch (error) {
+      console.error('[ai_image_alt] Bulk action error:', error);
+      redirect(res, '/admin/content/alt-text-review?error=' + encodeURIComponent('Error processing bulk action: ' + error.message));
+    }
+  });
 }
 
 /**
