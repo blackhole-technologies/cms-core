@@ -1,0 +1,112 @@
+[
+  {
+    "timestamp": "2026-02-11T12:40:51.196Z",
+    "provider": "anthropic",
+    "operation": "chat.completion",
+    "tokensIn": 102,
+    "tokensOut": 50,
+    "cost": 0.0012227878854388532,
+    "responseTime": 797,
+    "status": "success",
+    "error": null
+  },
+  {
+    "timestamp": "2026-02-11T12:40:51.196Z",
+    "provider": "openai",
+    "operation": "chat.completion",
+    "tokensIn": 134,
+    "tokensOut": 93,
+    "cost": 0.005719068085945078,
+    "responseTime": 1375,
+    "status": "success",
+    "error": null
+  },
+  {
+    "timestamp": "2026-02-11T12:40:51.196Z",
+    "provider": "anthropic",
+    "operation": "chat.completion",
+    "tokensIn": 175,
+    "tokensOut": 55,
+    "cost": 0.0013496532385522233,
+    "responseTime": 1126,
+    "status": "success",
+    "error": null
+  },
+  {
+    "timestamp": "2026-02-11T12:40:51.196Z",
+    "provider": "openai",
+    "operation": "chat.completion",
+    "tokensIn": 111,
+    "tokensOut": 64,
+    "cost": 0.003943618751791099,
+    "responseTime": 1032,
+    "status": "success",
+    "error": null
+  },
+  {
+    "timestamp": "2026-02-11T12:40:51.196Z",
+    "provider": "anthropic",
+    "operation": "chat.completion",
+    "tokensIn": 110,
+    "tokensOut": 67,
+    "cost": 0.0012480061398230816,
+    "responseTime": 1647,
+    "status": "success",
+    "error": null
+  },
+  {
+    "timestamp": "2026-02-11T12:40:51.196Z",
+    "provider": "openai",
+    "operation": "chat.completion",
+    "tokensIn": 122,
+    "tokensOut": 60,
+    "cost": 0.005618769229153559,
+    "responseTime": 603,
+    "status": "success",
+    "error": null
+  },
+  {
+    "timestamp": "2026-02-11T12:40:51.196Z",
+    "provider": "anthropic",
+    "operation": "chat.completion",
+    "tokensIn": 162,
+    "tokensOut": 83,
+    "cost": 0.002456309722829411,
+    "responseTime": 691,
+    "status": "success",
+    "error": null
+  },
+  {
+    "timestamp": "2026-02-11T12:40:51.196Z",
+    "provider": "openai",
+    "operation": "chat.completion",
+    "tokensIn": 120,
+    "tokensOut": 58,
+    "cost": 0.0033298319791406164,
+    "responseTime": 1880,
+    "status": "success",
+    "error": null
+  },
+  {
+    "timestamp": "2026-02-11T12:40:51.196Z",
+    "provider": "anthropic",
+    "operation": "chat.completion",
+    "tokensIn": 155,
+    "tokensOut": 67,
+    "cost": 0.0023585749661211453,
+    "responseTime": 1966,
+    "status": "error",
+    "error": null
+  },
+  {
+    "timestamp": "2026-02-11T12:40:51.196Z",
+    "provider": "openai",
+    "operation": "chat.completion",
+    "tokensIn": 107,
+    "tokensOut": 99,
+    "cost": 0.005327046392085291,
+    "responseTime": 632,
+    "status": "success",
+    "error": null
+  }
+]
