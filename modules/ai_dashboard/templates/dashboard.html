@@ -5,6 +5,23 @@
 <h1 class="admin-page-title">AI Dashboard</h1>
 <p class="admin-page-description">Overview of AI modules, providers, and tools.</p>
 
+<!-- Dashboard Widgets -->
+{{#if hasWidgets}}
+<div class="admin-panel">
+  <div class="admin-panel-header">
+    <h2>Dashboard Widgets</h2>
+    <p style="color: #6b7280; font-size: 0.875rem; margin: 0.5rem 0 0 0;">
+      Drag widgets to reorder. Click headers to expand/collapse.
+    </p>
+  </div>
+  <div class="admin-panel-body">
+    <div class="dashboard-widgets-grid" id="widgetsGrid">
+      {{{widgetsHtml}}}
+    </div>
+  </div>
+</div>
+{{/if}}
+
 {{#if successMessage}}
 <div class="flash flash-success">{{successMessage}}</div>
 {{/if}}
@@ -178,4 +195,304 @@
       grid-template-columns: 1fr;
     }
   }
+
+  /* Dashboard Widgets Styles */
+  .dashboard-widgets-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(400px, 1fr));
+    gap: 1.5rem;
+    margin-top: 1rem;
+  }
+
+  .dashboard-widget {
+    background: white;
+    border: 1px solid #e5e7eb;
+    border-radius: 8px;
+    overflow: hidden;
+    cursor: move;
+    transition: box-shadow 0.2s, opacity 0.2s;
+  }
+
+  .dashboard-widget.dragging {
+    opacity: 0.5;
+  }
+
+  .dashboard-widget.drag-over {
+    box-shadow: 0 0 0 2px #3b82f6;
+  }
+
+  .widget-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 1rem;
+    background: #f9fafb;
+    border-bottom: 1px solid #e5e7eb;
+    cursor: pointer;
+  }
+
+  .widget-title {
+    margin: 0;
+    font-size: 1rem;
+    font-weight: 600;
+    color: #111827;
+  }
+
+  .widget-actions {
+    display: flex;
+    gap: 0.5rem;
+  }
+
+  .widget-action-btn {
+    background: none;
+    border: none;
+    padding: 0.25rem;
+    cursor: pointer;
+    color: #6b7280;
+    transition: color 0.2s;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+
+  .widget-action-btn:hover {
+    color: #111827;
+  }
+
+  .widget-body {
+    padding: 1rem;
+  }
+
+  .widget-error {
+    padding: 1rem;
+    background: #fef2f2;
+    border: 1px solid #fca5a5;
+    border-radius: 4px;
+    color: #dc2626;
+  }
+
+  .widget-empty {
+    padding: 2rem 1rem;
+    text-align: center;
+    color: #9ca3af;
+    font-style: italic;
+  }
+
+  @media (max-width: 768px) {
+    .dashboard-widgets-grid {
+      grid-template-columns: 1fr;
+    }
+  }
 </style>
+
+<script>
+(function() {
+  'use strict';
+
+  let draggedWidget = null;
+  let widgetOrder = [];
+  let collapsedWidgets = new Set();
+
+  // Initialize widgets
+  function initWidgets() {
+    const grid = document.getElementById('widgetsGrid');
+    if (!grid) return;
+
+    const widgets = grid.querySelectorAll('.dashboard-widget');
+    widgetOrder = Array.from(widgets).map(w => w.dataset.widgetId);
+
+    // Setup drag and drop
+    widgets.forEach(widget => {
+      widget.addEventListener('dragstart', handleDragStart);
+      widget.addEventListener('dragend', handleDragEnd);
+      widget.addEventListener('dragover', handleDragOver);
+      widget.addEventListener('drop', handleDrop);
+      widget.addEventListener('dragleave', handleDragLeave);
+
+      // Setup collapse/expand
+      const collapseBtn = widget.querySelector('.widget-collapse-btn');
+      const widgetBody = widget.querySelector('.widget-body');
+      if (collapseBtn && widgetBody) {
+        collapseBtn.addEventListener('click', (e) => {
+          e.stopPropagation();
+          toggleCollapse(widget);
+        });
+      }
+
+      // Setup refresh
+      const refreshBtn = widget.querySelector('.widget-refresh-btn');
+      if (refreshBtn) {
+        refreshBtn.addEventListener('click', (e) => {
+          e.stopPropagation();
+          refreshWidget(widget);
+        });
+      }
+
+      // Setup auto-refresh
+      const refreshInterval = parseInt(widget.dataset.refreshInterval) || 0;
+      if (refreshInterval > 0) {
+        setInterval(() => refreshWidget(widget), refreshInterval);
+      }
+    });
+  }
+
+  // Drag handlers
+  function handleDragStart(e) {
+    draggedWidget = this;
+    this.classList.add('dragging');
+    e.dataTransfer.effectAllowed = 'move';
+    e.dataTransfer.setData('text/html', this.innerHTML);
+  }
+
+  function handleDragEnd(e) {
+    this.classList.remove('dragging');
+    document.querySelectorAll('.dashboard-widget').forEach(w => {
+      w.classList.remove('drag-over');
+    });
+  }
+
+  function handleDragOver(e) {
+    if (e.preventDefault) {
+      e.preventDefault();
+    }
+    e.dataTransfer.dropEffect = 'move';
+    this.classList.add('drag-over');
+    return false;
+  }
+
+  function handleDragLeave(e) {
+    this.classList.remove('drag-over');
+  }
+
+  function handleDrop(e) {
+    if (e.stopPropagation) {
+      e.stopPropagation();
+    }
+
+    if (draggedWidget !== this) {
+      // Swap positions
+      const grid = document.getElementById('widgetsGrid');
+      const allWidgets = Array.from(grid.querySelectorAll('.dashboard-widget'));
+      const draggedIndex = allWidgets.indexOf(draggedWidget);
+      const targetIndex = allWidgets.indexOf(this);
+
+      if (draggedIndex < targetIndex) {
+        this.parentNode.insertBefore(draggedWidget, this.nextSibling);
+      } else {
+        this.parentNode.insertBefore(draggedWidget, this);
+      }
+
+      // Update order and save
+      updateWidgetOrder();
+    }
+
+    this.classList.remove('drag-over');
+    return false;
+  }
+
+  // Toggle widget collapse/expand
+  function toggleCollapse(widget) {
+    const widgetId = widget.dataset.widgetId;
+    const widgetBody = widget.querySelector('.widget-body');
+    const collapseBtn = widget.querySelector('.widget-collapse-btn');
+
+    if (widgetBody.style.display === 'none') {
+      widgetBody.style.display = 'block';
+      collapsedWidgets.delete(widgetId);
+      if (collapseBtn) {
+        collapseBtn.title = 'Collapse';
+        collapseBtn.querySelector('path').setAttribute('d', 'M4 6l4 5 4-5z');
+      }
+    } else {
+      widgetBody.style.display = 'none';
+      collapsedWidgets.add(widgetId);
+      if (collapseBtn) {
+        collapseBtn.title = 'Expand';
+        collapseBtn.querySelector('path').setAttribute('d', 'M8 4l4 5H4z');
+      }
+    }
+
+    saveLayout();
+  }
+
+  // Refresh widget data
+  async function refreshWidget(widget) {
+    const widgetId = widget.dataset.widgetId;
+    const refreshBtn = widget.querySelector('.widget-refresh-btn');
+    const widgetBody = widget.querySelector('.widget-body');
+
+    if (!widgetBody) return;
+
+    // Show loading state
+    if (refreshBtn) {
+      refreshBtn.style.opacity = '0.5';
+      refreshBtn.style.pointerEvents = 'none';
+    }
+
+    try {
+      const response = await fetch(`/api/ai/dashboard/widget/${widgetId}`);
+      if (!response.ok) throw new Error('Failed to fetch widget data');
+
+      const data = await response.json();
+
+      // Re-render widget (for now, just reload the page)
+      // In a more advanced implementation, widgets would re-render themselves
+      console.log('[dashboard] Widget refreshed:', widgetId, data);
+
+      // For now, show a subtle indication
+      widgetBody.style.opacity = '0.6';
+      setTimeout(() => {
+        widgetBody.style.opacity = '1';
+      }, 200);
+
+    } catch (error) {
+      console.error('[dashboard] Widget refresh failed:', widgetId, error);
+    } finally {
+      if (refreshBtn) {
+        refreshBtn.style.opacity = '1';
+        refreshBtn.style.pointerEvents = 'auto';
+      }
+    }
+  }
+
+  // Update widget order after drag-and-drop
+  function updateWidgetOrder() {
+    const grid = document.getElementById('widgetsGrid');
+    if (!grid) return;
+
+    const widgets = grid.querySelectorAll('.dashboard-widget');
+    widgetOrder = Array.from(widgets).map(w => w.dataset.widgetId);
+
+    saveLayout();
+  }
+
+  // Save layout to server
+  async function saveLayout() {
+    try {
+      const response = await fetch('/api/ai/dashboard/layout', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          order: widgetOrder,
+          collapsed: Array.from(collapsedWidgets),
+        }),
+      });
+
+      if (!response.ok) {
+        console.error('[dashboard] Failed to save layout');
+      }
+    } catch (error) {
+      console.error('[dashboard] Layout save error:', error);
+    }
+  }
+
+  // Initialize on page load
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', initWidgets);
+  } else {
+    initWidgets();
+  }
+})();
+</script>

@@ -1,0 +1,9 @@
+{
+  "order": [
+    "top-providers",
+    "recent-errors",
+    "cost-summary",
+    "activity-chart"
+  ],
+  "collapsed": []
+}

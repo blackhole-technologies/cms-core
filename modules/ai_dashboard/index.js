@@ -19,10 +19,17 @@
 
 import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { readFileSync } from 'node:fs';
+import { readFileSync, existsSync, mkdirSync, writeFileSync } from 'node:fs';
 
 // Get the directory of this module for loading templates
 const __dirname = dirname(fileURLToPath(import.meta.url));
+
+// Import widget system
+import { registerWidget, getAllWidgets, renderWidget, fetchWidgetData } from './widgets/widget-registry.js';
+import { widget as activityChartWidget } from './widgets/activity-chart.js';
+import { widget as topProvidersWidget } from './widgets/top-providers.js';
+import { widget as recentErrorsWidget } from './widgets/recent-errors.js';
+import { widget as costSummaryWidget } from './widgets/cost-summary.js';
 
 /**
  * Load a template file
@@ -153,6 +160,14 @@ async function checkProviderHealth(provider, timeout = 5000) {
  */
 export function hook_boot(context) {
   console.log('[ai_dashboard] AI Dashboard module loaded');
+
+  // Register dashboard widgets
+  registerWidget(activityChartWidget);
+  registerWidget(topProvidersWidget);
+  registerWidget(recentErrorsWidget);
+  registerWidget(costSummaryWidget);
+
+  console.log('[ai_dashboard] Registered 4 dashboard widgets');
 }
 
 /**
@@ -415,6 +430,52 @@ export function hook_cli(register, context) {
 }
 
 /**
+ * Get user's widget layout preferences
+ *
+ * @param {string} userId - User ID
+ * @param {string} baseDir - Base directory
+ * @returns {Object} Layout preferences (order, collapsed widgets)
+ */
+function getUserLayout(userId, baseDir) {
+  const layoutDir = join(baseDir, 'content', 'ai-dashboard', 'layouts');
+  const layoutPath = join(layoutDir, `${userId}.json`);
+
+  if (existsSync(layoutPath)) {
+    try {
+      const content = readFileSync(layoutPath, 'utf-8');
+      return JSON.parse(content);
+    } catch (err) {
+      console.error('[ai_dashboard] Error reading layout:', err.message);
+    }
+  }
+
+  // Return default layout
+  return {
+    order: ['activity-chart', 'top-providers', 'recent-errors', 'cost-summary'],
+    collapsed: [],
+  };
+}
+
+/**
+ * Save user's widget layout preferences
+ *
+ * @param {string} userId - User ID
+ * @param {Object} layout - Layout preferences
+ * @param {string} baseDir - Base directory
+ */
+function saveUserLayout(userId, layout, baseDir) {
+  const layoutDir = join(baseDir, 'content', 'ai-dashboard', 'layouts');
+
+  // Create directory if it doesn't exist
+  if (!existsSync(layoutDir)) {
+    mkdirSync(layoutDir, { recursive: true });
+  }
+
+  const layoutPath = join(layoutDir, `${userId}.json`);
+  writeFileSync(layoutPath, JSON.stringify(layout, null, 2), 'utf-8');
+}
+
+/**
  * hook_routes - Register AI dashboard routes
  */
 export function hook_routes(register, context) {
@@ -524,6 +585,26 @@ export function hook_routes(register, context) {
       operationsJson: m.capabilities?.operations ? JSON.stringify(m.capabilities.operations) : null,
     }));
 
+    // Get user's widget layout preferences
+    const userId = ctx.session?.user?.uid || 'default';
+    const userLayout = getUserLayout(userId, context.baseDir);
+
+    // Fetch data for all widgets and render them
+    const widgets = getAllWidgets();
+    const widgetHtmlArray = [];
+
+    for (const widget of widgets) {
+      const widgetData = await fetchWidgetData(widget.id, context);
+      const collapsed = userLayout.collapsed.includes(widget.id);
+      const widgetHtml = renderWidget(widget.id, widgetData, { collapsed });
+      widgetHtmlArray.push(widgetHtml);
+    }
+
+    // Sort widgets according to user's preferred order
+    const orderedWidgets = userLayout.order
+      .map(widgetId => widgetHtmlArray[widgets.findIndex(w => w.id === widgetId)])
+      .filter(Boolean);
+
     const html = renderAdmin('dashboard.html', {
       pageTitle: 'AI Dashboard',
       modules: processedModules,
@@ -531,6 +612,8 @@ export function hook_routes(register, context) {
       stats,
       successMessage,
       errorMessage,
+      widgetsHtml: orderedWidgets.join('\n'),
+      hasWidgets: orderedWidgets.length > 0,
     }, ctx, req);
 
     res.writeHead(200, { 'Content-Type': 'text/html' });
@@ -873,6 +956,65 @@ export function hook_routes(register, context) {
         error: 'Internal server error',
         message: error.message,
       }));
+    }
+  });
+
+  /**
+   * POST /api/ai/dashboard/layout - Save user widget layout
+   *
+   * Body: { order: string[], collapsed: string[] }
+   */
+  register('POST', '/api/ai/dashboard/layout', async (req, res, ctx) => {
+    try {
+      // Parse JSON body
+      let body = '';
+      for await (const chunk of req) {
+        body += chunk.toString();
+      }
+
+      const { order, collapsed } = JSON.parse(body);
+
+      if (!Array.isArray(order)) {
+        res.writeHead(400, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ error: 'order must be an array' }));
+        return;
+      }
+
+      const userId = ctx.session?.user?.uid || 'default';
+      const layout = {
+        order: order || [],
+        collapsed: collapsed || [],
+      };
+
+      saveUserLayout(userId, layout, context.baseDir);
+
+      res.writeHead(200, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ success: true }));
+    } catch (error) {
+      console.error('[ai_dashboard] Layout save error:', error);
+      res.writeHead(500, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ error: error.message }));
+    }
+  });
+
+  /**
+   * GET /api/ai/dashboard/widget/:widgetId - Fetch fresh data for a widget
+   *
+   * Returns JSON with widget data for client-side refresh
+   */
+  register('GET', '/api/ai/dashboard/widget/:widgetId', async (req, res, ctx) => {
+    try {
+      const urlParts = req.url.split('/');
+      const widgetId = urlParts[urlParts.length - 1].split('?')[0];
+
+      const widgetData = await fetchWidgetData(widgetId, context);
+
+      res.writeHead(200, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify(widgetData));
+    } catch (error) {
+      console.error('[ai_dashboard] Widget fetch error:', error);
+      res.writeHead(500, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ error: error.message }));
     }
   });
 }
