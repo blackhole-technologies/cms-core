@@ -1,0 +1,13 @@
+{
+  "name": "ai_test",
+  "version": "1.0.0",
+  "description": "Test AI module for AI registry verification",
+  "ai": true,
+  "aiType": "provider",
+  "aiCapabilities": {
+    "models": ["test-model-1", "test-model-2"],
+    "operations": ["chat", "embeddings"],
+    "streaming": true
+  },
+  "dependencies": []
+}

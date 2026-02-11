@@ -1177,55 +1177,6 @@ register('validate:type', async (args, context) => {
   console.log(`\nSummary: ${result.valid} valid, ${result.invalid} invalid\n`);
 }, 'Validate all content of a type');
 
-// Feature #135: Bulk validation check CLI
-// Validates all existing content of a type against current constraint configuration
-register('validation:check', async (args, context) => {
-  const constraints = context.services.get('constraints');
-  const content = context.services.get('content');
-
-  if (args.length < 1) {
-    console.error('Usage: validation:check <type>');
-    throw new Error('Type required');
-  }
-
-  const type = args[0];
-
-  // Get schema
-  const schema = content.getSchema(type);
-  if (!schema) {
-    console.error(`Unknown content type: ${type}`);
-    throw new Error('Unknown content type');
-  }
-
-  // Get all items
-  const items = content.listAll ? content.listAll(type) : (content.list(type)?.items || []);
-  console.log(`\nValidating ${items.length} ${type}(s) against constraints...\n`);
-
-  // Track results
-  let validCount = 0;
-  let invalidCount = 0;
-  const allViolations = {};
-
-  // Validate each item
-  for (const item of items) {
-    const result = await constraints.validate(type, item, schema, { id: item.id });
-
-    if (result.valid) {
-      validCount++;
-      console.log(`  ✓ ${item.id} - valid`);
-    } else {
-      invalidCount++;
-      allViolations[item.id] = result.violations;
-      console.log(`  ✗ ${item.id} - ${result.violations.length} violation(s):`);
-      for (const violation of result.violations) {
-        console.log(`      - ${violation.field}: ${violation.message}`);
-      }
-    }
-  }
-
-  console.log(`\nSummary: ${validCount} valid, ${invalidCount} invalid\n`);
-}, 'CLI command to validate all existing content against current constraints');
-
 register('validate:all', async (args, context) => {
   const validation = context.services.get('validation');
   const content = context.services.get('content');
@@ -2451,6 +2402,66 @@ register('shortcuts:list', async (args, context) => {
 
   console.log('  Note: In the browser, press ? to show the shortcuts help modal.\n');
 }, 'List keyboard shortcuts for admin UI');
+
+// ============================================
+// AI REGISTRY COMMANDS
+// ============================================
+
+/**
+ * ai:registry:list - Show all registered AI modules
+ */
+register('ai:registry:list', async (args, context) => {
+  const aiRegistry = context.services.get('ai-registry');
+
+  if (!aiRegistry) {
+    console.log('\nAI registry not available\n');
+    return;
+  }
+
+  const allModules = aiRegistry.listAll();
+  const stats = aiRegistry.getStats();
+
+  if (allModules.length === 0) {
+    console.log('\nNo AI modules registered');
+    console.log('Create a module with "ai": true in manifest.json to register it.\n');
+    return;
+  }
+
+  console.log('\nAI Modules Registry:');
+  console.log(`  Total: ${stats.total} modules\n`);
+
+  // Group by type
+  const typeNames = { provider: 'Providers', tool: 'Tools', processor: 'Processors', agent: 'Agents' };
+
+  for (const [type, displayName] of Object.entries(typeNames)) {
+    const modules = aiRegistry.getByType(type);
+
+    if (modules.length > 0) {
+      console.log(`  ${displayName} (${modules.length}):`);
+
+      for (const mod of modules) {
+        const statusIcon = mod.status === 'active' ? '✓' : '○';
+        console.log(`    ${statusIcon} ${mod.name}`);
+
+        if (mod.manifest.description) {
+          console.log(`        ${mod.manifest.description}`);
+        }
+
+        // Show capabilities if any
+        const caps = mod.capabilities;
+        if (caps && Object.keys(caps).length > 0) {
+          const capStr = Object.entries(caps)
+            .map(([k, v]) => `${k}: ${JSON.stringify(v)}`)
+            .join(', ');
+          console.log(`        Capabilities: ${capStr}`);
+        }
+      }
+      console.log('');
+    }
+  }
+
+  console.log(`  Status: ${stats.byStatus.active} active, ${stats.byStatus.inactive} inactive\n`);
+}, 'List all registered AI modules');
 
 /**
  * EXTENDING THE CLI VIA HOOKS:

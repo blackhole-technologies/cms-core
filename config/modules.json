@@ -2,20 +2,12 @@
   "enabled": [
     "hello",
     "test",
-    "test_entity_type",
     "users",
     "webhooks",
     "media",
     "admin",
     "tasks",
-    "conscious",
-    "curate",
-    "forge",
-    "field-group",
-    "cva_test",
-    "tagify-widget",
-    "linkit",
-    "icons",
-    "icon_pack_example"
+    "consciousness",
+    "ai_test"
   ]
 }

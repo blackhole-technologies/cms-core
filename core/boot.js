@@ -31,7 +31,6 @@ import * as discovery from './discovery.js';
 import * as dependencies from './dependencies.js';
 import * as hooks from './hooks.js';
 import * as services from './services.js';
-import { BridgeManager } from './lib/Bridge/index.js';
 import * as watcher from './watcher.js';
 import * as cli from './cli.js';
 import * as router from './router.js';
@@ -45,11 +44,6 @@ import * as scheduler from './scheduler.js';
 import * as transfer from './transfer.js';
 import * as ratelimit from './ratelimit.js';
 import * as plugins from './plugins.js';
-import * as pluginTypeManager from './plugin-type-manager.js';
-import * as typedData from './typed-data.js';
-import * as conditions from './conditions.js';
-import * as entityViewBuilder from './entity-view-builder.js';
-import * as mathEvaluator from './math-evaluator.js';
 import * as search from './search.js';
 import * as i18n from './i18n.js';
 import * as comments from './comments.js';
@@ -58,7 +52,6 @@ import * as queue from './queue.js';
 import * as oembed from './oembed.js';
 import * as fields from './fields.js';
 import * as validation from './validation.js';
-import * as constraints from './constraints.js';
 import * as preview from './preview.js';
 import * as email from './email.js';
 import * as notifications from './notifications.js';
@@ -75,8 +68,6 @@ import * as feeds from './feeds.js';
 import * as sitemap from './sitemap.js';
 import * as taxonomy from './taxonomy.js';
 import * as menu from './menu.js';
-import * as icons from './icons.js';
-import * as iconRenderer from './icon-renderer.js';
 import * as blocks from './blocks.js';
 import * as views from './views.js';
 import * as regions from './regions.js';
@@ -96,23 +87,19 @@ import * as configManagement from './config-management.js';
 import * as tokens from './tokens.js';
 import * as textFormats from './text-formats.js';
 import * as entity from './entity.js';
-import * as entityTypes from './entity-types.js';
 import * as actions from './actions.js';
 import * as userFields from './user-fields.js';
 import * as themeSettings from './theme-settings.js';
-import * as themeEngine from './theme-engine.js';
 import * as contentTypes from './content-types.js';
 import * as displayModes from './display-modes.js';
 import * as batch from './batch.js';
 import * as status from './status.js';
 import * as contextual from './contextual.js';
-import * as workspaces from './workspaces.js';
 import * as help from './help.js';
 import * as contact from './contact.js';
 import * as ban from './ban.js';
 import * as history from './history.js';
-import * as accessibility from './accessibility.js';
-import * as seo from './seo.js';
+import * as aiRegistry from './ai-registry.js';
 
 /**
  * Boot phase definitions
@@ -203,12 +190,10 @@ export async function boot(baseDir, options = {}) {
     // until something explicitly requests them.
     const siteConfig = config.load('site');
     const modulesConfig = config.load('modules');
-    const iconsConfig = config.load('icons');
 
     context.config = {
       site: siteConfig,
       modules: modulesConfig,
-      icons: iconsConfig,
     };
 
     log(`[boot] Site: ${siteConfig.name} v${siteConfig.version}`);
@@ -481,110 +466,6 @@ export async function boot(baseDir, options = {}) {
     validation.init(validationConfig, content);
     services.register('validation', () => validation);
 
-    // Initialize constraint plugin system
-    // WHY AFTER VALIDATION:
-    // Constraints is the Drupal-inspired plugin layer on top of validation.
-    // It needs the content service for constraints like Unique.
-    const constraintsConfig = context.config.site.constraints || { enabled: true };
-    constraints.init(constraintsConfig, content);
-    services.register('constraints', () => constraints);
-
-    // Inject constraint service into content for save-time validation
-    // WHY LATE INJECTION:
-    // Content is initialized before constraints in the boot sequence.
-    // We inject the constraint service after both are ready so that
-    // content.create() and content.update() can run constraint validation.
-    content.setConstraints(constraints);
-
-    // Register constraint CLI commands
-    constraints.registerCLI(cli);
-
-    // Register constraint REST API endpoints
-    // POST /api/constraints/register - Register a custom constraint at runtime
-    router.register('POST', '/api/constraints/register', async (req, res, params, ctx) => {
-      // Parse request body
-      const body = await new Promise((resolve, reject) => {
-        if (req.body) { resolve(req.body); return; }
-        let data = '';
-        req.on('data', chunk => { data += chunk; });
-        req.on('end', () => {
-          try { resolve(data ? JSON.parse(data) : {}); }
-          catch (e) { reject(new Error('Invalid JSON body')); }
-        });
-        req.on('error', reject);
-      });
-
-      // Validate required fields
-      if (!body.id || typeof body.id !== 'string') {
-        server.json(res, { error: 'Constraint ID is required (string)' }, 400);
-        return;
-      }
-
-      if (!body.validate || typeof body.validate !== 'string') {
-        server.json(res, { error: 'Constraint validate function is required (string)' }, 400);
-        return;
-      }
-
-      try {
-        // Create validate function from string
-        // WHY EVAL: Custom constraints need runtime-defined validation logic.
-        // Security: Only admin users should have access to this endpoint.
-        const validateFn = eval(`(${body.validate})`);
-
-        if (typeof validateFn !== 'function') {
-          server.json(res, { error: 'validate must be a function' }, 400);
-          return;
-        }
-
-        // Register the constraint
-        constraints.register(body.id, {
-          label: body.label || body.id,
-          description: body.description || '',
-          source: 'api',
-          validate: validateFn
-        });
-
-        server.json(res, {
-          success: true,
-          constraint: {
-            id: body.id,
-            label: body.label || body.id,
-            description: body.description || '',
-            source: 'api'
-          }
-        }, 201);
-      } catch (err) {
-        server.json(res, { error: err.message }, 400);
-      }
-    }, 'Register a custom constraint plugin');
-
-    // GET /api/constraints - List all registered constraints
-    router.register('GET', '/api/constraints', async (req, res, params, ctx) => {
-      const all = constraints.list();
-      server.json(res, {
-        constraints: all,
-        count: all.length
-      });
-    }, 'List all registered constraint plugins');
-
-    // GET /api/constraints/:id - Get a specific constraint by ID
-    router.register('GET', '/api/constraints/:id', async (req, res, params, ctx) => {
-      const { id } = params;
-      const constraint = constraints.get(id);
-
-      if (!constraint) {
-        server.json(res, { error: `Constraint "${id}" not found` }, 404);
-        return;
-      }
-
-      server.json(res, {
-        id: constraint.id,
-        label: constraint.label,
-        description: constraint.description,
-        source: constraint.source
-      });
-    }, 'Get a specific constraint by ID');
-
     // Initialize preview system
     // WHY AFTER VALIDATION:
     // Preview needs content service to fetch draft content.
@@ -673,63 +554,13 @@ export async function boot(baseDir, options = {}) {
       log(`[boot] Audit logging enabled (retention: ${auditConfig.retention || 90} days, level: ${auditConfig.logLevel || 'info'})`);
     }
 
-    // ========================================
-    // Audit logging for default revision changes (Feature #25)
-    // WHY HERE: Must be registered after audit.init() so logging works,
-    // and before any content operations that could trigger these hooks.
-    // ========================================
-
-    // Track when a default revision changes via setDefaultRevision() (manual change)
-    hooks.register('content:defaultRevisionChanged', (data) => {
-      const { type, id, newDefault, previousDefault, revisionTimestamp } = data;
-      audit.log('content.default_revision_changed', {
-        type,
-        id,
-        trigger: 'manual',
-        previousTitle: previousDefault?.title || previousDefault?.name || id,
-        newTitle: newDefault?.title || newDefault?.name || id,
-        previousStatus: previousDefault?.status || 'unknown',
-        newStatus: newDefault?.status || 'unknown',
-        revisionTimestamp,
-        description: `Default revision changed for ${type}/${id} via manual set-default`,
-      }, { result: 'success' });
-    }, 20, 'audit:revision-tracking');
-
-    // Track when a pending revision is published (workflow-triggered change)
-    // WHY SEPARATE: publishPendingRevision fires content:afterStatusChange,
-    // which is a more general hook. We detect "pending → published" transitions
-    // specifically to log default revision changes.
-    hooks.register('content:afterStatusChange', (data) => {
-      const { type, id, from, to, item } = data;
-      // Only log when a draft becomes published (pending revision promoted)
-      if (from === 'draft' && to === 'published') {
-        audit.log('content.pending_revision_published', {
-          type,
-          id,
-          trigger: 'workflow',
-          title: item?.title || item?.name || id,
-          fromStatus: from,
-          toStatus: to,
-          isDefaultRevision: item?.isDefaultRevision,
-          description: `Pending revision published for ${type}/${id} (draft → published)`,
-        }, { result: 'success' });
-      }
-    }, 20, 'audit:revision-tracking');
-
-    // Track bulk publish operations
-    hooks.register('content:published', (data) => {
-      const { type, item } = data;
-      if (item?.isDefaultRevision === true) {
-        audit.log('content.revision_became_default', {
-          type,
-          id: item?.id,
-          trigger: 'publish',
-          title: item?.title || item?.name || item?.id,
-          status: item?.status,
-          description: `Content ${type}/${item?.id} became default revision via publish`,
-        }, { result: 'success' });
-      }
-    }, 20, 'audit:revision-tracking');
+    // Initialize AI registry system
+    // WHY AFTER AUDIT:
+    // AI registry needs to be available for AI modules to register themselves.
+    // Provides centralized tracking of AI providers, tools, and processors.
+    aiRegistry.init(baseDir);
+    services.register('ai-registry', () => aiRegistry);
+    log('[boot] AI registry initialized');
 
     // Register media as a service
     // WHY A SERVICE:
@@ -864,73 +695,12 @@ export async function boot(baseDir, options = {}) {
     services.register('menu', () => menu);
     log('[boot] Menu system enabled');
 
-    // Initialize icon system
-    // WHY AFTER MENU: Icons may be used in menus and blocks
-    const iconConfig = context.config.icons || { enabled: true };
-    icons.init(iconConfig, baseDir);
-    services.register('icons', () => icons);
-    services.register('icon-renderer', () => iconRenderer);
-    icons.registerCli(cli.createModuleRegister('icons'));
-    log('[boot] Icon system enabled');
-
     // Initialize blocks
     // WHY AFTER MENU: Block types include menu blocks
     const blocksConfig = context.config.site.blocks || { enabled: true };
     blocks.init(baseDir, template, blocksConfig);
     services.register('blocks', () => blocks);
     log('[boot] Block system enabled');
-
-    // Register example block variants
-    // WHY HERE: After blocks are initialized and registered
-    blocks.registerBlockVariant('html', 'compact', {
-      label: 'Compact',
-      description: 'A compact version with minimal padding',
-      defaults: {
-        body: '<p>Compact HTML content.</p>',
-        cssClass: 'block-compact',
-      },
-    });
-
-    blocks.registerBlockVariant('html', 'highlighted', {
-      label: 'Highlighted',
-      description: 'Highlighted version with special styling',
-      defaults: {
-        body: '<p>Important highlighted content!</p>',
-        cssClass: 'block-highlighted',
-      },
-    });
-
-    blocks.registerBlockVariant('menu', 'compact', {
-      label: 'Compact Menu',
-      description: 'Compact menu for sidebars',
-      defaults: {
-        maxDepth: 1,
-        cssClass: 'menu-compact',
-      },
-    });
-
-    blocks.registerBlockVariant('search', 'compact', {
-      label: 'Compact Search',
-      description: 'Compact search form for sidebars',
-      defaults: {
-        placeholder: 'Search',
-        showButton: false,
-        cssClass: 'search-compact',
-      },
-    });
-
-    blocks.registerBlockVariant('search', 'full', {
-      label: 'Full Search',
-      description: 'Full-featured search form with button',
-      defaults: {
-        placeholder: 'What are you looking for?',
-        showButton: true,
-        buttonText: 'Search',
-        cssClass: 'search-full',
-      },
-    });
-
-    log('[boot] Registered 5 block variant(s)');
 
     // Phase 2 Systems
     // WHY HERE: After core taxonomy/menu/blocks initialization
@@ -968,35 +738,6 @@ export async function boot(baseDir, options = {}) {
       await permissions.init(baseDir, auth);
       services.register('permissions', () => permissions);
       log('[boot] Permissions system enabled');
-    }
-
-    // Workspaces - staging environment system
-    // WHY HERE: After permissions (needs permission checks) and content (workspace content queries)
-    const workspacesConfig = context.config.site.workspaces || { enabled: true };
-    if (workspacesConfig.enabled !== false) {
-      workspaces.init({
-        baseDir,
-        hooks,
-        permissions,
-        audit,
-        content,
-        scheduler,
-      });
-      workspaces.registerCli(cli.createModuleRegister('workspace'));
-      if (typeof workspaces.registerRoutes === 'function') {
-        try {
-          workspaces.registerRoutes(router, auth);
-        } catch (e) {
-          console.error('[boot] Workspace route registration failed:', e.message);
-        }
-      }
-      services.register('workspaces', () => workspaces);
-      // WHY LATE INJECTION:
-      // Content.js is initialized before workspaces.js. We inject the workspace
-      // provider so content.create() tags items with _workspace and content.list()
-      // filters by active workspace (Drupal workspaces isolation pattern).
-      content.setWorkspaceProvider(workspaces);
-      log('[boot] Workspaces system enabled');
     }
 
     const formsConfig = context.config.site.forms || { enabled: true };
@@ -1068,25 +809,6 @@ export async function boot(baseDir, options = {}) {
     if (contentTypesConfig.enabled) {
       await contentTypes.init(baseDir, fields, validation);
       services.register('contentTypes', () => contentTypes);
-
-      // WHY: Bridge config-based content types to the content system.
-      // content-types.json defines types (article, page, etc.) but they need
-      // to be registered with content.js so CLI/API commands recognize them.
-      // Modules register their own types via hook_content, but config types
-      // need explicit registration here.
-      const configTypes = contentTypes.listTypes();
-      const configRegister = content.createModuleRegister('config:content-types');
-      for (const typeDef of configTypes) {
-        if (!content.hasType(typeDef.id)) {
-          // Build schema from the content type fields definition
-          const schema = {};
-          for (const [fieldName, fieldDef] of Object.entries(typeDef.fields)) {
-            schema[fieldName] = { ...fieldDef };
-          }
-          configRegister(typeDef.id, schema);
-        }
-      }
-
       log('[boot] Content types builder enabled');
     }
 
@@ -1102,14 +824,6 @@ export async function boot(baseDir, options = {}) {
       entity.init({ content, taxonomy, auth, media, blocks });
       services.register('entity', () => entity);
       log('[boot] Entity API enabled');
-    }
-
-    // Entity Types & Bundles (Drupal-style two-level architecture)
-    const entityTypesConfig = context.config.site.entityTypes || { enabled: true };
-    if (entityTypesConfig.enabled !== false) {
-      entityTypes.init(baseDir, contentTypes);
-      services.register('entityTypes', () => entityTypes);
-      log('[boot] Entity Types/Bundles enabled');
     }
 
     // Actions (uses hooks, email, tokens)
@@ -1131,22 +845,6 @@ export async function boot(baseDir, options = {}) {
       themeSettings.init(baseDir);
       services.register('themeSettings', () => themeSettings);
       log('[boot] Theme settings enabled');
-    }
-
-    // Theme engine (layouts + skins)
-    // WHY HERE: After themeSettings, provides layout/skin separation
-    const themeEngineConfig = context.config.site.themeEngine || { enabled: true };
-    if (themeEngineConfig.enabled !== false) {
-      themeEngine.init({
-        baseDir,
-        config: {
-          theme: context.config.site.themeEngine || { layout: 'immersive', skin: 'consciousness-dark' },
-          adminTheme: context.config.site.adminTheme || { skin: 'default' },
-        },
-      });
-      services.register('themeEngine', () => themeEngine);
-      const stats = themeEngine.refresh();
-      log(`[boot] Theme engine enabled (${stats.layouts} layouts, ${stats.skins} skins, ${stats.adminSkins} admin skins)`);
     }
 
     // Batch (uses queue, hooks)
@@ -1177,54 +875,6 @@ export async function boot(baseDir, options = {}) {
       log('[boot] Help system enabled');
     }
 
-    // Accessibility checker
-    // WHY HERE: After content, hooks, and all content-related systems
-    const accessibilityConfig = context.config.site.accessibility || { enabled: true };
-    if (accessibilityConfig.enabled !== false) {
-      accessibility.init({
-        baseDir,
-        content,
-        hooks,
-        config: accessibilityConfig,
-      });
-      accessibility.registerCli(cli.createModuleRegister('accessibility'));
-      // WHY pass router with .add alias:
-      // accessibility.registerRoutes expects router.add() but core router
-      // exports register(). We wrap to maintain compatibility.
-      if (typeof accessibility.registerRoutes === 'function') {
-        try {
-          const routerProxy = { add: router.register.bind(router), ...router };
-          accessibility.registerRoutes(routerProxy, auth);
-        } catch (e) {
-          console.error('[boot] Accessibility route registration failed:', e.message);
-        }
-      }
-      services.register('accessibility', () => accessibility);
-      log('[boot] Accessibility checker enabled');
-    }
-
-    // SEO analyzer service
-    // WHY HERE: After content, hooks, and accessibility (similar pattern)
-    const seoConfig = context.config.site.seo || { enabled: true };
-    if (seoConfig.enabled !== false) {
-      seo.init({
-        baseDir,
-        content,
-        hooks,
-        config: seoConfig,
-      });
-      seo.registerCli(cli.createModuleRegister('seo'));
-      if (typeof seo.registerRoutes === 'function') {
-        try {
-          seo.registerRoutes(router, auth);
-        } catch (e) {
-          console.error('[boot] SEO route registration failed:', e.message);
-        }
-      }
-      services.register('seo', () => seo);
-      log('[boot] SEO analyzer enabled');
-    }
-
     // ========================================
     // Phase 4 Systems - Layout Builder, Media Library, Editor, etc.
     // WHY HERE: After all Phase 3 systems are initialized
@@ -1235,14 +885,6 @@ export async function boot(baseDir, options = {}) {
       layoutBuilder.init(baseDir, content, blocks, layoutBuilderConfig);
       if (layoutBuilder.setHooks) layoutBuilder.setHooks(hooks);
       if (layoutBuilder.setTemplate) layoutBuilder.setTemplate(template);
-      // Register REST API routes for layout builder
-      if (typeof layoutBuilder.registerRoutes === 'function') {
-        try {
-          layoutBuilder.registerRoutes(router, auth);
-        } catch (e) {
-          console.error('[boot] Layout Builder route registration failed:', e.message);
-        }
-      }
       services.register('layoutBuilder', () => layoutBuilder);
       log('[boot] Layout Builder enabled');
     }
@@ -1255,13 +897,9 @@ export async function boot(baseDir, options = {}) {
         content,
         imageStyles,
         hooks,
-        oembed,
         config: mediaLibraryConfig,
       });
       services.register('mediaLibrary', () => mediaLibrary);
-      if (mediaLibrary.register && typeof mediaLibrary.register === 'function') {
-        mediaLibrary.register(cli.register.bind(cli));
-      }
       log('[boot] Media Library enabled');
     }
 
@@ -1299,7 +937,6 @@ export async function boot(baseDir, options = {}) {
         auth,
         hooks,
         router,
-        workspaces,
         config: jsonapiConfig,
       });
       jsonapi.autoRegisterContentTypes();
@@ -1455,6 +1092,15 @@ export async function boot(baseDir, options = {}) {
       log(`[boot] CLI commands registered from modules: ${moduleCommands.map(c => c.name).join(', ')}`);
     }
 
+    // Discover AI modules
+    // WHY AFTER MODULE LOADING:
+    // AI registry needs to scan module manifests to find AI-specific modules
+    // This happens after modules are discovered but doesn't require them to be booted
+    const aiModuleCount = aiRegistry.discoverAIModules(context.modules);
+    if (aiModuleCount > 0) {
+      log(`[boot] AI modules discovered: ${aiModuleCount}`);
+    }
+
     // Register core routes
     // WHY HERE (not in server.js):
     // Boot.js knows about the CMS context and what routes make sense.
@@ -1469,43 +1115,9 @@ export async function boot(baseDir, options = {}) {
     }, 'Site information');
 
     router.register('GET', '/health', async (req, res, params, ctx) => {
-      // Check database/storage status
-      const { access } = await import('fs/promises');
-      const { join } = await import('path');
-
-      let storageStatus = 'connected';
-      let storageDetails = {};
-
-      try {
-        // Check if storage directories exist and are accessible
-        const contentDir = join(ctx.baseDir, 'content');
-        const configDir = join(ctx.baseDir, 'config');
-        const tablesDir = join(contentDir, '_tables');
-
-        await access(contentDir);
-        await access(configDir);
-        await access(tablesDir);
-
-        storageDetails = {
-          contentDir: 'accessible',
-          configDir: 'accessible',
-          tablesDir: 'accessible',
-          type: 'json-file-storage'
-        };
-      } catch (error) {
-        storageStatus = 'error';
-        storageDetails = {
-          error: error.message
-        };
-      }
-
       server.json(res, {
         status: 'ok',
         uptime: process.uptime(),
-        database: {
-          status: storageStatus,
-          ...storageDetails
-        }
       });
     }, 'Health check');
 
@@ -1529,21 +1141,6 @@ export async function boot(baseDir, options = {}) {
     if (moduleRoutes.length > 0) {
       log(`[boot] Routes registered from modules: ${moduleRoutes.map(r => `${r.method} ${r.path}`).join(', ')}`);
     }
-
-    // Register system health endpoint
-    // WHY: Provides a way to check if server is running and database is connected
-    router.register('GET', '/api/health', async (req, res, params, ctx) => {
-      const health = {
-        status: 'ok',
-        timestamp: new Date().toISOString(),
-        database: {
-          status: 'connected',
-          type: 'json-file-storage'
-        },
-        version: context.config?.version || 'unknown'
-      };
-      server.json(res, health);
-    }, 'System health check');
 
     // Invoke middleware hook to let modules register middleware
     // WHY AFTER ROUTES:
@@ -1652,62 +1249,6 @@ export async function boot(baseDir, options = {}) {
     plugins.init(baseDir, pluginsConfig, context.config.site.version);
     plugins.initAutoReload(pluginsConfig);
     services.register('plugins', () => plugins);
-
-    // ========================================
-    // BRIDGE SETUP
-    // Wire new core/lib/ patterns into legacy systems
-    // ========================================
-    log(`\n[boot] === BRIDGE SETUP ===`);
-
-    // WHY BRIDGE HERE:
-    // At this point:
-    // - Legacy services and hooks are registered (before new services need container)
-    // - New services that require container can now be registered
-    // - Perfect time to create the bridge layer
-    //
-    // The bridge allows both legacy and new APIs to coexist:
-    // - Legacy services.get() → forwards to new Container
-    // - Legacy hooks.trigger() → forwards to new HookManager
-    // - New container.get() and hookManager.on() also work
-    // - Both APIs access the same underlying services/hooks
-    //
-    // This enables gradual migration:
-    // - Existing modules keep using legacy APIs (no breaking changes)
-    // - New modules can use new pattern APIs
-    // - Modules can access services/hooks registered in either system
-
-    const bridgeManager = new BridgeManager(services, hooks);
-    const { container, hookManager, serviceBridge, hookBridge } = await bridgeManager.setup();
-
-    // WHY STORE ON CONTEXT:
-    // Makes bridge components available to modules via the context object.
-    // Modules can access container.get() for dependency injection.
-    context.container = container;
-    context.hookManager = hookManager;
-    context.serviceBridge = serviceBridge;
-    context.hookBridge = hookBridge;
-
-    log('[boot] ✓ Bridge setup complete - both legacy and new APIs available');
-
-    // Initialize plugin type manager
-    pluginTypeManager.register(services, context.container);
-    log('[boot] Plugin type manager registered');
-
-    // Initialize typed data service
-    typedData.register(services, context.container);
-    log('[boot] Typed data service registered');
-
-    // Initialize conditions service
-    conditions.register(services, context.container);
-    log('[boot] Conditions service registered');
-
-    // Initialize entity view builder service
-    entityViewBuilder.register(services, context.container);
-    log('[boot] Entity view builder service registered');
-
-    // Initialize math evaluator service
-    mathEvaluator.register(services, context.container);
-    log('[boot] Math evaluator service registered');
 
     // Load all plugins
     const pluginResults = await plugins.loadAllPlugins(context);
@@ -1819,20 +1360,7 @@ export async function boot(baseDir, options = {}) {
         const item = await content.create(type, data);
         server.json(res, item, 201);
       } catch (error) {
-        // Return 422 for constraint violations with per-field details
-        if (error.code === 'CONSTRAINT_VIOLATION' && Array.isArray(error.violations)) {
-          server.json(res, {
-            error: 'Constraint violation',
-            violations: error.violations.map(v => ({
-              field: v.field,
-              constraint: v.constraint,
-              message: v.message,
-              code: v.code
-            }))
-          }, 422);
-        } else {
-          server.json(res, { error: error.message }, 400);
-        }
+        server.json(res, { error: error.message }, 400);
       }
     }, 'Create content');
 
@@ -1856,20 +1384,7 @@ export async function boot(baseDir, options = {}) {
 
         server.json(res, item);
       } catch (error) {
-        // Return 422 for constraint violations with per-field details
-        if (error.code === 'CONSTRAINT_VIOLATION' && Array.isArray(error.violations)) {
-          server.json(res, {
-            error: 'Constraint violation',
-            violations: error.violations.map(v => ({
-              field: v.field,
-              constraint: v.constraint,
-              message: v.message,
-              code: v.code
-            }))
-          }, 422);
-        } else {
-          server.json(res, { error: error.message }, 400);
-        }
+        server.json(res, { error: error.message }, 400);
       }
     }, 'Update content');
 
@@ -1945,237 +1460,6 @@ export async function boot(baseDir, options = {}) {
 
       server.json(res, result);
     }, 'Search content via API');
-
-    // REST API: GET /api/content/:type/:id/pending - Get pending revision count and metadata
-    // WHY: Allows programmatic querying of pending revision status per content item.
-    // Used by admin UI, external integrations, and content moderation dashboards.
-    router.register('GET', '/api/content/:type/:id/pending', async (req, res, params, ctx) => {
-      const { type, id } = params;
-
-      if (!content.hasType(type)) {
-        server.json(res, { error: `Unknown content type: ${type}` }, 404);
-        return;
-      }
-
-      const item = content.read(type, id);
-      if (!item) {
-        server.json(res, { error: `Content not found: ${type}/${id}` }, 404);
-        return;
-      }
-
-      const pendingRevisions = content.getPendingRevisions(type, id);
-      const count = pendingRevisions.length;
-
-      server.json(res, {
-        type,
-        id,
-        hasPendingRevisions: count > 0,
-        pendingRevisionCount: count,
-        pendingRevisions: pendingRevisions.map(rev => ({
-          updated: rev.updated,
-          status: rev.status,
-          isDefaultRevision: rev.isDefaultRevision,
-          title: rev.title || null,
-        })),
-      });
-    }, 'Get pending revision count and metadata for content item');
-
-    // REST API: GET /api/content/moderation - List all content items with pending revisions
-    // WHY: Powers the content moderation dashboard in admin UI and external integrations.
-    // Returns all content items across all types that have pending (unpublished) revisions
-    // awaiting editorial review and approval.
-    router.register('GET', '/api/content/moderation', async (req, res, params, ctx) => {
-      const types = content.listTypes();
-      const pendingItems = [];
-
-      for (const { type } of types) {
-        const result = content.list(type, { limit: 1000 });
-        for (const item of result.items) {
-          if (content.hasPendingRevisions(type, item.id)) {
-            const count = content.countPendingRevisions(type, item.id);
-            const pending = content.getPendingRevisions(type, item.id);
-            const oldest = pending[pending.length - 1];
-            const newest = pending[0];
-            pendingItems.push({
-              type,
-              id: item.id,
-              title: item.title || item.name || item.id,
-              status: item.status || 'unknown',
-              pendingCount: count,
-              oldestPending: oldest?.updated || oldest?.created || null,
-              newestPending: newest?.updated || newest?.created || null,
-            });
-          }
-        }
-      }
-
-      server.json(res, {
-        total: pendingItems.length,
-        items: pendingItems,
-      });
-    }, 'List all content items with pending revisions (moderation dashboard)');
-
-    // REST API: GET /api/audit/revision-changes - Get audit log for default revision changes
-    // WHY: Feature #25 - provides API access to revision change audit trail.
-    // Used by moderation dashboards and external integrations.
-    router.register('GET', '/api/audit/revision-changes', async (req, res, params, ctx) => {
-      const url = new URL(req.url, `http://${req.headers.host}`);
-      const days = parseInt(url.searchParams.get('days') || '30');
-      const limit = parseInt(url.searchParams.get('limit') || '100');
-
-      const revisionActions = [
-        'content.default_revision_changed',
-        'content.pending_revision_published',
-        'content.revision_became_default',
-      ];
-
-      const allEntries = [];
-
-      for (const action of revisionActions) {
-        const result = audit.query({ action, days }, { limit: 1000, sortOrder: 'desc' });
-        allEntries.push(...result.entries);
-      }
-
-      // Sort by timestamp descending
-      allEntries.sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp));
-
-      server.json(res, {
-        total: allEntries.length,
-        entries: allEntries.slice(0, limit),
-        days,
-      });
-    }, 'Get audit log for default revision changes');
-
-    // REST API: POST /api/content/bulk-publish-pending - Bulk publish all pending revisions
-    // WHY: Powers the "Publish All" action on the moderation dashboard.
-    // Publishes the most recent pending revision for each item that has one.
-    // Accepts optional type filter and list of specific item IDs.
-    router.register('POST', '/api/content/bulk-publish-pending', async (req, res, params, ctx) => {
-      // Parse request body for optional filters
-      const body = await new Promise((resolve) => {
-        if (req.body) { resolve(req.body); return; }
-        let data = '';
-        req.on('data', chunk => { data += chunk; });
-        req.on('end', () => {
-          try { resolve(JSON.parse(data)); }
-          catch { resolve({}); }
-        });
-      });
-
-      const typeFilter = body.type || null;
-      const itemIds = body.items || null; // Array of {type, id} to publish specific items
-
-      const types = content.listTypes();
-      const pendingItems = [];
-
-      if (itemIds && Array.isArray(itemIds)) {
-        // Publish specific items
-        for (const { type, id } of itemIds) {
-          if (content.hasType(type) && content.hasPendingRevisions(type, id)) {
-            pendingItems.push({ type, id });
-          }
-        }
-      } else {
-        // Find all items with pending revisions
-        for (const { type } of types) {
-          if (typeFilter && type !== typeFilter) continue;
-          const result = content.list(type, { limit: 1000 });
-          for (const item of result.items) {
-            if (content.hasPendingRevisions(type, item.id)) {
-              pendingItems.push({ type, id: item.id });
-            }
-          }
-        }
-      }
-
-      const results = [];
-      let published = 0;
-      let failed = 0;
-
-      for (const item of pendingItems) {
-        try {
-          const result = await content.publishPendingRevision(item.type, item.id);
-          published++;
-          results.push({
-            type: item.type,
-            id: item.id,
-            title: result.title || result.name || item.id,
-            success: true,
-            status: result.status,
-          });
-        } catch (err) {
-          failed++;
-          results.push({
-            type: item.type,
-            id: item.id,
-            success: false,
-            error: err.message,
-          });
-        }
-      }
-
-      server.json(res, {
-        total: pendingItems.length,
-        published,
-        failed,
-        results,
-      });
-    }, 'Bulk publish all pending revisions');
-
-    // REST API: POST /api/content/:type/:id/draft - Create a pending draft revision
-    router.register('POST', '/api/content/:type/:id/draft', async (req, res, params, ctx) => {
-      const { type, id } = params;
-
-      if (!content.hasType(type)) {
-        server.json(res, { error: `Unknown content type: ${type}` }, 404);
-        return;
-      }
-
-      // Parse request body
-      const body = await new Promise((resolve, reject) => {
-        if (req.body) { resolve(req.body); return; }
-        let data = '';
-        req.on('data', chunk => { data += chunk; });
-        req.on('end', () => {
-          try { resolve(data ? JSON.parse(data) : {}); }
-          catch (e) { reject(new Error('Invalid JSON body')); }
-        });
-        req.on('error', reject);
-      });
-
-      try {
-        const draft = await content.createDraft(type, id, body);
-        server.json(res, {
-          success: true,
-          draft,
-          pendingRevisionCount: content.countPendingRevisions(type, id),
-        }, 201);
-      } catch (err) {
-        server.json(res, { error: err.message }, 400);
-      }
-    }, 'Create a pending draft revision for content item');
-
-    // REST API: POST /api/content/:type/:id/publish-pending - Publish most recent pending revision
-    router.register('POST', '/api/content/:type/:id/publish-pending', async (req, res, params, ctx) => {
-      const { type, id } = params;
-
-      if (!content.hasType(type)) {
-        server.json(res, { error: `Unknown content type: ${type}` }, 404);
-        return;
-      }
-
-      try {
-        const published = await content.publishPendingRevision(type, id);
-        const remainingCount = content.countPendingRevisions(type, id);
-        server.json(res, {
-          success: true,
-          published,
-          pendingRevisionCount: remainingCount,
-        });
-      } catch (err) {
-        server.json(res, { error: err.message }, 400);
-      }
-    }, 'Publish most recent pending revision');
 
     // Register content CLI commands
     // WHY HERE (not in cli.js):
@@ -2958,11 +2242,6 @@ export async function boot(baseDir, options = {}) {
         }
       }
 
-      // --include-revisions flag includes all revisions in listing
-      if (args.includes('--include-revisions')) {
-        options.includeAllRevisions = true;
-      }
-
       // Convert empty filters object to null
       if (Object.keys(options.filters).length === 0) {
         options.filters = null;
@@ -2996,18 +2275,7 @@ export async function boot(baseDir, options = {}) {
       console.log(`\n${type} content${filterInfo} (showing ${startItem}-${endItem} of ${result.total}):\n`);
 
       for (const item of result.items) {
-        // Check for pending revisions indicator
-        const hasPending = content.hasPendingRevisions(type, item.id);
-        const pendingCount = hasPending ? content.countPendingRevisions(type, item.id) : 0;
-        const pendingIndicator = hasPending ? ` [PENDING: ${pendingCount} draft(s)]` : '';
-
-        // Show revision metadata if this is a historical revision
-        const revisionTag = item._isHistoricalRevision
-          ? ` [REVISION: ${item._revisionTimestamp}]`
-          : '';
-        const defaultTag = item.isDefaultRevision === false ? ' [non-default]' : '';
-
-        console.log(`  ID: ${item.id}${pendingIndicator}${revisionTag}${defaultTag}`);
+        console.log(`  ID: ${item.id}`);
         console.log(`  Created: ${item.created}`);
 
         // Show user fields (exclude system fields)
@@ -3099,89 +2367,6 @@ export async function boot(baseDir, options = {}) {
       console.log('');
     }, 'Create content from JSON');
 
-    // content:edit <type> <id> <json> - Update content fields
-    // WHY: Enables workspace-aware editing via CLI. When a workspace is active,
-    // editing live content creates a workspace copy instead of modifying original.
-    cli.register('content:edit', async (args, ctx) => {
-      if (args.length < 3) {
-        console.error('Usage: content:edit <type> <id> <json>');
-        console.error('Example: node index.js content:edit article my-id \'{"title":"New Title"}\'');
-        throw new Error('Type, ID, and JSON data required');
-      }
-
-      const type = args[0];
-      const id = args[1];
-      const jsonStr = args.slice(2).join(' ');
-
-      if (!content.hasType(type)) {
-        console.error(`Unknown content type: "${type}"`);
-        console.error('Use "content:types" to see available types.');
-        throw new Error('Unknown content type');
-      }
-
-      let data;
-      try {
-        data = JSON.parse(jsonStr);
-      } catch (error) {
-        console.error('Invalid JSON:', error.message);
-        throw new Error('Invalid JSON');
-      }
-
-      const item = await content.update(type, id, data);
-
-      if (!item) {
-        console.error(`Content not found: ${type}/${id}`);
-        throw new Error('Content not found');
-      }
-
-      // Show workspace copy indicator if applicable
-      if (item._workspace && item._originalId) {
-        console.log(`\n✓ Workspace copy created (original: ${item._originalId})`);
-        console.log(`  Workspace: ${item._workspace}`);
-      } else {
-        console.log('\n✓ Updated:');
-      }
-      console.log(JSON.stringify(item, null, 2));
-      console.log('');
-    }, 'Edit content fields (workspace-aware)');
-
-    // content:show <type> <id> - Show a single content item
-    // WHY: Workspace-aware read — in a workspace context, returns the workspace
-    // copy if one exists, otherwise returns the live version.
-    cli.register('content:show', async (args, ctx) => {
-      if (args.length < 2) {
-        console.error('Usage: content:show <type> <id>');
-        console.error('Example: node index.js content:show article my-id');
-        throw new Error('Type and ID required');
-      }
-
-      const [type, id] = args;
-
-      if (!content.hasType(type)) {
-        console.error(`Unknown content type: "${type}"`);
-        throw new Error('Unknown content type');
-      }
-
-      // --include-revisions flag triggers includeAllRevisions mode
-      // WHY: Enables CLI users to see the full revision history inline
-      // with a single command, matching the API's includeAllRevisions option
-      const includeAll = args.includes('--include-revisions') || args.includes('--includeAllRevisions');
-      const item = content.read(type, id, { includeAllRevisions: includeAll });
-
-      if (!item) {
-        console.error(`Content not found: ${type}/${id}`);
-        throw new Error('Content not found');
-      }
-
-      if (item._workspace) {
-        console.log(`\n[Workspace copy — original: ${item._originalId || 'N/A'}]`);
-      }
-      if (includeAll && item._revisions) {
-        console.log(`\n[Showing all revisions: ${item._revisionCount} total (1 current + ${item._revisions.length} historical)]`);
-      }
-      console.log(JSON.stringify(item, null, 2));
-    }, 'Show a single content item (--include-revisions for all revisions)');
-
     // content:delete <type> <id> - Delete content
     cli.register('content:delete', async (args, ctx) => {
       if (args.length < 2) {
@@ -3234,15 +2419,13 @@ export async function boot(baseDir, options = {}) {
       const revisions = content.getRevisions(type, id);
 
       console.log(`\nRevisions for ${type}/${id}:`);
-      const defaultFlag = current.isDefaultRevision ? ' [default]' : '';
-      console.log(`  ${current.updated} (current)${defaultFlag}`);
+      console.log(`  ${current.updated} (current)`);
 
       if (revisions.length === 0) {
         console.log('  (no previous revisions)');
       } else {
         for (const rev of revisions) {
-          const revDefault = rev.isDefaultRevision ? ' [default]' : '';
-          console.log(`  ${rev.timestamp}${revDefault}`);
+          console.log(`  ${rev.timestamp}`);
         }
       }
 
@@ -3274,47 +2457,6 @@ export async function boot(baseDir, options = {}) {
       console.log(`Reverted ${type}/${id} to ${timestamp}`);
       console.log('(previous version saved as new revision)');
     }, 'Revert content to a previous revision');
-
-    // content:set-default <type> <id> <revisionTimestamp> - Set which revision is the default
-    // WHY: Pending revisions workflow needs a way to manually promote a
-    // revision to be the canonical (default) version. Unlike revert, this
-    // explicitly manages the isDefaultRevision flag and fires the
-    // defaultRevisionChanged hook.
-    cli.register('content:set-default', async (args, ctx) => {
-      if (args.length < 3) {
-        console.error('Usage: content:set-default <type> <id> <revisionTimestamp>');
-        console.error('Example: content:set-default article abc123 2024-01-15T11:30:00.000Z');
-        console.error('Use "content:revisions <type> <id>" to see available timestamps');
-        throw new Error('Type, ID, and revision timestamp required');
-      }
-
-      const [type, id, revisionTimestamp] = args;
-
-      if (!content.hasType(type)) {
-        console.error(`Unknown content type: "${type}"`);
-        throw new Error('Unknown content type');
-      }
-
-      const current = content.read(type, id);
-      if (!current) {
-        console.error(`Content not found: ${type}/${id}`);
-        throw new Error('Content not found');
-      }
-
-      try {
-        const newDefault = await content.setDefaultRevision(type, id, revisionTimestamp);
-        console.log(`\nSet default revision for ${type}/${id}:`);
-        console.log(`  Previous default: ${current.updated}`);
-        console.log(`  New default:      ${newDefault.updated} (from revision ${revisionTimestamp})`);
-        console.log(`  isDefaultRevision: ${newDefault.isDefaultRevision}`);
-        console.log(`  title: ${newDefault.title || '(no title)'}`);
-        // Flush audit buffer so revision change is persisted
-        audit.flush();
-      } catch (error) {
-        console.error(`Error: ${error.message}`);
-        throw error;
-      }
-    }, 'Set which revision is the default (canonical) version');
 
     // content:diff <type> <id> <ts1> <ts2> - Show diff between revisions
     cli.register('content:diff', async (args, ctx) => {
@@ -3400,335 +2542,6 @@ export async function boot(baseDir, options = {}) {
         console.log(`Deleted ${totalDeleted} revision(s) from ${itemsProcessed} item(s).`);
       }
     }, 'Prune old revisions across all content');
-
-    // content:create-draft <type> <id> '{"field":"value"}' - Create draft on published content
-    cli.register('content:create-draft', async (args, ctx) => {
-      if (args.length < 3) {
-        console.error('Usage: content:create-draft <type> <id> \'{"field":"value"}\'');
-        console.error('Example: content:create-draft article abc123 \'{"title":"Updated Title"}\'');
-        throw new Error('Type, ID, and data required');
-      }
-
-      const [type, id, jsonData] = args;
-
-      if (!content.hasType(type)) {
-        console.error(`Unknown content type: "${type}"`);
-        throw new Error('Unknown content type');
-      }
-
-      let data;
-      try {
-        data = JSON.parse(jsonData);
-      } catch (e) {
-        console.error('Invalid JSON data');
-        throw new Error('Invalid JSON');
-      }
-
-      const draft = await content.createDraft(type, id, data);
-
-      if (!draft) {
-        console.error(`Not found: ${type}/${id}`);
-        throw new Error('Content not found');
-      }
-
-      console.log(`Created draft revision for ${type}/${id}`);
-      console.log(`  Status: ${draft.status}`);
-      console.log(`  isDefaultRevision: ${draft.isDefaultRevision}`);
-      console.log(`  Updated: ${draft.updated}`);
-    }, 'Create a draft revision on published content');
-
-    // content:pending <type> <id> - Show pending revisions
-    cli.register('content:pending', async (args, ctx) => {
-      if (args.length < 2) {
-        console.error('Usage: content:pending <type> <id>');
-        throw new Error('Type and ID required');
-      }
-
-      const [type, id] = args;
-
-      if (!content.hasType(type)) {
-        console.error(`Unknown content type: "${type}"`);
-        throw new Error('Unknown content type');
-      }
-
-      const pending = content.getPendingRevisions(type, id);
-
-      const count = content.countPendingRevisions(type, id);
-      console.log(`\nPending revisions for ${type}/${id}: (${count} pending)`);
-      if (pending.length === 0) {
-        console.log('  (no pending revisions)');
-      } else {
-        for (const rev of pending) {
-          console.log(`  ${rev.updated} [draft] isDefaultRevision: ${rev.isDefaultRevision}`);
-          if (rev.title) {
-            console.log(`    Title: ${rev.title}`);
-          }
-        }
-      }
-      console.log('');
-    }, 'Show pending (non-default) revisions for content');
-
-    // content:moderation - Show all content items with pending revisions
-    cli.register('content:moderation', async (args, ctx) => {
-      const types = content.listTypes();
-      const pendingItems = [];
-
-      for (const { type } of types) {
-        const result = content.list(type, { limit: 1000 });
-        for (const item of result.items) {
-          if (content.hasPendingRevisions(type, item.id)) {
-            const count = content.countPendingRevisions(type, item.id);
-            const pending = content.getPendingRevisions(type, item.id);
-            const oldest = pending[pending.length - 1];
-            const newest = pending[0];
-            pendingItems.push({
-              type,
-              id: item.id,
-              title: item.title || item.name || item.id,
-              status: item.status || 'unknown',
-              pendingCount: count,
-              oldestPending: oldest?.updated || oldest?.created || 'unknown',
-              newestPending: newest?.updated || newest?.created || 'unknown',
-            });
-          }
-        }
-      }
-
-      console.log(`\nContent Moderation Dashboard`);
-      console.log(`===========================`);
-      console.log(`Items with pending revisions: ${pendingItems.length}\n`);
-
-      if (pendingItems.length === 0) {
-        console.log('  No content items have pending revisions.\n');
-        return;
-      }
-
-      for (const item of pendingItems) {
-        console.log(`  ${item.type}/${item.id}`);
-        console.log(`    Title: ${item.title}`);
-        console.log(`    Status: ${item.status}`);
-        console.log(`    Pending drafts: ${item.pendingCount}`);
-        console.log(`    Oldest pending: ${item.oldestPending}`);
-        console.log(`    Newest pending: ${item.newestPending}`);
-        console.log('');
-      }
-    }, 'Show all content items with pending revisions (moderation dashboard)');
-
-    // content:bulk-publish-pending [--type=<type>] [--confirm] - Bulk publish all pending revisions
-    // WHY: Allows editors to approve and publish all pending drafts at once,
-    // rather than publishing one-by-one. Useful for batch editorial workflows.
-    cli.register('content:bulk-publish-pending', async (args, ctx) => {
-      const typeFilter = args.find(a => a.startsWith('--type='))?.split('=')[1] || null;
-      const confirm = args.includes('--confirm');
-
-      // Find all items with pending revisions
-      const types = content.listTypes();
-      const pendingItems = [];
-
-      for (const { type } of types) {
-        if (typeFilter && type !== typeFilter) continue;
-
-        const result = content.list(type, { limit: 1000 });
-        for (const item of result.items) {
-          if (content.hasPendingRevisions(type, item.id)) {
-            pendingItems.push({
-              type,
-              id: item.id,
-              title: item.title || item.name || item.id,
-              status: item.status || 'unknown',
-              pendingCount: content.countPendingRevisions(type, item.id),
-            });
-          }
-        }
-      }
-
-      if (pendingItems.length === 0) {
-        console.log('\nNo content items with pending revisions found.\n');
-        return;
-      }
-
-      console.log(`\nBulk Publish Pending Revisions`);
-      console.log(`==============================`);
-      console.log(`Found ${pendingItems.length} item(s) with pending revisions:\n`);
-
-      for (const item of pendingItems) {
-        console.log(`  ${item.type}/${item.id} - ${item.title} (${item.pendingCount} pending)`);
-      }
-      console.log('');
-
-      if (!confirm) {
-        console.log('Run with --confirm to publish all pending revisions.');
-        console.log('Use --type=<type> to filter by content type.\n');
-        return;
-      }
-
-      // Publish most recent pending revision for each item
-      let published = 0;
-      let failed = 0;
-      const results = [];
-
-      for (const item of pendingItems) {
-        try {
-          const result = await content.publishPendingRevision(item.type, item.id);
-          published++;
-          results.push({
-            type: item.type,
-            id: item.id,
-            title: item.title,
-            success: true,
-            newStatus: result.status,
-          });
-          console.log(`  ✓ Published: ${item.type}/${item.id} (${item.title})`);
-        } catch (err) {
-          failed++;
-          results.push({
-            type: item.type,
-            id: item.id,
-            title: item.title,
-            success: false,
-            error: err.message,
-          });
-          console.log(`  ✗ Failed: ${item.type}/${item.id} - ${err.message}`);
-        }
-      }
-
-      console.log(`\nResults: ${published} published, ${failed} failed\n`);
-      // Flush audit buffer so revision changes are persisted
-      audit.flush();
-    }, 'Bulk publish all pending revisions (use --confirm to execute, --type=<type> to filter)');
-
-    // content:publish-pending <type> <id> [timestamp] - Publish a pending revision
-    cli.register('content:publish-pending', async (args, ctx) => {
-      if (args.length < 2) {
-        console.error('Usage: content:publish-pending <type> <id> [timestamp]');
-        console.error('If no timestamp, publishes the most recent pending revision');
-        throw new Error('Type and ID required');
-      }
-
-      const [type, id, timestamp] = args;
-
-      if (!content.hasType(type)) {
-        console.error(`Unknown content type: "${type}"`);
-        throw new Error('Unknown content type');
-      }
-
-      const published = await content.publishPendingRevision(type, id, timestamp || null);
-
-      console.log(`Published pending revision for ${type}/${id}`);
-      console.log(`  Status: ${published.status}`);
-      console.log(`  isDefaultRevision: ${published.isDefaultRevision}`);
-      if (published.title) {
-        console.log(`  Title: ${published.title}`);
-      }
-      // Flush audit buffer so revision change is persisted
-      audit.flush();
-    }, 'Publish a pending revision (make it the new default)');
-
-    // content:discard-pending <type> <id> [timestamp] - Discard pending revision(s)
-    cli.register('content:discard-pending', async (args, ctx) => {
-      if (args.length < 2) {
-        console.error('Usage: content:discard-pending <type> <id> [timestamp]');
-        console.error('If no timestamp, discards ALL pending revisions');
-        throw new Error('Type and ID required');
-      }
-
-      const [type, id, timestamp] = args;
-
-      if (!content.hasType(type)) {
-        console.error(`Unknown content type: "${type}"`);
-        throw new Error('Unknown content type');
-      }
-
-      const result = content.discardPendingRevision(type, id, timestamp || null);
-
-      console.log(`\nDiscard pending revision(s) for ${type}/${id}`);
-      console.log(`  Discarded: ${result.discarded}`);
-      console.log(`  Remaining pending: ${result.remaining}`);
-
-      // Verify published version unchanged
-      const current = content.read(type, id);
-      console.log(`  Published version unchanged: ${current.isDefaultRevision === true ? 'yes' : 'no'}`);
-      if (current.title) {
-        console.log(`  Published title: ${current.title}`);
-      }
-      console.log('');
-    }, 'Discard pending (non-default) revision(s)');
-
-    // content:compare-pending <type> <id> [timestamp] - Compare pending to published
-    cli.register('content:compare-pending', async (args, ctx) => {
-      if (args.length < 2) {
-        console.error('Usage: content:compare-pending <type> <id> [timestamp]');
-        console.error('If no timestamp, compares the most recent pending revision');
-        throw new Error('Type and ID required');
-      }
-
-      const [type, id, timestamp] = args;
-
-      if (!content.hasType(type)) {
-        console.error(`Unknown content type: "${type}"`);
-        throw new Error('Unknown content type');
-      }
-
-      const comparison = content.comparePendingToPublished(type, id, timestamp || null);
-
-      console.log(`\nCompare pending to published: ${type}/${id}`);
-      console.log(`  Published status: ${comparison.published.status}`);
-      console.log(`  Pending status: ${comparison.pending.status}`);
-      console.log('');
-
-      if (comparison.changes.length === 0) {
-        console.log('  No changes detected.');
-      } else {
-        console.log(`  Changed fields (${comparison.changes.length}):`);
-        for (const change of comparison.changes) {
-          const pubStr = JSON.stringify(change.published);
-          const pendStr = JSON.stringify(change.pending);
-
-          if (change.type === 'added') {
-            console.log(`  + ${change.field}: ${pendStr}`);
-          } else if (change.type === 'removed') {
-            console.log(`  - ${change.field}: ${pubStr}`);
-          } else {
-            console.log(`  ~ ${change.field}:`);
-            console.log(`      published: ${pubStr}`);
-            console.log(`      pending:   ${pendStr}`);
-          }
-        }
-      }
-
-      console.log('');
-      console.log(`  Unchanged fields (${comparison.unchangedFields.length}): ${comparison.unchangedFields.join(', ')}`);
-      console.log('');
-    }, 'Compare pending revision to published version');
-
-    // content:workflow-state <type> <id> - Show workflow state including pending status
-    cli.register('content:workflow-state', async (args, ctx) => {
-      if (args.length < 2) {
-        console.error('Usage: content:workflow-state <type> <id>');
-        throw new Error('Type and ID required');
-      }
-
-      const [type, id] = args;
-
-      if (!content.hasType(type)) {
-        console.error(`Unknown content type: "${type}"`);
-        throw new Error('Unknown content type');
-      }
-
-      const state = content.getWorkflowState(type, id);
-
-      console.log(`\nWorkflow state: ${type}/${id}`);
-      console.log(`  Status: ${state.status}`);
-      console.log(`  Summary: ${state.workflowSummary}`);
-      console.log(`  Is Default Revision: ${state.isDefaultRevision}`);
-      console.log(`  Has Pending Revisions: ${state.hasPending}`);
-      if (state.hasPending) {
-        console.log(`  Pending Count: ${state.pendingCount}`);
-        console.log(`  Pending Status: ${state.pendingStatus}`);
-      }
-      console.log(`  Available Transitions: ${state.availableTransitions.join(', ')}`);
-      console.log('');
-    }, 'Show workflow state including pending revision status');
 
     // ==================================================
     // Workflow CLI Commands
@@ -4249,67 +3062,6 @@ export async function boot(baseDir, options = {}) {
 
       console.log('');
     }, 'Show audit statistics');
-
-    // audit:revision-changes [--days=N] - Show audit log for default revision changes
-    // WHY: Feature #25 requires tracking all changes to default revision status.
-    // This command filters audit entries to show only revision-related events,
-    // including manual set-default, workflow-triggered publishes, and bulk operations.
-    cli.register('audit:revision-changes', async (args, ctx) => {
-      let days = 30;
-
-      for (const arg of args) {
-        if (arg.startsWith('--days=')) {
-          days = parseInt(arg.slice(7));
-        }
-      }
-
-      // Query for revision-related audit actions
-      const revisionActions = [
-        'content.default_revision_changed',
-        'content.pending_revision_published',
-        'content.revision_became_default',
-      ];
-
-      const allEntries = [];
-
-      for (const action of revisionActions) {
-        const result = audit.query({ action, days }, { limit: 1000, sortOrder: 'desc' });
-        allEntries.push(...result.entries);
-      }
-
-      // Sort by timestamp descending
-      allEntries.sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp));
-
-      console.log(`\nAudit Log: Default Revision Changes (last ${days} days)`);
-      console.log('='.repeat(60));
-
-      if (allEntries.length === 0) {
-        console.log('  No revision change events found.');
-      } else {
-        for (const entry of allEntries) {
-          const time = entry.timestamp.replace('T', ' ').slice(0, 19);
-          const user = entry.username || 'system';
-          const trigger = entry.details?.trigger || 'unknown';
-          const type = entry.details?.type || '';
-          const id = entry.details?.id || '';
-          const title = entry.details?.title || entry.details?.newTitle || id;
-          const desc = entry.details?.description || entry.action;
-
-          // Distinguish manual from workflow-triggered
-          const triggerLabel = trigger === 'manual' ? '[MANUAL]' :
-                               trigger === 'workflow' ? '[WORKFLOW]' :
-                               trigger === 'publish' ? '[PUBLISH]' : `[${trigger.toUpperCase()}]`;
-
-          console.log(`  ${time} ${triggerLabel} ${entry.action}`);
-          console.log(`    Who: ${user}`);
-          console.log(`    What: ${type}/${id} - ${title}`);
-          console.log(`    Detail: ${desc}`);
-          console.log('');
-        }
-      }
-
-      console.log(`Total: ${allEntries.length} revision change events\n`);
-    }, 'Show audit log for default revision changes (manual and workflow-triggered)');
 
     // audit:export - Export audit logs
     cli.register('audit:export', async (args, ctx) => {
@@ -4949,386 +3701,6 @@ export async function boot(baseDir, options = {}) {
     }, 'Validate a plugin manifest and permissions');
 
     // ==================================================
-    // Plugin Type Manager Commands
-    // ==================================================
-
-    // plugin-types:list - List all registered plugin types
-    cli.register('plugin-types:list', async (args, ctx) => {
-      const manager = ctx.services.get('plugin_type.manager');
-      const types = manager.listPluginTypes();
-
-      if (types.length === 0) {
-        console.log('\nNo plugin types registered yet.');
-        console.log('Plugin types are registered during boot by modules and plugins.\n');
-        return;
-      }
-
-      // Group by category
-      const byCategory = {};
-      for (const type of types) {
-        const category = type.category || 'general';
-        if (!byCategory[category]) {
-          byCategory[category] = [];
-        }
-        byCategory[category].push(type);
-      }
-
-      console.log('\nRegistered Plugin Types:\n');
-
-      for (const [category, catTypes] of Object.entries(byCategory)) {
-        console.log(`  ${category}:`);
-        for (const type of catTypes) {
-          const desc = type.description ? ` - ${type.description}` : '';
-          console.log(`    • ${type.name} (${type.label})${desc}`);
-          if (type.baseClass) {
-            console.log(`      Base: ${type.baseClass}`);
-          }
-          if (type.parentType) {
-            console.log(`      Extends: ${type.parentType}`);
-          }
-        }
-        console.log('');
-      }
-
-      console.log(`Total: ${types.length} plugin type(s)\n`);
-    }, 'List all registered plugin types');
-
-    // ==================================================
-    // Typed Data Commands
-    // ==================================================
-
-    // typed-data:validate <data> <schema> - Validate data against schema
-    cli.register('typed-data:validate', async (args, ctx) => {
-      if (args.length < 2) {
-        console.error('Usage: typed-data:validate <data_json> <schema_json>');
-        console.error('Example: typed-data:validate \'{"name":"Alice","age":"30"}\' \'{"type":"object","properties":{"name":{"type":"string"},"age":{"type":"number"}}}\'');
-        throw new Error('Data and schema required');
-      }
-
-      const dataJson = args[0];
-      const schemaJson = args[1];
-
-      try {
-        const data = JSON.parse(dataJson);
-        const schema = JSON.parse(schemaJson);
-
-        const typedDataService = ctx.services.get('typed_data');
-        const result = typedDataService.validate(data, schema);
-
-        console.log('\nValidation Result:\n');
-        console.log(`  Valid: ${result.valid ? '✓' : '✗'}`);
-
-        if (result.errors.length > 0) {
-          console.log('  Errors:');
-          for (const error of result.errors) {
-            console.log(`    - ${error}`);
-          }
-        }
-
-        if (result.valid && JSON.stringify(data) !== JSON.stringify(result.coerced)) {
-          console.log('  Coerced:');
-          console.log('    ' + JSON.stringify(result.coerced, null, 2).replace(/\n/g, '\n    '));
-        }
-
-        console.log('');
-      } catch (error) {
-        console.error(`Error: ${error.message}`);
-        throw error;
-      }
-    }, 'Validate data against a schema (JSON format)');
-
-    // ==================================================
-    // Conditions Commands
-    // ==================================================
-
-    // conditions:evaluate <condition_json> <context_json> - Evaluate a condition
-    cli.register('conditions:evaluate', async (args, ctx) => {
-      if (args.length < 2) {
-        console.error('Usage: conditions:evaluate <condition_json> <context_json>');
-        console.error('Example: conditions:evaluate \'{"type":"hasRole","role":"admin"}\' \'{"user":{"roles":["admin"]}}\'');
-        throw new Error('Condition and context required');
-      }
-
-      const conditionJson = args[0];
-      const contextJson = args[1];
-
-      try {
-        const condition = JSON.parse(conditionJson);
-        const context = JSON.parse(contextJson);
-
-        const conditionsService = ctx.services.get('conditions');
-
-        // Enable debug mode if requested
-        const debugFlag = args.includes('--debug') || args.includes('-d');
-        if (debugFlag) {
-          conditionsService.setDebugMode(true);
-        }
-
-        const result = conditionsService.evaluateCondition(condition, context);
-
-        console.log('\nCondition Evaluation Result:\n');
-        console.log(`  Passes: ${result.passes ? '✓' : '✗'}`);
-
-        if (result.trace && result.trace.length > 0) {
-          console.log('  Trace:');
-          for (const line of result.trace) {
-            console.log(`    ${line}`);
-          }
-        }
-
-        console.log('');
-
-        // Reset debug mode
-        if (debugFlag) {
-          conditionsService.setDebugMode(false);
-        }
-      } catch (error) {
-        console.error(`Error: ${error.message}`);
-        throw error;
-      }
-    }, 'Evaluate a condition with context (JSON format, --debug for trace)');
-
-    // conditions:list - List all registered condition types
-    cli.register('conditions:list', async (args, ctx) => {
-      const conditionsService = ctx.services.get('conditions');
-      const types = conditionsService.listConditionTypes();
-
-      if (types.length === 0) {
-        console.log('\nNo condition types registered yet.\n');
-        return;
-      }
-
-      console.log('\nRegistered Condition Types:\n');
-
-      const builtins = ['hasRole', 'hasPermission', 'fieldEquals', 'fieldEmpty'];
-      const custom = types.filter(t => !builtins.includes(t));
-
-      if (builtins.some(t => types.includes(t))) {
-        console.log('  Built-in:');
-        for (const type of builtins) {
-          if (types.includes(type)) {
-            console.log(`    • ${type}`);
-          }
-        }
-        console.log('');
-      }
-
-      if (custom.length > 0) {
-        console.log('  Custom:');
-        for (const type of custom) {
-          console.log(`    • ${type}`);
-        }
-        console.log('');
-      }
-
-      console.log(`Total: ${types.length} condition type(s)\n`);
-    }, 'List all registered condition types');
-
-    // entity:view-build <entity_type> <entity_id> [--mode=<displayMode>] - Build entity view
-    cli.register('entity:view-build', async (args, ctx) => {
-      if (args.length < 2) {
-        console.error('Usage: entity:view-build <entity_type> <entity_id> [--mode=<displayMode>]');
-        console.error('Example: entity:view-build content article-1 --mode=teaser');
-        throw new Error('Missing required arguments');
-      }
-
-      const entityType = args[0];
-      const entityId = args[1];
-
-      // Parse display mode from args
-      let displayMode = 'full';
-      for (const arg of args) {
-        if (arg.startsWith('--mode=')) {
-          displayMode = arg.substring(7);
-        }
-      }
-
-      try {
-        const viewBuilder = ctx.services.get('entity_view_builder');
-
-        // Define display modes for article bundle to match default
-        viewBuilder.defineDisplayMode('content', 'article', 'full', {
-          fields: {
-            title: { visible: true, weight: 0, formatter: 'plain' },
-            body: { visible: true, weight: 10, formatter: 'html' },
-            created: { visible: true, weight: 20, formatter: 'date', settings: { format: 'medium' } },
-            updated: { visible: true, weight: 30, formatter: 'date', settings: { format: 'medium' } },
-            author: { visible: true, weight: 40, formatter: 'plain' },
-          },
-        });
-
-        viewBuilder.defineDisplayMode('content', 'article', 'teaser', {
-          fields: {
-            title: { visible: true, weight: 0, formatter: 'plain' },
-            body: { visible: true, weight: 10, formatter: 'truncate', settings: { maxLength: 200 } },
-            created: { visible: true, weight: 20, formatter: 'date', settings: { format: 'short' } },
-          },
-        });
-
-        // Get the entity (for now, mock a simple entity for testing)
-        // In production, this would load from the entity storage
-        const entity = {
-          entityType: entityType,
-          bundle: entityType === 'content' ? 'article' : 'default',
-          type: 'article',
-          id: entityId,
-          label: 'Test Article',
-          title: 'Test Article Title',
-          fields: {
-            title: 'Test Article Title',
-            body: 'This is the body content of the test article. It contains some text that should be truncated in teaser mode but shown fully in full mode. Lorem ipsum dolor sit amet, consectetur adipiscing elit. Sed do eiusmod tempor incididunt ut labore et dolore magna aliqua.',
-            created: new Date('2024-01-15T12:00:00Z'),
-            updated: new Date('2024-02-10T09:00:00Z'),
-            author: 'admin',
-          },
-        };
-
-        // Build the view
-        const view = viewBuilder.buildView(entity, displayMode);
-
-        console.log(`\n=== Entity View: ${entityType}/${entity.bundle} (${displayMode}) ===\n`);
-        console.log(`Entity ID: ${entityId}`);
-        console.log(`Label: ${entity.label}`);
-        console.log(`\nFields (${view.fields.length}):\n`);
-
-        for (const field of view.fields) {
-          console.log(`  ${field.name}:`);
-          console.log(`    Formatter: ${field.formatter}`);
-          console.log(`    Value: ${JSON.stringify(field.value)}`);
-          console.log(`    Formatted: ${field.formatted}`);
-          console.log(`    Weight: ${field.weight}`);
-          console.log('');
-        }
-
-        // Also render to HTML
-        const html = viewBuilder.renderView(view);
-        console.log('Rendered HTML:\n');
-        console.log(html);
-        console.log('');
-      } catch (error) {
-        console.error(`Error: ${error.message}`);
-        throw error;
-      }
-    }, 'Build entity view with display mode and formatters');
-
-    // blocks:variants <block_type> - List variants for a block type
-    cli.register('blocks:variants', async (args, ctx) => {
-      if (args.length < 1) {
-        console.error('Usage: blocks:variants <block_type>');
-        console.error('Example: blocks:variants search');
-        throw new Error('Missing required argument: block_type');
-      }
-
-      const blockType = args[0];
-
-      try {
-        const blocksService = ctx.services.get('blocks');
-
-        // Check if block type exists
-        const type = blocksService.getBlockType(blockType);
-        if (!type) {
-          console.error(`\nError: Block type "${blockType}" does not exist.\n`);
-          throw new Error(`Block type not found: ${blockType}`);
-        }
-
-        const variants = blocksService.listBlockVariants(blockType);
-
-        console.log(`\n=== Block Variants: ${blockType} ===\n`);
-        console.log(`Block Type: ${type.label}`);
-        console.log(`Description: ${type.description || 'N/A'}`);
-        console.log('');
-
-        if (variants.length === 0) {
-          console.log('No variants registered for this block type.\n');
-          return;
-        }
-
-        console.log(`Variants (${variants.length}):\n`);
-
-        for (const variant of variants) {
-          console.log(`  ${variant.name}:`);
-          console.log(`    Label: ${variant.label}`);
-          if (variant.description) {
-            console.log(`    Description: ${variant.description}`);
-          }
-          if (variant.preview_image) {
-            console.log(`    Preview: ${variant.preview_image}`);
-          }
-          const schemaFields = Object.keys(variant.schema);
-          if (schemaFields.length > 0) {
-            console.log(`    Schema fields: ${schemaFields.join(', ')}`);
-          }
-          const defaultFields = Object.keys(variant.defaults);
-          if (defaultFields.length > 0) {
-            console.log(`    Defaults: ${defaultFields.join(', ')}`);
-          }
-          console.log('');
-        }
-      } catch (error) {
-        console.error(`Error: ${error.message}`);
-        throw error;
-      }
-    }, 'List all variants for a block type');
-
-    // math:eval <expression> [--var name=value ...] - Evaluate math expression
-    cli.register('math:eval', async (args, ctx) => {
-      if (args.length < 1) {
-        console.error('Usage: math:eval <expression> [--var name=value ...]');
-        console.error('Example: math:eval "sqrt(16) + (3 * 4)"');
-        console.error('Example: math:eval "price * quantity" --var price=10 --var quantity=3');
-        throw new Error('Missing required argument: expression');
-      }
-
-      const expression = args[0];
-
-      // Parse variables from --var flags
-      const variables = {};
-      for (let i = 1; i < args.length; i++) {
-        if (args[i] === '--var' && args[i + 1]) {
-          const varDef = args[i + 1];
-          const [name, value] = varDef.split('=');
-          if (name && value) {
-            variables[name] = parseFloat(value);
-          }
-          i++;
-        }
-      }
-
-      try {
-        const mathService = ctx.services.get('math_evaluator');
-
-        // Evaluate the expression
-        const result = mathService.evaluate(expression, variables);
-
-        console.log(`\n=== Math Expression Evaluation ===\n`);
-        console.log(`Expression: ${expression}`);
-        if (Object.keys(variables).length > 0) {
-          console.log(`Variables:  ${JSON.stringify(variables)}`);
-        }
-        console.log(`Result:     ${result}`);
-        console.log('');
-      } catch (error) {
-        console.error(`\nError: ${error.message}\n`);
-        throw error;
-      }
-    }, 'Evaluate a mathematical expression');
-
-    // math:functions - List available math functions
-    cli.register('math:functions', async (args, ctx) => {
-      const mathService = ctx.services.get('math_evaluator');
-      const functions = mathService.listFunctions();
-
-      console.log('\n=== Available Math Functions ===\n');
-      console.log('Functions:\n');
-
-      for (const func of functions) {
-        console.log(`  • ${func}`);
-      }
-
-      console.log(`\nTotal: ${functions.length} function(s)\n`);
-    }, 'List all available math functions');
-
-    // ==================================================
     // Hot-Swap Plugin Commands
     // ==================================================
 
@@ -5636,57 +4008,6 @@ export async function boot(baseDir, options = {}) {
     // Semantic clarity: we're invoking module boot handlers,
     // not triggering an event. (They're the same function.)
     await hooks.invoke('boot', context);
-
-    // Discover icon packs from plugins
-    // WHY HERE (after module boot):
-    // Modules register icon packs via hook_icon_packs_info.
-    // We fire the hook after modules have been loaded and hooks wired.
-    await icons.discoverPluginPacks(hooks);
-
-    // Discover entity types from modules
-    // WHY HERE (after module boot):
-    // Modules register entity types via hook_entity_type_info.
-    // We fire the hook after modules have booted so they can register their types.
-    // The EntityTypeManager collects all definitions and makes them available.
-    if (container.has('entity_type.manager')) {
-      const entityTypeManager = container.get('entity_type.manager');
-      await entityTypeManager.discoverEntityTypes();
-      const entityTypes = entityTypeManager.getDefinitions();
-      // WHY .size (not Object.keys): getDefinitions() returns a Map, not a plain object
-      log(`[boot] Discovered ${entityTypes.size} entity type(s)`);
-    }
-
-    // Validate Container dependencies
-    // WHY HERE (after all modules loaded):
-    // All services have been registered. We can now check for:
-    // - Circular dependencies (A depends on B depends on A)
-    // - Missing dependencies (service depends on non-existent service)
-    // - Invalid alias targets (alias points to non-existent service)
-    //
-    // WHY NOT CRASH ON ERRORS:
-    // Some cycles might be intentional or handled with lazy loading.
-    // Log the warning so developers can fix it, but allow boot to continue.
-    // This follows the principle: "Be liberal in what you accept, strict in what you emit"
-    log('[boot] Validating Container dependencies...');
-    try {
-      const validationIssues = container.validateDependencies();
-
-      if (validationIssues.length > 0) {
-        console.warn('\n⚠️  Container Validation Warnings:');
-        for (const issue of validationIssues) {
-          console.warn(`  - ${issue}`);
-        }
-        console.warn('\nℹ️  Boot will continue, but these issues should be addressed.\n');
-      } else {
-        log('[boot] ✓ Container validation passed (no cycles or missing dependencies)');
-      }
-    } catch (error) {
-      // WHY CATCH AND LOG (not crash):
-      // Validation is a safety check, not a hard requirement.
-      // If validation itself fails, that's a bug in Container, not user code.
-      console.warn(`[boot] Container validation failed: ${error.message}`);
-      console.warn('[boot] Continuing boot despite validation error');
-    }
 
     log(`[boot] ✓ ${PHASES.BOOT} complete`);
 
