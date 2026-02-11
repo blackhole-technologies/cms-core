@@ -212,6 +212,33 @@ export function hook_routes(register, context) {
     }
   });
 
+  /**
+   * GET /icons/template-demo
+   *
+   * Demo page showing icon template helper usage
+   */
+  register('GET', '/icons/template-demo', async (req, res) => {
+    try {
+      // Read template file
+      const { readFileSync } = await import('node:fs');
+      const { join } = await import('node:path');
+      const templatePath = join(process.cwd(), 'test-icon-template.html');
+      const templateContent = readFileSync(templatePath, 'utf-8');
+
+      // Render using template service
+      const template = context.services.get('template');
+      const html = template.renderString(templateContent, {});
+
+      res.writeHead(200, { 'Content-Type': 'text/html' });
+      return res.end(html);
+    } catch (error) {
+      console.error('[icons] Template demo error:', error);
+      res.writeHead(500, { 'Content-Type': 'text/plain' });
+      return res.end('Error rendering template demo');
+    }
+  }, 'Icon template helper demo');
+
   console.log('[icons] Registered API routes: /api/icons/*');
   console.log('[icons] Registered demo page: /icons/autocomplete-demo');
+  console.log('[icons] Registered demo page: /icons/template-demo');
 }
