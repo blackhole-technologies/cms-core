@@ -30,20 +30,23 @@ export function hook_routes(register, context) {
       const { name, options = {} } = req.body;
 
       if (!name) {
-        return res.status(400).json({ error: 'Icon name is required' });
+        res.writeHead(400, { 'Content-Type': 'application/json' });
+        return res.end(JSON.stringify({ error: 'Icon name is required' }));
       }
 
       const iconRenderer = services.get('icon-renderer');
       const svg = iconRenderer.renderIcon(name, options);
 
-      return res.json({
+      res.writeHead(200, { 'Content-Type': 'application/json' });
+      return res.end(JSON.stringify({
         svg,
         name,
         options,
-      });
+      }));
     } catch (error) {
       console.error('[icons] Render error:', error);
-      return res.status(500).json({ error: 'Failed to render icon' });
+      res.writeHead(500, { 'Content-Type': 'application/json' });
+      return res.end(JSON.stringify({ error: 'Failed to render icon' }));
     }
   });
 
@@ -56,10 +59,12 @@ export function hook_routes(register, context) {
       const iconRenderer = services.get('icon-renderer');
       const stats = iconRenderer.getCacheStats();
 
-      return res.json(stats);
+      res.writeHead(200, { 'Content-Type': 'application/json' });
+      return res.end(JSON.stringify(stats));
     } catch (error) {
       console.error('[icons] Stats error:', error);
-      return res.status(500).json({ error: 'Failed to get stats' });
+      res.writeHead(500, { 'Content-Type': 'application/json' });
+      return res.end(JSON.stringify({ error: 'Failed to get stats' }));
     }
   });
 
@@ -72,10 +77,12 @@ export function hook_routes(register, context) {
       const iconRenderer = services.get('icon-renderer');
       iconRenderer.clearCache();
 
-      return res.json({ success: true, message: 'Cache cleared' });
+      res.writeHead(200, { 'Content-Type': 'application/json' });
+      return res.end(JSON.stringify({ success: true, message: 'Cache cleared' }));
     } catch (error) {
       console.error('[icons] Clear cache error:', error);
-      return res.status(500).json({ error: 'Failed to clear cache' });
+      res.writeHead(500, { 'Content-Type': 'application/json' });
+      return res.end(JSON.stringify({ error: 'Failed to clear cache' }));
     }
   });
 
@@ -188,7 +195,8 @@ export function hook_routes(register, context) {
       return res.writeHead(200, { 'Content-Type': 'text/html' }).end(html);
     } catch (error) {
       console.error('[icons] Demo page error:', error);
-      return res.status(500).send('Demo page not found');
+      res.writeHead(500, { 'Content-Type': 'text/html' });
+      return res.end('Demo page not found');
     }
   });
 
