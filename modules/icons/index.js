@@ -85,8 +85,10 @@ export function hook_routes(register, context) {
    */
   register('GET','/api/icons/list', async (req, res) => {
     try {
+      const url = new URL(req.url, `http://${req.headers.host}`);
+      const packId = url.searchParams.get('pack');
+
       const icons = services.get('icons');
-      const packId = req.query.pack;
 
       let iconsList;
       if (packId) {
@@ -101,13 +103,15 @@ export function hook_routes(register, context) {
         }
       }
 
-      return res.json({
+      res.writeHead(200, { 'Content-Type': 'application/json' });
+      return res.end(JSON.stringify({
         icons: iconsList,
         count: iconsList.length,
-      });
+      }));
     } catch (error) {
       console.error('[icons] List error:', error);
-      return res.status(500).json({ error: 'Failed to list icons' });
+      res.writeHead(500, { 'Content-Type': 'application/json' });
+      return res.end(JSON.stringify({ error: 'Failed to list icons' }));
     }
   });
 
@@ -117,10 +121,14 @@ export function hook_routes(register, context) {
    */
   register('GET','/api/icons/search', async (req, res) => {
     try {
-      const { q, pack, limit } = req.query;
+      const url = new URL(req.url, `http://${req.headers.host}`);
+      const q = url.searchParams.get('q');
+      const pack = url.searchParams.get('pack');
+      const limit = url.searchParams.get('limit');
 
       if (!q) {
-        return res.status(400).json({ error: 'Search query (q) is required' });
+        res.writeHead(400, { 'Content-Type': 'application/json' });
+        return res.end(JSON.stringify({ error: 'Search query (q) is required' }));
       }
 
       const icons = services.get('icons');
@@ -129,14 +137,16 @@ export function hook_routes(register, context) {
         limit: limit ? parseInt(limit, 10) : 50,
       });
 
-      return res.json({
+      res.writeHead(200, { 'Content-Type': 'application/json' });
+      return res.end(JSON.stringify({
         results,
         count: results.length,
         query: q,
-      });
+      }));
     } catch (error) {
       console.error('[icons] Search error:', error);
-      return res.status(500).json({ error: 'Failed to search icons' });
+      res.writeHead(500, { 'Content-Type': 'application/json' });
+      return res.end(JSON.stringify({ error: 'Failed to search icons' }));
     }
   });
 
@@ -149,15 +159,39 @@ export function hook_routes(register, context) {
       const icons = services.get('icons');
       const packs = icons.listPacks();
 
-      return res.json({
+      res.writeHead(200, { 'Content-Type': 'application/json' });
+      return res.end(JSON.stringify({
         packs,
         count: packs.length,
-      });
+      }));
     } catch (error) {
       console.error('[icons] Packs error:', error);
-      return res.status(500).json({ error: 'Failed to list packs' });
+      res.writeHead(500, { 'Content-Type': 'application/json' });
+      return res.end(JSON.stringify({ error: 'Failed to list packs' }));
+    }
+  });
+
+  /**
+   * GET /icons/autocomplete-demo
+   * Demo page for icon autocomplete form element
+   */
+  register('GET', '/icons/autocomplete-demo', async (req, res) => {
+    try {
+      const { readFileSync } = await import('node:fs');
+      const { join, dirname } = await import('node:path');
+      const { fileURLToPath } = await import('node:url');
+
+      const __dirname = dirname(fileURLToPath(import.meta.url));
+      const templatePath = join(__dirname, 'templates', 'autocomplete-demo.html');
+      const html = readFileSync(templatePath, 'utf-8');
+
+      return res.writeHead(200, { 'Content-Type': 'text/html' }).end(html);
+    } catch (error) {
+      console.error('[icons] Demo page error:', error);
+      return res.status(500).send('Demo page not found');
     }
   });
 
   console.log('[icons] Registered API routes: /api/icons/*');
+  console.log('[icons] Registered demo page: /icons/autocomplete-demo');
 }

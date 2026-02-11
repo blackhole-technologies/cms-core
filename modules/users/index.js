@@ -490,6 +490,10 @@ export function hook_middleware(use, context) {
       '/api/tagify/autocomplete',
       '/api/tagify/create-tag',
       '/api/linkit/autocomplete',
+      '/api/icons/search',
+      '/api/icons/render',
+      '/api/icons/packs',
+      '/api/icons/list',
     ];
     
     if (publicPaths.some(p => path.startsWith(p))) {
