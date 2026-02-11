@@ -63,7 +63,6 @@
 import { readFileSync, existsSync } from 'node:fs';
 import { join } from 'node:path';
 import { parseCvaHelper } from './lib/Twig/CvaExtension.js';
-import * as iconRenderer from './icon-renderer.js';
 
 /**
  * Base directory for templates (set by init)
@@ -76,12 +75,26 @@ let themeDir = null;
 let i18nService = null;
 
 /**
+ * Icon renderer service reference (lazy loaded)
+ */
+let iconRendererService = null;
+
+/**
  * Set i18n service for template translations
  *
  * @param {Object} service - i18n service instance
  */
 export function setI18n(service) {
   i18nService = service;
+}
+
+/**
+ * Set icon-renderer service for icon helper
+ *
+ * @param {Object} service - icon-renderer service instance
+ */
+export function setIconRenderer(service) {
+  iconRendererService = service;
 }
 
 /**
@@ -297,6 +310,12 @@ function processIfBlocks(template, data) {
  */
 function renderIconHelper(iconName, options = {}) {
   try {
+    // Lazy load icon-renderer service if not yet set
+    if (!iconRendererService) {
+      console.warn('[template] Icon renderer service not initialized yet');
+      return '';
+    }
+
     // Normalize option names (template uses hyphen, renderer uses underscore)
     const rendererOptions = {
       size: options.size,
@@ -306,8 +325,9 @@ function renderIconHelper(iconName, options = {}) {
       ariaLabel: options.aria_label || options.ariaLabel,
     };
 
-    const result = iconRenderer.renderIcon(iconName, rendererOptions);
-    return result.svg;
+    // renderIcon returns the SVG string directly, not an object
+    const svg = iconRendererService.renderIcon(iconName, rendererOptions);
+    return svg;
   } catch (error) {
     console.error(`[template] Icon helper error for "${iconName}":`, error.message);
     // Return empty string on error (fail silently in templates)
@@ -452,8 +472,9 @@ function processVariables(template, data) {
     return renderIconHelper(iconName, options);
   });
 
-  // Match {{varName}} or {{nested.path}} or {{@special}}
-  const varRegex = /\{\{(@?\w+(?:\.\w+)*)\}\}/g;
+  // Match {{varName}} or {{nested.path}} or {{@special}} or {{icon name:with/special}}
+  // Updated to support icon helper syntax with colons and slashes
+  const varRegex = /\{\{(@?\w+(?:\s+[\w:\/\-]+|(?:\.\w+))*)\}\}/g;
 
   return result.replace(varRegex, (match, varPath) => {
     // Handle CSRF helpers
