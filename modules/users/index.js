@@ -486,6 +486,7 @@ export function hook_middleware(use, context) {
       '/api/consciousness/chat',
       '/api/consciousness/interpret',
       '/api/health',
+      '/api/ai/health',
     ];
     
     if (publicPaths.some(p => path.startsWith(p))) {

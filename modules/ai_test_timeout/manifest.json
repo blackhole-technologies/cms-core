@@ -1,0 +1,13 @@
+{
+  "name": "ai_test_timeout",
+  "version": "1.0.0",
+  "description": "Test AI provider that simulates timeout for health check testing",
+  "ai": true,
+  "aiType": "provider",
+  "aiCapabilities": {
+    "models": ["timeout-model"],
+    "operations": ["chat"]
+  },
+  "disabled": true,
+  "dependencies": []
+}
