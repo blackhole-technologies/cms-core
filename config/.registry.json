@@ -132,6 +132,13 @@
       "schema": null,
       "locked": false,
       "registeredAt": "2026-02-09T12:21:39.240Z"
+    },
+    "menu-attributes": {
+      "name": "menu-attributes",
+      "file": "menu-attributes.json",
+      "schema": null,
+      "locked": false,
+      "registeredAt": "2026-02-11T07:50:41.105Z"
     }
   },
   "environments": {

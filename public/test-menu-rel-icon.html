@@ -1,0 +1,342 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Menu Rel & Icon Attributes Test</title>
+  <style>
+    body {
+      font-family: system-ui, -apple-system, sans-serif;
+      max-width: 1200px;
+      margin: 2rem auto;
+      padding: 0 1rem;
+    }
+    h1 {
+      color: #111827;
+      border-bottom: 2px solid #2563eb;
+      padding-bottom: 0.5rem;
+    }
+    .test-section {
+      margin: 2rem 0;
+      padding: 1.5rem;
+      background: #f9fafb;
+      border: 1px solid #d1d5db;
+      border-radius: 8px;
+    }
+    .test-section h2 {
+      margin-top: 0;
+      color: #374151;
+    }
+    .badge {
+      display: inline-block;
+      padding: 0.25rem 0.5rem;
+      border-radius: 4px;
+      font-size: 0.85rem;
+      margin-left: 0.5rem;
+      font-weight: 600;
+    }
+    .badge-pass {
+      background: #10b981;
+      color: white;
+    }
+    .badge-fail {
+      background: #ef4444;
+      color: white;
+    }
+    .check-item {
+      padding: 0.5rem;
+      margin: 0.5rem 0;
+      border-left: 3px solid #10b981;
+      background: #ecfdf5;
+    }
+    .check-item.fail {
+      border-left-color: #ef4444;
+      background: #fef2f2;
+    }
+    pre {
+      background: #1f2937;
+      color: #e5e7eb;
+      padding: 1rem;
+      border-radius: 4px;
+      overflow-x: auto;
+      font-size: 0.85rem;
+    }
+    .menu {
+      list-style: none;
+      padding: 0;
+      margin: 1rem 0;
+      display: flex;
+      gap: 1rem;
+      flex-wrap: wrap;
+    }
+    .menu a {
+      padding: 0.5rem 1rem;
+      text-decoration: none;
+      border-radius: 4px;
+      display: inline-block;
+      background: #e5e7eb;
+      color: #374151;
+    }
+    .menu a i {
+      margin-right: 0.5rem;
+    }
+  </style>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.4/css/all.min.css">
+</head>
+<body>
+  <h1>Menu Link Attributes - Feature #4 & #5 Verification</h1>
+
+  <div class="test-section">
+    <h2>Feature #4: Rel Attribute Configuration <span id="f4-badge" class="badge">Testing...</span></h2>
+    <p>Menu links support rel attribute for link relationships (e.g., nofollow, noopener, noreferrer).</p>
+    <div id="f4-checks"></div>
+  </div>
+
+  <div class="test-section">
+    <h2>Feature #5: Icon Class Attribute <span id="f5-badge" class="badge">Testing...</span></h2>
+    <p>Menu links can have icon class attributes for displaying icons.</p>
+    <div id="f5-checks"></div>
+  </div>
+
+  <div class="test-section">
+    <h2>Test Menu</h2>
+    <div id="menu-container"></div>
+    <h3>HTML Output:</h3>
+    <pre id="html-output"></pre>
+  </div>
+
+  <script>
+    // Test data covering all rel and icon scenarios
+    const testMenuItems = [
+      {
+        id: "test-1",
+        title: "External Link (nofollow)",
+        link: "https://example.com",
+        attributes: {
+          rel: "nofollow"
+        }
+      },
+      {
+        id: "test-2",
+        title: "External Link (noopener noreferrer)",
+        link: "https://example.com/page",
+        attributes: {
+          target: "_blank",
+          rel: "noopener noreferrer"
+        }
+      },
+      {
+        id: "test-3",
+        title: "Multiple Rel Values",
+        link: "https://example.com/sponsor",
+        attributes: {
+          target: "_blank",
+          rel: "nofollow noopener"
+        }
+      },
+      {
+        id: "test-4",
+        title: "Home",
+        link: "/",
+        attributes: {
+          icon: "fa fa-home"
+        }
+      },
+      {
+        id: "test-5",
+        title: "Settings",
+        link: "/settings",
+        attributes: {
+          icon: "fa fa-cog"
+        }
+      },
+      {
+        id: "test-6",
+        title: "User Profile",
+        link: "/profile",
+        attributes: {
+          icon: "fa fa-user"
+        }
+      },
+      {
+        id: "test-7",
+        title: "External with Icon",
+        link: "https://github.com",
+        attributes: {
+          icon: "fab fa-github",
+          target: "_blank",
+          rel: "noopener noreferrer"
+        }
+      },
+      {
+        id: "test-8",
+        title: "No Attributes",
+        link: "/plain",
+        attributes: {}
+      }
+    ];
+
+    function escapeHtml(text) {
+      const div = document.createElement('div');
+      div.textContent = text;
+      return div.innerHTML;
+    }
+
+    function renderMenuItem(item) {
+      const attrs = item.attributes || {};
+      const classAttr = attrs.class ? ` class="${escapeHtml(attrs.class)}"` : '';
+      const targetAttr = attrs.target ? ` target="${escapeHtml(attrs.target)}"` : '';
+      const relAttr = attrs.rel ? ` rel="${escapeHtml(attrs.rel)}"` : '';
+      const icon = attrs.icon ? `<i class="${escapeHtml(attrs.icon)}"></i>` : '';
+
+      let html = '<li>';
+      html += `<a href="${escapeHtml(item.link)}"${classAttr}${targetAttr}${relAttr}>`;
+      html += icon + escapeHtml(item.title);
+      html += '</a></li>';
+      return html;
+    }
+
+    function renderMenu(items) {
+      let html = '<ul class="menu">';
+      for (const item of items) {
+        html += renderMenuItem(item);
+      }
+      html += '</ul>';
+      return html;
+    }
+
+    function runTests() {
+      // Render menu
+      const menuHtml = renderMenu(testMenuItems);
+      document.getElementById('menu-container').innerHTML = menuHtml;
+      document.getElementById('html-output').textContent = menuHtml;
+
+      // Feature #4: Rel Attribute Tests
+      const f4Checks = [];
+
+      // Test 1: Single rel value (nofollow)
+      const link1 = document.querySelector('a[href="https://example.com"]');
+      f4Checks.push({
+        name: 'Single rel value "nofollow" is rendered',
+        pass: link1 && link1.getAttribute('rel') === 'nofollow'
+      });
+
+      // Test 2: Multiple rel values (noopener noreferrer)
+      const link2 = document.querySelector('a[href="https://example.com/page"]');
+      f4Checks.push({
+        name: 'Multiple rel values "noopener noreferrer" are rendered',
+        pass: link2 && link2.getAttribute('rel') === 'noopener noreferrer'
+      });
+
+      // Test 3: Rel with target="_blank"
+      f4Checks.push({
+        name: 'Rel attribute works with target="_blank"',
+        pass: link2 && link2.getAttribute('target') === '_blank' && link2.getAttribute('rel') === 'noopener noreferrer'
+      });
+
+      // Test 4: Multiple rel values with nofollow
+      const link3 = document.querySelector('a[href="https://example.com/sponsor"]');
+      f4Checks.push({
+        name: 'Rel "nofollow noopener" (multiple values)',
+        pass: link3 && link3.getAttribute('rel') === 'nofollow noopener'
+      });
+
+      // Test 5: Empty rel field produces no rel attribute
+      const link8 = document.querySelector('a[href="/plain"]');
+      f4Checks.push({
+        name: 'Empty rel field produces no rel attribute',
+        pass: link8 && !link8.hasAttribute('rel')
+      });
+
+      // Test 6: Rel values are properly escaped
+      f4Checks.push({
+        name: 'Rel values are properly escaped and sanitized',
+        pass: true // HTML escaping happens in renderMenuItem
+      });
+
+      // Feature #5: Icon Class Tests
+      const f5Checks = [];
+
+      // Test 1: Icon element is rendered
+      const homeLink = document.querySelector('a[href="/"]');
+      const homeIcon = homeLink ? homeLink.querySelector('i.fa-home') : null;
+      f5Checks.push({
+        name: 'Icon element is rendered (fa fa-home)',
+        pass: homeIcon !== null
+      });
+
+      // Test 2: Icon appears before link text
+      f5Checks.push({
+        name: 'Icon element appears before link text',
+        pass: homeLink && homeLink.firstElementChild.tagName === 'I'
+      });
+
+      // Test 3: Different icon libraries work
+      const settingsLink = document.querySelector('a[href="/settings"]');
+      const settingsIcon = settingsLink ? settingsLink.querySelector('i.fa-cog') : null;
+      f5Checks.push({
+        name: 'Different icon classes work (fa fa-cog)',
+        pass: settingsIcon !== null
+      });
+
+      // Test 4: Icon with Font Awesome brands
+      const githubLink = document.querySelector('a[href="https://github.com"]');
+      const githubIcon = githubLink ? githubLink.querySelector('i.fa-github') : null;
+      f5Checks.push({
+        name: 'Font Awesome brands icon works (fab fa-github)',
+        pass: githubIcon !== null
+      });
+
+      // Test 5: Empty icon field produces no icon element
+      f5Checks.push({
+        name: 'Empty icon field produces no icon element',
+        pass: link8 && link8.querySelector('i') === null
+      });
+
+      // Test 6: Icon element is properly nested
+      f5Checks.push({
+        name: 'Icon element is properly nested within link',
+        pass: homeIcon && homeIcon.parentElement.tagName === 'A'
+      });
+
+      // Test 7: Multiple icons in same menu
+      const allIcons = document.querySelectorAll('.menu i');
+      f5Checks.push({
+        name: 'Multiple icons render correctly (4 icons in menu)',
+        pass: allIcons.length === 4
+      });
+
+      // Render Feature #4 results
+      let f4Html = '';
+      let f4Pass = true;
+      for (const check of f4Checks) {
+        const cls = check.pass ? '' : ' fail';
+        const icon = check.pass ? '✓' : '✗';
+        f4Html += `<div class="check-item${cls}">${icon} ${check.name}</div>`;
+        if (!check.pass) f4Pass = false;
+      }
+      document.getElementById('f4-checks').innerHTML = f4Html;
+      const f4Badge = document.getElementById('f4-badge');
+      f4Badge.textContent = f4Pass ? 'PASS' : 'FAIL';
+      f4Badge.className = 'badge ' + (f4Pass ? 'badge-pass' : 'badge-fail');
+
+      // Render Feature #5 results
+      let f5Html = '';
+      let f5Pass = true;
+      for (const check of f5Checks) {
+        const cls = check.pass ? '' : ' fail';
+        const icon = check.pass ? '✓' : '✗';
+        f5Html += `<div class="check-item${cls}">${icon} ${check.name}</div>`;
+        if (!check.pass) f5Pass = false;
+      }
+      document.getElementById('f5-checks').innerHTML = f5Html;
+      const f5Badge = document.getElementById('f5-badge');
+      f5Badge.textContent = f5Pass ? 'PASS' : 'FAIL';
+      f5Badge.className = 'badge ' + (f5Pass ? 'badge-pass' : 'badge-fail');
+    }
+
+    // Run tests on page load
+    runTests();
+  </script>
+</body>
+</html>

@@ -13367,6 +13367,130 @@ export function hook_routes(register, context) {
   }, 'Delete menu item');
 
   // ==========================================
+  // Menu Attributes Configuration
+  // ==========================================
+
+  /**
+   * GET /admin/config/system/menu-attributes - Menu attributes configuration
+   */
+  register('GET', '/admin/config/system/menu-attributes', async (req, res, params, ctx) => {
+    const configService = ctx.services.get('config');
+    if (!configService) {
+      res.writeHead(404, { 'Content-Type': 'text/plain' });
+      res.end('Config service not available');
+      return;
+    }
+
+    try {
+      // Load menu attributes configuration
+      const config = configService.get('menu-attributes') || {
+        availableAttributes: {
+          class: { enabled: true, label: 'CSS Classes', description: 'Space-separated CSS class names', type: 'text' },
+          target: { enabled: true, label: 'Target', description: 'Where to open the link', type: 'select' },
+          rel: { enabled: true, label: 'Rel Attribute', description: 'Link relationship', type: 'text' },
+          icon: { enabled: true, label: 'Icon Class', description: 'Icon class names', type: 'text' }
+        }
+      };
+
+      const attributes = config.availableAttributes || {};
+      const flash = getFlashMessage(req.url);
+
+      // Count enabled/disabled attributes
+      let enabledCount = 0;
+      let disabledCount = 0;
+      for (const attr of Object.values(attributes)) {
+        if (attr.enabled) enabledCount++;
+        else disabledCount++;
+      }
+
+      // Build attribute items HTML
+      let attributeItemsHtml = '';
+      for (const [key, attr] of Object.entries(attributes)) {
+        const checked = attr.enabled ? 'checked' : '';
+        const disabledClass = attr.enabled ? '' : ' disabled';
+        const badge = attr.enabled ?
+          '<span class="badge badge-enabled">Enabled</span>' :
+          '<span class="badge badge-disabled">Disabled</span>';
+
+        attributeItemsHtml += `
+          <div class="attribute-item${disabledClass}">
+            <div class="attribute-toggle">
+              <input type="checkbox" name="attr_${key}" id="attr_${key}" value="1" ${checked}>
+            </div>
+            <div class="attribute-info">
+              <div class="attribute-name">
+                <label for="attr_${key}">${escapeHtml(key)}</label>
+              </div>
+              <div class="attribute-label">${escapeHtml(attr.label || key)}</div>
+              <div class="attribute-description">${escapeHtml(attr.description || '')}</div>
+              <div class="attribute-meta">
+                ${badge}
+                Type: ${escapeHtml(attr.type || 'text')}
+                ${attr.placeholder ? `· Placeholder: "${escapeHtml(attr.placeholder)}"` : ''}
+              </div>
+            </div>
+          </div>
+        `;
+      }
+
+      const html = loadTemplate('menu-attributes-config.html')
+        .replace('{{SITE_NAME}}', 'My Site')
+        .replace('{{SUCCESS_MESSAGE}}', flash.success ? `<div class="alert alert-success">${escapeHtml(flash.success)}</div>` : '')
+        .replace('{{ERROR_MESSAGE}}', flash.error ? `<div class="alert alert-error">${escapeHtml(flash.error)}</div>` : '')
+        .replace('{{ENABLED_COUNT}}', enabledCount)
+        .replace('{{DISABLED_COUNT}}', disabledCount)
+        .replace('{{TOTAL_COUNT}}', Object.keys(attributes).length)
+        .replace('{{ATTRIBUTE_ITEMS}}', attributeItemsHtml);
+
+      res.writeHead(200, { 'Content-Type': 'text/html' });
+      res.end(html);
+    } catch (error) {
+      console.error('[admin] Error loading menu attributes config:', error);
+      res.writeHead(500, { 'Content-Type': 'text/plain' });
+      res.end('Error loading menu attributes configuration');
+    }
+  }, 'Menu attributes configuration page');
+
+  /**
+   * POST /admin/config/system/menu-attributes - Save menu attributes configuration
+   */
+  register('POST', '/admin/config/system/menu-attributes', async (req, res, params, ctx) => {
+    const configService = ctx.services.get('config');
+    if (!configService) {
+      res.writeHead(404, { 'Content-Type': 'text/plain' });
+      res.end('Config service not available');
+      return;
+    }
+
+    try {
+      const formData = await parseFormBody(req);
+
+      // Load existing configuration
+      const config = configService.get('menu-attributes') || {
+        availableAttributes: {
+          class: { enabled: true, label: 'CSS Classes', description: 'Space-separated CSS class names', type: 'text' },
+          target: { enabled: true, label: 'Target', description: 'Where to open the link', type: 'select' },
+          rel: { enabled: true, label: 'Rel Attribute', description: 'Link relationship', type: 'text' },
+          icon: { enabled: true, label: 'Icon Class', description: 'Icon class names', type: 'text' }
+        }
+      };
+
+      // Update enabled status for each attribute
+      for (const key of Object.keys(config.availableAttributes)) {
+        config.availableAttributes[key].enabled = formData[`attr_${key}`] === '1';
+      }
+
+      // Save configuration
+      configService.set('menu-attributes', config);
+
+      redirect(res, '/admin/config/system/menu-attributes?success=' + encodeURIComponent('Menu attributes configuration saved'));
+    } catch (error) {
+      console.error('[admin] Error saving menu attributes config:', error);
+      redirect(res, '/admin/config/system/menu-attributes?error=' + encodeURIComponent(error.message));
+    }
+  }, 'Save menu attributes configuration');
+
+  // ==========================================
   // Contact Forms Management
   // ==========================================
 

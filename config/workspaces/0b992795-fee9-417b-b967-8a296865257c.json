@@ -5,10 +5,10 @@
   "status": "active",
   "owner": null,
   "created": "2026-02-08T03:54:05.456Z",
-  "updated": "2026-02-08T03:55:18.092Z",
+  "updated": "2026-02-11T07:39:34.175Z",
   "parent": null,
   "description": "",
   "assignees": [],
   "expiresAt": null,
-  "scheduledPublishAt": "2026-02-10T12:00:00.000Z"
+  "scheduledPublishAt": null
 }

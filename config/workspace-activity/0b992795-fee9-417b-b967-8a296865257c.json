@@ -1,5 +1,14 @@
 [
   {
+    "timestamp": "2026-02-11T07:39:37.371Z",
+    "action": "workspace.scheduled_publish_executed",
+    "user": null,
+    "details": {
+      "publishedAt": "2026-02-11T07:39:34.175Z",
+      "itemCount": 0
+    }
+  },
+  {
     "timestamp": "2026-02-08T03:55:18.092Z",
     "action": "workspace.schedule_publish",
     "user": null,
