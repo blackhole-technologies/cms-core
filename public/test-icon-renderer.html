@@ -1,0 +1,342 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Icon Renderer Test</title>
+  <style>
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      max-width: 1200px;
+      margin: 0 auto;
+      padding: 40px 20px;
+      background: #f5f5f5;
+    }
+    h1 {
+      color: #333;
+      margin-bottom: 10px;
+    }
+    .subtitle {
+      color: #666;
+      margin-bottom: 30px;
+    }
+    .test-section {
+      background: white;
+      border-radius: 8px;
+      padding: 24px;
+      margin-bottom: 24px;
+      box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+    }
+    .test-section h2 {
+      margin-top: 0;
+      color: #2563eb;
+      font-size: 20px;
+      border-bottom: 2px solid #e5e7eb;
+      padding-bottom: 12px;
+    }
+    .icon-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+      gap: 16px;
+      margin-top: 20px;
+    }
+    .icon-item {
+      border: 1px solid #e5e7eb;
+      border-radius: 6px;
+      padding: 16px;
+      text-align: center;
+      background: #fafafa;
+    }
+    .icon-item .icon-display {
+      min-height: 60px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      margin-bottom: 12px;
+    }
+    .icon-item .icon-name {
+      font-size: 12px;
+      color: #666;
+      font-family: monospace;
+      word-break: break-all;
+    }
+    .icon {
+      display: inline-block;
+    }
+    .results {
+      margin-top: 20px;
+      padding: 16px;
+      background: #f0f9ff;
+      border: 1px solid #bae6fd;
+      border-radius: 6px;
+    }
+    .results h3 {
+      margin-top: 0;
+      color: #0369a1;
+    }
+    .pass {
+      color: #059669;
+      font-weight: bold;
+    }
+    .fail {
+      color: #dc2626;
+      font-weight: bold;
+    }
+    .stat-item {
+      margin: 8px 0;
+      padding: 8px;
+      background: white;
+      border-radius: 4px;
+    }
+  </style>
+</head>
+<body>
+  <h1>Icon Renderer Test Page</h1>
+  <p class="subtitle">Testing SVG icon rendering with various options</p>
+
+  <div class="test-section">
+    <h2>Test 1: Basic Icon Rendering</h2>
+    <div class="icon-grid">
+      <div class="icon-item">
+        <div class="icon-display" id="icon-basic-1"></div>
+        <div class="icon-name">hero:solid/user</div>
+      </div>
+      <div class="icon-item">
+        <div class="icon-display" id="icon-basic-2"></div>
+        <div class="icon-name">hero:solid/home</div>
+      </div>
+      <div class="icon-item">
+        <div class="icon-display" id="icon-basic-3"></div>
+        <div class="icon-name">bi:house</div>
+      </div>
+      <div class="icon-item">
+        <div class="icon-display" id="icon-basic-4"></div>
+        <div class="icon-name">bi:trash</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="test-section">
+    <h2>Test 2: Size Variants</h2>
+    <div class="icon-grid">
+      <div class="icon-item">
+        <div class="icon-display" id="icon-size-small"></div>
+        <div class="icon-name">small (16px)</div>
+      </div>
+      <div class="icon-item">
+        <div class="icon-display" id="icon-size-medium"></div>
+        <div class="icon-name">medium (24px)</div>
+      </div>
+      <div class="icon-item">
+        <div class="icon-display" id="icon-size-large"></div>
+        <div class="icon-name">large (32px)</div>
+      </div>
+      <div class="icon-item">
+        <div class="icon-display" id="icon-size-custom"></div>
+        <div class="icon-name">custom (48px)</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="test-section">
+    <h2>Test 3: Color Customization</h2>
+    <div class="icon-grid">
+      <div class="icon-item">
+        <div class="icon-display" id="icon-color-blue"></div>
+        <div class="icon-name">color: blue</div>
+      </div>
+      <div class="icon-item">
+        <div class="icon-display" id="icon-color-red"></div>
+        <div class="icon-name">color: #dc2626</div>
+      </div>
+      <div class="icon-item">
+        <div class="icon-display" id="icon-color-green"></div>
+        <div class="icon-name">color: #059669</div>
+      </div>
+      <div class="icon-item">
+        <div class="icon-display" id="icon-color-purple"></div>
+        <div class="icon-name">color: #7c3aed</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="test-section">
+    <h2>Test 4: Accessibility Attributes</h2>
+    <div class="icon-grid">
+      <div class="icon-item">
+        <div class="icon-display" id="icon-a11y-title"></div>
+        <div class="icon-name">with title</div>
+      </div>
+      <div class="icon-item">
+        <div class="icon-display" id="icon-a11y-label"></div>
+        <div class="icon-name">with aria-label</div>
+      </div>
+      <div class="icon-item">
+        <div class="icon-display" id="icon-a11y-decorative"></div>
+        <div class="icon-name">decorative</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="test-section">
+    <h2>Test 5: Error Handling</h2>
+    <div class="icon-grid">
+      <div class="icon-item">
+        <div class="icon-display" id="icon-error-missing"></div>
+        <div class="icon-name">missing-icon (fallback)</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="results">
+    <h3>Test Results</h3>
+    <div id="test-results"></div>
+    <h3 style="margin-top: 24px;">Cache Statistics</h3>
+    <div id="cache-stats"></div>
+  </div>
+
+  <script type="module">
+    // Helper to render icon via API
+    async function renderIcon(name, options = {}) {
+      const response = await fetch('/api/icons/render', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name, options })
+      });
+
+      if (!response.ok) {
+        throw new Error(`API error: ${response.status}`);
+      }
+
+      const data = await response.json();
+      return data.svg;
+    }
+
+    // Helper to get cache stats
+    async function getCacheStats() {
+      const response = await fetch('/api/icons/stats');
+      if (!response.ok) {
+        throw new Error(`API error: ${response.status}`);
+      }
+      return response.json();
+    }
+
+    // Run tests
+    async function runTests() {
+      const results = [];
+
+      try {
+        // Test 1: Basic rendering
+        const basic1 = await renderIcon('hero:solid/user');
+        document.getElementById('icon-basic-1').innerHTML = basic1;
+        results.push({ test: 'Basic icon 1', pass: basic1.includes('<svg') });
+
+        const basic2 = await renderIcon('hero:solid/home');
+        document.getElementById('icon-basic-2').innerHTML = basic2;
+        results.push({ test: 'Basic icon 2', pass: basic2.includes('<svg') });
+
+        const basic3 = await renderIcon('bi:house');
+        document.getElementById('icon-basic-3').innerHTML = basic3;
+        results.push({ test: 'Basic icon 3', pass: basic3.includes('<svg') });
+
+        const basic4 = await renderIcon('bi:trash');
+        document.getElementById('icon-basic-4').innerHTML = basic4;
+        results.push({ test: 'Basic icon 4', pass: basic4.includes('<svg') });
+
+        // Test 2: Size variants
+        const sizeSmall = await renderIcon('hero:solid/user', { size: 'small' });
+        document.getElementById('icon-size-small').innerHTML = sizeSmall;
+        results.push({ test: 'Size small (16px)', pass: sizeSmall.includes('width="16"') });
+
+        const sizeMedium = await renderIcon('hero:solid/user', { size: 'medium' });
+        document.getElementById('icon-size-medium').innerHTML = sizeMedium;
+        results.push({ test: 'Size medium (24px)', pass: sizeMedium.includes('width="24"') });
+
+        const sizeLarge = await renderIcon('hero:solid/user', { size: 'large' });
+        document.getElementById('icon-size-large').innerHTML = sizeLarge;
+        results.push({ test: 'Size large (32px)', pass: sizeLarge.includes('width="32"') });
+
+        const sizeCustom = await renderIcon('hero:solid/user', { size: 48 });
+        document.getElementById('icon-size-custom').innerHTML = sizeCustom;
+        results.push({ test: 'Size custom (48px)', pass: sizeCustom.includes('width="48"') });
+
+        // Test 3: Color customization
+        const colorBlue = await renderIcon('hero:solid/user', { size: 'large', color: 'blue' });
+        document.getElementById('icon-color-blue').innerHTML = colorBlue;
+        results.push({ test: 'Color blue', pass: colorBlue.includes('color: blue') });
+
+        const colorRed = await renderIcon('hero:solid/home', { size: 'large', color: '#dc2626' });
+        document.getElementById('icon-color-red').innerHTML = colorRed;
+        results.push({ test: 'Color red', pass: colorRed.includes('#dc2626') });
+
+        const colorGreen = await renderIcon('bi:house', { size: 'large', color: '#059669' });
+        document.getElementById('icon-color-green').innerHTML = colorGreen;
+        results.push({ test: 'Color green', pass: colorGreen.includes('#059669') });
+
+        const colorPurple = await renderIcon('hero:outline/heart', { size: 'large', color: '#7c3aed' });
+        document.getElementById('icon-color-purple').innerHTML = colorPurple;
+        results.push({ test: 'Color purple', pass: colorPurple.includes('#7c3aed') });
+
+        // Test 4: Accessibility
+        const withTitle = await renderIcon('hero:solid/user', { size: 'large', title: 'User Profile' });
+        document.getElementById('icon-a11y-title').innerHTML = withTitle;
+        results.push({ test: 'Icon with title', pass: withTitle.includes('<title>') && withTitle.includes('User Profile') });
+
+        const withLabel = await renderIcon('hero:solid/home', { size: 'large', ariaLabel: 'Home Page' });
+        document.getElementById('icon-a11y-label').innerHTML = withLabel;
+        results.push({ test: 'Icon with aria-label', pass: withLabel.includes('aria-label="Home Page"') });
+
+        const decorative = await renderIcon('hero:outline/search', { size: 'large', decorative: true });
+        document.getElementById('icon-a11y-decorative').innerHTML = decorative;
+        results.push({ test: 'Decorative icon', pass: decorative.includes('aria-hidden="true"') });
+
+        // Test 5: Error handling
+        const missing = await renderIcon('nonexistent:icon', { size: 'large' });
+        document.getElementById('icon-error-missing').innerHTML = missing;
+        results.push({ test: 'Missing icon fallback', pass: missing.includes('?') });
+
+        // Display results
+        const resultsDiv = document.getElementById('test-results');
+        const passCount = results.filter(r => r.pass).length;
+        const totalCount = results.length;
+
+        resultsDiv.innerHTML = `
+          <div class="stat-item">
+            <strong>Total Tests:</strong> ${totalCount}<br>
+            <strong>Passed:</strong> <span class="pass">${passCount}</span><br>
+            <strong>Failed:</strong> <span class="${totalCount - passCount > 0 ? 'fail' : 'pass'}">${totalCount - passCount}</span>
+          </div>
+          ${results.map(r => `
+            <div class="stat-item">
+              ${r.pass ? '<span class="pass">✓</span>' : '<span class="fail">✗</span>'}
+              ${r.test}
+            </div>
+          `).join('')}
+        `;
+
+        // Get cache stats
+        const stats = await getCacheStats();
+        document.getElementById('cache-stats').innerHTML = `
+          <div class="stat-item">
+            <strong>Cache Size:</strong> ${stats.size} / ${stats.maxSize}<br>
+            <strong>Hits:</strong> ${stats.hits}<br>
+            <strong>Misses:</strong> ${stats.misses}<br>
+            <strong>Evictions:</strong> ${stats.evictions}<br>
+            <strong>Hit Rate:</strong> ${stats.hitRate}
+          </div>
+        `;
+
+      } catch (error) {
+        document.getElementById('test-results').innerHTML = `
+          <div class="stat-item">
+            <span class="fail">Error running tests:</span> ${error.message}
+          </div>
+        `;
+      }
+    }
+
+    // Run tests on page load
+    runTests();
+  </script>
+</body>
+</html>

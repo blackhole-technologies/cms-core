@@ -76,6 +76,7 @@ import * as sitemap from './sitemap.js';
 import * as taxonomy from './taxonomy.js';
 import * as menu from './menu.js';
 import * as icons from './icons.js';
+import * as iconRenderer from './icon-renderer.js';
 import * as blocks from './blocks.js';
 import * as views from './views.js';
 import * as regions from './regions.js';
@@ -868,7 +869,9 @@ export async function boot(baseDir, options = {}) {
     const iconConfig = context.config.icons || { enabled: true };
     icons.init(iconConfig, baseDir);
     services.register('icons', () => icons);
+    services.register('icon-renderer', () => iconRenderer);
     icons.registerCli(cli.createModuleRegister('icons'));
+    log('[boot] Icon system enabled');
 
     // Initialize blocks
     // WHY AFTER MENU: Block types include menu blocks
