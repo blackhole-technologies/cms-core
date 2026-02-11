@@ -1,0 +1,13 @@
+{
+  "name": "ai_image_alt",
+  "version": "1.0.0",
+  "description": "AI-powered alt text generation for images",
+  "ai": true,
+  "aiType": "tool",
+  "aiCapabilities": {
+    "operations": ["generate-alt-text", "score-alt-text"],
+    "imageFormats": ["jpg", "jpeg", "png", "gif", "webp"],
+    "maxImageSize": 10485760
+  },
+  "dependencies": []
+}

@@ -8,29 +8,27 @@
 
 ## Feature Count
 
-**feature_count: 8**
+**feature_count: 7**
 
 ---
 
-## TIER 1: AI DASHBOARD (Features 0-7)
+## TIER 1: AI IMAGE ALT TEXT (Features 0-6)
 
 These must pass before any functional features.
 
 ### Features
 
-### Feature 0: AI module registry service
+### Feature 0: Alt text generation service using AI providers
 
-### Feature 1: Dashboard admin route with module status overview
+### Feature 1: Image field integration for auto alt text
 
-### Feature 2: Provider health check endpoint
+### Feature 2: Bulk alt text generation CLI command
 
-### Feature 3: Usage statistics tracking service
+### Feature 3: Alt text quality scoring service
 
-### Feature 4: API endpoint for AI module metrics
+### Feature 4: API endpoint: POST /api/ai/alt-text/generate
 
-### Feature 5: CLI command: ai:dashboard:status
+### Feature 5: Admin config route for alt text settings
 
-### Feature 6: Dashboard widget system with pluggable panels
-
-### Feature 7: AI activity log viewer
+### Feature 6: Alt text review queue for manual approval
 
