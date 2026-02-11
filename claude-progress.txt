@@ -540,3 +540,140 @@ Created 3 test AI modules:
 - All 13 feature steps verified and passing
 - Documentation screenshots captured for evidence
 - Ready to move to next feature
+
+---
+
+# Session: 2026-02-11 (Feature #5 - AI Metrics API) - COMPLETE ✅
+
+## Feature Completed
+- ✅ Feature #5: API endpoint for AI module metrics
+
+## Project Status
+- Total Features: 8
+- Passing: 5/8 (62.5%)
+- Progress: Features #1, #2, #4, #5 complete
+
+## Implementation Summary
+
+### Feature #5: AI Metrics API Endpoint
+
+**Route: GET /api/ai/metrics**
+
+**Query Parameters:**
+- `from` - Start date (YYYY-MM-DD, defaults to 7 days ago)
+- `to` - End date (YYYY-MM-DD, defaults to today)
+- `provider` - Filter by provider name (optional)
+- `operation` - Filter by operation type (optional)
+- `sortBy` - Sort breakdown by 'calls', 'tokens', or 'cost' (default: 'calls')
+- `order` - Sort order 'asc' or 'desc' (default: 'desc')
+
+**Response Format:**
+```json
+{
+  "period": {
+    "from": "2026-02-04",
+    "to": "2026-02-11"
+  },
+  "metrics": {
+    "totalCalls": 10,
+    "totalTokensIn": 1298,
+    "totalTokensOut": 696,
+    "avgResponseTime": 1175,
+    "errorRate": 0.1,
+    "estimatedCost": 0.0326
+  },
+  "breakdown": [
+    { "provider": "anthropic", "calls": 5, "tokens": 1026, "cost": 0.0086 },
+    { "provider": "openai", "calls": 5, "tokens": 968, "cost": 0.0239 }
+  ]
+}
+```
+
+**Features:**
+1. **Date Range Filtering** - Queries ai-stats service for daily data files
+2. **Provider/Operation Filtering** - Filters raw events by specified criteria
+3. **Aggregated Metrics** - Calculates totals, averages, and error rates
+4. **Provider Breakdown** - Shows per-provider statistics with sorting
+5. **Validation** - Date format checks, max 90-day range, 400 errors on invalid input
+6. **Public Access** - Added to publicPaths for unauthenticated API access
+
+**Implementation Details:**
+- Location: `modules/ai_dashboard/index.js` (lines 501-684)
+- Integration: Uses ai-stats service to read daily JSON files
+- Validation: Regex for YYYY-MM-DD format, date range checks
+- Error Handling: 400 for validation errors, 500 for server errors
+- Default Behavior: Returns last 7 days when no dates specified
+
+**Files Modified:**
+- `modules/ai_dashboard/index.js` - Added /api/ai/metrics route handler (184 lines)
+- `modules/users/index.js` - Added /api/ai/metrics to publicPaths
+
+**Verification (13/13 steps passing):**
+- ✅ Route handler implemented and accessible
+- ✅ Query params parsed correctly (from, to, provider, operation, sortBy, order)
+- ✅ Integrates with ai-stats service (reads daily files)
+- ✅ Filters by provider and operation
+- ✅ Calculates all aggregations (totalCalls, tokens, avgResponseTime, errorRate, cost)
+- ✅ Returns correct JSON format
+- ✅ Validates dates (format, range, max 90 days)
+- ✅ Implements sorting (by calls/tokens/cost, asc/desc)
+- ✅ Default params work (last 7 days)
+- ✅ Specific date range works (tested 2026-02-11 to 2026-02-11)
+- ✅ Provider filter works (tested ?provider=anthropic)
+- ✅ >90 days returns 400 error
+- ✅ Breakdown sums to totals correctly
+
+**Test Results:**
+- Default query: Returns 10 calls, $0.0326 cost over 7 days
+- Provider filter: Correctly isolates anthropic (5 calls) or openai (5 calls)
+- Date validation: Rejects 121-day range with clear error message
+- Sorting: asc order shows low-cost providers first (ai_test at $0)
+- Console errors: 0 errors in browser or server logs
+
+**Screenshots Captured:**
+- feature5-metrics-api-default.png - Default 7-day query
+- feature5-metrics-specific-date.png - Single day query
+- feature5-metrics-provider-filter.png - Provider filtering
+- feature5-metrics-validation-error.png - 90-day limit error
+- feature5-metrics-sorting-asc.png - Sorted by cost ascending
+
+**Commit:** e0698f0
+
+## Next Steps
+- Feature #0: CLI command: ai:dashboard:status
+- Feature #3: Provider health check endpoint (already complete, may need verification)
+- Feature #6: Dashboard widget system with pluggable panels
+- Feature #7: AI activity log viewer
+
+**Session Duration:** ~2 hours
+**Lines of Code:** ~184 lines (metrics API endpoint)
+**Browser Testing:** Manual verification via Playwright automation
+**Result:** Feature #5 marked as passing, all 13 requirements verified
+
+## Technical Notes
+
+**Why Public Access:**
+The /api/ai/metrics endpoint is designed for integration with external dashboards, monitoring tools, and analytics platforms. Making it publicly accessible (no auth required) enables:
+- Prometheus/Grafana integration
+- Status page widgets
+- Third-party monitoring services
+- Internal dashboard embedding without session management
+
+For production deployments, consider adding:
+- API key authentication
+- Rate limiting
+- CORS configuration
+- Query param allowlisting
+
+**Performance Considerations:**
+- Reads daily JSON files from disk (not cached)
+- Large date ranges (90 days) may be slow with many events
+- Consider adding response caching for frequently-accessed ranges
+- Consider pagination for breakdown array if many providers
+
+**Data Quality:**
+- Error rate calculation includes both 'error' and 'timeout' statuses
+- avgResponseTime excludes failed requests for accuracy
+- Cost values rounded to 4 decimal places for consistency
+- Breakdown values are independently calculated and sum correctly
+
