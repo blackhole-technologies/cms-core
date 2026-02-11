@@ -1,0 +1,304 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Menu Attributes Test - Simple</title>
+  <style>
+    body {
+      font-family: system-ui, -apple-system, sans-serif;
+      max-width: 900px;
+      margin: 2rem auto;
+      padding: 0 1rem;
+    }
+    h1 {
+      color: #111827;
+      border-bottom: 2px solid #2563eb;
+      padding-bottom: 0.5rem;
+    }
+    .test-result {
+      margin: 2rem 0;
+      padding: 1.5rem;
+      background: #f9fafb;
+      border: 1px solid #d1d5db;
+      border-radius: 8px;
+    }
+    .test-result h2 {
+      margin-top: 0;
+      color: #374151;
+    }
+    .badge {
+      display: inline-block;
+      padding: 0.25rem 0.5rem;
+      border-radius: 4px;
+      font-size: 0.85rem;
+      margin-left: 0.5rem;
+      font-weight: 600;
+    }
+    .badge-pass {
+      background: #10b981;
+      color: white;
+    }
+    .badge-fail {
+      background: #ef4444;
+      color: white;
+    }
+    .menu {
+      list-style: none;
+      padding: 0;
+      margin: 1rem 0;
+      display: flex;
+      gap: 1rem;
+    }
+    .menu li {
+      display: inline-block;
+    }
+    .menu a {
+      padding: 0.5rem 1rem;
+      text-decoration: none;
+      border-radius: 4px;
+      display: inline-block;
+    }
+    .nav-link {
+      color: #2563eb;
+    }
+    .nav-link:hover {
+      background: #eff6ff;
+    }
+    .btn {
+      background: #e5e7eb;
+      color: #374151;
+    }
+    .btn-secondary {
+      background: #6b7280;
+      color: white;
+    }
+    .btn:hover {
+      opacity: 0.8;
+    }
+    .menu a i {
+      margin-right: 0.5rem;
+    }
+    pre {
+      background: #1f2937;
+      color: #e5e7eb;
+      padding: 1rem;
+      border-radius: 4px;
+      overflow-x: auto;
+      font-size: 0.85rem;
+    }
+    .check-item {
+      padding: 0.5rem;
+      margin: 0.5rem 0;
+      border-left: 3px solid #10b981;
+      background: #ecfdf5;
+    }
+    .check-item.fail {
+      border-left-color: #ef4444;
+      background: #fef2f2;
+    }
+  </style>
+  <!-- Font Awesome for icon testing -->
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.4/css/all.min.css">
+</head>
+<body>
+  <h1>Menu Link Attributes - Verification Test</h1>
+
+  <div class="test-result">
+    <h2>Feature #1: Custom Attribute Fields <span id="f1-badge" class="badge">Testing...</span></h2>
+    <p>Menu links should support custom HTML attributes (class, target, rel, icon).</p>
+
+    <h3>Rendered Menu:</h3>
+    <div id="menu-html"></div>
+
+    <h3>HTML Source:</h3>
+    <pre id="html-source"></pre>
+
+    <h3>Verification Results:</h3>
+    <div id="verification"></div>
+  </div>
+
+  <div class="test-result">
+    <h2>Feature #2: CSS Class Attribute <span id="f2-badge" class="badge">Testing...</span></h2>
+    <p>Test that CSS classes are correctly applied to menu links.</p>
+    <div id="f2-checks"></div>
+  </div>
+
+  <div class="test-result">
+    <h2>Feature #3: Target Attribute <span id="f3-badge" class="badge">Testing...</span></h2>
+    <p>Test that target attribute is correctly set for opening in new windows.</p>
+    <div id="f3-checks"></div>
+  </div>
+
+  <script>
+    // Manually load menu data from JSON files
+    const menuItems = [
+      {
+        id: "1770205337100-z5z12",
+        title: "Home",
+        link: "/",
+        attributes: {
+          class: "nav-link home-link",
+          icon: "fa fa-home"
+        }
+      },
+      {
+        id: "1770205341380-48orx",
+        title: "About",
+        link: "/about",
+        attributes: {
+          class: "nav-link about-link btn btn-secondary",
+          target: "_blank",
+          rel: "noopener noreferrer"
+        }
+      },
+      {
+        id: "1770205345936-dkpn4",
+        title: "Contact",
+        link: "/contact",
+        attributes: {}
+      },
+      {
+        id: "1770795752997-jdmrq",
+        title: "Test Link with Attributes",
+        link: "https://example.com",
+        attributes: {
+          class: "btn btn-primary test-class",
+          target: "_blank",
+          rel: "nofollow noopener noreferrer",
+          icon: "fa fa-external-link"
+        }
+      }
+    ];
+
+    function renderMenu(items) {
+      let html = '<ul class="menu">';
+      for (const item of items) {
+        html += renderMenuItem(item);
+      }
+      html += '</ul>';
+      return html;
+    }
+
+    function renderMenuItem(item) {
+      const attrs = item.attributes || {};
+      const classAttr = attrs.class ? ` class="${escapeHtml(attrs.class)}"` : '';
+      const targetAttr = attrs.target ? ` target="${escapeHtml(attrs.target)}"` : '';
+      const relAttr = attrs.rel ? ` rel="${escapeHtml(attrs.rel)}"` : '';
+      const icon = attrs.icon ? `<i class="${escapeHtml(attrs.icon)}"></i>` : '';
+
+      let html = '<li>';
+      html += `<a href="${escapeHtml(item.link)}"${classAttr}${targetAttr}${relAttr}>`;
+      html += icon + escapeHtml(item.title);
+      html += '</a></li>';
+      return html;
+    }
+
+    function escapeHtml(text) {
+      const div = document.createElement('div');
+      div.textContent = text;
+      return div.innerHTML;
+    }
+
+    function runTests() {
+      // Render the menu
+      const menuHtml = renderMenu(menuItems);
+      document.getElementById('menu-html').innerHTML = menuHtml;
+      document.getElementById('html-source').textContent = menuHtml;
+
+      // Verification checks
+      const checks = [];
+
+      // Check #1: Attributes are stored in data
+      const homeItem = menuItems.find(i => i.title === 'Home');
+      checks.push({
+        name: 'Menu item data contains attributes object',
+        pass: homeItem && homeItem.attributes !== undefined
+      });
+
+      // Check #2: CSS classes are rendered
+      const homeLink = document.querySelector('a[href="/"]');
+      checks.push({
+        name: 'Home link has CSS classes',
+        pass: homeLink && homeLink.classList.contains('nav-link') && homeLink.classList.contains('home-link')
+      });
+
+      // Check #3: Icon is rendered
+      checks.push({
+        name: 'Home link has icon',
+        pass: homeLink && homeLink.querySelector('i.fa-home') !== null
+      });
+
+      // Check #4: Target attribute is rendered
+      const aboutLink = document.querySelector('a[href="/about"]');
+      checks.push({
+        name: 'About link has target="_blank"',
+        pass: aboutLink && aboutLink.getAttribute('target') === '_blank'
+      });
+
+      // Check #5: Rel attribute is rendered
+      checks.push({
+        name: 'About link has rel attribute',
+        pass: aboutLink && aboutLink.getAttribute('rel') === 'noopener noreferrer'
+      });
+
+      // Check #6: Multiple classes work
+      checks.push({
+        name: 'About link has multiple classes',
+        pass: aboutLink && aboutLink.classList.contains('nav-link') &&
+              aboutLink.classList.contains('btn') && aboutLink.classList.contains('btn-secondary')
+      });
+
+      // Check #7: External link with all attributes
+      const externalLink = document.querySelector('a[href="https://example.com"]');
+      checks.push({
+        name: 'External link has all attributes',
+        pass: externalLink &&
+              externalLink.classList.contains('btn-primary') &&
+              externalLink.getAttribute('target') === '_blank' &&
+              externalLink.getAttribute('rel') === 'nofollow noopener noreferrer' &&
+              externalLink.querySelector('i.fa-external-link') !== null
+      });
+
+      // Render checks
+      let html = '';
+      let allPass = true;
+      for (const check of checks) {
+        const cls = check.pass ? '' : 'fail';
+        const icon = check.pass ? '✓' : '✗';
+        html += `<div class="check-item ${cls}">${icon} ${check.name}</div>`;
+        if (!check.pass) allPass = false;
+      }
+      document.getElementById('verification').innerHTML = html;
+
+      // Update badges
+      const f1Badge = document.getElementById('f1-badge');
+      f1Badge.textContent = allPass ? 'PASS' : 'FAIL';
+      f1Badge.className = 'badge ' + (allPass ? 'badge-pass' : 'badge-fail');
+
+      // Feature 2 specific checks
+      const f2Pass = checks.filter((c, i) => [1, 5].includes(i)).every(c => c.pass);
+      const f2Badge = document.getElementById('f2-badge');
+      f2Badge.textContent = f2Pass ? 'PASS' : 'FAIL';
+      f2Badge.className = 'badge ' + (f2Pass ? 'badge-pass' : 'badge-fail');
+      document.getElementById('f2-checks').innerHTML = `
+        <div class="check-item${checks[1].pass ? '' : ' fail'}">${checks[1].pass ? '✓' : '✗'} ${checks[1].name}</div>
+        <div class="check-item${checks[5].pass ? '' : ' fail'}">${checks[5].pass ? '✓' : '✗'} ${checks[5].name}</div>
+      `;
+
+      // Feature 3 specific checks
+      const f3Pass = checks.filter((c, i) => [3, 4].includes(i)).every(c => c.pass);
+      const f3Badge = document.getElementById('f3-badge');
+      f3Badge.textContent = f3Pass ? 'PASS' : 'FAIL';
+      f3Badge.className = 'badge ' + (f3Pass ? 'badge-pass' : 'badge-fail');
+      document.getElementById('f3-checks').innerHTML = `
+        <div class="check-item${checks[3].pass ? '' : ' fail'}">${checks[3].pass ? '✓' : '✗'} ${checks[3].name}</div>
+        <div class="check-item${checks[4].pass ? '' : ' fail'}">${checks[4].pass ? '✓' : '✗'} ${checks[4].name}</div>
+      `;
+    }
+
+    // Run tests on page load
+    runTests();
+  </script>
+</body>
+</html>

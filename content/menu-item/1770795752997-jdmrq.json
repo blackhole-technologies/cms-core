@@ -1,0 +1,26 @@
+{
+  "id": "1770795752997-jdmrq",
+  "type": "menu-item",
+  "created": "2026-02-11T07:42:32.997Z",
+  "updated": "2026-02-11T07:42:32.997Z",
+  "menuId": "main",
+  "title": "Test Link with Attributes",
+  "itemType": "internal",
+  "link": "https://example.com",
+  "parentId": null,
+  "weight": 0,
+  "depth": 0,
+  "classes": [],
+  "attributes": {
+    "class": "btn btn-primary test-class",
+    "target": "_blank",
+    "rel": "nofollow noopener noreferrer",
+    "icon": "fa fa-external-link"
+  },
+  "enabled": true,
+  "expanded": false,
+  "roles": [],
+  "permissions": [],
+  "isDefaultRevision": true,
+  "status": "draft"
+}

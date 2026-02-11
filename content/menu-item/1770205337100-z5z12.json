@@ -11,7 +11,10 @@
   "weight": 0,
   "depth": 0,
   "classes": [],
-  "attributes": {},
+  "attributes": {
+    "class": "nav-link home-link",
+    "icon": "fa fa-home"
+  },
   "enabled": true,
   "expanded": false,
   "roles": [],
