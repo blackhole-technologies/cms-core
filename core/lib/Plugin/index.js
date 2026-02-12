@@ -5,8 +5,9 @@
  * Re-exports all plugin system components for convenient importing.
  *
  * Usage:
- *   import { PluginManager, PluginBase } from 'core/lib/Plugin/index.js';
+ *   import { PluginManager, PluginBase, AIProvider } from 'core/lib/Plugin/index.js';
  */
 
 export { PluginManager } from './PluginManager.js';
 export { PluginBase } from './PluginBase.js';
+export { AIProvider } from './AIProvider.js';

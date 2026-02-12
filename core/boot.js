@@ -101,6 +101,7 @@ import * as ban from './ban.js';
 import * as history from './history.js';
 import * as aiRegistry from './ai-registry.js';
 import * as aiStats from './ai-stats.js';
+import * as aiProviderManager from './ai-provider-manager.js';
 
 /**
  * Boot phase definitions
@@ -568,6 +569,18 @@ export async function boot(baseDir, options = {}) {
     aiStats.init(baseDir);
     services.register('ai-stats', () => aiStats);
     log('[boot] AI stats service initialized');
+
+    // Initialize AI provider manager
+    // WHY AFTER AI REGISTRY:
+    // Provider manager needs access to services, hooks, and module paths.
+    // Manages discovery, loading, and instantiation of AI provider plugins.
+    aiProviderManager.init({
+      services,
+      hooks,
+      modulePaths: context.modules.map(m => ({ name: m.name, path: m.path }))
+    });
+    services.register('ai-provider-manager', () => aiProviderManager);
+    log('[boot] AI provider manager initialized');
 
     // Register media as a service
     // WHY A SERVICE:

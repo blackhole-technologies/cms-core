@@ -1,0 +1,13 @@
+{
+  "name": "openai_provider",
+  "version": "1.0.0",
+  "description": "OpenAI AI provider integration",
+  "ai": true,
+  "aiType": "provider",
+  "aiCapabilities": {
+    "models": ["gpt-4", "gpt-4-turbo", "gpt-3.5-turbo", "text-embedding-ada-002", "dall-e-3", "tts-1", "whisper-1"],
+    "operations": ["chat", "embeddings", "text-to-speech", "speech-to-text", "text-to-image"],
+    "streaming": true
+  },
+  "dependencies": []
+}
