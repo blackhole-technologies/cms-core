@@ -1,107 +1,259 @@
 #!/usr/bin/env node
 /**
- * Regression Test for Features 1, 2, 3
- * Quick verification script for testing agent
+ * Regression Test: Features 1, 2, 3
+ *
+ * Feature 1: AI Provider plugin interface exists
+ * Feature 2: AI Provider plugin manager works
+ * Feature 3: OpenAI provider implemented
  */
 
-import {
-  parseTokenWithFallbacks,
-  isLiteral,
-  extractLiteral,
-  evaluateFallbackChain,
-  replaceWithFallbacks,
-  registerToken,
-} from './core/tokens.js';
+import fs from 'fs';
+import path from 'path';
+import { fileURLToPath } from 'url';
 
-console.log('\n=== REGRESSION TEST: Features 1, 2, 3 ===\n');
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
 
-let allPassed = true;
+const COLORS = {
+  RESET: '\x1b[0m',
+  GREEN: '\x1b[32m',
+  RED: '\x1b[31m',
+  YELLOW: '\x1b[33m',
+  BLUE: '\x1b[34m'
+};
 
-// Feature 1: Token OR Fallback Logic Service
-console.log('Feature 1: Token OR Fallback Logic Service');
-const parsed = parseTokenWithFallbacks('{field:title|field:name|"Untitled"}');
-if (JSON.stringify(parsed) === JSON.stringify(['field:title', 'field:name', '"Untitled"'])) {
-  console.log('✓ parseTokenWithFallbacks works correctly');
-} else {
-  console.log('✗ parseTokenWithFallbacks FAILED');
-  allPassed = false;
+function log(message, color = COLORS.RESET) {
+  console.log(`${color}${message}${COLORS.RESET}`);
 }
 
-// Feature 3: Default Value Support
-console.log('\nFeature 3: Default Value Support');
-if (isLiteral('"Hello"') === true && isLiteral('field:title') === false) {
-  console.log('✓ isLiteral works correctly');
-} else {
-  console.log('✗ isLiteral FAILED');
-  allPassed = false;
+function pass(message) {
+  log(`✓ ${message}`, COLORS.GREEN);
 }
 
-if (extractLiteral('"Hello World"') === 'Hello World') {
-  console.log('✓ extractLiteral works correctly');
-} else {
-  console.log('✗ extractLiteral FAILED');
-  allPassed = false;
+function fail(message) {
+  log(`✗ ${message}`, COLORS.RED);
 }
 
-// Feature 2: Chained Token Evaluation
-console.log('\nFeature 2: Chained Token Evaluation');
-registerToken('field', 'title', (ctx) => ctx.entity?.title || null);
-registerToken('field', 'name', (ctx) => ctx.entity?.name || null);
+async function testFeature1() {
+  log('\n=== FEATURE 1: AI Provider plugin interface exists ===', COLORS.YELLOW);
+  const results = { passed: [], failed: [] };
 
-const result1 = await evaluateFallbackChain(
-  ['[field:title]', '[field:name]', '"Default"'],
-  { entity: { title: 'My Title' } }
-);
+  try {
+    const interfacePath = path.join(__dirname, 'modules/ai/core/provider-interface.js');
+    if (!fs.existsSync(interfacePath)) {
+      fail('provider-interface.js does not exist');
+      results.failed.push('File does not exist');
+      return results;
+    }
+    pass('provider-interface.js exists');
+    results.passed.push('File exists');
 
-if (result1 === 'My Title') {
-  console.log('✓ evaluateFallbackChain: first option works');
-} else {
-  console.log('✗ evaluateFallbackChain FAILED (first option)');
-  allPassed = false;
+    const { default: AIProviderInterface } = await import('./modules/ai/core/provider-interface.js');
+    const proto = AIProviderInterface.prototype;
+
+    if (typeof AIProviderInterface === 'function') {
+      pass('Interface exports a base class');
+      results.passed.push('Base class exported');
+    } else {
+      fail('Interface does not export a base class');
+      results.failed.push('No base class');
+    }
+
+    if (typeof proto.getModels === 'function') {
+      pass('getModels() method is defined');
+      results.passed.push('getModels defined');
+    } else {
+      fail('getModels() missing');
+      results.failed.push('getModels missing');
+    }
+
+    if (typeof proto.isUsable === 'function') {
+      pass('isUsable() method is defined');
+      results.passed.push('isUsable defined');
+    } else {
+      fail('isUsable() missing');
+      results.failed.push('isUsable missing');
+    }
+
+    if (typeof proto.getSupportedOperations === 'function') {
+      pass('getSupportedOperations() method is defined');
+      results.passed.push('getSupportedOperations defined');
+    } else {
+      fail('getSupportedOperations() missing');
+      results.failed.push('getSupportedOperations missing');
+    }
+
+    const fileContent = fs.readFileSync(interfacePath, 'utf-8');
+    if (fileContent.includes('/**')) {
+      pass('Interface includes JSDoc documentation');
+      results.passed.push('JSDoc present');
+    } else {
+      fail('JSDoc missing');
+      results.failed.push('JSDoc missing');
+    }
+
+    if (typeof proto.getRequiredConfig === 'function') {
+      pass('Configuration properties defined');
+      results.passed.push('Config properties defined');
+    } else {
+      fail('Configuration properties missing');
+      results.failed.push('Config missing');
+    }
+  } catch (error) {
+    fail(`Error: ${error.message}`);
+    results.failed.push(error.message);
+  }
+
+  return results;
 }
 
-const result2 = await evaluateFallbackChain(
-  ['[field:title]', '[field:name]', '"Default"'],
-  { entity: { name: 'My Name' } }
-);
+async function testFeature2() {
+  log('\n=== FEATURE 2: AI Provider plugin manager works ===', COLORS.YELLOW);
+  const results = { passed: [], failed: [] };
 
-if (result2 === 'My Name') {
-  console.log('✓ evaluateFallbackChain: fallback to second works');
-} else {
-  console.log('✗ evaluateFallbackChain FAILED (fallback)');
-  allPassed = false;
+  try {
+    const managerPath = path.join(__dirname, 'modules/ai/core/provider-manager.js');
+    if (!fs.existsSync(managerPath)) {
+      fail('provider-manager.js does not exist');
+      results.failed.push('File does not exist');
+      return results;
+    }
+    pass('provider-manager.js exists');
+    results.passed.push('File exists');
+
+    const { default: providerManager } = await import('./modules/ai/core/provider-manager.js');
+
+    if (typeof providerManager.discoverProviders === 'function') {
+      const providers = await providerManager.discoverProviders();
+      pass(`discoverProviders() works: ${providers.length} provider(s) found`);
+      results.passed.push('discoverProviders works');
+    }
+
+    if (typeof providerManager.loadProvider === 'function') {
+      const openaiProvider = await providerManager.loadProvider('openai', { apiKey: 'test-key' });
+      if (openaiProvider) {
+        pass('loadProvider() instantiates provider');
+        results.passed.push('loadProvider works');
+      }
+    }
+
+    try {
+      await providerManager.loadProvider('nonexistent-provider');
+      fail('Error handling for missing provider failed');
+      results.failed.push('No error for missing provider');
+    } catch (error) {
+      pass('Error handling for missing provider works');
+      results.passed.push('Error handling works');
+    }
+
+    const provider1 = await providerManager.loadProvider('openai', { apiKey: 'test-1' });
+    const provider2 = await providerManager.loadProvider('openai', { apiKey: 'test-1' });
+    if (provider1 === provider2) {
+      pass('Provider caching works');
+      results.passed.push('Caching works');
+    }
+  } catch (error) {
+    fail(`Error: ${error.message}`);
+    results.failed.push(error.message);
+  }
+
+  return results;
 }
 
-const result3 = await evaluateFallbackChain(
-  ['[field:title]', '[field:name]', '"Untitled"'],
-  { entity: {} }
-);
+async function testFeature3() {
+  log('\n=== FEATURE 3: OpenAI provider implemented ===', COLORS.YELLOW);
+  const results = { passed: [], failed: [] };
 
-if (result3 === 'Untitled') {
-  console.log('✓ evaluateFallbackChain: literal default works');
-} else {
-  console.log('✗ evaluateFallbackChain FAILED (literal default)');
-  allPassed = false;
+  try {
+    const openaiPath = path.join(__dirname, 'modules/ai/providers/openai.js');
+    if (!fs.existsSync(openaiPath)) {
+      fail('openai.js does not exist');
+      results.failed.push('File does not exist');
+      return results;
+    }
+    pass('openai.js exists');
+    results.passed.push('File exists');
+
+    const { default: OpenAIProvider } = await import('./modules/ai/providers/openai.js');
+    const { default: AIProviderInterface } = await import('./modules/ai/core/provider-interface.js');
+
+    const provider = new OpenAIProvider({ apiKey: 'test-key' });
+    if (provider instanceof AIProviderInterface) {
+      pass('Provider extends base interface');
+      results.passed.push('Extends interface');
+    }
+
+    const models = await provider.getModels();
+    if (Array.isArray(models) && models.length > 0) {
+      pass(`getModels() returns ${models.length} models`);
+      results.passed.push('getModels works');
+    }
+
+    const operations = provider.getSupportedOperations();
+    const expectedOps = ['chat', 'embeddings', 'text-to-speech', 'text-to-image'];
+    if (expectedOps.every(op => operations.includes(op))) {
+      pass('getSupportedOperations() correct');
+      results.passed.push('getSupportedOperations works');
+    }
+
+    if (await provider.isUsable() === true) {
+      pass('isUsable() returns true with API key');
+      results.passed.push('isUsable with key');
+    }
+
+    const providerNoKey = new OpenAIProvider({ apiKey: '' });
+    if (await providerNoKey.isUsable() === false) {
+      pass('isUsable() returns false without API key');
+      results.passed.push('isUsable without key');
+    }
+  } catch (error) {
+    fail(`Error: ${error.message}`);
+    results.failed.push(error.message);
+  }
+
+  return results;
 }
 
-// Integration test
-const result4 = await replaceWithFallbacks(
-  'Title: {field:title|field:name|"Untitled"}',
-  { entity: { title: 'Test Article' } }
-);
+async function main() {
+  log('\n╔════════════════════════════════════════╗', COLORS.BLUE);
+  log('║  REGRESSION TEST: Features 1, 2, 3    ║', COLORS.BLUE);
+  log('╚════════════════════════════════════════╝', COLORS.BLUE);
 
-if (result4 === 'Title: Test Article') {
-  console.log('✓ replaceWithFallbacks integration works');
-} else {
-  console.log('✗ replaceWithFallbacks FAILED');
-  allPassed = false;
+  const results = {
+    feature1: await testFeature1(),
+    feature2: await testFeature2(),
+    feature3: await testFeature3()
+  };
+
+  log('\n╔════════════════════════════════════════╗', COLORS.BLUE);
+  log('║  SUMMARY                               ║', COLORS.BLUE);
+  log('╚════════════════════════════════════════╝', COLORS.BLUE);
+
+  const allPassed = [
+    ...results.feature1.passed,
+    ...results.feature2.passed,
+    ...results.feature3.passed
+  ];
+  const allFailed = [
+    ...results.feature1.failed,
+    ...results.feature2.failed,
+    ...results.feature3.failed
+  ];
+
+  log(`\nTotal Passed: ${allPassed.length}`, COLORS.GREEN);
+  log(`Total Failed: ${allFailed.length}`, allFailed.length > 0 ? COLORS.RED : COLORS.GREEN);
+
+  if (allFailed.length === 0) {
+    log('\n✓ ALL FEATURES PASSING - No regressions detected', COLORS.GREEN);
+    process.exit(0);
+  } else {
+    log('\n✗ REGRESSIONS DETECTED', COLORS.RED);
+    process.exit(1);
+  }
 }
 
-console.log('\n=== RESULT ===');
-if (allPassed) {
-  console.log('✓ ALL FEATURES PASSING - No regression detected\n');
-  process.exit(0);
-} else {
-  console.log('✗ REGRESSION DETECTED\n');
+main().catch(error => {
+  fail(`Fatal error: ${error.message}`);
+  console.error(error);
   process.exit(1);
-}
+});

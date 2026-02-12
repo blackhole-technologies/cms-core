@@ -39,7 +39,7 @@ class OpenAIProvider extends AIProvider {
       {
         id: 'gpt-4-turbo',
         name: 'GPT-4 Turbo',
-        operations: ['chat'],
+        operations: ['chat', 'image-classification'],
       },
       {
         id: 'gpt-3.5-turbo',
@@ -66,6 +66,11 @@ class OpenAIProvider extends AIProvider {
         name: 'Whisper',
         operations: ['speech-to-text'],
       },
+      {
+        id: 'text-moderation-latest',
+        name: 'Content Moderation',
+        operations: ['content-moderation'],
+      },
     ];
   }
 
@@ -80,7 +85,7 @@ class OpenAIProvider extends AIProvider {
    * Get supported operations
    */
   async getSupportedOperations() {
-    return ['chat', 'embeddings', 'text-to-speech', 'speech-to-text', 'text-to-image'];
+    return ['chat', 'embeddings', 'text-to-speech', 'speech-to-text', 'text-to-image', 'image-classification', 'content-moderation'];
   }
 
   /**
@@ -217,6 +222,140 @@ class OpenAIProvider extends AIProvider {
   }
 
   /**
+   * Image Classification using GPT-4 Vision
+   *
+   * WHY USE VISION API:
+   * OpenAI doesn't have a dedicated image classification endpoint.
+   * Instead, we use GPT-4 Vision (gpt-4-turbo with vision capabilities)
+   * to analyze images and extract labels/categories.
+   */
+  async classifyImage(image, model, options = {}) {
+    if (!this.apiKey) {
+      throw new Error('[openai] API key not configured');
+    }
+
+    const { maxLabels = 10, minConfidence = 0.5, prompt } = options;
+
+    // WHY CONVERT TO BASE64:
+    // GPT-4 Vision API accepts images as base64 or URLs
+    let imageData;
+    if (Buffer.isBuffer(image)) {
+      imageData = `data:image/jpeg;base64,${image.toString('base64')}`;
+    } else if (typeof image === 'string') {
+      // Assume already base64 or URL
+      imageData = image.startsWith('http') ? image : `data:image/jpeg;base64,${image}`;
+    } else {
+      throw new Error('Image must be a Buffer or base64 string');
+    }
+
+    // WHY USE CHAT COMPLETIONS:
+    // Vision is integrated into chat API, not a separate endpoint
+    const messages = [
+      {
+        role: 'user',
+        content: [
+          {
+            type: 'text',
+            text: prompt || 'Analyze this image and provide a list of objects, scenes, and concepts present. For each item, provide a confidence score between 0 and 1. Format as JSON array: [{"name": "label", "confidence": 0.95}, ...]',
+          },
+          {
+            type: 'image_url',
+            image_url: {
+              url: imageData,
+            },
+          },
+        ],
+      },
+    ];
+
+    const payload = {
+      model: 'gpt-4-turbo', // Vision requires gpt-4-turbo or later
+      messages,
+      max_tokens: 1000,
+    };
+
+    const response = await this._makeRequest('/v1/chat/completions', payload);
+
+    // WHY PARSE JSON FROM TEXT:
+    // Model returns structured data in message content
+    const content = response.content || response.message?.content || '';
+
+    // WHY TRY/CATCH PARSING:
+    // Model might not always return perfect JSON
+    let labels = [];
+    try {
+      // Extract JSON array from markdown code blocks if present
+      const jsonMatch = content.match(/```(?:json)?\s*(\[[\s\S]*?\])\s*```/) || content.match(/(\[[\s\S]*?\])/);
+      if (jsonMatch) {
+        labels = JSON.parse(jsonMatch[1]);
+      } else {
+        // Try parsing entire response
+        labels = JSON.parse(content);
+      }
+
+      // WHY VALIDATE STRUCTURE:
+      // Ensure labels have name and confidence
+      labels = labels.filter(label =>
+        label.name && typeof label.confidence === 'number'
+      );
+    } catch (e) {
+      // WHY FALLBACK TO TEXT PARSING:
+      // If JSON parsing fails, extract labels from text
+      console.warn('[openai] Failed to parse JSON labels, using fallback extraction');
+      labels = this._extractLabelsFromText(content);
+    }
+
+    return {
+      labels,
+      model: 'gpt-4-turbo',
+      imageSize: null, // Not provided by OpenAI
+    };
+  }
+
+  /**
+   * Content Moderation
+   *
+   * WHY DEDICATED MODERATION API:
+   * OpenAI provides a free moderation endpoint specifically for
+   * detecting harmful content. More accurate than using GPT-4.
+   */
+  async moderateContent(content, model, options = {}) {
+    if (!this.apiKey) {
+      throw new Error('[openai] API key not configured');
+    }
+
+    const { contentType = 'text' } = options;
+
+    // WHY TEXT ONLY:
+    // OpenAI moderation API only supports text (as of Feb 2026)
+    // For images, would need to use Vision + custom prompts
+    if (contentType !== 'text') {
+      throw new Error('[openai] Moderation API only supports text content. Use GPT-4 Vision for image moderation.');
+    }
+
+    if (typeof content !== 'string') {
+      throw new Error('[openai] Content must be a string for moderation');
+    }
+
+    const payload = {
+      input: content,
+    };
+
+    const response = await this._makeRequest('/v1/moderations', payload);
+
+    // WHY USE FIRST RESULT:
+    // API returns array but we only sent one input
+    const result = response.results[0];
+
+    return {
+      flagged: result.flagged,
+      categories: result.categories,
+      categoryScores: result.category_scores,
+      model: result.model || 'text-moderation-latest',
+    };
+  }
+
+  /**
    * Helper: Make HTTPS request to OpenAI API
    *
    * WHY USE node:https DIRECTLY:
@@ -334,6 +473,63 @@ class OpenAIProvider extends AIProvider {
   }
 
   /**
+   * Helper: Extract labels from text when JSON parsing fails
+   *
+   * WHY THIS FALLBACK:
+   * GPT-4 Vision might return labels in plain text format
+   * instead of JSON, especially with varied prompts.
+   *
+   * @private
+   */
+  _extractLabelsFromText(text) {
+    const labels = [];
+
+    // WHY MULTIPLE PATTERNS:
+    // Handle different text formats the model might use
+    const patterns = [
+      /([^,.\n]+):\s*(\d+\.?\d*)%/g,  // "label: 95%"
+      /([^,.\n]+)\s*\((\d+\.?\d*)%?\)/g,  // "label (95%)" or "label (0.95)"
+      /(\d+\.?\d*)%?\s*-\s*([^,.\n]+)/g,  // "95% - label"
+    ];
+
+    for (const pattern of patterns) {
+      let match;
+      while ((match = pattern.exec(text)) !== null) {
+        let name, confidence;
+
+        if (match[2]) {
+          name = match[1].trim();
+          confidence = parseFloat(match[2]);
+          // Convert percentage to decimal if needed
+          if (confidence > 1) confidence = confidence / 100;
+        } else {
+          confidence = parseFloat(match[1]);
+          name = match[2].trim();
+          if (confidence > 1) confidence = confidence / 100;
+        }
+
+        if (name && !isNaN(confidence) && confidence >= 0 && confidence <= 1) {
+          labels.push({ name, confidence });
+        }
+      }
+    }
+
+    // WHY DEDUPLICATE:
+    // Same label might be extracted by multiple patterns
+    const uniqueLabels = [];
+    const seen = new Set();
+    for (const label of labels) {
+      const key = label.name.toLowerCase();
+      if (!seen.has(key)) {
+        seen.add(key);
+        uniqueLabels.push(label);
+      }
+    }
+
+    return uniqueLabels;
+  }
+
+  /**
    * Helper: Build multipart form data for file uploads
    */
   _buildMultipartForm(fileBuffer, fields, boundary) {
@@ -399,11 +595,11 @@ class OpenAIProvider extends AIProvider {
 export const definition = {
   id: 'openai',
   label: 'OpenAI',
-  description: 'OpenAI API integration (GPT-4, DALL-E, Whisper)',
+  description: 'OpenAI API integration (GPT-4, DALL-E, Whisper, Moderation)',
   category: 'AI Provider',
   provider: 'OpenAI',
-  models: ['gpt-4', 'gpt-4-turbo', 'gpt-3.5-turbo', 'text-embedding-ada-002', 'dall-e-3', 'tts-1', 'whisper-1'],
-  operations: ['chat', 'embeddings', 'text-to-speech', 'speech-to-text', 'text-to-image'],
+  models: ['gpt-4', 'gpt-4-turbo', 'gpt-3.5-turbo', 'text-embedding-ada-002', 'dall-e-3', 'tts-1', 'whisper-1', 'text-moderation-latest'],
+  operations: ['chat', 'embeddings', 'text-to-speech', 'speech-to-text', 'text-to-image', 'image-classification', 'content-moderation'],
   weight: 0,
 };
 
