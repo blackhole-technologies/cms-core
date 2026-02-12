@@ -3,6 +3,15 @@
  *
  * Provides chat completion functionality with support for both
  * streaming and non-streaming responses from AI providers.
+ *
+ * USAGE TRACKING:
+ * All chat operations are automatically logged to the ai-stats service
+ * for monitoring, billing, and optimization purposes. Logs include:
+ * - Provider and model used
+ * - Token counts (input/output)
+ * - Response time
+ * - Success/error status
+ * - NO sensitive content (only metadata)
  */
 
 /**
@@ -14,6 +23,7 @@
  * @param {number} [options.temperature] - Sampling temperature (0-2)
  * @param {number} [options.maxTokens] - Maximum tokens to generate
  * @param {boolean} [options.stream=false] - Enable streaming responses
+ * @param {Object} [options.context] - Boot context with services (for logging)
  * @returns {Promise<Object>|AsyncGenerator} Complete response or async generator
  */
 export function executeChat(provider, messages, options = {}) {
@@ -71,7 +81,7 @@ async function executeChatNonStreamingWrapper(provider, messages, options) {
     stream: false
   };
 
-  return executeChatNonStreaming(provider, chatOptions);
+  return executeChatNonStreaming(provider, chatOptions, options.context);
 }
 
 /**
@@ -127,9 +137,35 @@ async function* executeChatStreamingWrapper(provider, messages, options) {
  * Execute non-streaming chat completion
  * @private
  */
-async function executeChatNonStreaming(provider, options) {
+async function executeChatNonStreaming(provider, options, context) {
+  const startTime = Date.now();
+  const providerName = provider.constructor.name.replace('Provider', '').toLowerCase();
+
   try {
     const response = await provider.chat(options);
+    const responseTime = Date.now() - startTime;
+
+    // Log to ai-stats service if available
+    if (context?.services) {
+      try {
+        const aiStats = context.services.get('ai-stats');
+        if (aiStats) {
+          aiStats.log({
+            provider: providerName,
+            operation: 'chat.completion',
+            model: response.model || options.model,
+            tokensIn: response.usage?.prompt_tokens || 0,
+            tokensOut: response.usage?.completion_tokens || 0,
+            cost: calculateCost(providerName, response.model, response.usage),
+            responseTime,
+            status: 'success'
+          });
+        }
+      } catch (logError) {
+        // Don't fail the operation if logging fails
+        console.error('[chat] Failed to log usage:', logError.message);
+      }
+    }
 
     return {
       content: response.choices?.[0]?.message?.content || '',
@@ -138,6 +174,30 @@ async function executeChatNonStreaming(provider, options) {
       finishReason: response.choices?.[0]?.finish_reason
     };
   } catch (error) {
+    const responseTime = Date.now() - startTime;
+
+    // Log error to ai-stats
+    if (context?.services) {
+      try {
+        const aiStats = context.services.get('ai-stats');
+        if (aiStats) {
+          aiStats.log({
+            provider: providerName,
+            operation: 'chat.completion',
+            model: options.model,
+            tokensIn: 0,
+            tokensOut: 0,
+            cost: 0,
+            responseTime,
+            status: 'error',
+            error: error.message
+          });
+        }
+      } catch (logError) {
+        // Ignore logging errors
+      }
+    }
+
     throw new Error(`Chat operation failed: ${error.message}`);
   }
 }
@@ -223,4 +283,54 @@ export function userMessage(content) {
  */
 export function assistantMessage(content) {
   return formatMessage('assistant', content);
+}
+
+/**
+ * Calculate estimated cost for AI operation
+ * WHY: Track spending across providers for budget monitoring
+ *
+ * NOTE: These are estimates based on public pricing.
+ * Actual costs may vary. Update pricing regularly.
+ *
+ * @private
+ * @param {string} provider - Provider name
+ * @param {string} model - Model name
+ * @param {Object} usage - Token usage object
+ * @returns {number} Estimated cost in USD
+ */
+function calculateCost(provider, model, usage) {
+  if (!usage) return 0;
+
+  const promptTokens = usage.prompt_tokens || 0;
+  const completionTokens = usage.completion_tokens || 0;
+
+  // Pricing per 1M tokens (as of Feb 2026)
+  const pricing = {
+    openai: {
+      'gpt-4': { input: 30, output: 60 },
+      'gpt-4-turbo': { input: 10, output: 30 },
+      'gpt-3.5-turbo': { input: 0.5, output: 1.5 },
+      'text-embedding-ada-002': { input: 0.1, output: 0 }
+    },
+    anthropic: {
+      'claude-3-opus': { input: 15, output: 75 },
+      'claude-3-sonnet': { input: 3, output: 15 },
+      'claude-3-haiku': { input: 0.25, output: 1.25 }
+    },
+    ollama: {
+      // Local models have no API cost
+      default: { input: 0, output: 0 }
+    }
+  };
+
+  const providerPricing = pricing[provider];
+  if (!providerPricing) return 0;
+
+  const modelPricing = providerPricing[model] || providerPricing.default || { input: 0, output: 0 };
+
+  // Calculate cost: (tokens / 1,000,000) * price_per_million
+  const inputCost = (promptTokens / 1_000_000) * modelPricing.input;
+  const outputCost = (completionTokens / 1_000_000) * modelPricing.output;
+
+  return inputCost + outputCost;
 }
