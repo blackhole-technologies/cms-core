@@ -13,7 +13,7 @@
  * their data and avoid API costs. Perfect for privacy-sensitive applications.
  */
 
-import { AIProvider } from '../../../../../core/lib/Plugin/index.js';
+import { AIProvider } from '../../../../core/lib/Plugin/index.js';
 import http from 'node:http';
 
 /**

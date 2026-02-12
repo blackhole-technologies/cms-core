@@ -9,7 +9,7 @@
  * to make Anthropic API calls. This keeps the codebase lean and auditable.
  */
 
-import { AIProvider } from '../../../../../core/lib/Plugin/index.js';
+import { AIProvider } from '../../../../core/lib/Plugin/index.js';
 import https from 'node:https';
 
 /**
