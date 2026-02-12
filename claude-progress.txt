@@ -1075,3 +1075,95 @@ Feature #19: Rate limiting per provider
 5. Backward compatible with legacy plain text keys
 6. Proper security: keys never exposed to browser
 
+
+# Session: 2026-02-12 (Features #17, #24 - AI Provider Monitoring) - COMPLETE ✅
+
+## Features Completed
+- ✅ Feature #17: Provider health check endpoint works (already implemented)
+- ✅ Feature #24: CLI ai:test command tests provider connectivity (newly implemented)
+
+## Project Status
+- Total Features: 25
+- Passing: 11/25 (44%)
+- Progress: Features #1, #2, #3, #4, #5, #14, #15, #16, #17, #24, #25 complete
+- Remaining: 14 features
+
+## Implementation Summary
+
+### Feature #17: Provider Health Check Endpoint (Pre-existing)
+
+**Route:** GET /api/ai/health
+
+Already implemented in ai_dashboard module (lines 706-778):
+
+1. Functionality:
+   - Tests connectivity to all registered AI providers
+   - Returns JSON with per-provider status
+   - Includes response times for each provider
+   - Shows error messages for failed providers
+   - Handles timeouts gracefully (5-second timeout)
+   - Health check does not fail if one provider is down
+
+2. Caching:
+   - Results cached for 60 seconds
+   - force=true query param bypasses cache
+   - Cache headers: X-Cache (HIT/MISS), X-Cache-Age
+
+3. Stats Integration:
+   - Logs health checks to ai-stats service
+   - Operation type: health.check
+   - Status tracked: success, timeout, error
+
+Verification: Tested via browser - all 4 providers tested correctly, timeout handling works
+
+### Feature #24: CLI ai:test Command (Newly Implemented)
+
+**Command:** node cms.js ai:test [--provider=name]
+
+Complete CLI implementation:
+
+1. Functionality:
+   - Tests all configured AI providers by default
+   - Optional --provider=name flag to test specific provider
+   - Color-coded terminal output (ANSI colors)
+   - Shows success (green), timeout (yellow), error (red)
+   - Response time displayed for each provider
+   - Summary with pass/fail/timeout counts
+   - Average response time calculation
+
+2. Exit Codes:
+   - Exit 0: All providers passed
+   - Exit 1: Some providers failed or timed out
+   - Useful for CI/CD pipelines
+
+3. Stats Integration:
+   - Logs test results to ai-stats service
+   - Same format as health check endpoint
+
+4. Error Handling:
+   - Lists available providers if --provider not found
+   - Graceful handling of no providers registered
+   - Individual provider failures do not stop the test
+
+Implementation: modules/ai_dashboard/index.js (lines 340-494, ~155 lines)
+
+Verification: Tested via CLI - all features working correctly
+
+## Commit
+- Commit: 0805aa4
+- Message: feat: implement Feature #24 - CLI ai:test command
+- Files: 1 changed, 157 insertions
+
+## Session Summary
+
+Duration: ~1 hour
+Lines of Code: ~157 lines (Feature #24 only)
+Result: Features #17 and #24 marked as passing, 44% complete (11/25 features)
+
+Key Achievements:
+1. Verified Feature #17 was already fully implemented
+2. Implemented comprehensive CLI testing tool
+3. Color-coded terminal output for better UX
+4. Proper exit codes for CI/CD integration
+5. Stats logging integration
+6. Both features thoroughly verified and passing
