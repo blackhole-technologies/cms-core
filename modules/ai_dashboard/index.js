@@ -665,6 +665,300 @@ export function hook_cli(register, context) {
     console.log(`  Total calls (24h): ${totalCalls}`);
     console.log('');
   }, 'Display AI module status and recent activity');
+
+  /**
+   * ai:chat - Interactive chat with AI models
+   *
+   * Start an interactive chat session with an AI provider.
+   * Supports multi-turn conversations and streaming responses.
+   *
+   * Usage:
+   *   node cms.js ai:chat --provider=openai --model=gpt-4
+   *   node cms.js ai:chat --provider=anthropic --model=claude-sonnet-4
+   *
+   * Flags:
+   *   --provider=name  : AI provider to use (required)
+   *   --model=name     : Model to use (required)
+   *   --stream         : Enable streaming responses (default: true)
+   *   --temperature=N  : Temperature (0-2, default: 0.7)
+   *
+   * Commands during chat:
+   *   /quit or exit    : End the chat session
+   *   /clear           : Clear conversation history
+   *   /help            : Show help message
+   */
+  register('ai:chat', async (args) => {
+    const readline = await import('node:readline');
+
+    // ANSI colors for terminal output
+    const colors = {
+      green: '\x1b[32m',
+      red: '\x1b[31m',
+      yellow: '\x1b[33m',
+      blue: '\x1b[34m',
+      cyan: '\x1b[36m',
+      gray: '\x1b[90m',
+      reset: '\x1b[0m',
+    };
+
+    const colorize = (text, color) => `${colors[color] || ''}${text}${colors.reset}`;
+
+    // Parse flags
+    const providerArg = args.find(a => a.startsWith('--provider='));
+    const modelArg = args.find(a => a.startsWith('--model='));
+    const streamArg = args.find(a => a.startsWith('--stream='));
+    const temperatureArg = args.find(a => a.startsWith('--temperature='));
+
+    if (!providerArg || !modelArg) {
+      console.log(colorize('Error: --provider and --model are required', 'red'));
+      console.log('');
+      console.log('Usage:');
+      console.log('  node cms.js ai:chat --provider=openai --model=gpt-4');
+      console.log('  node cms.js ai:chat --provider=anthropic --model=claude-sonnet-4');
+      console.log('');
+      console.log('Available providers:');
+      const aiProviderManager = context.services.get('ai-provider-manager');
+      const aiRegistry = context.services.get('ai-registry');
+      const allProviders = aiRegistry.getByType('provider');
+      allProviders.forEach(p => console.log(`  - ${p.name}`));
+      console.log('');
+      return;
+    }
+
+    const provider = providerArg.split('=')[1];
+    const model = modelArg.split('=')[1];
+    const stream = streamArg ? streamArg.split('=')[1] === 'true' : true;
+    const temperature = temperatureArg ? parseFloat(temperatureArg.split('=')[1]) : 0.7;
+
+    // Get services
+    const aiProviderManager = context.services.get('ai-provider-manager');
+    const aiStats = context.services.get('ai-stats');
+
+    // Load AI provider configuration
+    const configPath = join(context.baseDir, 'config', 'ai_providers.json');
+    let providerConfig = {};
+
+    if (existsSync(configPath)) {
+      try {
+        const configData = readFileSync(configPath, 'utf-8');
+        const config = JSON.parse(configData);
+        providerConfig = config.providers?.[provider] || {};
+
+        // Decrypt API key if encrypted
+        if (providerConfig.apiKey && providerConfig.apiKey.includes(':')) {
+          providerConfig.apiKey = decryptApiKey(providerConfig.apiKey);
+        }
+      } catch (err) {
+        console.log(colorize(`Error loading provider configuration: ${err.message}`, 'red'));
+        return;
+      }
+    }
+
+    // Check if provider is enabled
+    if (!providerConfig.enabled) {
+      console.log(colorize(`Provider "${provider}" is not enabled`, 'red'));
+      console.log('Enable it in /admin/config/ai');
+      return;
+    }
+
+    // Check if API key is configured
+    if (!providerConfig.apiKey) {
+      console.log(colorize(`Provider "${provider}" has no API key configured`, 'red'));
+      console.log('Configure it in /admin/config/ai');
+      return;
+    }
+
+    // Load the provider
+    let providerInstance;
+    try {
+      providerInstance = await aiProviderManager.loadProvider(provider, providerConfig);
+
+      // Verify it's usable
+      const usable = await providerInstance.isUsable();
+      if (!usable) {
+        console.log(colorize(`Provider "${provider}" is not usable`, 'red'));
+        return;
+      }
+    } catch (err) {
+      console.log(colorize(`Error loading provider: ${err.message}`, 'red'));
+      return;
+    }
+
+    // Verify model supports chat
+    const models = await providerInstance.getModels();
+    const modelInfo = models.find(m => m.id === model);
+    if (!modelInfo) {
+      console.log(colorize(`Model "${model}" not found`, 'red'));
+      console.log('');
+      console.log('Available models:');
+      models.forEach(m => {
+        if (m.operations.includes('chat')) {
+          console.log(`  - ${m.id} (${m.name})`);
+        }
+      });
+      return;
+    }
+    if (!modelInfo.operations.includes('chat')) {
+      console.log(colorize(`Model "${model}" does not support chat`, 'red'));
+      return;
+    }
+
+    // Initialize conversation history
+    const messages = [];
+
+    // Show welcome message
+    console.log('');
+    console.log(colorize('='.repeat(60), 'gray'));
+    console.log(colorize(`  AI Chat - ${provider}/${model}`, 'cyan'));
+    console.log(colorize('='.repeat(60), 'gray'));
+    console.log('');
+    console.log(colorize('Commands:', 'gray'));
+    console.log(colorize('  /quit or exit - End session', 'gray'));
+    console.log(colorize('  /clear        - Clear conversation history', 'gray'));
+    console.log(colorize('  /help         - Show this help', 'gray'));
+    console.log('');
+
+    // Create readline interface
+    const rl = readline.createInterface({
+      input: process.stdin,
+      output: process.stdout,
+      prompt: colorize('You> ', 'green')
+    });
+
+    // Start the prompt
+    rl.prompt();
+
+    // Handle user input
+    rl.on('line', async (line) => {
+      const input = line.trim();
+
+      // Handle empty input
+      if (!input) {
+        rl.prompt();
+        return;
+      }
+
+      // Handle commands
+      if (input === '/quit' || input === 'exit') {
+        console.log('');
+        console.log(colorize('Goodbye!', 'cyan'));
+        console.log('');
+        rl.close();
+        return;
+      }
+
+      if (input === '/clear') {
+        messages.length = 0;
+        console.log(colorize('Conversation history cleared', 'yellow'));
+        console.log('');
+        rl.prompt();
+        return;
+      }
+
+      if (input === '/help') {
+        console.log('');
+        console.log(colorize('Commands:', 'gray'));
+        console.log(colorize('  /quit or exit - End session', 'gray'));
+        console.log(colorize('  /clear        - Clear conversation history', 'gray'));
+        console.log(colorize('  /help         - Show this help', 'gray'));
+        console.log('');
+        rl.prompt();
+        return;
+      }
+
+      // Add user message to history
+      messages.push({
+        role: 'user',
+        content: input
+      });
+
+      // Call AI provider
+      console.log('');
+      console.log(colorize('AI> ', 'blue'));
+
+      try {
+        const startTime = Date.now();
+        let response;
+
+        if (stream) {
+          // Streaming response
+          let accumulatedContent = '';
+          response = await providerInstance.chat(messages, model, {
+            temperature,
+            stream: true,
+            onChunk: (chunk) => {
+              process.stdout.write(chunk);
+              accumulatedContent += chunk;
+            }
+          });
+
+          // Update response with accumulated content
+          response = {
+            role: 'assistant',
+            content: accumulatedContent
+          };
+        } else {
+          // Non-streaming response
+          response = await providerInstance.chat(messages, model, {
+            temperature,
+            stream: false
+          });
+          console.log(response.content);
+        }
+
+        // Add assistant response to history
+        messages.push(response);
+
+        const responseTime = Date.now() - startTime;
+
+        // Log to stats (optional - don't fail if stats not available)
+        try {
+          aiStats.log({
+            provider,
+            model,
+            operation: 'chat',
+            tokensIn: input.split(' ').length * 1.3, // Rough estimate
+            tokensOut: response.content.split(' ').length * 1.3,
+            cost: 0, // Would need to calculate based on model pricing
+            status: 'success',
+            responseTime
+          });
+        } catch (err) {
+          // Ignore stats errors
+        }
+
+        console.log('');
+        console.log('');
+      } catch (err) {
+        console.log(colorize(`Error: ${err.message}`, 'red'));
+        console.log('');
+
+        // Log error to stats
+        try {
+          aiStats.log({
+            provider,
+            model,
+            operation: 'chat',
+            tokensIn: 0,
+            tokensOut: 0,
+            cost: 0,
+            status: 'error',
+            responseTime: 0,
+            error: err.message
+          });
+        } catch (e) {
+          // Ignore stats errors
+        }
+      }
+
+      rl.prompt();
+    });
+
+    rl.on('close', () => {
+      // Ensure clean exit
+      process.exit(0);
+    });
+  }, 'Interactive chat with AI models');
 }
 
 /**
