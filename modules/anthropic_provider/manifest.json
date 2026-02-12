@@ -1,0 +1,7 @@
+{
+  "id": "anthropic_provider",
+  "name": "anthropic_provider",
+  "description": "Anthropic Claude API provider for the AI system",
+  "version": "1.0.0",
+  "capabilities": ["ai_provider"]
+}

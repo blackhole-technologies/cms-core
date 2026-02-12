@@ -1,0 +1,7 @@
+{
+  "id": "ollama_provider",
+  "name": "ollama_provider",
+  "description": "Ollama local model provider for the AI system",
+  "version": "1.0.0",
+  "capabilities": ["ai_provider"]
+}

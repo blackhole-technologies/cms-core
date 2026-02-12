@@ -13,6 +13,8 @@
     "ai_test_tool",
     "ai_dashboard",
     "ai_image_alt",
-    "openai_provider"
+    "openai_provider",
+    "anthropic_provider",
+    "ollama_provider"
   ]
 }
