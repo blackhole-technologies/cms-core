@@ -11,6 +11,8 @@
   {{/if}}
 
   <form method="POST" action="/admin/config/ai/alt-text" class="admin-form">
+    <input type="hidden" name="csrf_token" value="__CSRF__">
+
     <fieldset>
       <legend>Provider Configuration</legend>
 
