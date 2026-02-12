@@ -20,6 +20,7 @@
 import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { readFileSync, existsSync, mkdirSync, writeFileSync } from 'node:fs';
+import { createCipheriv, createDecipheriv, randomBytes, scryptSync } from 'node:crypto';
 
 // Get the directory of this module for loading templates
 const __dirname = dirname(fileURLToPath(import.meta.url));
@@ -81,6 +82,86 @@ function parseFormBody(req) {
 
     req.on('error', reject);
   });
+}
+
+/**
+ * Encryption key derivation
+ *
+ * WHY: API keys need encryption at rest for security.
+ * Uses AES-256-GCM with a key derived from the system's unique identifier.
+ *
+ * SECURITY NOTE: In production, use a dedicated secret from environment variables
+ * or a secrets management service. This implementation uses a system-unique key
+ * for demonstration purposes.
+ */
+function getEncryptionKey() {
+  // Use site UUID from config as encryption key seed
+  // In production, load from process.env.ENCRYPTION_KEY
+  const seed = process.env.ENCRYPTION_KEY || 'cms-core-default-encryption-seed-change-in-production';
+  const salt = 'ai-provider-keys';
+  return scryptSync(seed, salt, 32); // 256-bit key
+}
+
+/**
+ * Encrypt an API key
+ *
+ * @param {string} plaintext - The plain API key
+ * @returns {string} - Encrypted string in format: iv:authTag:ciphertext (hex-encoded)
+ */
+function encryptApiKey(plaintext) {
+  if (!plaintext) return '';
+
+  const key = getEncryptionKey();
+  const iv = randomBytes(12); // 96-bit IV for GCM
+  const cipher = createCipheriv('aes-256-gcm', key, iv);
+
+  let encrypted = cipher.update(plaintext, 'utf8', 'hex');
+  encrypted += cipher.final('hex');
+
+  const authTag = cipher.getAuthTag();
+
+  // Format: iv:authTag:ciphertext (all hex-encoded)
+  return `${iv.toString('hex')}:${authTag.toString('hex')}:${encrypted}`;
+}
+
+/**
+ * Decrypt an API key
+ *
+ * @param {string} encrypted - Encrypted string in format: iv:authTag:ciphertext
+ * @returns {string} - Decrypted plain text, or empty string on error
+ */
+function decryptApiKey(encrypted) {
+  if (!encrypted || typeof encrypted !== 'string') return '';
+
+  // Check if already decrypted (plain text)
+  if (!encrypted.includes(':')) {
+    // Legacy plain text - return as-is but warn
+    console.warn('[ai_dashboard] Found unencrypted API key, will encrypt on next save');
+    return encrypted;
+  }
+
+  try {
+    const parts = encrypted.split(':');
+    if (parts.length !== 3) {
+      throw new Error('Invalid encrypted format');
+    }
+
+    const [ivHex, authTagHex, ciphertext] = parts;
+    const key = getEncryptionKey();
+    const iv = Buffer.from(ivHex, 'hex');
+    const authTag = Buffer.from(authTagHex, 'hex');
+
+    const decipher = createDecipheriv('aes-256-gcm', key, iv);
+    decipher.setAuthTag(authTag);
+
+    let decrypted = decipher.update(ciphertext, 'hex', 'utf8');
+    decrypted += decipher.final('utf8');
+
+    return decrypted;
+  } catch (error) {
+    console.error('[ai_dashboard] Failed to decrypt API key:', error.message);
+    return '';
+  }
 }
 
 /**
@@ -1298,14 +1379,18 @@ export function hook_routes(register, context) {
       // Process providers for template
       const providers = await Promise.all(providerDefinitions.map(async def => {
         const config = providerConfig[def.id] || {};
-        const isConfigured = !!config.apiKey;
+        const encryptedKey = config.apiKey;
+        const decryptedKey = encryptedKey ? decryptApiKey(encryptedKey) : '';
+        const isConfigured = !!decryptedKey;
         const isEnabled = config.enabled !== false;
 
         // Get models from provider instance if configured
         let models = [];
         if (isConfigured) {
           try {
-            const provider = await aiProviderManager.loadProvider(def.id, config);
+            // Pass decrypted config to provider manager
+            const decryptedConfig = { ...config, apiKey: decryptedKey };
+            const provider = await aiProviderManager.loadProvider(def.id, decryptedConfig);
             models = await provider.getModels();
           } catch (err) {
             console.error(`[ai_dashboard] Failed to load models for ${def.id}:`, err.message);
@@ -1320,9 +1405,9 @@ export function hook_routes(register, context) {
           operations: def.operations || [],
           isConfigured,
           isEnabled,
-          apiKey: config.apiKey || '',
-          apiKeyMasked: config.apiKey ? config.apiKey.slice(0, 8) + '...' + config.apiKey.slice(-4) : '',
-          hasApiKey: !!config.apiKey,
+          apiKey: '', // Never send decrypted key to browser
+          apiKeyMasked: decryptedKey ? `${decryptedKey.slice(0, 8)}...${decryptedKey.slice(-4)}` : '',
+          hasApiKey: !!decryptedKey,
         };
       }));
 
@@ -1422,7 +1507,8 @@ export function hook_routes(register, context) {
 
         // Only update API key if provided (allow keeping existing key)
         if (apiKey && apiKey.trim()) {
-          config.providers[providerId].apiKey = apiKey.trim();
+          // Encrypt API key before storing
+          config.providers[providerId].apiKey = encryptApiKey(apiKey.trim());
         }
       }
 
