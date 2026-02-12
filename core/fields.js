@@ -1359,7 +1359,7 @@ async function scoreAltTextQuality(fieldId) {
     else if (result.score < 75) color = '#ffc107'; // Yellow
 
     const suggestions = result.suggestions.length > 0
-      ? `<br><small>${result.suggestions.slice(0, 2).join('. ')}</small>`
+      ? '<br><small>' + result.suggestions.slice(0, 2).join('. ') + '</small>'
       : '';
 
     qualityEl.innerHTML = '<span style="color: ' + color + ';">Quality: ' + result.score + '/100 (' + result.rating + ')' + suggestions + '</span>';
