@@ -223,6 +223,14 @@ export function hook_routes(register, context) {
       // Parse form data
       const formData = await parseFormBody(req);
 
+      // Validate CSRF token
+      const auth = context.services.get('auth');
+      if (!auth.validateCSRFToken(req, formData.csrf_token)) {
+        res.writeHead(403, { 'Content-Type': 'text/plain' });
+        res.end('403 Forbidden\n\nMissing CSRF token. Please refresh the page and try again.');
+        return;
+      }
+
       // Validate primary provider
       if (!formData.primaryProvider) {
         redirect(res, '/admin/config/ai/alt-text?error=' + encodeURIComponent('Primary provider is required'));
