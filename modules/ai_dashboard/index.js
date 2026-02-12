@@ -484,6 +484,7 @@ export function hook_routes(register, context) {
   const auth = context.services.get('auth');
   const aiRegistry = context.services.get('ai-registry');
   const aiStats = context.services.get('ai-stats');
+  const aiProviderManager = context.services.get('ai-provider-manager');
 
   /**
    * Render an admin page with layout
@@ -1257,6 +1258,200 @@ export function hook_routes(register, context) {
       console.error('[ai_dashboard] Logs page error:', error);
       res.writeHead(500, { 'Content-Type': 'text/html' });
       res.end(`<h1>500 Internal Server Error</h1><p>${error.message}</p>`);
+    }
+  });
+
+  /**
+   * GET /admin/config/ai - AI Configuration Page
+   *
+   * Unified configuration page for:
+   * - Provider API keys and settings (Feature #14)
+   * - Model selection per operation type (Feature #15)
+   * - Overall AI configuration dashboard (Feature #25)
+   */
+  register('GET', '/admin/config/ai', async (req, res, ctx) => {
+    try {
+      // Check if AI provider manager service is available
+      if (!aiProviderManager) {
+        res.writeHead(500, { 'Content-Type': 'text/html' });
+        res.end('<h1>500 Error</h1><p>AI Provider Manager service not available</p>');
+        return;
+      }
+
+      const providerDefinitions = await aiProviderManager.discoverProviders();
+
+      // Load current configuration from config file
+      const configPath = join(process.cwd(), 'config', 'ai_providers.json');
+      let providerConfig = {};
+      let operationConfig = {};
+
+      if (existsSync(configPath)) {
+        try {
+          const configData = JSON.parse(readFileSync(configPath, 'utf-8'));
+          providerConfig = configData.providers || {};
+          operationConfig = configData.operations || {};
+        } catch (err) {
+          console.error('[ai_dashboard] Failed to load config:', err);
+        }
+      }
+
+      // Process providers for template
+      const providers = await Promise.all(providerDefinitions.map(async def => {
+        const config = providerConfig[def.id] || {};
+        const isConfigured = !!config.apiKey;
+        const isEnabled = config.enabled !== false;
+
+        // Get models from provider instance if configured
+        let models = [];
+        if (isConfigured) {
+          try {
+            const provider = await aiProviderManager.loadProvider(def.id, config);
+            models = await provider.getModels();
+          } catch (err) {
+            console.error(`[ai_dashboard] Failed to load models for ${def.id}:`, err.message);
+          }
+        }
+
+        return {
+          id: def.id,
+          label: def.label || def.id,
+          description: def.description || '',
+          models: models || [],
+          operations: def.operations || [],
+          isConfigured,
+          isEnabled,
+          apiKey: config.apiKey || '',
+          apiKeyMasked: config.apiKey ? config.apiKey.slice(0, 8) + '...' + config.apiKey.slice(-4) : '',
+          hasApiKey: !!config.apiKey,
+        };
+      }));
+
+      // Define operation types
+      const operationTypes = [
+        { id: 'chat', label: 'Chat Completions', description: 'Conversational AI and text generation' },
+        { id: 'embeddings', label: 'Embeddings', description: 'Text to vector embeddings for semantic search' },
+        { id: 'text-to-speech', label: 'Text-to-Speech', description: 'Convert text to audio' },
+        { id: 'speech-to-text', label: 'Speech-to-Text', description: 'Transcribe audio to text' },
+        { id: 'text-to-image', label: 'Text-to-Image', description: 'Generate images from text prompts' },
+        { id: 'image-classification', label: 'Image Classification', description: 'Classify or analyze images' },
+        { id: 'content-moderation', label: 'Content Moderation', description: 'Detect inappropriate content' },
+      ];
+
+      // Process operation configurations
+      const operations = operationTypes.map(opType => {
+        const config = operationConfig[opType.id] || {};
+        const selectedProvider = config.provider || '';
+        const selectedModel = config.model || '';
+
+        // Get compatible providers for this operation
+        const compatibleProviders = providers.filter(p =>
+          p.operations.includes(opType.id) && p.isEnabled && p.isConfigured
+        ).map(p => ({
+          ...p,
+          jsonModels: JSON.stringify(p.models), // Serialize for template
+        }));
+
+        return {
+          ...opType,
+          selectedProvider,
+          selectedModel,
+          compatibleProviders,
+          hasProviders: compatibleProviders.length > 0,
+        };
+      });
+
+      // Get flash messages
+      const urlObj = new URL(req.url, 'http://localhost');
+      const successMessage = urlObj.searchParams.get('success');
+      const errorMessage = urlObj.searchParams.get('error');
+
+      // Render page
+      const html = renderAdmin('ai-config.html', {
+        pageTitle: 'AI Configuration',
+        providers,
+        hasProviders: providers.length > 0,
+        operations,
+        successMessage,
+        errorMessage,
+        hasFlash: !!(successMessage || errorMessage),
+      }, ctx, req);
+
+      res.writeHead(200, { 'Content-Type': 'text/html' });
+      res.end(html);
+    } catch (error) {
+      console.error('[ai_dashboard] AI config page error:', error);
+      res.writeHead(500, { 'Content-Type': 'text/html' });
+      res.end(`<h1>500 Internal Server Error</h1><p>${error.message}</p>`);
+    }
+  });
+
+  /**
+   * POST /admin/config/ai - Save AI Configuration
+   *
+   * Saves provider configurations and operation mappings
+   */
+  register('POST', '/admin/config/ai', async (req, res, ctx) => {
+    try {
+      // Parse form data
+      const formData = ctx._parsedBody || await parseFormBody(req);
+
+      // Load existing config or create new
+      const configPath = join(process.cwd(), 'config', 'ai_providers.json');
+      let config = { providers: {}, operations: {} };
+
+      if (existsSync(configPath)) {
+        try {
+          config = JSON.parse(readFileSync(configPath, 'utf-8'));
+        } catch (err) {
+          console.warn('[ai_dashboard] Could not load existing config, starting fresh');
+        }
+      }
+
+      // Update provider configurations
+      const providerIds = Object.keys(formData).filter(k => k.startsWith('provider_enabled_'));
+      for (const key of providerIds) {
+        const providerId = key.replace('provider_enabled_', '');
+        const apiKeyField = `provider_apikey_${providerId}`;
+        const apiKey = formData[apiKeyField];
+
+        if (!config.providers[providerId]) {
+          config.providers[providerId] = {};
+        }
+
+        config.providers[providerId].enabled = formData[key] === 'on';
+
+        // Only update API key if provided (allow keeping existing key)
+        if (apiKey && apiKey.trim()) {
+          config.providers[providerId].apiKey = apiKey.trim();
+        }
+      }
+
+      // Update operation configurations
+      const operationIds = ['chat', 'embeddings', 'text-to-speech', 'speech-to-text', 'text-to-image', 'image-classification', 'content-moderation'];
+      for (const opId of operationIds) {
+        const providerField = `operation_${opId}_provider`;
+        const modelField = `operation_${opId}_model`;
+
+        if (formData[providerField]) {
+          config.operations[opId] = {
+            provider: formData[providerField],
+            model: formData[modelField] || '',
+          };
+        }
+      }
+
+      // Save configuration
+      const configDir = join(process.cwd(), 'config');
+      if (!existsSync(configDir)) {
+        mkdirSync(configDir, { recursive: true });
+      }
+
+      writeFileSync(configPath, JSON.stringify(config, null, 2), 'utf-8');
+
+      redirect(res, '/admin/config/ai?success=' + encodeURIComponent('AI configuration saved successfully'));
+    } catch (error) {
+      console.error('[ai_dashboard] Save config error:', error);
+      redirect(res, '/admin/config/ai?error=' + encodeURIComponent('Failed to save configuration: ' + error.message));
     }
   });
 }
