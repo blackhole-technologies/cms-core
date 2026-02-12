@@ -1021,5 +1021,27 @@
     "responseTime": 137,
     "status": "success",
     "error": null
+  },
+  {
+    "timestamp": "2026-02-12T09:52:02.796Z",
+    "provider": "ai_test",
+    "operation": "generate-alt-text",
+    "tokensIn": 663,
+    "tokensOut": 41,
+    "cost": 0.003993804318282303,
+    "responseTime": 282,
+    "status": "success",
+    "error": null
+  },
+  {
+    "timestamp": "2026-02-12T09:52:12.374Z",
+    "provider": "ai_test",
+    "operation": "generate-alt-text",
+    "tokensIn": 689,
+    "tokensOut": 38,
+    "cost": 0.003077724805852464,
+    "responseTime": 102,
+    "status": "success",
+    "error": null
   }
 ]
