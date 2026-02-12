@@ -1,0 +1,550 @@
+<div class="admin-content">
+  <div class="admin-header">
+    <h1>{{pageTitle}}</h1>
+    <p>Configure AI providers and select models for each operation type.</p>
+  </div>
+
+  {{#if hasFlash}}
+  <div class="flash-messages">
+    {{#if successMessage}}
+    <div class="flash-message flash-success">
+      <strong>Success:</strong> {{successMessage}}
+    </div>
+    {{/if}}
+    {{#if errorMessage}}
+    <div class="flash-message flash-error">
+      <strong>Error:</strong> {{errorMessage}}
+    </div>
+    {{/if}}
+  </div>
+  {{/if}}
+
+  <form method="POST" action="/admin/config/ai" class="ai-config-form">
+    <input type="hidden" name="csrf_token" value="{{csrfToken}}">
+
+    <!-- Provider Configuration Section -->
+    <section class="config-section">
+      <h2>AI Providers</h2>
+      <p class="section-description">
+        Configure API keys and enable/disable providers. API keys are stored encrypted in the configuration file.
+      </p>
+
+      {{#if hasProviders}}
+      <div class="provider-list">
+        {{#each providers}}
+        <div class="provider-card">
+          <div class="provider-header">
+            <div class="provider-title">
+              <h3>{{label}}</h3>
+              <span class="provider-status {{#if isConfigured}}status-configured{{else}}status-unconfigured{{/if}}">
+                {{#if isConfigured}}Configured{{else}}Not Configured{{/if}}
+              </span>
+            </div>
+            <label class="provider-toggle">
+              <input type="checkbox" name="provider_enabled_{{id}}" {{#if isEnabled}}checked{{/if}} {{#unless isConfigured}}disabled{{/unless}}>
+              <span class="toggle-label">Enable</span>
+            </label>
+          </div>
+
+          {{#if description}}
+          <p class="provider-description">{{description}}</p>
+          {{/if}}
+
+          <div class="provider-config">
+            <div class="form-group">
+              <label for="provider_apikey_{{id}}">API Key</label>
+              <input
+                type="password"
+                id="provider_apikey_{{id}}"
+                name="provider_apikey_{{id}}"
+                placeholder="{{#if hasApiKey}}{{apiKeyMasked}}{{else}}Enter API key{{/if}}"
+                class="form-control">
+              <small class="form-help">
+                {{#if hasApiKey}}
+                Leave blank to keep existing key. Enter a new key to update.
+                {{else}}
+                Required to use this provider. Get your API key from the provider's dashboard.
+                {{/if}}
+              </small>
+            </div>
+
+            <div class="provider-capabilities">
+              <strong>Supported Operations:</strong>
+              <div class="capability-tags">
+                {{#each operations}}
+                <span class="capability-tag">{{this}}</span>
+                {{/each}}
+              </div>
+            </div>
+
+            {{#if models}}
+            <details class="provider-models">
+              <summary>Available Models ({{models.length}})</summary>
+              <ul class="model-list">
+                {{#each models}}
+                <li>
+                  <strong>{{name}}</strong>
+                  {{#if operations}}
+                  <span class="model-operations">
+                    ({{#each operations}}{{this}}{{#unless @last}}, {{/unless}}{{/each}})
+                  </span>
+                  {{/if}}
+                </li>
+                {{/each}}
+              </ul>
+            </details>
+            {{/if}}
+          </div>
+        </div>
+        {{/each}}
+      </div>
+      {{else}}
+      <div class="empty-state">
+        <p>No AI providers found. Install provider modules to enable AI capabilities.</p>
+      </div>
+      {{/if}}
+    </section>
+
+    <!-- Operation Configuration Section -->
+    <section class="config-section">
+      <h2>Operation Configuration</h2>
+      <p class="section-description">
+        Select which provider and model to use for each AI operation type. Only configured and enabled providers are shown.
+      </p>
+
+      <div class="operation-list">
+        {{#each operations}}
+        <div class="operation-card">
+          <div class="operation-header">
+            <div>
+              <h3>{{label}}</h3>
+              <p class="operation-description">{{description}}</p>
+            </div>
+          </div>
+
+          {{#if hasProviders}}
+          <div class="operation-config">
+            <div class="form-row">
+              <div class="form-group">
+                <label for="operation_{{id}}_provider">Provider</label>
+                <select id="operation_{{id}}_provider" name="operation_{{id}}_provider" class="form-control provider-select" data-operation="{{id}}" data-selected="{{selectedProvider}}">
+                  <option value="">-- Select Provider --</option>
+                  {{#each compatibleProviders}}
+                  <option value="{{id}}" data-models="{{jsonModels}}">
+                    {{label}}
+                  </option>
+                  {{/each}}
+                </select>
+              </div>
+
+              <div class="form-group">
+                <label for="operation_{{id}}_model">Model</label>
+                <select id="operation_{{id}}_model" name="operation_{{id}}_model" class="form-control model-select" data-operation="{{id}}" data-selected="{{selectedModel}}">
+                  <option value="">-- Select Model --</option>
+                </select>
+              </div>
+            </div>
+          </div>
+          {{else}}
+          <div class="empty-state-small">
+            <p>No configured providers support this operation.</p>
+            <p><small>Configure and enable a provider above that supports "{{id}}" operations.</small></p>
+          </div>
+          {{/if}}
+        </div>
+        {{/each}}
+      </div>
+    </section>
+
+    <div class="form-actions">
+      <button type="submit" class="button button-primary">Save Configuration</button>
+      <a href="/admin/config" class="button button-secondary">Cancel</a>
+    </div>
+  </form>
+</div>
+
+<style>
+.ai-config-form {
+  max-width: 1200px;
+}
+
+.config-section {
+  margin-bottom: 40px;
+  padding: 30px;
+  background: #fff;
+  border-radius: 8px;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+}
+
+.config-section h2 {
+  margin: 0 0 8px 0;
+  color: #1a1a1a;
+}
+
+.section-description {
+  margin: 0 0 24px 0;
+  color: #666;
+  font-size: 14px;
+}
+
+/* Provider Cards */
+.provider-list {
+  display: grid;
+  gap: 20px;
+}
+
+.provider-card {
+  border: 1px solid #e0e0e0;
+  border-radius: 8px;
+  padding: 20px;
+  background: #fafafa;
+}
+
+.provider-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  margin-bottom: 12px;
+}
+
+.provider-title {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.provider-title h3 {
+  margin: 0;
+  font-size: 18px;
+  color: #1a1a1a;
+}
+
+.provider-status {
+  padding: 4px 12px;
+  border-radius: 12px;
+  font-size: 12px;
+  font-weight: 500;
+}
+
+.status-configured {
+  background: #e8f5e9;
+  color: #2e7d32;
+}
+
+.status-unconfigured {
+  background: #fff3e0;
+  color: #e65100;
+}
+
+.provider-toggle {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  cursor: pointer;
+}
+
+.provider-toggle input[type="checkbox"] {
+  width: 20px;
+  height: 20px;
+  cursor: pointer;
+}
+
+.provider-toggle input[type="checkbox"]:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.toggle-label {
+  font-weight: 500;
+  color: #333;
+}
+
+.provider-description {
+  margin: 0 0 16px 0;
+  color: #666;
+  font-size: 14px;
+}
+
+.provider-config {
+  margin-top: 16px;
+}
+
+.form-group {
+  margin-bottom: 20px;
+}
+
+.form-group label {
+  display: block;
+  margin-bottom: 6px;
+  font-weight: 500;
+  color: #333;
+  font-size: 14px;
+}
+
+.form-control {
+  width: 100%;
+  padding: 10px 12px;
+  border: 1px solid #d0d0d0;
+  border-radius: 4px;
+  font-size: 14px;
+  font-family: inherit;
+}
+
+.form-control:focus {
+  outline: none;
+  border-color: #1976d2;
+  box-shadow: 0 0 0 3px rgba(25, 118, 210, 0.1);
+}
+
+.form-help {
+  display: block;
+  margin-top: 4px;
+  color: #757575;
+  font-size: 12px;
+}
+
+.provider-capabilities {
+  margin-top: 16px;
+  padding-top: 16px;
+  border-top: 1px solid #e0e0e0;
+}
+
+.capability-tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 8px;
+}
+
+.capability-tag {
+  padding: 4px 10px;
+  background: #e3f2fd;
+  color: #1565c0;
+  border-radius: 4px;
+  font-size: 12px;
+  font-weight: 500;
+}
+
+.provider-models {
+  margin-top: 16px;
+  padding-top: 16px;
+  border-top: 1px solid #e0e0e0;
+}
+
+.provider-models summary {
+  cursor: pointer;
+  font-weight: 500;
+  color: #1976d2;
+}
+
+.model-list {
+  margin: 12px 0 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.model-list li {
+  padding: 8px 0;
+  border-bottom: 1px solid #f0f0f0;
+}
+
+.model-list li:last-child {
+  border-bottom: none;
+}
+
+.model-operations {
+  color: #757575;
+  font-size: 12px;
+}
+
+/* Operation Cards */
+.operation-list {
+  display: grid;
+  gap: 20px;
+}
+
+.operation-card {
+  border: 1px solid #e0e0e0;
+  border-radius: 8px;
+  padding: 20px;
+  background: #fafafa;
+}
+
+.operation-header h3 {
+  margin: 0 0 4px 0;
+  font-size: 16px;
+  color: #1a1a1a;
+}
+
+.operation-description {
+  margin: 0;
+  color: #666;
+  font-size: 13px;
+}
+
+.operation-config {
+  margin-top: 16px;
+}
+
+.form-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 16px;
+}
+
+/* Empty States */
+.empty-state, .empty-state-small {
+  padding: 40px;
+  text-align: center;
+  color: #757575;
+}
+
+.empty-state-small {
+  padding: 20px;
+}
+
+.empty-state p, .empty-state-small p {
+  margin: 0 0 8px 0;
+}
+
+/* Form Actions */
+.form-actions {
+  margin-top: 32px;
+  padding-top: 24px;
+  border-top: 1px solid #e0e0e0;
+  display: flex;
+  gap: 12px;
+}
+
+.button {
+  padding: 12px 24px;
+  border: none;
+  border-radius: 4px;
+  font-size: 14px;
+  font-weight: 500;
+  cursor: pointer;
+  text-decoration: none;
+  display: inline-block;
+  transition: all 0.2s;
+}
+
+.button-primary {
+  background: #1976d2;
+  color: white;
+}
+
+.button-primary:hover {
+  background: #1565c0;
+}
+
+.button-secondary {
+  background: #f5f5f5;
+  color: #333;
+  border: 1px solid #d0d0d0;
+}
+
+.button-secondary:hover {
+  background: #e0e0e0;
+}
+
+/* Flash Messages */
+.flash-messages {
+  margin-bottom: 24px;
+}
+
+.flash-message {
+  padding: 12px 16px;
+  border-radius: 4px;
+  margin-bottom: 12px;
+}
+
+.flash-success {
+  background: #e8f5e9;
+  color: #2e7d32;
+  border: 1px solid #a5d6a7;
+}
+
+.flash-error {
+  background: #ffebee;
+  color: #c62828;
+  border: 1px solid #ef9a9a;
+}
+
+/* Responsive */
+@media (max-width: 768px) {
+  .form-row {
+    grid-template-columns: 1fr;
+  }
+
+  .provider-header {
+    flex-direction: column;
+    gap: 12px;
+  }
+}
+</style>
+
+<script>
+// Model selection logic
+(function() {
+  // Store provider model data
+  const providerModels = {};
+
+  // Parse provider model data from select options
+  document.querySelectorAll('.provider-select option[data-models]').forEach(option => {
+    try {
+      const providerId = option.value;
+      const modelsAttr = option.getAttribute('data-models');
+      if (providerId && modelsAttr) {
+        providerModels[providerId] = JSON.parse(modelsAttr);
+      }
+    } catch (e) {
+      console.error('Failed to parse model data:', e);
+    }
+  });
+
+  // Handle provider selection change
+  document.querySelectorAll('.provider-select').forEach(select => {
+    select.addEventListener('change', function() {
+      const operation = this.getAttribute('data-operation');
+      const modelSelect = document.querySelector(`.model-select[data-operation="${operation}"]`);
+      const selectedProvider = this.value;
+      const savedModelValue = modelSelect.getAttribute('data-selected');
+
+      // Clear current options
+      modelSelect.innerHTML = '<option value="">-- Select Model --</option>';
+
+      // Populate models for selected provider
+      if (selectedProvider && providerModels[selectedProvider]) {
+        const models = providerModels[selectedProvider];
+        models.forEach(model => {
+          // Check if model supports this operation
+          if (!model.operations || model.operations.includes(operation)) {
+            const option = document.createElement('option');
+            option.value = model.id;
+            option.textContent = model.name || model.id;
+            modelSelect.appendChild(option);
+          }
+        });
+
+        // Restore saved model selection if it exists
+        if (savedModelValue) {
+          modelSelect.value = savedModelValue;
+        }
+      }
+    });
+  });
+
+  // Initialize on page load
+  document.addEventListener('DOMContentLoaded', function() {
+    // Pre-select saved providers
+    document.querySelectorAll('.provider-select').forEach(select => {
+      const savedProvider = select.getAttribute('data-selected');
+      if (savedProvider) {
+        select.value = savedProvider;
+      }
+      // Trigger change to populate models
+      select.dispatchEvent(new Event('change'));
+    });
+  });
+})();
+</script>

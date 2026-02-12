@@ -151,6 +151,35 @@ export async function invoke(hookName, context = {}) {
 }
 
 /**
+ * Alter hook - allows modules to modify data structures
+ *
+ * WHY THIS EXISTS:
+ * Common pattern where core defines a data structure (like plugin definitions)
+ * and modules need to modify/add/remove entries.
+ *
+ * Automatically appends "_alter" to the hook name for convention.
+ *
+ * @param {string} hookName - Base hook name (without _alter suffix)
+ * @param {*} data - Data to be altered (usually an object or Map)
+ * @param {*} context - Additional context passed to handlers
+ * @returns {Promise<*>} - The altered data
+ *
+ * Example:
+ *   await hooks.alter('plugin_info', definitions, { type: 'field' });
+ *   // Triggers "plugin_info_alter" hook with definitions Map
+ */
+export async function alter(hookName, data, context = {}) {
+  // Append _alter suffix if not already present
+  const alterHookName = hookName.endsWith('_alter') ? hookName : `${hookName}_alter`;
+
+  // Pass both data and context to handlers
+  const alterContext = { data, ...context };
+  await trigger(alterHookName, alterContext);
+
+  return data;
+}
+
+/**
  * Get all registered hook names
  *
  * WHY THIS EXISTS:
