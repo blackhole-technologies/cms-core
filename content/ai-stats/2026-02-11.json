@@ -416,5 +416,27 @@
     "responseTime": 184,
     "status": "success",
     "error": null
+  },
+  {
+    "timestamp": "2026-02-11T14:28:25.114Z",
+    "provider": "ai_test",
+    "operation": "generate-alt-text",
+    "tokensIn": 847,
+    "tokensOut": 27,
+    "cost": 0.0042208766033815966,
+    "responseTime": 284,
+    "status": "success",
+    "error": null
+  },
+  {
+    "timestamp": "2026-02-11T14:28:49.154Z",
+    "provider": "ai_test",
+    "operation": "generate-alt-text",
+    "tokensIn": 894,
+    "tokensOut": 34,
+    "cost": 0.003964937838131684,
+    "responseTime": 238,
+    "status": "success",
+    "error": null
   }
 ]
