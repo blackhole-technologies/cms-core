@@ -21,6 +21,7 @@
  */
 
 import { PluginManager } from './lib/Plugin/index.js';
+import { checkProviderLimit } from './ai-rate-limiter.js';
 
 /**
  * Service state
@@ -279,6 +280,18 @@ export async function routeToProvider(operation, args, modelSpec) {
     throw new Error(
       `[ai-provider-manager] Provider "${providerId}" does not support operation "${operation}"`
     );
+  }
+
+  // WHY: Check rate limits before executing operation (Feature #19)
+  // Prevents exceeding provider API limits and manages costs
+  const rateLimit = checkProviderLimit(providerId);
+  if (!rateLimit.allowed) {
+    const error = new Error(rateLimit.error);
+    error.code = 'RATE_LIMIT_EXCEEDED';
+    error.provider = providerId;
+    error.retryAfter = rateLimit.retryAfter;
+    error.resetAt = rateLimit.resetAt;
+    throw error;
   }
 
   // WHY: Execute the operation with provided arguments

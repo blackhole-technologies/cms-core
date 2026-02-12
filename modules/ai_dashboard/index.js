@@ -1541,6 +1541,18 @@ export function hook_routes(register, context) {
         const isConfigured = !!decryptedKey;
         const isEnabled = config.enabled !== false;
 
+        // Get rate limit config (Feature #19)
+        const rateLimit = config.rateLimit || {};
+        const rateLimitPoints = rateLimit.points || null;
+
+        // Default rate limits per provider
+        const defaultRateLimits = {
+          openai: 60,
+          anthropic: 50,
+          ollama: 1000,
+        };
+        const defaultRateLimit = defaultRateLimits[def.id] || 30;
+
         // Get models from provider instance if configured
         let models = [];
         if (isConfigured) {
@@ -1565,6 +1577,8 @@ export function hook_routes(register, context) {
           apiKey: '', // Never send decrypted key to browser
           apiKeyMasked: decryptedKey ? `${decryptedKey.slice(0, 8)}...${decryptedKey.slice(-4)}` : '',
           hasApiKey: !!decryptedKey,
+          rateLimitPoints,
+          defaultRateLimit,
         };
       }));
 
@@ -1655,6 +1669,8 @@ export function hook_routes(register, context) {
         const providerId = key.replace('provider_enabled_', '');
         const apiKeyField = `provider_apikey_${providerId}`;
         const apiKey = formData[apiKeyField];
+        const rateLimitField = `provider_ratelimit_${providerId}`;
+        const rateLimit = formData[rateLimitField];
 
         if (!config.providers[providerId]) {
           config.providers[providerId] = {};
@@ -1666,6 +1682,17 @@ export function hook_routes(register, context) {
         if (apiKey && apiKey.trim()) {
           // Encrypt API key before storing
           config.providers[providerId].apiKey = encryptApiKey(apiKey.trim());
+        }
+
+        // Update rate limit configuration (Feature #19)
+        if (rateLimit && rateLimit.trim()) {
+          const points = parseInt(rateLimit, 10);
+          if (!isNaN(points) && points > 0) {
+            config.providers[providerId].rateLimit = {
+              points,
+              duration: 60, // Fixed at 60 seconds (per minute)
+            };
+          }
         }
       }
 
