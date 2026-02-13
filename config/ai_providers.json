@@ -1,0 +1,13 @@
+{
+  "providers": {
+    "test-provider": {
+      "enabled": true,
+      "apiKey": "test-key-12345"
+    },
+    "openai": {
+      "enabled": true,
+      "apiKey": "sk-test-key-fake"
+    }
+  },
+  "operations": {}
+}

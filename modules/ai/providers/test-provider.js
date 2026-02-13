@@ -99,6 +99,47 @@ class TestProvider extends AIProviderInterface {
       }
     };
   }
+
+  /**
+   * Generate embeddings for text
+   * @param {Object} options - Options with input and model
+   * @returns {Promise<Object>} Mock embedding response in OpenAI format
+   */
+  async embeddings(options) {
+    const text = options.input || '';
+    const model = options.model || 'test-model-1';
+
+    // Return a mock embedding vector (768 dimensions like many real models)
+    // Generate deterministic but varied values based on text content
+    const dimensions = 768;
+    const hash = text.split('').reduce((acc, char) => {
+      return ((acc << 5) - acc) + char.charCodeAt(0);
+    }, 0);
+
+    const embedding = [];
+    for (let i = 0; i < dimensions; i++) {
+      // Generate pseudo-random values between -1 and 1
+      const value = Math.sin(hash * (i + 1)) * 0.5;
+      embedding.push(value);
+    }
+
+    // Return in OpenAI format
+    return {
+      object: 'list',
+      data: [
+        {
+          object: 'embedding',
+          embedding,
+          index: 0
+        }
+      ],
+      model,
+      usage: {
+        prompt_tokens: text.split(' ').length,
+        total_tokens: text.split(' ').length
+      }
+    };
+  }
 }
 
 export default TestProvider;
