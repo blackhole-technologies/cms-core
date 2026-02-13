@@ -959,6 +959,434 @@ export function hook_cli(register, context) {
       process.exit(0);
     });
   }, 'Interactive chat with AI models');
+
+  /**
+   * ai:providers - List all configured AI providers
+   *
+   * Shows all registered AI providers with their configuration status,
+   * usability status, and supported operations.
+   *
+   * Usage:
+   *   node cms.js ai:providers
+   *
+   * Output includes:
+   *   - Provider name and type
+   *   - Configuration status (configured/not configured)
+   *   - Usability status (usable/not usable)
+   *   - Supported operations
+   */
+  register('ai:providers', async (args) => {
+    const { join } = await import('node:path');
+    const { readFileSync, existsSync } = await import('node:fs');
+
+    // ANSI colors
+    const colors = {
+      green: '\x1b[32m',
+      red: '\x1b[31m',
+      yellow: '\x1b[33m',
+      blue: '\x1b[34m',
+      gray: '\x1b[90m',
+      reset: '\x1b[0m',
+    };
+
+    const colorize = (text, color) => `${colors[color] || ''}${text}${colors.reset}`;
+
+    // Header
+    console.log('');
+    console.log(colorize('AI Providers', 'blue'));
+    console.log(colorize('='.repeat(80), 'gray'));
+    console.log('');
+
+    // Get all AI provider modules from registry
+    const allProviders = aiRegistry.getByType('provider');
+
+    if (allProviders.length === 0) {
+      console.log(colorize('No AI providers registered', 'yellow'));
+      console.log('');
+      console.log('Create a module with manifest.json containing:');
+      console.log('  "ai": true,');
+      console.log('  "aiType": "provider"');
+      console.log('');
+      return;
+    }
+
+    // Load provider configuration
+    const configPath = join(context.baseDir, 'config', 'ai_providers.json');
+    let config = { providers: {} };
+
+    if (existsSync(configPath)) {
+      try {
+        const configData = readFileSync(configPath, 'utf-8');
+        config = JSON.parse(configData);
+      } catch (err) {
+        console.log(colorize(`Warning: Could not load provider configuration: ${err.message}`, 'yellow'));
+      }
+    }
+
+    // Get provider manager service
+    const aiProviderManager = context.services.get('ai-provider-manager');
+
+    // Display each provider
+    for (const providerModule of allProviders) {
+      const providerName = providerModule.name;
+      const providerConfig = config.providers?.[providerName] || {};
+
+      // Determine configuration status
+      const isConfigured = providerConfig.enabled && providerConfig.apiKey;
+      const configStatus = isConfigured
+        ? colorize('✓ Configured', 'green')
+        : colorize('○ Not Configured', 'gray');
+
+      // Determine usability (only check if configured)
+      let usabilityStatus = colorize('N/A', 'gray');
+      if (isConfigured) {
+        try {
+          // Decrypt API key if encrypted
+          let decryptedConfig = { ...providerConfig };
+          if (providerConfig.apiKey && providerConfig.apiKey.includes(':')) {
+            decryptedConfig.apiKey = decryptApiKey(providerConfig.apiKey);
+          }
+
+          const providerInstance = await aiProviderManager.loadProvider(providerName, decryptedConfig);
+          const isUsable = await providerInstance.isUsable();
+
+          usabilityStatus = isUsable
+            ? colorize('✓ Usable', 'green')
+            : colorize('✗ Not Usable', 'red');
+        } catch (err) {
+          usabilityStatus = colorize(`✗ Error: ${err.message}`, 'red');
+        }
+      }
+
+      // Get supported operations from manifest
+      const capabilities = providerModule.capabilities || {};
+      const operations = capabilities.operations || [];
+      const operationsStr = operations.length > 0
+        ? operations.join(', ')
+        : 'None';
+
+      // Display provider info
+      console.log(colorize(`${providerName}`, 'blue'));
+      console.log(`  Status: ${configStatus} | ${usabilityStatus}`);
+      console.log(`  Operations: ${operationsStr}`);
+
+      // Show model count if available
+      if (capabilities.models && capabilities.models.length > 0) {
+        console.log(`  Models: ${capabilities.models.length} available`);
+      }
+
+      console.log('');
+    }
+
+    // Summary
+    const configured = allProviders.filter(p => {
+      const cfg = config.providers?.[p.name] || {};
+      return cfg.enabled && cfg.apiKey;
+    }).length;
+
+    console.log(colorize('Summary:', 'gray'));
+    console.log(`  Total providers: ${allProviders.length}`);
+    console.log(`  Configured: ${configured}`);
+    console.log(`  Not configured: ${allProviders.length - configured}`);
+    console.log('');
+    console.log(colorize('Configure providers at:', 'gray'));
+    console.log('  /admin/config/ai');
+    console.log('');
+  }, 'List all configured AI providers');
+
+  /**
+   * ai:embed - Generate embeddings for text input
+   *
+   * Generate vector embeddings for text using specified AI provider.
+   * Supports single text input or batch processing from file.
+   *
+   * Usage:
+   *   node cms.js ai:embed --text="Hello world" --provider=openai
+   *   node cms.js ai:embed --file=input.txt --provider=openai
+   *   node cms.js ai:embed --text="Multiple" --text="inputs" --provider=openai
+   *
+   * Flags:
+   *   --text=<string>     : Text to embed (can be specified multiple times for batch)
+   *   --file=<path>       : Read text from file (one line per embedding)
+   *   --provider=<name>   : AI provider to use (required)
+   *   --model=<name>      : Model to use (optional, uses provider default)
+   *   --output=<path>     : Save embeddings to JSON file
+   */
+  register('ai:embed', async (args) => {
+    const { join } = await import('node:path');
+    const { readFileSync, writeFileSync, existsSync } = await import('node:fs');
+
+    // ANSI colors
+    const colors = {
+      green: '\x1b[32m',
+      red: '\x1b[31m',
+      yellow: '\x1b[33m',
+      blue: '\x1b[34m',
+      gray: '\x1b[90m',
+      reset: '\x1b[0m',
+    };
+
+    const colorize = (text, color) => `${colors[color] || ''}${text}${colors.reset}`;
+
+    // Parse flags
+    const providerArg = args.find(a => a.startsWith('--provider='));
+    const modelArg = args.find(a => a.startsWith('--model='));
+    const fileArg = args.find(a => a.startsWith('--file='));
+    const outputArg = args.find(a => a.startsWith('--output='));
+    const textArgs = args.filter(a => a.startsWith('--text='));
+
+    // Validate required parameters
+    if (!providerArg) {
+      console.log(colorize('Error: --provider is required', 'red'));
+      console.log('');
+      console.log('Usage:');
+      console.log('  node cms.js ai:embed --text="Hello world" --provider=openai');
+      console.log('  node cms.js ai:embed --file=input.txt --provider=openai --output=embeddings.json');
+      console.log('');
+      console.log('Available providers:');
+      const allProviders = aiRegistry.getByType('provider');
+      allProviders.forEach(p => {
+        const caps = p.capabilities || {};
+        if (caps.operations && caps.operations.includes('embeddings')) {
+          console.log(`  - ${p.name}`);
+        }
+      });
+      console.log('');
+      return;
+    }
+
+    if (!textArgs.length && !fileArg) {
+      console.log(colorize('Error: --text or --file is required', 'red'));
+      console.log('');
+      console.log('Usage:');
+      console.log('  node cms.js ai:embed --text="Hello world" --provider=openai');
+      console.log('  node cms.js ai:embed --file=input.txt --provider=openai');
+      console.log('');
+      return;
+    }
+
+    const provider = providerArg.split('=')[1];
+    const model = modelArg ? modelArg.split('=')[1] : null;
+    const filePath = fileArg ? fileArg.split('=')[1] : null;
+    const outputPath = outputArg ? outputArg.split('=')[1] : null;
+
+    // Collect text inputs
+    let texts = [];
+
+    if (fileArg) {
+      // Read from file
+      if (!existsSync(filePath)) {
+        console.log(colorize(`Error: File not found: ${filePath}`, 'red'));
+        return;
+      }
+
+      try {
+        const fileContent = readFileSync(filePath, 'utf-8');
+        texts = fileContent.split('\n').map(line => line.trim()).filter(Boolean);
+      } catch (err) {
+        console.log(colorize(`Error reading file: ${err.message}`, 'red'));
+        return;
+      }
+    } else {
+      // Use --text arguments
+      texts = textArgs.map(arg => arg.substring(7)); // Remove "--text=" prefix
+    }
+
+    if (texts.length === 0) {
+      console.log(colorize('Error: No text to embed', 'red'));
+      return;
+    }
+
+    // Get services
+    const aiProviderManager = context.services.get('ai-provider-manager');
+
+    // Load AI provider configuration
+    const configPath = join(context.baseDir, 'config', 'ai_providers.json');
+    let providerConfig = {};
+
+    if (existsSync(configPath)) {
+      try {
+        const configData = readFileSync(configPath, 'utf-8');
+        const config = JSON.parse(configData);
+        providerConfig = config.providers?.[provider] || {};
+
+        // Decrypt API key if encrypted
+        if (providerConfig.apiKey && providerConfig.apiKey.includes(':')) {
+          providerConfig.apiKey = decryptApiKey(providerConfig.apiKey);
+        }
+      } catch (err) {
+        console.log(colorize(`Error loading provider configuration: ${err.message}`, 'red'));
+        return;
+      }
+    }
+
+    // Check if provider is enabled
+    if (!providerConfig.enabled) {
+      console.log(colorize(`Provider "${provider}" is not enabled`, 'red'));
+      console.log('Enable it in /admin/config/ai');
+      return;
+    }
+
+    // Check if API key is configured
+    if (!providerConfig.apiKey) {
+      console.log(colorize(`Provider "${provider}" has no API key configured`, 'red'));
+      console.log('Configure it in /admin/config/ai');
+      return;
+    }
+
+    // Load the provider
+    let providerInstance;
+    try {
+      providerInstance = await aiProviderManager.loadProvider(provider, providerConfig);
+
+      // Verify it's usable
+      const usable = await providerInstance.isUsable();
+      if (!usable) {
+        console.log(colorize(`Provider "${provider}" is not usable`, 'red'));
+        return;
+      }
+    } catch (err) {
+      console.log(colorize(`Error loading provider: ${err.message}`, 'red'));
+      return;
+    }
+
+    // Get available models that support embeddings
+    const models = await providerInstance.getModels();
+    const embeddingModels = models.filter(m => m.operations.includes('embeddings'));
+
+    if (embeddingModels.length === 0) {
+      console.log(colorize(`Provider "${provider}" does not support embeddings`, 'red'));
+      return;
+    }
+
+    // Select model (use specified or first available)
+    const selectedModel = model || embeddingModels[0].id;
+    const modelInfo = models.find(m => m.id === selectedModel);
+
+    if (!modelInfo) {
+      console.log(colorize(`Model "${selectedModel}" not found`, 'red'));
+      console.log('');
+      console.log('Available embedding models:');
+      embeddingModels.forEach(m => console.log(`  - ${m.id} (${m.name})`));
+      return;
+    }
+
+    if (!modelInfo.operations.includes('embeddings')) {
+      console.log(colorize(`Model "${selectedModel}" does not support embeddings`, 'red'));
+      return;
+    }
+
+    // Header
+    console.log('');
+    console.log(colorize('Generating Embeddings', 'blue'));
+    console.log(colorize('='.repeat(60), 'gray'));
+    console.log(`  Provider: ${provider}`);
+    console.log(`  Model: ${selectedModel}`);
+    console.log(`  Inputs: ${texts.length} text(s)`);
+    console.log('');
+
+    // Generate embeddings
+    const results = [];
+    const startTime = Date.now();
+
+    for (let i = 0; i < texts.length; i++) {
+      const text = texts[i];
+      const textPreview = text.length > 50 ? text.substring(0, 47) + '...' : text;
+
+      process.stdout.write(`  [${i + 1}/${texts.length}] ${textPreview} ... `);
+
+      try {
+        const response = await providerInstance.embeddings({
+          input: text,
+          model: selectedModel
+        });
+
+        // Extract embedding array from response
+        let embedding;
+        if (Array.isArray(response)) {
+          embedding = response;
+        } else if (response.data && Array.isArray(response.data) && response.data[0]?.embedding) {
+          // OpenAI format: { data: [{ embedding: [...] }] }
+          embedding = response.data[0].embedding;
+        } else if (response.embedding && Array.isArray(response.embedding)) {
+          // Simple format: { embedding: [...] }
+          embedding = response.embedding;
+        } else {
+          throw new Error('Invalid embedding format (expected array or object with embedding array)');
+        }
+
+        if (!Array.isArray(embedding)) {
+          throw new Error('Invalid embedding format (expected array)');
+        }
+
+        results.push({
+          text,
+          embedding,
+          dimensions: embedding.length
+        });
+
+        console.log(colorize(`✓ (${embedding.length} dims)`, 'green'));
+      } catch (err) {
+        console.log(colorize(`✗ Error: ${err.message}`, 'red'));
+        results.push({
+          text,
+          embedding: null,
+          error: err.message
+        });
+      }
+    }
+
+    const responseTime = Date.now() - startTime;
+
+    // Summary
+    const successful = results.filter(r => r.embedding !== null).length;
+    const failed = results.length - successful;
+
+    console.log('');
+    console.log(colorize('Summary:', 'gray'));
+    console.log(`  Total: ${results.length}`);
+    console.log(`  ${colorize('Successful', 'green')}: ${successful}`);
+    if (failed > 0) {
+      console.log(`  ${colorize('Failed', 'red')}: ${failed}`);
+    }
+    console.log(`  Time: ${responseTime}ms`);
+
+    // Output results
+    if (outputPath) {
+      // Save to file
+      try {
+        writeFileSync(outputPath, JSON.stringify(results, null, 2), 'utf-8');
+        console.log('');
+        console.log(colorize(`Saved embeddings to: ${outputPath}`, 'green'));
+      } catch (err) {
+        console.log('');
+        console.log(colorize(`Error saving file: ${err.message}`, 'red'));
+      }
+    } else {
+      // Print to console as JSON
+      console.log('');
+      console.log(colorize('Embeddings:', 'gray'));
+      console.log(JSON.stringify(results, null, 2));
+    }
+
+    console.log('');
+
+    // Log to stats
+    try {
+      aiStats.log({
+        provider,
+        model: selectedModel,
+        operation: 'embeddings',
+        tokensIn: texts.reduce((sum, t) => sum + t.split(' ').length, 0) * 1.3,
+        tokensOut: 0,
+        cost: 0, // Would need to calculate based on model pricing
+        status: failed === 0 ? 'success' : 'partial',
+        responseTime
+      });
+    } catch (err) {
+      // Ignore stats errors
+    }
+  }, 'Generate embeddings for text input');
 }
 
 /**
