@@ -40,6 +40,22 @@ let cachedSchemaString = null;
 /**
  * GraphQL type mappings from CMS field types
  */
+/**
+ * Fields that must never be exposed in API responses.
+ * Prevents leaking password hashes, secrets, and tokens.
+ */
+const SENSITIVE_FIELDS = new Set([
+  'password',
+  'passwordHash',
+  'password_hash',
+  'secret',
+  'sessionSecret',
+  'apiSecret',
+  'token',
+  'resetToken',
+  'reset_token',
+]);
+
 const TYPE_MAPPINGS = {
   string: 'String',
   text: 'String',
@@ -768,7 +784,7 @@ function resolveReference(type, id, context) {
     if (item) {
       item._type = type;
     }
-    return item;
+    return stripSensitive(item);
   } catch (error) {
     return null;
   }
@@ -780,13 +796,29 @@ function resolveReference(type, id, context) {
  * @param {string} type
  * @returns {Function}
  */
+/**
+ * Strip sensitive fields from a content item before returning via API
+ *
+ * @param {Object} item - Content item
+ * @returns {Object} - Sanitized item
+ */
+function stripSensitive(item) {
+  if (!item) return item;
+  for (const field of SENSITIVE_FIELDS) {
+    if (field in item) {
+      delete item[field];
+    }
+  }
+  return item;
+}
+
 function createSingleResolver(type) {
   return (args, context) => {
     const item = contentService.read(type, args.id);
     if (item) {
       item._type = type;
     }
-    return item;
+    return stripSensitive(item);
   };
 }
 
@@ -810,7 +842,7 @@ function createListResolver(type) {
     }
 
     const result = contentService.list(type, options);
-    return result.items.map(item => ({ ...item, _type: type }));
+    return result.items.map(item => stripSensitive({ ...item, _type: type }));
   };
 }
 
@@ -840,7 +872,7 @@ function createCreateResolver(type) {
     if (item) {
       item._type = type;
     }
-    return item;
+    return stripSensitive(item);
   };
 }
 
@@ -870,7 +902,7 @@ function createUpdateResolver(type) {
     if (item) {
       item._type = type;
     }
-    return item;
+    return stripSensitive(item);
   };
 }
 

@@ -41,6 +41,28 @@ const __dirname = dirname(fileURLToPath(import.meta.url));
 const VALID_ROLES = ['admin', 'editor', 'viewer'];
 
 /**
+ * Fields that must never be exposed in API responses.
+ * Prevents leaking password hashes, secrets, and tokens.
+ */
+const SENSITIVE_FIELDS = new Set([
+  'password', 'passwordHash', 'password_hash',
+  'secret', 'sessionSecret', 'apiSecret',
+  'token', 'resetToken', 'reset_token',
+]);
+
+/**
+ * Strip sensitive fields from a content item before returning via API
+ */
+function stripSensitiveFields(item) {
+  if (!item || typeof item !== 'object') return item;
+  const cleaned = { ...item };
+  for (const field of SENSITIVE_FIELDS) {
+    delete cleaned[field];
+  }
+  return cleaned;
+}
+
+/**
  * Load a template file from this module's templates directory
  */
 function loadTemplate(name) {
@@ -1277,6 +1299,12 @@ export function hook_routes(register, context) {
     };
 
     const result = content.list(type, options);
+
+    // Strip sensitive fields (passwords, secrets) from API responses
+    if (result.items) {
+      result.items = result.items.map(stripSensitiveFields);
+    }
+
     server.json(res, result);
   }, 'API: List content with filters');
 
@@ -1300,7 +1328,7 @@ export function hook_routes(register, context) {
       return;
     }
 
-    server.json(res, item);
+    server.json(res, stripSensitiveFields(item));
   }, 'API: Get content item');
 
   /**

@@ -81,6 +81,22 @@ let config = {
 const CONTENT_TYPE = 'application/vnd.api+json';
 const API_VERSION = '1.1';
 
+/**
+ * Fields that must never be exposed in API responses.
+ * Prevents leaking password hashes, secrets, and tokens.
+ */
+const SENSITIVE_FIELDS = new Set([
+  'password',
+  'passwordHash',
+  'password_hash',
+  'secret',
+  'sessionSecret',
+  'apiSecret',
+  'token',
+  'resetToken',
+  'reset_token',
+]);
+
 // ============================================
 // TYPE DEFINITIONS (JSDoc)
 // ============================================
@@ -339,6 +355,9 @@ function toResource(item, type, fields = null) {
     // Skip system fields and relationships
     if (['id', 'type', 'created', 'updated', '_id'].includes(key)) continue;
     if (key.startsWith('_')) continue;
+
+    // Skip sensitive fields - never expose passwords, secrets, or tokens via API
+    if (SENSITIVE_FIELDS.has(key)) continue;
 
     // Apply sparse fieldset
     if (fields && !fields.includes(key)) continue;

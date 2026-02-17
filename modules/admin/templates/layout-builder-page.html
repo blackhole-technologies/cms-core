@@ -969,7 +969,7 @@
     <!-- Layout Builder Canvas -->
     <div class="layout-builder-content">
       <div class="layout-builder-canvas" id="layout-canvas">
-        {{sectionsHtml}}
+        {{{sectionsHtml}}}
       </div>
 
       <!-- Add Section Button -->
@@ -982,7 +982,7 @@
       <div class="layout-chooser" id="layout-chooser">
         <h3>Choose a layout for the new section:</h3>
         <div class="layout-options">
-          {{layoutOptionsHtml}}
+          {{{layoutOptionsHtml}}}
         </div>
         <div style="margin-top: 10px; text-align: right;">
           <button onclick="document.getElementById('layout-chooser').classList.remove('active')" style="background: #eee; border: 1px solid #ccc; padding: 6px 12px; border-radius: 4px; cursor: pointer;">Cancel</button>
@@ -1039,7 +1039,7 @@
           <div class="config-form-group">
             <label for="field-name-select">Select Field</label>
             <select id="field-name-select">
-              {{fieldOptionsHtml}}
+              {{{fieldOptionsHtml}}}
             </select>
           </div>
           <div class="config-form-actions">
@@ -1059,7 +1059,7 @@
             <label>Or select available block:</label>
             <select id="block-id-select" onchange="document.getElementById('block-id-input').value = this.value">
               <option value="">-- Choose a block --</option>
-              {{blockOptionsHtml}}
+              {{{blockOptionsHtml}}}
             </select>
           </div>
           {{/if}}
