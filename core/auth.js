@@ -44,14 +44,15 @@
  * 4. NO EXTERNAL DEPENDENCIES
  *    Using Node's built-in crypto module:
  *    - createHmac for cookie signing
- *    - createHash for password hashing
+ *    - scryptSync for password hashing (password-specific KDF)
+ *    - randomBytes for cryptographically secure salt generation
  *    - timingSafeEqual for secure comparison
  *    - randomUUID for session IDs
  *
  * SECURITY NOTES:
  * ===============
- * - Passwords are hashed with SHA-256 (not ideal, but zero-deps)
- * - In production, use bcrypt or argon2 instead
+ * - Passwords are hashed with scrypt (Node's built-in KDF, zero-deps)
+ * - Intentionally slow to resist brute force attacks
  * - Session cookies are HttpOnly (no JS access)
  * - Cookies should also be Secure in production (HTTPS only)
  *
@@ -61,7 +62,9 @@
  * - Session refresh/sliding expiration
  */
 
-import { createHmac, createHash, timingSafeEqual, randomUUID } from 'node:crypto';
+import { createHmac, createHash, scryptSync, randomBytes, timingSafeEqual, randomUUID } from 'node:crypto';
+import { readFileSync, writeFileSync, existsSync, mkdirSync } from 'node:fs';
+import { join } from 'node:path';
 import * as csrf from './csrf.js';
 
 /**
@@ -79,29 +82,103 @@ let sessionSecret = null;
  * Active sessions tracking
  * Map<sessionId, { userId, createdAt, lastActivity }>
  *
- * WHY IN-MEMORY:
- * - Simple, no database needed
- * - Sessions are transient anyway
- * - Lost on restart (acceptable for development CMS)
- * - In production, use Redis or database
+ * WHY FILE-BACKED:
+ * Sessions are persisted to a JSON file so they survive server restarts.
+ * The in-memory Map is the primary store for fast lookups; the file
+ * is written after each mutation (create/destroy/invalidate).
  */
 const activeSessions = new Map();
+
+/**
+ * Path to sessions persistence file
+ */
+let sessionsFilePath = null;
+
+/**
+ * Debounce timer for session persistence writes
+ */
+let persistTimer = null;
 
 /**
  * Initialize auth module with secret key
  *
  * @param {string} secret - Secret key for signing cookies
+ * @param {string} baseDir - Base directory for the CMS (for session file storage)
  *
  * WHY INIT:
  * - Secret comes from config, which loads during boot
  * - Can't access config at module load time
  * - Allows testing with different secrets
  */
-export function init(secret) {
+export function init(secret, baseDir = null) {
   if (!secret || secret.length < 16) {
     console.warn('[auth] Warning: Session secret is too short. Use at least 16 characters.');
   }
   sessionSecret = secret;
+
+  // Set up file-based session persistence
+  if (baseDir) {
+    const sessionsDir = join(baseDir, 'content', '.sessions');
+    if (!existsSync(sessionsDir)) {
+      mkdirSync(sessionsDir, { recursive: true });
+    }
+    sessionsFilePath = join(sessionsDir, 'active.json');
+    loadSessions();
+  }
+}
+
+/**
+ * Load sessions from disk
+ * Called once during init to restore sessions from previous run.
+ */
+function loadSessions() {
+  if (!sessionsFilePath || !existsSync(sessionsFilePath)) return;
+
+  try {
+    const data = JSON.parse(readFileSync(sessionsFilePath, 'utf-8'));
+    const now = Date.now();
+
+    // Restore non-expired sessions
+    for (const [sessionId, sessionData] of Object.entries(data)) {
+      const age = now - sessionData.createdAt;
+      if (age < SESSION_MAX_AGE) {
+        activeSessions.set(sessionId, sessionData);
+      }
+    }
+
+    if (activeSessions.size > 0) {
+      console.log(`[auth] Restored ${activeSessions.size} session(s) from disk`);
+    }
+  } catch (error) {
+    console.warn(`[auth] Failed to load sessions: ${error.message}`);
+  }
+}
+
+/**
+ * Persist sessions to disk (debounced)
+ * Writes are debounced by 1 second to avoid excessive I/O.
+ */
+function persistSessions() {
+  if (!sessionsFilePath) return;
+
+  if (persistTimer) {
+    clearTimeout(persistTimer);
+  }
+
+  persistTimer = setTimeout(() => {
+    try {
+      const data = Object.fromEntries(activeSessions);
+      writeFileSync(sessionsFilePath, JSON.stringify(data, null, 2), 'utf-8');
+    } catch (error) {
+      console.warn(`[auth] Failed to persist sessions: ${error.message}`);
+    }
+    persistTimer = null;
+  }, 1000);
+
+  // Don't prevent process from exiting
+  if (persistTimer?.unref) {
+    persistTimer.unref();
+  }
 }
 
 /**
@@ -180,12 +257,13 @@ export function createSession(res, userId) {
   const signature = sign(data);
   const cookieValue = `${data}.${signature}`;
 
-  // Track session in memory
+  // Track session and persist to disk
   activeSessions.set(sessionId, {
     userId,
     createdAt: timestamp,
     lastActivity: timestamp,
   });
+  persistSessions();
 
   // Calculate max age in seconds
   const maxAgeSeconds = Math.floor(SESSION_MAX_AGE / 1000);
@@ -223,6 +301,7 @@ export function destroySession(res, req) {
     const sessionData = parseSessionCookie(req);
     if (sessionData?.sessionId) {
       activeSessions.delete(sessionData.sessionId);
+      persistSessions();
     }
   }
 
@@ -352,6 +431,7 @@ export function invalidateSessions(userId) {
     }
   }
 
+  if (count > 0) persistSessions();
   return count;
 }
 
@@ -375,6 +455,7 @@ export function invalidateOtherSessions(userId, exceptSessionId) {
     }
   }
 
+  if (count > 0) persistSessions();
   return count;
 }
 
@@ -445,71 +526,89 @@ export function getSessionStats() {
  * @param {string} password - Plain text password
  * @returns {string} - Hashed password
  *
- * WHY SHA-256 (and why it's not ideal):
- * We use SHA-256 because:
- * - Built into Node.js (no dependencies)
- * - Simple to implement
+ * WHY SCRYPT:
+ * Node's built-in crypto.scryptSync is a password-hashing KDF that:
+ * - Is specifically designed for password hashing (unlike SHA-256)
+ * - Is intentionally slow to resist brute force attacks
+ * - Has configurable cost parameters (N, r, p)
+ * - Includes salt to prevent rainbow table attacks
+ * - Requires zero external dependencies
  *
- * In production, you should use bcrypt or argon2 because:
- * - They're designed for passwords (SHA-256 is not)
- * - They include salt automatically
- * - They're intentionally slow (resists brute force)
- * - They have configurable work factors
+ * PARAMETERS:
+ * - N=16384 (cost): CPU/memory cost parameter (2^14)
+ * - r=8: block size parameter
+ * - p=1: parallelization parameter
+ * - keylen=64: output hash length in bytes
  *
- * SALT:
- * We prepend a salt to the password before hashing.
- * This prevents rainbow table attacks.
- * The salt is stored with the hash (format: salt:hash).
+ * FORMAT: scrypt:salt:hash
+ * The "scrypt:" prefix enables backwards-compatible migration
+ * from the old SHA-256 format (salt:hash without prefix).
  */
 export function hashPassword(password) {
-  // Generate a random salt
-  // WHY 16 BYTES:
-  // Standard practice, provides enough uniqueness
-  const salt = createHash('sha256')
-    .update(Math.random().toString())
-    .update(Date.now().toString())
-    .digest('hex')
-    .substring(0, 32); // 32 hex chars = 16 bytes
+  // Generate a cryptographically secure random salt (16 bytes)
+  const salt = randomBytes(16).toString('hex');
 
-  // Hash password with salt
-  const hash = createHash('sha256')
-    .update(salt + password)
-    .digest('hex');
+  // Hash password with scrypt
+  const hash = scryptSync(password, salt, 64, {
+    N: 16384,
+    r: 8,
+    p: 1,
+  }).toString('hex');
 
-  // Return salt:hash format
-  return `${salt}:${hash}`;
+  // Return scrypt:salt:hash format
+  return `scrypt:${salt}:${hash}`;
 }
 
 /**
  * Verify a password against a hash
  *
  * @param {string} password - Plain text password to check
- * @param {string} storedHash - Hash from database (salt:hash format)
+ * @param {string} storedHash - Hash from database (scrypt:salt:hash or legacy salt:hash format)
  * @returns {boolean} - True if password matches
  *
- * PROCESS:
- * 1. Extract salt from stored hash
- * 2. Hash the provided password with the same salt
- * 3. Compare the results using timing-safe comparison
+ * BACKWARDS COMPATIBILITY:
+ * Supports both new scrypt format (scrypt:salt:hash) and legacy
+ * SHA-256 format (salt:hash) so existing users can still log in.
+ * Passwords are upgraded to scrypt on next hash (e.g., password change).
  */
 export function verifyPassword(password, storedHash) {
-  // Parse stored hash (salt:hash format)
-  const parts = storedHash.split(':');
-  if (parts.length !== 2) {
-    return false;
+  // Detect format by prefix
+  if (storedHash.startsWith('scrypt:')) {
+    // New scrypt format: scrypt:salt:hash
+    const parts = storedHash.split(':');
+    if (parts.length !== 3) return false;
+
+    const [, salt, originalHash] = parts;
+
+    const checkHash = scryptSync(password, salt, 64, {
+      N: 16384,
+      r: 8,
+      p: 1,
+    }).toString('hex');
+
+    if (checkHash.length !== originalHash.length) return false;
+
+    try {
+      return timingSafeEqual(
+        Buffer.from(checkHash),
+        Buffer.from(originalHash)
+      );
+    } catch {
+      return false;
+    }
   }
+
+  // Legacy SHA-256 format: salt:hash (for backwards compatibility)
+  const parts = storedHash.split(':');
+  if (parts.length !== 2) return false;
 
   const [salt, originalHash] = parts;
 
-  // Hash the provided password with the same salt
   const checkHash = createHash('sha256')
     .update(salt + password)
     .digest('hex');
 
-  // Timing-safe comparison
-  if (checkHash.length !== originalHash.length) {
-    return false;
-  }
+  if (checkHash.length !== originalHash.length) return false;
 
   try {
     return timingSafeEqual(

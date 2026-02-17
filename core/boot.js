@@ -102,6 +102,7 @@ import * as history from './history.js';
 import * as aiRegistry from './ai-registry.js';
 import * as aiStats from './ai-stats.js';
 import * as aiProviderManager from './ai-provider-manager.js';
+import * as functionCallPlugins from './function-call-plugins.js';
 
 /**
  * Boot phase definitions
@@ -582,6 +583,14 @@ export async function boot(baseDir, options = {}) {
     services.register('ai-provider-manager', () => aiProviderManager);
     log('[boot] AI provider manager initialized');
 
+    // Initialize function call plugins service
+    // WHY AFTER AI PROVIDER MANAGER:
+    // Function call plugins provide tools for AI agents to interact with CMS.
+    // Manages discovery, registration, and execution of AI agent tools.
+    functionCallPlugins.init(context);
+    services.register('function-call-plugins', () => functionCallPlugins);
+    log('[boot] Function call plugins service initialized');
+
     // Register media as a service
     // WHY A SERVICE:
     // Modules need access to file uploads and media management.
@@ -959,7 +968,8 @@ export async function boot(baseDir, options = {}) {
         router,
         config: jsonapiConfig,
       });
-      jsonapi.autoRegisterContentTypes();
+      // NOTE: autoRegisterContentTypes() is called later, after modules
+      // register their content types via hook_content (see below).
       services.register('jsonapi', () => jsonapi);
       log(`[boot] JSON:API enabled (${jsonapiConfig.basePath || '/jsonapi'})`);
     }
@@ -997,7 +1007,7 @@ export async function boot(baseDir, options = {}) {
     // Modules need access to session management and password hashing.
     // Auth is initialized with the session secret from config.
     const sessionSecret = context.config.site.sessionSecret || 'default-secret-change-me';
-    auth.init(sessionSecret);
+    auth.init(sessionSecret, baseDir);
     services.register('auth', () => auth);
 
     // Initialize CSRF protection
@@ -1210,6 +1220,14 @@ export async function boot(baseDir, options = {}) {
     const registeredTypes = content.listTypes();
     if (registeredTypes.length > 0) {
       log(`[boot] Content types registered: ${registeredTypes.map(t => t.type).join(', ')}`);
+    }
+
+    // Now that all content types are registered (from config AND modules),
+    // auto-register them as JSON:API resources so /jsonapi/{type} works.
+    const jsonapiService = services.get('jsonapi');
+    if (jsonapiService) {
+      jsonapiService.autoRegisterContentTypes();
+      log(`[boot] JSON:API resources registered for ${registeredTypes.length} content type(s)`);
     }
 
     // Invoke computed hook to let modules register computed fields

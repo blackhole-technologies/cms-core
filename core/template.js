@@ -275,18 +275,24 @@ function processIfBlocks(template, data) {
 }
 
 /**
- * Process {{variable}} substitutions
+ * Process {{variable}} and {{{variable}}} substitutions
  *
  * @param {string} template - Template string
  * @param {Object} data - Data context
  * @returns {string} - Template with variables replaced
  *
  * VARIABLE SYNTAX:
- * {{name}} → data.name
- * {{user.email}} → data.user.email
+ * {{name}} → data.name (HTML-escaped for XSS protection)
+ * {{{name}}} → data.name (raw, unescaped - use for trusted HTML)
+ * {{user.email}} → data.user.email (escaped)
  * {{@index}} → loop index
  *
- * SPECIAL HELPERS:
+ * ESCAPING:
+ * Double braces {{}} auto-escape HTML to prevent XSS attacks.
+ * Triple braces {{{}}} output raw HTML for trusted content like
+ * pre-rendered HTML, CSRF fields, and admin-generated markup.
+ *
+ * SPECIAL HELPERS (always raw - they generate trusted HTML):
  * {{csrfField}} → <input type="hidden" name="_csrf" value="...">
  * {{csrfToken}} → raw CSRF token value
  * {{csrfMeta}} → <meta name="csrf-token" content="...">
@@ -325,14 +331,24 @@ function processVariables(template, data) {
     return i18nService.t(key, params, locale);
   });
 
-  // Match {{varName}} or {{nested.path}} or {{@special}}
+  // Process triple-brace {{{variable}}} FIRST (raw/unescaped output)
+  // WHY TRIPLE BRACES:
+  // Some template values contain trusted HTML (e.g., pre-rendered content,
+  // admin-generated markup). Triple braces bypass escaping for these cases.
+  const rawVarRegex = /\{\{\{(@?\w+(?:\.\w+)*)\}\}\}/g;
+
+  result = result.replace(rawVarRegex, (match, varPath) => {
+    const value = getNestedValue(data, varPath);
+    if (value === undefined || value === null) return '';
+    if (typeof value === 'object') return JSON.stringify(value);
+    return String(value);
+  });
+
+  // Then process double-brace {{variable}} (HTML-escaped output)
   const varRegex = /\{\{(@?\w+(?:\.\w+)*)\}\}/g;
 
   return result.replace(varRegex, (match, varPath) => {
-    // Handle CSRF helpers
-    // WHY SPECIAL HELPERS:
-    // CSRF tokens need to be included in every form.
-    // These helpers make it easy without manual construction.
+    // Handle CSRF helpers - these generate trusted HTML, no escaping needed
     if (varPath === 'csrfField') {
       const token = getNestedValue(data, 'csrfToken') || '';
       return `<input type="hidden" name="_csrf" value="${escapeHtml(token)}">`;
@@ -351,8 +367,7 @@ function processVariables(template, data) {
       return data._locale || 'en';
     }
 
-    // Handle embed helper
-    // Usage: {{embed fieldName}} - renders embed HTML from field value
+    // Handle embed helper - returns trusted HTML from oEmbed
     if (varPath.startsWith('embed ')) {
       const fieldPath = varPath.substring(6).trim();
       const embedValue = getNestedValue(data, fieldPath);
@@ -366,12 +381,13 @@ function processVariables(template, data) {
       return '';
     }
 
-    // Arrays and objects get JSON stringified
+    // Arrays and objects get JSON stringified (escaped)
     if (typeof value === 'object') {
-      return JSON.stringify(value);
+      return escapeHtml(JSON.stringify(value));
     }
 
-    return String(value);
+    // Auto-escape HTML to prevent XSS
+    return escapeHtml(String(value));
   });
 }
 
@@ -534,8 +550,9 @@ export function renderEmbedField(embed, options = {}) {
  * TEMPLATE SYNTAX REFERENCE:
  *
  * VARIABLES:
- * {{name}}           - Simple variable
- * {{user.email}}     - Nested property
+ * {{name}}           - Simple variable (HTML-escaped)
+ * {{{name}}}         - Raw/unescaped output (for trusted HTML)
+ * {{user.email}}     - Nested property (escaped)
  * {{@index}}         - Loop index (in #each)
  *
  * CONDITIONALS:
