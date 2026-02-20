@@ -1,454 +1,152 @@
-<div class="admin-page">
+<div class="admin-breadcrumb">
+  <a href="/admin">Home</a> <span>&rsaquo;</span>
+  <a href="/admin/appearance">Appearance</a> <span>&rsaquo;</span>
+  <span>{{themeName}}</span>
+</div>
 
-  <div class="admin-header">
-    <h1>{{pageTitle}}</h1>
-    <nav class="admin-nav">
-      <a href="/admin">Dashboard</a>
-      <a href="/admin/themes">Themes</a>
-      <a href="/admin/themes/settings/{{themeSlug}}" class="active">Settings</a>
-    </nav>
-  </div>
+<h1 class="admin-page-title">{{pageTitle}}</h1>
 
-  {{#if hasFlash}}
-  <div class="flash flash-{{flash.type}}">
-    {{flash.message}}
-  </div>
-  {{/if}}
+{{#if hasFlash}}
+<div class="flash flash-{{flash.type}}">
+  {{flash.message}}
+</div>
+{{/if}}
 
-  {{#if error}}
-  <div class="flash flash-error">
-    {{error}}
-  </div>
-  {{/if}}
+{{#if error}}
+<div class="flash flash-error">
+  {{error}}
+</div>
+{{/if}}
 
-  <div class="admin-section">
-    <div class="theme-header">
-      <div class="theme-header-info">
-        <h2>{{themeName}}</h2>
-        {{#if themeDescription}}
-        <p class="theme-description">{{themeDescription}}</p>
-        {{/if}}
-        {{#if themeVersion}}
-        <span class="theme-version">Version {{themeVersion}}</span>
-        {{/if}}
-      </div>
-      {{#if isActive}}
-      <span class="badge badge-success">Active Theme</span>
-      {{/if}}
+<div class="theme-settings-header">
+  <div class="theme-settings-header-info">
+    <h2>{{themeName}}</h2>
+    {{#if themeDescription}}
+    <p class="text-muted">{{themeDescription}}</p>
+    {{/if}}
+    <div class="theme-settings-meta">
+      {{#if themeVersion}}<span class="status-badge">v{{themeVersion}}</span>{{/if}}
+      {{#if isActive}}<span class="status-badge status-badge--published">Active Theme</span>{{/if}}
     </div>
-
-    <form id="theme-settings-form" method="POST" action="/admin/themes/settings/{{themeSlug}}">
-      {{#if hasColorSchemes}}
-      <div class="settings-section">
-        <h3>Color Scheme</h3>
-        <div class="form-group">
-          <label for="color_scheme">Select Color Scheme</label>
-          <select id="color_scheme" name="color_scheme" class="form-control">
-            {{#each colorSchemes}}
-            <option value="{{this}}" {{#if isSelected}}selected{{/if}}>{{this}}</option>
-            {{/each}}
-          </select>
-          <small class="form-text">Choose a pre-defined color scheme for this theme</small>
-        </div>
-      </div>
-      {{/if}}
-
-      {{#if hasSettingGroups}}
-      {{#each settingGroups}}
-      <div class="settings-section collapsible {{#if isExpanded}}expanded{{/if}}">
-        <div class="section-header" onclick="toggleSection(this)">
-          <h3>
-            <svg class="collapse-icon" width="16" height="16" viewBox="0 0 16 16" fill="currentColor">
-              <path fill-rule="evenodd" d="M1.646 4.646a.5.5 0 0 1 .708 0L8 10.293l5.646-5.647a.5.5 0 0 1 .708.708l-6 6a.5.5 0 0 1-.708 0l-6-6a.5.5 0 0 1 0-.708z"/>
-            </svg>
-            {{label}}
-          </h3>
-        </div>
-        <div class="section-content">
-          {{#if description}}
-          <p class="group-description">{{description}}</p>
-          {{/if}}
-
-          {{#each settings}}
-          <div class="form-group">
-            <label for="{{key}}">
-              {{label}}
-              {{#if required}}<span class="required">*</span>{{/if}}
-            </label>
-
-            {{#if isText}}
-            <input
-              type="text"
-              id="{{key}}"
-              name="{{key}}"
-              value="{{value}}"
-              class="form-control"
-              {{#if required}}required{{/if}}
-            >
-            {{/if}}
-
-            {{#if isColor}}
-            <div class="color-picker-wrapper">
-              <input
-                type="color"
-                id="{{key}}"
-                name="{{key}}"
-                value="{{value}}"
-                class="form-control color-picker"
-                {{#if required}}required{{/if}}
-              >
-              <input
-                type="text"
-                value="{{value}}"
-                class="form-control color-value"
-                readonly
-              >
-            </div>
-            {{/if}}
-
-            {{#if isImage}}
-            <div class="image-upload-wrapper">
-              <input
-                type="file"
-                id="{{key}}"
-                name="{{key}}"
-                accept="image/*"
-                class="form-control"
-                onchange="previewImage(this, '{{key}}_preview')"
-              >
-              {{#if value}}
-              <div class="image-preview" id="{{key}}_preview">
-                <img src="{{value}}" alt="Preview">
-                <button type="button" class="btn-remove" onclick="removeImage('{{key}}')">
-                  <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor">
-                    <path d="M5.5 5.5A.5.5 0 0 1 6 6v6a.5.5 0 0 1-1 0V6a.5.5 0 0 1 .5-.5zm2.5 0a.5.5 0 0 1 .5.5v6a.5.5 0 0 1-1 0V6a.5.5 0 0 1 .5-.5zm3 .5a.5.5 0 0 0-1 0v6a.5.5 0 0 0 1 0V6z"/>
-                  </svg>
-                </button>
-              </div>
-              <input type="hidden" name="{{key}}_current" value="{{value}}">
-              {{else}}
-              <div class="image-preview" id="{{key}}_preview" style="display: none;"></div>
-              {{/if}}
-            </div>
-            {{/if}}
-
-            {{#if isSelect}}
-            <select id="{{key}}" name="{{key}}" class="form-control" {{#if required}}required{{/if}}>
-              {{#each options}}
-              <option value="{{value}}" {{#if isSelected}}selected{{/if}}>{{label}}</option>
-              {{/each}}
-            </select>
-            {{/if}}
-
-            {{#if isToggle}}
-            <div class="toggle-wrapper">
-              <label class="toggle-switch">
-                <input
-                  type="checkbox"
-                  id="{{key}}"
-                  name="{{key}}"
-                  {{#if value}}checked{{/if}}
-                >
-                <span class="toggle-slider"></span>
-              </label>
-              <span class="toggle-label">{{toggleLabel}}</span>
-            </div>
-            {{/if}}
-
-            {{#if description}}
-            <small class="form-text">{{description}}</small>
-            {{/if}}
-          </div>
-          {{/each}}
-        </div>
-      </div>
-      {{/each}}
-      {{/if}}
-
-      <div class="form-actions">
-        <button type="submit" class="btn btn-primary">
-          <svg class="icon" width="16" height="16" viewBox="0 0 16 16" fill="currentColor">
-            <path d="M2 1a1 1 0 0 0-1 1v12a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1V2a1 1 0 0 0-1-1H9.5a1 1 0 0 0-1 1v7.293l2.646-2.647a.5.5 0 0 1 .708.708l-3.5 3.5a.5.5 0 0 1-.708 0l-3.5-3.5a.5.5 0 1 1 .708-.708L7.5 9.293V2a2 2 0 0 1 2-2H14a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2H2a2 2 0 0 1-2-2V2a2 2 0 0 1 2-2h2.5a.5.5 0 0 1 0 1H2z"/>
-          </svg>
-          Save Settings
-        </button>
-        <button type="button" class="btn btn-secondary" onclick="resetDefaults()">
-          <svg class="icon" width="16" height="16" viewBox="0 0 16 16" fill="currentColor">
-            <path fill-rule="evenodd" d="M8 3a5 5 0 1 0 4.546 2.914.5.5 0 0 1 .908-.417A6 6 0 1 1 8 2v1z"/>
-            <path d="M8 4.466V.534a.25.25 0 0 1 .41-.192l2.36 1.966c.12.1.12.284 0 .384L8.41 4.658A.25.25 0 0 1 8 4.466z"/>
-          </svg>
-          Reset to Defaults
-        </button>
-        <a href="/admin/themes" class="btn btn-link">Cancel</a>
-      </div>
-    </form>
   </div>
 </div>
 
-<script>
-function toggleSection(header) {
-  const section = header.closest('.collapsible');
-  section.classList.toggle('expanded');
-}
+<form id="theme-settings-form" method="POST" action="/admin/appearance/{{themeSlug}}/settings">
+  {{csrfField}}
 
-function previewImage(input, previewId) {
-  const preview = document.getElementById(previewId);
+  {{#if hasColorSchemes}}
+  <div class="admin-panel" style="margin-bottom:var(--gin-space-4, 1rem)">
+    <div class="admin-panel-header">
+      <h3>Color Scheme</h3>
+    </div>
+    <div class="admin-panel-body">
+      <div class="form-item">
+        <label for="color_scheme">Select Color Scheme</label>
+        <select id="color_scheme" name="color_scheme" class="form-select">
+          {{#each colorSchemes}}
+          <option value="{{this}}">{{this}}</option>
+          {{/each}}
+        </select>
+        <div class="form-item__description">Choose a pre-defined color scheme for this theme.</div>
+      </div>
+    </div>
+  </div>
+  {{/if}}
 
-  if (input.files && input.files[0]) {
-    const reader = new FileReader();
+  {{#if hasSettingGroups}}
+  {{#each settingGroups}}
+  <div class="admin-panel theme-settings-group {{#if isExpanded}}is-expanded{{/if}}" style="margin-bottom:var(--gin-space-4, 1rem)">
+    <div class="admin-panel-header theme-settings-group-header" onclick="this.parentElement.classList.toggle('is-expanded')">
+      <h3>
+        <svg class="theme-settings-collapse-icon" width="16" height="16" viewBox="0 0 16 16" fill="currentColor">
+          <path fill-rule="evenodd" d="M1.646 4.646a.5.5 0 0 1 .708 0L8 10.293l5.646-5.647a.5.5 0 0 1 .708.708l-6 6a.5.5 0 0 1-.708 0l-6-6a.5.5 0 0 1 0-.708z"/>
+        </svg>
+        {{label}}
+      </h3>
+    </div>
+    <div class="theme-settings-group-content">
+      {{#if description}}
+      <p class="text-muted" style="margin-bottom:var(--gin-space-4, 1rem)">{{description}}</p>
+      {{/if}}
 
-    reader.onload = function(e) {
-      preview.innerHTML = `
-        <img src="${e.target.result}" alt="Preview">
-        <button type="button" class="btn-remove" onclick="removeImage('${input.id}')">
-          <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor">
-            <path d="M5.5 5.5A.5.5 0 0 1 6 6v6a.5.5 0 0 1-1 0V6a.5.5 0 0 1 .5-.5zm2.5 0a.5.5 0 0 1 .5.5v6a.5.5 0 0 1-1 0V6a.5.5 0 0 1 .5-.5zm3 .5a.5.5 0 0 0-1 0v6a.5.5 0 0 0 1 0V6z"/>
-          </svg>
-        </button>
-      `;
-      preview.style.display = 'block';
-    };
+      {{{fieldsHtml}}}
+    </div>
+  </div>
+  {{/each}}
+  {{else}}
+  <div class="admin-panel">
+    <div class="admin-panel-body" style="text-align:center;padding:var(--gin-space-8, 2rem)">
+      <p class="text-muted">This theme has no configurable settings.</p>
+    </div>
+  </div>
+  {{/if}}
 
-    reader.readAsDataURL(input.files[0]);
-  }
-}
-
-function removeImage(inputId) {
-  const input = document.getElementById(inputId);
-  const preview = document.getElementById(inputId + '_preview');
-
-  input.value = '';
-  preview.innerHTML = '';
-  preview.style.display = 'none';
-
-  const currentInput = document.querySelector(`input[name="${inputId}_current"]`);
-  if (currentInput) {
-    currentInput.value = '';
-  }
-}
-
-function resetDefaults() {
-  if (confirm('Reset all settings to defaults? This cannot be undone.')) {
-    fetch(`/admin/themes/settings/{{themeSlug}}/reset`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      }
-    })
-    .then(response => response.json())
-    .then(data => {
-      if (data.success) {
-        window.location.reload();
-      } else {
-        alert(data.error || 'Failed to reset settings');
-      }
-    })
-    .catch(error => {
-      alert('Error resetting settings: ' + error.message);
-    });
-  }
-}
-
-// Update color picker text value
-document.querySelectorAll('.color-picker').forEach(picker => {
-  const valueInput = picker.nextElementSibling;
-
-  picker.addEventListener('input', function() {
-    valueInput.value = this.value;
-  });
-
-  valueInput.addEventListener('change', function() {
-    if (/^#[0-9A-F]{6}$/i.test(this.value)) {
-      picker.value = this.value;
-    }
-  });
-});
-
-// Expand first section by default if none expanded
-document.addEventListener('DOMContentLoaded', function() {
-  const sections = document.querySelectorAll('.collapsible');
-  const hasExpanded = Array.from(sections).some(s => s.classList.contains('expanded'));
-
-  if (!hasExpanded && sections.length > 0) {
-    sections[0].classList.add('expanded');
-  }
-});
-</script>
+  {{#if hasSettingGroups}}
+  <div class="theme-settings-actions">
+    <button type="submit" class="btn btn-primary">Save Settings</button>
+    <a href="/admin/appearance" class="btn">Cancel</a>
+  </div>
+  {{/if}}
+</form>
 
 <style>
-.theme-header {
+.theme-settings-header {
+  margin-bottom: var(--gin-space-5, 1.25rem);
+  padding-bottom: var(--gin-space-4, 1rem);
+  border-bottom: 1px solid var(--gin-border-light, #e4e4e7);
+}
+
+.theme-settings-header h2 {
+  margin: 0 0 var(--gin-space-1, 0.25rem) 0;
+  font-size: var(--gin-font-size-lg, 18px);
+  font-weight: var(--gin-weight-semibold, 600);
+}
+
+.theme-settings-meta {
   display: flex;
-  justify-content: space-between;
-  align-items: start;
-  margin-bottom: 2rem;
-  padding-bottom: 1rem;
-  border-bottom: 2px solid #eee;
+  gap: var(--gin-space-2, 0.5rem);
+  margin-top: var(--gin-space-2, 0.5rem);
 }
 
-.theme-header-info h2 {
-  margin: 0 0 0.5rem 0;
-}
-
-.theme-description {
-  color: #666;
-  margin: 0.5rem 0;
-}
-
-.theme-version {
-  font-size: 0.85rem;
-  color: #888;
-}
-
-.settings-section {
-  margin-bottom: 2rem;
-  border: 1px solid #ddd;
-  border-radius: 8px;
-  overflow: hidden;
-  background: white;
-}
-
-.settings-section.collapsible .section-header {
+.theme-settings-group-header {
   cursor: pointer;
-  padding: 1rem;
-  background: #f8f9fa;
-  border-bottom: 1px solid #ddd;
   user-select: none;
 }
 
-.settings-section.collapsible .section-header:hover {
-  background: #e9ecef;
+.theme-settings-group-header:hover {
+  background: var(--gin-surface-alt, #fafafa);
 }
 
-.settings-section.collapsible .section-header h3 {
+.theme-settings-group-header h3 {
   margin: 0;
   display: flex;
   align-items: center;
-  gap: 0.5rem;
+  gap: var(--gin-space-2, 0.5rem);
 }
 
-.collapse-icon {
-  transition: transform 0.2s;
+.theme-settings-collapse-icon {
+  transition: transform 150ms ease;
 }
 
-.settings-section.collapsible.expanded .collapse-icon {
+.theme-settings-group.is-expanded .theme-settings-collapse-icon {
   transform: rotate(180deg);
 }
 
-.settings-section.collapsible .section-content {
+.theme-settings-group-content {
   display: none;
-  padding: 1.5rem;
+  padding: var(--gin-space-4, 1rem) var(--gin-space-5, 1.25rem);
 }
 
-.settings-section.collapsible.expanded .section-content {
+.theme-settings-group.is-expanded .theme-settings-group-content {
   display: block;
 }
 
-.settings-section:not(.collapsible) {
-  padding: 1.5rem;
-}
-
-.group-description {
-  color: #666;
-  font-size: 0.9rem;
-  margin-bottom: 1.5rem;
-}
-
-.form-group {
-  margin-bottom: 1.5rem;
-}
-
-.form-group label {
-  display: block;
-  font-weight: 600;
-  margin-bottom: 0.5rem;
-}
-
-.required {
-  color: #dc3545;
-}
-
-.form-control {
-  width: 100%;
-  padding: 0.5rem;
-  border: 1px solid #ddd;
-  border-radius: 4px;
-  font-size: 0.95rem;
-}
-
-.form-text {
-  display: block;
-  margin-top: 0.25rem;
-  font-size: 0.85rem;
-  color: #666;
-}
-
-.color-picker-wrapper {
-  display: flex;
-  gap: 0.5rem;
-  align-items: center;
-}
-
-.color-picker {
-  width: 60px;
-  height: 40px;
-  padding: 2px;
-  cursor: pointer;
-}
-
-.color-value {
-  flex: 1;
-  font-family: monospace;
-}
-
-.image-upload-wrapper {
-  display: flex;
-  flex-direction: column;
-  gap: 1rem;
-}
-
-.image-preview {
-  position: relative;
-  display: inline-block;
-  max-width: 300px;
-}
-
-.image-preview img {
-  max-width: 100%;
-  height: auto;
-  border: 1px solid #ddd;
-  border-radius: 4px;
-}
-
-.btn-remove {
-  position: absolute;
-  top: 0.5rem;
-  right: 0.5rem;
-  background: rgba(220, 53, 69, 0.9);
-  color: white;
-  border: none;
-  border-radius: 4px;
-  padding: 0.5rem;
-  cursor: pointer;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-}
-
-.btn-remove:hover {
-  background: rgba(220, 53, 69, 1);
-}
-
-.toggle-wrapper {
-  display: flex;
-  align-items: center;
-  gap: 0.75rem;
-}
-
+/* Toggle switch */
 .toggle-switch {
   position: relative;
   display: inline-block;
-  width: 50px;
-  height: 28px;
+  width: 44px;
+  height: 24px;
 }
 
 .toggle-switch input {
@@ -460,44 +158,54 @@ document.addEventListener('DOMContentLoaded', function() {
 .toggle-slider {
   position: absolute;
   cursor: pointer;
-  top: 0;
-  left: 0;
-  right: 0;
-  bottom: 0;
-  background-color: #ccc;
-  transition: 0.3s;
-  border-radius: 28px;
+  inset: 0;
+  background-color: var(--gin-border, #d4d4d8);
+  transition: background-color 150ms ease;
+  border-radius: 24px;
 }
 
 .toggle-slider:before {
   position: absolute;
   content: "";
-  height: 20px;
-  width: 20px;
-  left: 4px;
-  bottom: 4px;
-  background-color: white;
-  transition: 0.3s;
+  height: 18px;
+  width: 18px;
+  left: 3px;
+  bottom: 3px;
+  background-color: #fff;
+  transition: transform 150ms ease;
   border-radius: 50%;
 }
 
 .toggle-switch input:checked + .toggle-slider {
-  background-color: #28a745;
+  background-color: var(--gin-success, #059669);
 }
 
 .toggle-switch input:checked + .toggle-slider:before {
-  transform: translateX(22px);
+  transform: translateX(20px);
 }
 
-.form-actions {
+.theme-settings-actions {
   display: flex;
-  gap: 1rem;
-  padding-top: 2rem;
-  border-top: 1px solid #ddd;
-}
-
-.icon {
-  vertical-align: middle;
-  margin-right: 0.25rem;
+  gap: var(--gin-space-3, 0.75rem);
+  padding-top: var(--gin-space-4, 1rem);
 }
 </style>
+
+<script>
+// Expand first group by default
+document.addEventListener('DOMContentLoaded', function() {
+  const groups = document.querySelectorAll('.theme-settings-group');
+  const hasExpanded = Array.from(groups).some(g => g.classList.contains('is-expanded'));
+  if (!hasExpanded && groups.length > 0) {
+    groups[0].classList.add('is-expanded');
+  }
+});
+
+// Sync color picker with text input
+document.querySelectorAll('input[type="color"]').forEach(picker => {
+  const textInput = picker.nextElementSibling;
+  if (textInput) {
+    picker.addEventListener('input', function() { textInput.value = this.value; });
+  }
+});
+</script>

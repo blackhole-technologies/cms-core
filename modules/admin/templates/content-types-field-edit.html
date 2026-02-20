@@ -1,379 +1,311 @@
-<!DOCTYPE html>
-<html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>{{#isNew}}Create{{/isNew}}{{^isNew}}Edit{{/isNew}} Field - {{contentType.label}} - Admin</title>
-</head>
-<body>
-    <div class="field-edit">
-        <header class="page-header">
-            <h1>{{#isNew}}Create Field{{/isNew}}{{^isNew}}Edit Field: {{field.label}}{{/isNew}}</h1>
-            <div class="actions">
-                <a href="/admin/content-types/{{contentType.machineName}}/fields" class="btn btn-secondary">Back to Fields</a>
-            </div>
-        </header>
+<div class="admin-breadcrumb">
+  <a href="/admin">Dashboard</a> <span>&rsaquo;</span>
+  <a href="/admin/structure/types">Structure</a> <span>&rsaquo;</span>
+  <a href="/admin/structure/types">Content Types</a> <span>&rsaquo;</span>
+  <a href="/admin/structure/types/{{typeName}}">{{typeLabel}}</a> <span>&rsaquo;</span>
+  <a href="/admin/structure/types/{{typeName}}/fields">Manage Fields</a> <span>&rsaquo;</span>
+  {{#if isNew}}
+  <span>Add field</span>
+  {{else}}
+  <span>Edit: {{field.label}}</span>
+  {{/if}}
+</div>
 
-        <form method="POST" action="{{formAction}}" class="field-form">
-            <input type="hidden" name="csrf_token" value="{{csrfToken}}">
+<div class="section-header-row">
+  {{#if isNew}}
+  <h1 class="admin-page-title">Add field to {{typeLabel}}</h1>
+  {{else}}
+  <h1 class="admin-page-title">Edit field: {{field.label}}</h1>
+  {{/if}}
+</div>
 
-            <!-- Basic Information -->
-            <fieldset class="form-section">
-                <legend>Basic Information</legend>
+{{#if hasFlash}}
+<div class="messages messages--{{flash.type}}" style="margin-bottom:var(--gin-space-4, 1rem)">
+  <span>{{flash.message}}</span>
+</div>
+{{/if}}
 
-                <div class="form-group">
-                    <label for="label">Field Label *</label>
-                    <input type="text" id="label" name="label"
-                           value="{{field.label}}"
-                           required
-                           placeholder="Article Title">
-                    {{#errors.label}}
-                    <span class="error">{{errors.label}}</span>
-                    {{/errors.label}}
-                </div>
+<form method="POST" action="{{formAction}}" class="field-form">
+  <input type="hidden" name="csrf_token" value="{{csrfToken}}">
 
-                {{#isNew}}
-                <div class="form-group">
-                    <label for="machine-name">Machine Name *</label>
-                    <input type="text" id="machine-name" name="machineName"
-                           value="{{field.machineName}}"
-                           pattern="[a-z][a-z0-9_]*"
-                           required
-                           placeholder="field_title">
-                    <small class="help-text">Lowercase letters, numbers, and underscores only. Cannot be changed after creation.</small>
-                    {{#errors.machineName}}
-                    <span class="error">{{errors.machineName}}</span>
-                    {{/errors.machineName}}
-                </div>
-
-                <div class="form-group">
-                    <label for="type">Field Type *</label>
-                    <select id="type" name="type" required>
-                        <option value="">Select a type</option>
-                        {{#fieldTypes}}
-                        <option value="{{value}}" {{#selected}}selected{{/selected}}>{{label}}</option>
-                        {{/fieldTypes}}
-                    </select>
-                    <small class="help-text">Field type cannot be changed after creation.</small>
-                    {{#errors.type}}
-                    <span class="error">{{errors.type}}</span>
-                    {{/errors.type}}
-                </div>
-                {{/isNew}}
-
-                {{^isNew}}
-                <div class="form-group">
-                    <label>Machine Name</label>
-                    <input type="text" value="{{field.machineName}}" disabled>
-                    <small class="help-text">Machine name cannot be changed.</small>
-                </div>
-
-                <div class="form-group">
-                    <label>Field Type</label>
-                    <input type="text" value="{{field.typeLabel}}" disabled>
-                    <small class="help-text">Field type cannot be changed.</small>
-                </div>
-                {{/isNew}}
-
-                <div class="form-group">
-                    <label for="help-text">Help Text</label>
-                    <textarea id="help-text" name="helpText"
-                              rows="2"
-                              placeholder="Enter a descriptive title for your article">{{field.helpText}}</textarea>
-                    <small class="help-text">Instructions shown to content editors.</small>
-                </div>
-            </fieldset>
-
-            <!-- Validation Settings -->
-            <fieldset class="form-section">
-                <legend>Validation</legend>
-
-                <div class="form-group checkbox-group">
-                    <label>
-                        <input type="checkbox" id="required" name="required" value="1"
-                               {{#field.required}}checked{{/field.required}}>
-                        Required
-                    </label>
-                    <small class="help-text">This field must have a value.</small>
-                </div>
-            </fieldset>
-
-            <!-- Default Value -->
-            <fieldset class="form-section">
-                <legend>Default Value</legend>
-
-                <div class="form-group">
-                    <label for="default-value">Default Value</label>
-                    {{#field.type}}
-                        {{#isTextType}}
-                        <input type="text" id="default-value" name="defaultValue"
-                               value="{{field.defaultValue}}"
-                               placeholder="Default text value">
-                        {{/isTextType}}
-                        {{#isTextareaType}}
-                        <textarea id="default-value" name="defaultValue"
-                                  rows="3"
-                                  placeholder="Default text content">{{field.defaultValue}}</textarea>
-                        {{/isTextareaType}}
-                        {{#isNumberType}}
-                        <input type="number" id="default-value" name="defaultValue"
-                               value="{{field.defaultValue}}"
-                               step="any"
-                               placeholder="0">
-                        {{/isNumberType}}
-                        {{#isBooleanType}}
-                        <label>
-                            <input type="checkbox" id="default-value" name="defaultValue" value="1"
-                                   {{#field.defaultValue}}checked{{/field.defaultValue}}>
-                            Checked by default
-                        </label>
-                        {{/isBooleanType}}
-                        {{#isDateType}}
-                        <input type="date" id="default-value" name="defaultValue"
-                               value="{{field.defaultValue}}">
-                        {{/isDateType}}
-                        {{#isSelectType}}
-                        <select id="default-value" name="defaultValue">
-                            <option value="">None</option>
-                            {{#field.options}}
-                            <option value="{{value}}" {{#selected}}selected{{/selected}}>{{label}}</option>
-                            {{/field.options}}
-                        </select>
-                        {{/isSelectType}}
-                    {{/field.type}}
-                    <small class="help-text">Pre-populated value for new content.</small>
-                </div>
-            </fieldset>
-
-            <!-- Cardinality -->
-            <fieldset class="form-section">
-                <legend>Number of Values</legend>
-
-                <div class="form-group">
-                    <label for="cardinality">Allowed Number of Values</label>
-                    <select id="cardinality" name="cardinality">
-                        <option value="1" {{#field.cardinalityIs1}}selected{{/field.cardinalityIs1}}>Limited, 1 value</option>
-                        <option value="-1" {{#field.cardinalityIsUnlimited}}selected{{/field.cardinalityIsUnlimited}}>Unlimited</option>
-                        <option value="custom" {{#field.cardinalityIsCustom}}selected{{/field.cardinalityIsCustom}}>Limited, custom number</option>
-                    </select>
-                </div>
-
-                <div class="form-group" id="custom-cardinality-group" style="{{^field.cardinalityIsCustom}}display:none;{{/field.cardinalityIsCustom}}">
-                    <label for="cardinality-count">Maximum Values</label>
-                    <input type="number" id="cardinality-count" name="cardinalityCount"
-                           value="{{field.cardinalityCount}}"
-                           min="2"
-                           max="999"
-                           placeholder="5">
-                </div>
-            </fieldset>
-
-            <!-- Type-Specific Settings -->
-            {{#hasTypeSettings}}
-            <fieldset class="form-section" id="type-settings">
-                <legend>{{field.typeLabel}} Settings</legend>
-
-                <!-- Text Field Settings -->
-                {{#isTextField}}
-                <div class="form-group">
-                    <label for="max-length">Maximum Length</label>
-                    <input type="number" id="max-length" name="settings[maxLength]"
-                           value="{{field.settings.maxLength}}"
-                           min="1"
-                           max="65535"
-                           placeholder="255">
-                    <small class="help-text">Maximum number of characters allowed.</small>
-                </div>
-
-                <div class="form-group">
-                    <label for="text-processing">Text Processing</label>
-                    <select id="text-processing" name="settings[textProcessing]">
-                        <option value="plain" {{#field.settings.isPlain}}selected{{/field.settings.isPlain}}>Plain text</option>
-                        <option value="filtered" {{#field.settings.isFiltered}}selected{{/field.settings.isFiltered}}>Filtered HTML</option>
-                        <option value="full" {{#field.settings.isFull}}selected{{/field.settings.isFull}}>Full HTML</option>
-                    </select>
-                </div>
-                {{/isTextField}}
-
-                <!-- Number Field Settings -->
-                {{#isNumberField}}
-                <div class="form-group">
-                    <label for="min-value">Minimum Value</label>
-                    <input type="number" id="min-value" name="settings[min]"
-                           value="{{field.settings.min}}"
-                           step="any">
-                </div>
-
-                <div class="form-group">
-                    <label for="max-value">Maximum Value</label>
-                    <input type="number" id="max-value" name="settings[max]"
-                           value="{{field.settings.max}}"
-                           step="any">
-                </div>
-
-                <div class="form-group">
-                    <label for="precision">Decimal Precision</label>
-                    <input type="number" id="precision" name="settings[precision]"
-                           value="{{field.settings.precision}}"
-                           min="0"
-                           max="10"
-                           placeholder="2">
-                </div>
-                {{/isNumberField}}
-
-                <!-- Select Field Settings -->
-                {{#isSelectField}}
-                <div class="form-group">
-                    <label for="options">Options (one per line)</label>
-                    <textarea id="options" name="settings[options]"
-                              rows="6"
-                              placeholder="key|Label&#10;another_key|Another Label">{{field.settings.optionsText}}</textarea>
-                    <small class="help-text">Format: key|Label (one per line)</small>
-                </div>
-
-                <div class="form-group checkbox-group">
-                    <label>
-                        <input type="checkbox" name="settings[multiple]" value="1"
-                               {{#field.settings.multiple}}checked{{/field.settings.multiple}}>
-                        Allow multiple selections
-                    </label>
-                </div>
-                {{/isSelectField}}
-
-                <!-- Reference Field Settings -->
-                {{#isReferenceField}}
-                <div class="form-group">
-                    <label for="reference-type">Referenced Content Type</label>
-                    <select id="reference-type" name="settings[referenceType]" required>
-                        <option value="">Select a type</option>
-                        {{#contentTypes}}
-                        <option value="{{machineName}}" {{#selected}}selected{{/selected}}>{{label}}</option>
-                        {{/contentTypes}}
-                    </select>
-                </div>
-
-                <div class="form-group checkbox-group">
-                    <label>
-                        <input type="checkbox" name="settings[autoCreate]" value="1"
-                               {{#field.settings.autoCreate}}checked{{/field.settings.autoCreate}}>
-                        Allow creating new referenced content
-                    </label>
-                </div>
-                {{/isReferenceField}}
-
-                <!-- File Field Settings -->
-                {{#isFileField}}
-                <div class="form-group">
-                    <label for="allowed-extensions">Allowed File Extensions</label>
-                    <input type="text" id="allowed-extensions" name="settings[allowedExtensions]"
-                           value="{{field.settings.allowedExtensions}}"
-                           placeholder="pdf, doc, docx, txt">
-                    <small class="help-text">Comma-separated list of allowed file extensions.</small>
-                </div>
-
-                <div class="form-group">
-                    <label for="max-file-size">Maximum File Size (MB)</label>
-                    <input type="number" id="max-file-size" name="settings[maxFileSize]"
-                           value="{{field.settings.maxFileSize}}"
-                           min="1"
-                           max="100"
-                           placeholder="10">
-                </div>
-                {{/isFileField}}
-
-                <!-- Image Field Settings -->
-                {{#isImageField}}
-                <div class="form-group">
-                    <label for="min-width">Minimum Width (pixels)</label>
-                    <input type="number" id="min-width" name="settings[minWidth]"
-                           value="{{field.settings.minWidth}}"
-                           min="1"
-                           placeholder="640">
-                </div>
-
-                <div class="form-group">
-                    <label for="min-height">Minimum Height (pixels)</label>
-                    <input type="number" id="min-height" name="settings[minHeight]"
-                           value="{{field.settings.minHeight}}"
-                           min="1"
-                           placeholder="480">
-                </div>
-
-                <div class="form-group">
-                    <label for="max-image-size">Maximum File Size (MB)</label>
-                    <input type="number" id="max-image-size" name="settings[maxFileSize]"
-                           value="{{field.settings.maxFileSize}}"
-                           min="1"
-                           max="50"
-                           placeholder="5">
-                </div>
-                {{/isImageField}}
-            </fieldset>
-            {{/hasTypeSettings}}
-
-            <!-- Form Actions -->
-            <div class="form-actions">
-                <button type="submit" class="btn btn-primary">
-                    {{#isNew}}Create Field{{/isNew}}
-                    {{^isNew}}Save Changes{{/isNew}}
-                </button>
-                <a href="/admin/content-types/{{contentType.machineName}}/fields" class="btn btn-secondary">Cancel</a>
-            </div>
-        </form>
+  <!-- Basic Information -->
+  <div class="admin-panel" style="margin-bottom:var(--gin-space-4, 1rem)">
+    <div class="admin-panel-header" style="padding:var(--gin-space-3, 0.75rem) var(--gin-space-4, 1rem);border-bottom:1px solid var(--gin-border-color, #d4d4d8)">
+      <h3 style="margin:0">Basic Information</h3>
     </div>
+    <div class="admin-panel-body" style="padding:var(--gin-space-4, 1rem)">
 
-    <script>
-        // Auto-generate machine name from label (new fields only)
-        {{#isNew}}
-        const labelInput = document.getElementById('label');
-        const machineNameInput = document.getElementById('machine-name');
-        let manuallyEdited = false;
+      <div class="gin-form-item" style="margin-bottom:var(--gin-space-4, 1rem)">
+        <label for="label" style="display:block;font-weight:600;margin-bottom:4px">Field Label <span style="color:var(--gin-color-danger, #d72222)">*</span></label>
+        <input type="text" id="label" name="label" class="form-text" value="{{field.label}}" required placeholder="e.g. Article Title" style="width:100%;max-width:400px">
+      </div>
 
-        machineNameInput.addEventListener('input', () => {
-            manuallyEdited = machineNameInput.value.length > 0;
-        });
+      {{#if isNew}}
+      <div class="gin-form-item" style="margin-bottom:var(--gin-space-4, 1rem)">
+        <label for="machine-name" style="display:block;font-weight:600;margin-bottom:4px">Machine Name <span style="color:var(--gin-color-danger, #d72222)">*</span></label>
+        <input type="text" id="machine-name" name="machineName" class="form-text" value="{{field.machineName}}" pattern="[a-z][a-z0-9_]*" required placeholder="field_title" style="width:100%;max-width:400px">
+        <div style="font-size:0.85em;color:var(--gin-color-text-light, #888);margin-top:2px">Lowercase letters, numbers, and underscores only. Cannot be changed after creation.</div>
+      </div>
 
-        labelInput.addEventListener('input', (e) => {
-            if (!manuallyEdited) {
-                const machineName = 'field_' + e.target.value
-                    .toLowerCase()
-                    .replace(/[^a-z0-9]+/g, '_')
-                    .replace(/^_+|_+$/g, '');
-                machineNameInput.value = machineName;
-            }
-        });
-        {{/isNew}}
+      <div class="gin-form-item" style="margin-bottom:var(--gin-space-4, 1rem)">
+        <label for="type" style="display:block;font-weight:600;margin-bottom:4px">Field Type <span style="color:var(--gin-color-danger, #d72222)">*</span></label>
+        <select id="type" name="type" class="form-select" required style="width:100%;max-width:400px">
+          <option value="">Select a type</option>
+          {{#each fieldTypes}}
+          <option value="{{value}}" {{#if selected}}selected{{/if}}>{{label}}</option>
+          {{/each}}
+        </select>
+        <div style="font-size:0.85em;color:var(--gin-color-text-light, #888);margin-top:2px">Field type cannot be changed after creation.</div>
+      </div>
+      {{else}}
+      <div class="gin-form-item" style="margin-bottom:var(--gin-space-4, 1rem)">
+        <label style="display:block;font-weight:600;margin-bottom:4px">Machine Name</label>
+        <input type="text" class="form-text" value="{{field.machineName}}" disabled style="width:100%;max-width:400px;background:var(--gin-color-neutral-100, #f4f4f5)">
+      </div>
 
-        // Cardinality custom count toggle
-        const cardinalitySelect = document.getElementById('cardinality');
-        const customCardinalityGroup = document.getElementById('custom-cardinality-group');
+      <div class="gin-form-item" style="margin-bottom:var(--gin-space-4, 1rem)">
+        <label style="display:block;font-weight:600;margin-bottom:4px">Field Type</label>
+        <input type="text" class="form-text" value="{{field.typeLabel}}" disabled style="width:100%;max-width:400px;background:var(--gin-color-neutral-100, #f4f4f5)">
+      </div>
+      {{/if}}
 
-        cardinalitySelect.addEventListener('change', (e) => {
-            customCardinalityGroup.style.display = e.target.value === 'custom' ? 'block' : 'none';
-        });
+      <div class="gin-form-item" style="margin-bottom:0">
+        <label for="help-text" style="display:block;font-weight:600;margin-bottom:4px">Help Text</label>
+        <textarea id="help-text" name="helpText" class="form-textarea" rows="2" placeholder="Instructions shown to content editors" style="width:100%;max-width:400px">{{field.helpText}}</textarea>
+        <div style="font-size:0.85em;color:var(--gin-color-text-light, #888);margin-top:2px">Instructions displayed below the field on the content form.</div>
+      </div>
+    </div>
+  </div>
 
-        // Form validation
-        document.querySelector('.field-form').addEventListener('submit', (e) => {
-            const cardinalityValue = cardinalitySelect.value;
-            if (cardinalityValue === 'custom') {
-                const countInput = document.getElementById('cardinality-count');
-                if (!countInput.value || parseInt(countInput.value) < 2) {
-                    e.preventDefault();
-                    alert('Please enter a custom cardinality count of at least 2.');
-                    countInput.focus();
-                    return;
-                }
-            }
+  <!-- Validation -->
+  <div class="admin-panel" style="margin-bottom:var(--gin-space-4, 1rem)">
+    <div class="admin-panel-header" style="padding:var(--gin-space-3, 0.75rem) var(--gin-space-4, 1rem);border-bottom:1px solid var(--gin-border-color, #d4d4d8)">
+      <h3 style="margin:0">Validation</h3>
+    </div>
+    <div class="admin-panel-body" style="padding:var(--gin-space-4, 1rem)">
+      <div class="gin-form-item">
+        <label style="display:flex;align-items:center;gap:8px;cursor:pointer">
+          <input type="checkbox" id="required" name="required" value="1" {{#if field.required}}checked{{/if}}>
+          <span style="font-weight:600">Required</span>
+        </label>
+        <div style="font-size:0.85em;color:var(--gin-color-text-light, #888);margin-top:2px;margin-left:24px">This field must have a value when saving content.</div>
+      </div>
+    </div>
+  </div>
 
-            {{#isNew}}
-            const machineNameInput = document.getElementById('machine-name');
-            if (!/^[a-z][a-z0-9_]*$/.test(machineNameInput.value)) {
-                e.preventDefault();
-                alert('Machine name must start with a lowercase letter and contain only lowercase letters, numbers, and underscores.');
-                machineNameInput.focus();
-            }
-            {{/isNew}}
-        });
-    </script>
-</body>
-</html>
+  <!-- Default Value -->
+  <div class="admin-panel" style="margin-bottom:var(--gin-space-4, 1rem)">
+    <div class="admin-panel-header" style="padding:var(--gin-space-3, 0.75rem) var(--gin-space-4, 1rem);border-bottom:1px solid var(--gin-border-color, #d4d4d8)">
+      <h3 style="margin:0">Default Value</h3>
+    </div>
+    <div class="admin-panel-body" style="padding:var(--gin-space-4, 1rem)">
+      <div class="gin-form-item">
+        <label for="default-value" style="display:block;font-weight:600;margin-bottom:4px">Default Value</label>
+        {{#if isBooleanField}}
+        <label style="display:flex;align-items:center;gap:8px;cursor:pointer">
+          <input type="checkbox" id="default-value" name="defaultValue" value="1" {{#if field.defaultValue}}checked{{/if}}>
+          <span>Checked by default</span>
+        </label>
+        {{else}}
+          {{#if isNumberField}}
+          <input type="number" id="default-value" name="defaultValue" class="form-text" value="{{field.defaultValue}}" step="any" placeholder="0" style="width:100%;max-width:400px">
+          {{else}}
+            {{#if isDateField}}
+            <input type="date" id="default-value" name="defaultValue" class="form-text" value="{{field.defaultValue}}" style="width:100%;max-width:400px">
+            {{else}}
+            <input type="text" id="default-value" name="defaultValue" class="form-text" value="{{field.defaultValue}}" placeholder="Default text value" style="width:100%;max-width:400px">
+            {{/if}}
+          {{/if}}
+        {{/if}}
+        <div style="font-size:0.85em;color:var(--gin-color-text-light, #888);margin-top:2px">Pre-populated value for new content.</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Cardinality / Number of Values -->
+  <div class="admin-panel" style="margin-bottom:var(--gin-space-4, 1rem)">
+    <div class="admin-panel-header" style="padding:var(--gin-space-3, 0.75rem) var(--gin-space-4, 1rem);border-bottom:1px solid var(--gin-border-color, #d4d4d8)">
+      <h3 style="margin:0">Number of Values</h3>
+    </div>
+    <div class="admin-panel-body" style="padding:var(--gin-space-4, 1rem)">
+      <div class="gin-form-item" style="margin-bottom:var(--gin-space-4, 1rem)">
+        <label for="cardinality" style="display:block;font-weight:600;margin-bottom:4px">Allowed number of values</label>
+        <select id="cardinality" name="cardinality" class="form-select" style="width:100%;max-width:400px">
+          <option value="1" {{#if cardinalityIs1}}selected{{/if}}>Limited, 1 value</option>
+          <option value="-1" {{#if cardinalityIsUnlimited}}selected{{/if}}>Unlimited</option>
+          <option value="custom" {{#if cardinalityIsCustom}}selected{{/if}}>Limited, custom number</option>
+        </select>
+      </div>
+      <div class="gin-form-item" id="custom-cardinality-group" style="{{#if cardinalityIsCustom}}display:block{{else}}display:none{{/if}}">
+        <label for="cardinality-count" style="display:block;font-weight:600;margin-bottom:4px">Maximum values</label>
+        <input type="number" id="cardinality-count" name="cardinalityCount" class="form-text" value="{{field.cardinalityCount}}" min="2" max="999" placeholder="5" style="width:100%;max-width:200px">
+      </div>
+    </div>
+  </div>
+
+  <!-- Type-Specific Settings -->
+  {{#if hasTypeSettings}}
+  <div class="admin-panel" style="margin-bottom:var(--gin-space-4, 1rem)">
+    <div class="admin-panel-header" style="padding:var(--gin-space-3, 0.75rem) var(--gin-space-4, 1rem);border-bottom:1px solid var(--gin-border-color, #d4d4d8)">
+      <h3 style="margin:0">{{field.typeLabel}} Settings</h3>
+    </div>
+    <div class="admin-panel-body" style="padding:var(--gin-space-4, 1rem)">
+
+      {{#if isTextField}}
+      <div class="gin-form-item" style="margin-bottom:var(--gin-space-4, 1rem)">
+        <label for="max-length" style="display:block;font-weight:600;margin-bottom:4px">Maximum Length</label>
+        <input type="number" id="max-length" name="settings[maxLength]" class="form-text" value="{{field.settings.maxLength}}" min="1" max="65535" placeholder="255" style="width:100%;max-width:200px">
+        <div style="font-size:0.85em;color:var(--gin-color-text-light, #888);margin-top:2px">Maximum number of characters allowed.</div>
+      </div>
+      <div class="gin-form-item">
+        <label for="text-processing" style="display:block;font-weight:600;margin-bottom:4px">Text Processing</label>
+        <select id="text-processing" name="settings[textProcessing]" class="form-select" style="width:100%;max-width:400px">
+          <option value="plain" {{#if field.settings.isPlain}}selected{{/if}}>Plain text</option>
+          <option value="filtered" {{#if field.settings.isFiltered}}selected{{/if}}>Filtered HTML</option>
+          <option value="full" {{#if field.settings.isFull}}selected{{/if}}>Full HTML</option>
+        </select>
+      </div>
+      {{/if}}
+
+      {{#if isNumberField}}
+      <div class="gin-form-item" style="margin-bottom:var(--gin-space-4, 1rem)">
+        <label for="min-value" style="display:block;font-weight:600;margin-bottom:4px">Minimum Value</label>
+        <input type="number" id="min-value" name="settings[min]" class="form-text" value="{{field.settings.min}}" step="any" style="width:100%;max-width:200px">
+      </div>
+      <div class="gin-form-item" style="margin-bottom:var(--gin-space-4, 1rem)">
+        <label for="max-value" style="display:block;font-weight:600;margin-bottom:4px">Maximum Value</label>
+        <input type="number" id="max-value" name="settings[max]" class="form-text" value="{{field.settings.max}}" step="any" style="width:100%;max-width:200px">
+      </div>
+      <div class="gin-form-item">
+        <label for="precision" style="display:block;font-weight:600;margin-bottom:4px">Decimal Precision</label>
+        <input type="number" id="precision" name="settings[precision]" class="form-text" value="{{field.settings.precision}}" min="0" max="10" placeholder="2" style="width:100%;max-width:200px">
+      </div>
+      {{/if}}
+
+      {{#if isSelectField}}
+      <div class="gin-form-item" style="margin-bottom:var(--gin-space-4, 1rem)">
+        <label for="options" style="display:block;font-weight:600;margin-bottom:4px">Options (one per line)</label>
+        <textarea id="options" name="settings[options]" class="form-textarea" rows="6" placeholder="key|Label&#10;another_key|Another Label" style="width:100%;max-width:400px">{{field.settings.optionsText}}</textarea>
+        <div style="font-size:0.85em;color:var(--gin-color-text-light, #888);margin-top:2px">Format: key|Label (one per line)</div>
+      </div>
+      <div class="gin-form-item">
+        <label style="display:flex;align-items:center;gap:8px;cursor:pointer">
+          <input type="checkbox" name="settings[multiple]" value="1" {{#if field.settings.multiple}}checked{{/if}}>
+          <span>Allow multiple selections</span>
+        </label>
+      </div>
+      {{/if}}
+
+      {{#if isReferenceField}}
+      <div class="gin-form-item" style="margin-bottom:var(--gin-space-4, 1rem)">
+        <label for="reference-type" style="display:block;font-weight:600;margin-bottom:4px">Referenced Content Type</label>
+        <select id="reference-type" name="settings[referenceType]" class="form-select" required style="width:100%;max-width:400px">
+          <option value="">Select a type</option>
+          {{#each contentTypes}}
+          <option value="{{machineName}}" {{#if selected}}selected{{/if}}>{{label}}</option>
+          {{/each}}
+        </select>
+      </div>
+      <div class="gin-form-item">
+        <label style="display:flex;align-items:center;gap:8px;cursor:pointer">
+          <input type="checkbox" name="settings[autoCreate]" value="1" {{#if field.settings.autoCreate}}checked{{/if}}>
+          <span>Allow creating new referenced content</span>
+        </label>
+      </div>
+      {{/if}}
+
+      {{#if isFileField}}
+      <div class="gin-form-item" style="margin-bottom:var(--gin-space-4, 1rem)">
+        <label for="allowed-extensions" style="display:block;font-weight:600;margin-bottom:4px">Allowed File Extensions</label>
+        <input type="text" id="allowed-extensions" name="settings[allowedExtensions]" class="form-text" value="{{field.settings.allowedExtensions}}" placeholder="pdf, doc, docx, txt" style="width:100%;max-width:400px">
+        <div style="font-size:0.85em;color:var(--gin-color-text-light, #888);margin-top:2px">Comma-separated list of allowed file extensions.</div>
+      </div>
+      <div class="gin-form-item">
+        <label for="max-file-size" style="display:block;font-weight:600;margin-bottom:4px">Maximum File Size (MB)</label>
+        <input type="number" id="max-file-size" name="settings[maxFileSize]" class="form-text" value="{{field.settings.maxFileSize}}" min="1" max="100" placeholder="10" style="width:100%;max-width:200px">
+      </div>
+      {{/if}}
+
+      {{#if isImageField}}
+      <div class="gin-form-item" style="margin-bottom:var(--gin-space-4, 1rem)">
+        <label for="min-width" style="display:block;font-weight:600;margin-bottom:4px">Minimum Width (pixels)</label>
+        <input type="number" id="min-width" name="settings[minWidth]" class="form-text" value="{{field.settings.minWidth}}" min="1" placeholder="640" style="width:100%;max-width:200px">
+      </div>
+      <div class="gin-form-item" style="margin-bottom:var(--gin-space-4, 1rem)">
+        <label for="min-height" style="display:block;font-weight:600;margin-bottom:4px">Minimum Height (pixels)</label>
+        <input type="number" id="min-height" name="settings[minHeight]" class="form-text" value="{{field.settings.minHeight}}" min="1" placeholder="480" style="width:100%;max-width:200px">
+      </div>
+      <div class="gin-form-item">
+        <label for="max-image-size" style="display:block;font-weight:600;margin-bottom:4px">Maximum File Size (MB)</label>
+        <input type="number" id="max-image-size" name="settings[maxFileSize]" class="form-text" value="{{field.settings.maxFileSize}}" min="1" max="50" placeholder="5" style="width:100%;max-width:200px">
+      </div>
+      {{/if}}
+
+    </div>
+  </div>
+  {{/if}}
+
+  <!-- Form Actions -->
+  <div style="display:flex;gap:var(--gin-space-2, 0.5rem);padding:var(--gin-space-4, 1rem) 0">
+    <button type="submit" class="btn btn-primary">
+      {{#if isNew}}Add field{{else}}Save changes{{/if}}
+    </button>
+    <a href="/admin/structure/types/{{typeName}}/fields" class="btn btn-secondary">Cancel</a>
+  </div>
+</form>
+
+<script>
+// Auto-generate machine name from label (new fields only)
+(function() {
+  var labelInput = document.getElementById('label');
+  var machineNameInput = document.getElementById('machine-name');
+  if (!labelInput || !machineNameInput) return;
+
+  var manuallyEdited = false;
+  machineNameInput.addEventListener('input', function() {
+    manuallyEdited = machineNameInput.value.length > 0;
+  });
+  labelInput.addEventListener('input', function(e) {
+    if (!manuallyEdited) {
+      machineNameInput.value = 'field_' + e.target.value
+        .toLowerCase()
+        .replace(/[^a-z0-9]+/g, '_')
+        .replace(/^_+|_+$/g, '');
+    }
+  });
+})();
+
+// Cardinality custom count toggle
+(function() {
+  var sel = document.getElementById('cardinality');
+  var group = document.getElementById('custom-cardinality-group');
+  if (!sel || !group) return;
+  sel.addEventListener('change', function() {
+    group.style.display = sel.value === 'custom' ? 'block' : 'none';
+  });
+})();
+
+// Form validation
+(function() {
+  var form = document.querySelector('.field-form');
+  if (!form) return;
+  form.addEventListener('submit', function(e) {
+    var cardSel = document.getElementById('cardinality');
+    if (cardSel && cardSel.value === 'custom') {
+      var countInput = document.getElementById('cardinality-count');
+      if (!countInput.value || parseInt(countInput.value) < 2) {
+        e.preventDefault();
+        alert('Please enter a custom cardinality count of at least 2.');
+        countInput.focus();
+        return;
+      }
+    }
+    var mn = document.getElementById('machine-name');
+    if (mn && !mn.disabled && !/^[a-z][a-z0-9_]*$/.test(mn.value)) {
+      e.preventDefault();
+      alert('Machine name must start with a lowercase letter and contain only lowercase letters, numbers, and underscores.');
+      mn.focus();
+    }
+  });
+})();
+</script>

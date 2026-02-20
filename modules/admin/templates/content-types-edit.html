@@ -1,18 +1,20 @@
-<!DOCTYPE html>
-<html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>{{#isNew}}Create{{/isNew}}{{^isNew}}Edit{{/isNew}} Content Type - Admin</title>
-</head>
-<body>
-    <div class="content-type-edit">
+<div class="content-type-edit">
         <header class="page-header">
             <h1>{{#isNew}}Create Content Type{{/isNew}}{{^isNew}}Edit Content Type: {{contentType.label}}{{/isNew}}</h1>
             <div class="actions">
-                <a href="/admin/content-types" class="btn btn-secondary">Back to List</a>
+                <a href="/admin/structure/types" class="btn btn-secondary">Back to List</a>
             </div>
         </header>
+
+        {{^isNew}}
+        <nav class="tabs-local-tasks">
+          <a href="/admin/structure/types/{{contentType.machineName}}" class="tab active">Edit</a>
+          <a href="/admin/structure/types/{{contentType.machineName}}/fields" class="tab">Manage fields</a>
+          <a href="/admin/structure/types/{{contentType.machineName}}/form-display" class="tab">Manage form display</a>
+          <a href="/admin/structure/types/{{contentType.machineName}}/display" class="tab">Manage display</a>
+          <a href="/admin/structure/types/{{contentType.machineName}}/permissions" class="tab">Manage permissions</a>
+        </nav>
+        {{/isNew}}
 
         <form method="POST" action="{{formAction}}" class="content-type-form">
             <input type="hidden" name="csrf_token" value="{{csrfToken}}">
@@ -118,7 +120,7 @@
                 <legend>Fields</legend>
                 <p>
                     This content type has <strong>{{fieldCount}}</strong> field(s).
-                    <a href="/admin/content-types/{{contentType.machineName}}/fields" class="btn btn-sm btn-secondary">Manage Fields</a>
+                    <a href="/admin/structure/types/{{contentType.machineName}}/fields" class="btn btn-sm btn-secondary">Manage Fields</a>
                 </p>
             </fieldset>
             {{/isNew}}
@@ -129,7 +131,7 @@
                     {{#isNew}}Create Content Type{{/isNew}}
                     {{^isNew}}Save Changes{{/isNew}}
                 </button>
-                <a href="/admin/content-types" class="btn btn-secondary">Cancel</a>
+                <a href="/admin/structure/types" class="btn btn-secondary">Cancel</a>
             </div>
         </form>
     </div>
@@ -167,5 +169,3 @@
             }
         });
     </script>
-</body>
-</html>

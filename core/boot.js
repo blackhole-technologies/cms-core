@@ -98,11 +98,17 @@ import * as contextual from './contextual.js';
 import * as help from './help.js';
 import * as contact from './contact.js';
 import * as ban from './ban.js';
+import * as checklist from './checklist.js';
 import * as history from './history.js';
 import * as aiRegistry from './ai-registry.js';
 import * as aiStats from './ai-stats.js';
 import * as aiProviderManager from './ai-provider-manager.js';
 import * as functionCallPlugins from './function-call-plugins.js';
+import * as honeypot from './honeypot.js';
+import * as captcha from './captcha.js';
+import * as sdc from './sdc.js';
+import * as aiAgents from './ai-agents.js';
+import * as webform from './webform.js';
 
 /**
  * Boot phase definitions
@@ -521,6 +527,14 @@ export async function boot(baseDir, options = {}) {
     services.register('contact', () => contact);
     log('[boot] Contact forms enabled');
 
+    // Initialize webform builder
+    // WHY AFTER CONTACT: Webform follows same pattern (forms + submissions)
+    // but supports arbitrary user-defined forms with conditional logic.
+    const webformConfig = { ...(context.config.site.webform || { enabled: true }), baseDir };
+    webform.init(webformConfig, content, email);
+    services.register('webform', () => webform);
+    log('[boot] Webform builder enabled');
+
     // Initialize search indexing
     // WHY AFTER CONTENT:
     // Search needs content service to index items
@@ -583,6 +597,10 @@ export async function boot(baseDir, options = {}) {
     services.register('ai-provider-manager', () => aiProviderManager);
     log('[boot] AI provider manager initialized');
 
+    // Initialize vector/semantic search with AI provider for embeddings
+    search.initVectorSearch(aiProviderManager, hooks);
+    log('[boot] Vector search initialized');
+
     // Initialize function call plugins service
     // WHY AFTER AI PROVIDER MANAGER:
     // Function call plugins provide tools for AI agents to interact with CMS.
@@ -590,6 +608,24 @@ export async function boot(baseDir, options = {}) {
     functionCallPlugins.init(context);
     services.register('function-call-plugins', () => functionCallPlugins);
     log('[boot] Function call plugins service initialized');
+
+    // Initialize AI Agents framework
+    // WHY HERE: Needs content service and AI provider manager already registered.
+    aiAgents.init({ services });
+    services.register('ai-agents', () => aiAgents);
+    log('[boot] AI Agents framework initialized');
+
+    // Initialize honeypot anti-spam
+    // WHY HERE: Must be available before any form rendering.
+    honeypot.init(context.config.site.honeypot, { sessionSecret: context.config.site.sessionSecret });
+    services.register('honeypot', () => honeypot);
+    log('[boot] Honeypot anti-spam initialized');
+
+    // Initialize CAPTCHA
+    // WHY HERE: Must be available before any form rendering.
+    captcha.init(context.config.site.captcha, { sessionSecret: context.config.site.sessionSecret });
+    services.register('captcha', () => captcha);
+    log('[boot] CAPTCHA initialized');
 
     // Register media as a service
     // WHY A SERVICE:
@@ -904,6 +940,11 @@ export async function boot(baseDir, options = {}) {
       log('[boot] Help system enabled');
     }
 
+    // Checklist / site status checks
+    checklist.init(baseDir);
+    services.register('checklist', () => checklist);
+    log('[boot] Checklist system enabled');
+
     // ========================================
     // Phase 4 Systems - Layout Builder, Media Library, Editor, etc.
     // WHY HERE: After all Phase 3 systems are initialized
@@ -989,6 +1030,20 @@ export async function boot(baseDir, options = {}) {
       template.init(themeInfo.path);
       // Connect i18n service to template for {{t "key"}} helper
       template.setI18n(i18n);
+      // Initialize SDC and connect to template for {{component "name"}} syntax
+      sdc.init(themeInfo.path);
+      template.setSdc(sdc);
+      // Set global template variables (GTM, site-wide data)
+      const analyticsConfig = context.config.site.analytics || {};
+      template.setGlobals({
+        gtmId: analyticsConfig.gtmId || '',
+        siteName: context.config.site.name || 'CMS',
+        version: context.config.site.version || '1.0.0',
+      });
+      if (analyticsConfig.gtmId) {
+        log(`[boot] GTM enabled: ${analyticsConfig.gtmId}`);
+      }
+      services.register('sdc', () => sdc);
       services.register('template', () => template);
       log(`[boot] Theme loaded: ${themeName}`);
     } else {
@@ -1150,6 +1205,109 @@ export async function boot(baseDir, options = {}) {
         uptime: process.uptime(),
       });
     }, 'Health check');
+
+    // Prometheus-compatible metrics endpoint for monitoring
+    router.register('GET', '/metrics', async (req, res, params, ctx) => {
+      const lines = [];
+      const now = Date.now();
+
+      // System metrics
+      const mem = process.memoryUsage();
+      lines.push('# HELP process_uptime_seconds Process uptime in seconds');
+      lines.push('# TYPE process_uptime_seconds gauge');
+      lines.push(`process_uptime_seconds ${process.uptime().toFixed(1)}`);
+
+      lines.push('# HELP process_heap_bytes Process heap size in bytes');
+      lines.push('# TYPE process_heap_bytes gauge');
+      lines.push(`process_heap_bytes{type="used"} ${mem.heapUsed}`);
+      lines.push(`process_heap_bytes{type="total"} ${mem.heapTotal}`);
+
+      lines.push('# HELP process_rss_bytes Resident set size in bytes');
+      lines.push('# TYPE process_rss_bytes gauge');
+      lines.push(`process_rss_bytes ${mem.rss}`);
+
+      // AI stats metrics (if available)
+      try {
+        const aiStats = ctx.services.get('ai-stats');
+        if (aiStats) {
+          const today = new Date().toISOString().split('T')[0];
+          const daily = aiStats.getDaily(today);
+
+          lines.push('# HELP cms_ai_requests_total Total AI requests today');
+          lines.push('# TYPE cms_ai_requests_total gauge');
+          lines.push(`cms_ai_requests_total ${daily.totalEvents}`);
+
+          lines.push('# HELP cms_ai_tokens_total Total AI tokens today');
+          lines.push('# TYPE cms_ai_tokens_total gauge');
+          lines.push(`cms_ai_tokens_total{direction="in"} ${daily.totalTokensIn}`);
+          lines.push(`cms_ai_tokens_total{direction="out"} ${daily.totalTokensOut}`);
+
+          lines.push('# HELP cms_ai_cost_dollars Total AI cost today in dollars');
+          lines.push('# TYPE cms_ai_cost_dollars gauge');
+          lines.push(`cms_ai_cost_dollars ${daily.totalCost.toFixed(6)}`);
+
+          lines.push('# HELP cms_ai_avg_response_ms Average AI response time in ms');
+          lines.push('# TYPE cms_ai_avg_response_ms gauge');
+          lines.push(`cms_ai_avg_response_ms ${daily.avgResponseTime.toFixed(1)}`);
+
+          lines.push('# HELP cms_ai_requests_by_status AI requests by status today');
+          lines.push('# TYPE cms_ai_requests_by_status gauge');
+          for (const [status, count] of Object.entries(daily.byStatus)) {
+            lines.push(`cms_ai_requests_by_status{status="${status}"} ${count}`);
+          }
+
+          // Per-provider breakdown
+          lines.push('# HELP cms_ai_requests_by_provider AI requests by provider today');
+          lines.push('# TYPE cms_ai_requests_by_provider gauge');
+          for (const [provider, stats] of Object.entries(daily.byProvider)) {
+            lines.push(`cms_ai_requests_by_provider{provider="${provider}"} ${stats.count}`);
+          }
+        }
+      } catch {
+        // AI stats service not available — skip
+      }
+
+      // Content metrics
+      try {
+        const contentSvc = ctx.services.get('content');
+        if (contentSvc) {
+          const types = contentSvc.listTypes?.() || [];
+          lines.push('# HELP cms_content_types_total Number of content types');
+          lines.push('# TYPE cms_content_types_total gauge');
+          lines.push(`cms_content_types_total ${types.length}`);
+        }
+      } catch {
+        // Content service not available — skip
+      }
+
+      res.writeHead(200, { 'Content-Type': 'text/plain; version=0.0.4; charset=utf-8' });
+      res.end(lines.join('\n') + '\n');
+    }, 'Prometheus metrics endpoint');
+
+    // Checklist API — runs site status checks
+    router.register('GET', '/api/checklist', async (req, res, params, ctx) => {
+      try {
+        const checklistSvc = ctx.services.get('checklist');
+        const results = await checklistSvc.runAll();
+        server.json(res, results);
+      } catch (err) {
+        server.json(res, { error: err.message }, 500);
+      }
+    }, 'Run site checklist');
+
+    router.register('GET', '/api/checklist/last', async (req, res, params, ctx) => {
+      try {
+        const checklistSvc = ctx.services.get('checklist');
+        const last = checklistSvc.getLastRun();
+        if (!last) {
+          server.json(res, { error: 'No previous check run found' }, 404);
+          return;
+        }
+        server.json(res, last);
+      } catch (err) {
+        server.json(res, { error: err.message }, 500);
+      }
+    }, 'Get last checklist results');
 
     // Invoke routes hook to let modules register routes
     // WHY AFTER CLI HOOK:
@@ -1494,10 +1652,42 @@ export async function boot(baseDir, options = {}) {
       }
 
       const types = type ? [type] : null;
-      const result = search.search(query, { types, limit, offset, highlight });
+      const facetsParam = url.searchParams.get('facets');
+      const facets = facetsParam ? facetsParam.split(',') : null;
+
+      const result = search.search(query, { types, limit, offset, highlight, facets });
 
       server.json(res, result);
     }, 'Search content via API');
+
+    // GET /api/search/facets?fields=status,_type&type=article
+    router.register('GET', '/api/search/facets', async (req, res, params, ctx) => {
+      const url = new URL(req.url, 'http://localhost');
+      const fieldsParam = url.searchParams.get('fields') || '_type,status';
+      const type = url.searchParams.get('type');
+      const facetFields = fieldsParam.split(',').map(f => f.trim());
+      const types = type ? [type] : null;
+
+      const facets = search.getFacets(facetFields, { types });
+      server.json(res, { facets });
+    }, 'Get facet counts for content filtering');
+
+    // GET /api/search/semantic?q=query&type=article&limit=10
+    router.register('GET', '/api/search/semantic', async (req, res, params, ctx) => {
+      const url = new URL(req.url, 'http://localhost');
+      const query = url.searchParams.get('q') || '';
+      const type = url.searchParams.get('type');
+      const limit = parseInt(url.searchParams.get('limit')) || 10;
+
+      if (!query) {
+        server.json(res, { error: 'Query parameter "q" is required' }, 400);
+        return;
+      }
+
+      const types = type ? [type] : null;
+      const result = await search.semanticSearch(query, { types, limit });
+      server.json(res, result);
+    }, 'Semantic/vector search via API');
 
     // Register content CLI commands
     // WHY HERE (not in cli.js):
@@ -4061,6 +4251,45 @@ export async function boot(baseDir, options = {}) {
     // Module ready hooks run first, then core confirms readiness.
     // This order makes log output more logical.
     await hooks.invoke('ready', context);
+
+    // Wire ECA hook→event bridges
+    // WHY IN READY PHASE: All modules must be initialized so hooks exist.
+    // This connects content/user/system hooks to the ECA rule engine,
+    // so rules configured in /admin/eca fire automatically.
+    actions.wireHooks(hooks, content);
+    log('[boot] ECA hook→event bridges wired');
+
+    // Auto-create privacy policy page if configured and missing
+    // WHY IN READY PHASE: Content service must be fully initialized.
+    // Drupal parity: equivalent to drupal_cms_privacy_basic recipe.
+    if (context.config.site.privacy?.autoCreate !== false) {
+      try {
+        const pages = content.list('page').items || [];
+        const hasPrivacy = pages.some(p => p.slug === 'privacy-policy');
+        if (!hasPrivacy) {
+          await content.create('page', {
+            title: 'Privacy Policy',
+            slug: 'privacy-policy',
+            body: '<h2>Privacy Policy</h2>' +
+              '<p>This privacy policy describes how we collect, use, and protect your personal information.</p>' +
+              '<h3>Information We Collect</h3>' +
+              '<p>We may collect information you provide directly, such as your name and email address when you create an account or submit a form.</p>' +
+              '<h3>How We Use Information</h3>' +
+              '<p>We use collected information to provide and improve our services, respond to inquiries, and communicate with you.</p>' +
+              '<h3>Data Protection</h3>' +
+              '<p>We implement appropriate security measures to protect your personal information against unauthorized access or disclosure.</p>' +
+              '<h3>Your Rights</h3>' +
+              '<p>You have the right to access, correct, or delete your personal information. Contact us to exercise these rights.</p>' +
+              '<h3>Contact</h3>' +
+              '<p>For privacy-related inquiries, please contact the site administrator.</p>',
+            status: 'published'
+          });
+          log('[boot] Auto-created privacy policy page at /privacy-policy');
+        }
+      } catch (err) {
+        log(`[boot] Could not auto-create privacy policy: ${err.message}`);
+      }
+    }
 
     // Start file watcher for development (skip in quiet/CLI mode)
     // WHY SKIP IN QUIET MODE:

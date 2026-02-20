@@ -263,6 +263,13 @@ export function indexItem(type, item) {
   if (!config.enabled) return;
   if (!item || !item.id) return;
 
+  // Per-entity search exclusion (Drupal parity: search_api_exclude)
+  // Content items with searchExclude=true are skipped from indexing.
+  if (item.searchExclude === true) {
+    removeFromIndex(type, item.id);
+    return;
+  }
+
   const docKey = `${type}:${item.id}`;
 
   // Remove old entries for this document
@@ -816,12 +823,125 @@ export function search(query, options = {}) {
     return result;
   });
 
-  return {
+  // Build facets if requested
+  let facetResults = null;
+  if (options.facets && Array.isArray(options.facets) && contentService) {
+    facetResults = buildFacets(sortedDocs, options.facets);
+  }
+
+  const result = {
     results,
     total,
     query,
     took: Date.now() - startTime,
   };
+
+  if (facetResults) {
+    result.facets = facetResults;
+  }
+
+  return result;
+}
+
+/**
+ * Build facet aggregations from search result documents.
+ * Counts distinct values for each requested field across matching docs.
+ *
+ * @param {Array} docs - Scored document list from search
+ * @param {string[]} facetFields - Field names to aggregate
+ * @returns {Object} Field → [{ value, count }] sorted by count descending
+ */
+function buildFacets(docs, facetFields) {
+  const facets = {};
+
+  for (const field of facetFields) {
+    const counts = {};
+
+    for (const doc of docs) {
+      const item = contentService?.read(doc.type, doc.id);
+      if (!item) continue;
+
+      // Special built-in facets
+      if (field === '_type') {
+        counts[doc.type] = (counts[doc.type] || 0) + 1;
+        continue;
+      }
+
+      const value = item[field];
+      if (value == null) continue;
+
+      // Handle arrays (e.g. tags)
+      if (Array.isArray(value)) {
+        for (const v of value) {
+          const str = String(v);
+          counts[str] = (counts[str] || 0) + 1;
+        }
+      } else {
+        const str = String(value);
+        counts[str] = (counts[str] || 0) + 1;
+      }
+    }
+
+    facets[field] = Object.entries(counts)
+      .map(([value, count]) => ({ value, count }))
+      .sort((a, b) => b.count - a.count);
+  }
+
+  return facets;
+}
+
+/**
+ * Get facet counts across all indexed content (without a search query).
+ * Useful for building filter UIs before any search is performed.
+ *
+ * @param {string[]} facetFields - Fields to aggregate
+ * @param {Object} [options]
+ * @param {string[]} [options.types] - Limit to specific content types
+ * @returns {Object} Field → [{ value, count }]
+ */
+export function getFacets(facetFields, options = {}) {
+  if (!contentService) return {};
+
+  const { types = null } = options;
+  const facets = {};
+
+  // Iterate over all indexed documents
+  const allDocs = Object.values(index.docs);
+
+  for (const field of facetFields) {
+    const counts = {};
+
+    for (const doc of allDocs) {
+      if (types && !types.includes(doc.type)) continue;
+
+      if (field === '_type') {
+        counts[doc.type] = (counts[doc.type] || 0) + 1;
+        continue;
+      }
+
+      const item = contentService.read(doc.type, doc.id);
+      if (!item) continue;
+
+      const value = item[field];
+      if (value == null) continue;
+
+      if (Array.isArray(value)) {
+        for (const v of value) {
+          const str = String(v);
+          counts[str] = (counts[str] || 0) + 1;
+        }
+      } else {
+        const str = String(value);
+        counts[str] = (counts[str] || 0) + 1;
+      }
+    }
+
+    facets[field] = Object.entries(counts)
+      .map(([value, count]) => ({ value, count }))
+      .sort((a, b) => b.count - a.count);
+  }
+
+  return facets;
 }
 
 /**
@@ -940,4 +1060,177 @@ export function clearIndex() {
     typeStats: {},
   };
   saveIndex();
+}
+
+// ============================================
+// VECTOR / SEMANTIC SEARCH
+// ============================================
+
+let vectorIndex = {};   // "type:id" → { embedding: Float64Array, text: string }
+let aiProviderRef = null;
+const VECTOR_INDEX_FILE = 'vectors.json';
+
+/**
+ * Initialize vector search with AI provider for embeddings.
+ * Registers hooks to auto-index content on create/update/delete.
+ * @param {Object} providerManager - AI provider manager service
+ * @param {Object} hooksService - Hooks service for auto-indexing (optional)
+ */
+export function initVectorSearch(providerManager, hooksService) {
+  aiProviderRef = providerManager;
+  loadVectorIndex();
+
+  // Auto-index content for vector search
+  if (hooksService) {
+    hooksService.register('content:afterCreate', async ({ type, item }) => {
+      const text = extractTextContent(item);
+      if (text) await vectorIndexItem(type, item.id, text);
+    }, 10, 'vector-search');
+
+    hooksService.register('content:afterUpdate', async ({ type, item }) => {
+      const text = extractTextContent(item);
+      if (text) await vectorIndexItem(type, item.id, text);
+    }, 10, 'vector-search');
+
+    hooksService.register('content:afterDelete', async ({ type, id }) => {
+      vectorRemoveItem(type, id);
+    }, 10, 'vector-search');
+  }
+}
+
+/**
+ * Extract text content from a content item for embedding.
+ */
+function extractTextContent(item) {
+  const parts = [];
+  if (item.title) parts.push(item.title);
+  if (item.body) parts.push(item.body);
+  if (item.description) parts.push(item.description);
+  if (item.summary) parts.push(item.summary);
+  if (item.content) parts.push(typeof item.content === 'string' ? item.content : '');
+  return parts.join(' ').replace(/<[^>]+>/g, '').trim();
+}
+
+function loadVectorIndex() {
+  try {
+    const filePath = join(config.baseDir || '.', 'content', '.search', VECTOR_INDEX_FILE);
+    if (existsSync(filePath)) {
+      vectorIndex = JSON.parse(readFileSync(filePath, 'utf-8'));
+    }
+  } catch { vectorIndex = {}; }
+}
+
+function saveVectorIndex() {
+  try {
+    const dir = join(config.baseDir || '.', 'content', '.search');
+    mkdirSync(dir, { recursive: true });
+    writeFileSync(join(dir, VECTOR_INDEX_FILE), JSON.stringify(vectorIndex));
+  } catch (err) {
+    console.error('[search] Failed to save vector index:', err.message);
+  }
+}
+
+/**
+ * Generate an embedding for text using the AI provider.
+ * Falls back to a simple bag-of-words vector if no AI provider is available.
+ */
+async function getEmbedding(text) {
+  if (aiProviderRef) {
+    try {
+      const result = await aiProviderRef.routeToProvider('embedding', [text]);
+      if (result && result.embedding) return result.embedding;
+      if (Array.isArray(result)) return result;
+    } catch { /* fall through to bag-of-words fallback */ }
+  }
+
+  // Fallback: simple term-frequency vector (256 dimensions via hash buckets)
+  const dims = 256;
+  const vec = new Array(dims).fill(0);
+  const words = text.toLowerCase().replace(/[^a-z0-9\s]/g, '').split(/\s+/);
+  for (const word of words) {
+    if (word.length < 2) continue;
+    // Hash word to a bucket
+    let hash = 0;
+    for (let i = 0; i < word.length; i++) {
+      hash = ((hash << 5) - hash + word.charCodeAt(i)) & 0x7fffffff;
+    }
+    vec[hash % dims] += 1;
+  }
+  // Normalize
+  const norm = Math.sqrt(vec.reduce((s, v) => s + v * v, 0)) || 1;
+  return vec.map(v => v / norm);
+}
+
+/**
+ * Index a content item for vector search.
+ * @param {string} type
+ * @param {string} id
+ * @param {string} text - Combined text content to embed
+ */
+export async function vectorIndexItem(type, id, text) {
+  if (!text || text.length < 10) return;
+  const key = `${type}:${id}`;
+  const embedding = await getEmbedding(text);
+  vectorIndex[key] = { embedding, text: text.slice(0, 500), type, id };
+  saveVectorIndex();
+}
+
+/**
+ * Remove a content item from the vector index.
+ */
+export function vectorRemoveItem(type, id) {
+  delete vectorIndex[`${type}:${id}`];
+  saveVectorIndex();
+}
+
+/**
+ * Cosine similarity between two vectors.
+ */
+function cosineSimilarity(a, b) {
+  if (!a || !b || a.length !== b.length) return 0;
+  let dot = 0, normA = 0, normB = 0;
+  for (let i = 0; i < a.length; i++) {
+    dot += a[i] * b[i];
+    normA += a[i] * a[i];
+    normB += b[i] * b[i];
+  }
+  return dot / (Math.sqrt(normA) * Math.sqrt(normB) || 1);
+}
+
+/**
+ * Semantic search: find content similar to a query.
+ * @param {string} query - Natural language query
+ * @param {Object} options - { limit, types, minScore }
+ * @returns {{ results: Array, total: number, query: string, took: number }}
+ */
+export async function semanticSearch(query, options = {}) {
+  const startTime = Date.now();
+  const { limit = 10, types = null, minScore = 0.1 } = options;
+
+  const queryEmbedding = await getEmbedding(query);
+  const scored = [];
+
+  for (const [key, entry] of Object.entries(vectorIndex)) {
+    if (types && !types.includes(entry.type)) continue;
+    const score = cosineSimilarity(queryEmbedding, entry.embedding);
+    if (score >= minScore) {
+      scored.push({ ...entry, score, key });
+    }
+  }
+
+  scored.sort((a, b) => b.score - a.score);
+  const results = scored.slice(0, limit).map(r => ({
+    type: r.type,
+    id: r.id,
+    score: Math.round(r.score * 1000) / 1000,
+    snippet: r.text,
+  }));
+
+  return {
+    results,
+    total: scored.length,
+    query,
+    took: Date.now() - startTime,
+    mode: 'semantic',
+  };
 }

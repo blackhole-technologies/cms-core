@@ -1,33 +1,29 @@
-<div class="admin-page">
+{{#if hasFlash}}
+<div class="flash flash-{{flash.type}}">
+  {{flash.message}}
+</div>
+{{/if}}
 
-  <div class="admin-header">
-    <h1>{{pageTitle}}</h1>
-    <nav class="admin-nav">
-      <a href="/admin">Dashboard</a>
-      <a href="/admin/content" class="active">Content</a>
-      <a href="/admin/modules">Modules</a>
-    </nav>
+{{#if error}}
+<div class="flash flash-error">
+  {{error}}
+</div>
+{{/if}}
+
+{{#if isTypeList}}
+<!-- Content Types List -->
+<div class="admin-breadcrumb">
+  <a href="/admin">Home</a> <span>&rsaquo;</span>
+  <span>Content</span>
+</div>
+
+<h1 class="admin-page-title">{{pageTitle}}</h1>
+
+<div class="admin-panel">
+  <div class="admin-panel-header">
+    <h2>Content Types</h2>
   </div>
-
-  {{#if hasFlash}}
-  <div class="flash flash-{{flash.type}}">
-    {{flash.message}}
-  </div>
-  {{/if}}
-
-  {{#if error}}
-  <div class="flash flash-error">
-    {{error}}
-  </div>
-  {{/if}}
-
-  {{#if isTypeList}}
-  <!-- Content Types List -->
-  <div class="admin-section">
-    <div class="section-header">
-      <h2>Content Types</h2>
-    </div>
-
+  <div class="admin-panel-body">
     {{#if hasTypes}}
     <table class="admin-table">
       <thead>
@@ -55,7 +51,7 @@
             {{#if hasComputed}}
             <span class="computed-badge" title="{{computedNames}}">{{computedCount}} computed</span>
             {{else}}
-            <span class="no-computed">—</span>
+            <span class="no-computed">&mdash;</span>
             {{/if}}
           </td>
           <td>
@@ -66,391 +62,357 @@
         {{/each}}
       </tbody>
     </table>
-    <style>
-      .computed-badge { display: inline-block; padding: 2px 6px; background: #e9ecef; color: #495057; border-radius: 3px; font-size: 0.8rem; font-style: italic; cursor: help; }
-      .no-computed { color: #adb5bd; }
-    </style>
     {{else}}
     <p class="empty-message">No content types registered.</p>
     {{/if}}
   </div>
-  {{/if}}
+</div>
+{{/if}}
 
-  {{#if isItemList}}
-  <!-- Content Items List -->
-  <div class="breadcrumb">
-    <a href="/admin">Dashboard</a> &rarr;
-    <a href="/admin/content">Content</a> &rarr;
-    <span>{{type}}</span>
-  </div>
+{{#if isItemList}}
+<!-- Content Items List -->
+<div class="admin-breadcrumb">
+  <a href="/admin">Home</a> <span>&rsaquo;</span>
+  <a href="/admin/content">Content</a> <span>&rsaquo;</span>
+  <span>{{type}}</span>
+</div>
 
-  <div class="admin-section">
-    <div class="section-header">
-      <h2>{{type}} Items</h2>
-      <a href="/admin/content/{{type}}/new" class="btn btn-primary">Create New</a>
-    </div>
+<div class="section-header">
+  <h1 class="admin-page-title">{{type}} Items</h1>
+  <a href="/admin/content/{{type}}/new" class="btn btn-primary">+ Create New</a>
+</div>
 
-    {{#if workflowEnabled}}
-    <!-- Status Filter Tabs -->
-    <div class="status-tabs">
-      <a href="/admin/content/{{type}}" class="status-tab {{#unless statusFilter}}active{{/unless}}">
-        All <span class="tab-count">({{statusCounts.all}})</span>
-      </a>
-      <a href="/admin/content/{{type}}?status=draft" class="status-tab {{#if (eq statusFilter 'draft')}}active{{/if}}">
-        Draft <span class="tab-count">({{statusCounts.draft}})</span>
-      </a>
-      <a href="/admin/content/{{type}}?status=pending" class="status-tab {{#if (eq statusFilter 'pending')}}active{{/if}}">
-        Pending <span class="tab-count">({{statusCounts.pending}})</span>
-      </a>
-      <a href="/admin/content/{{type}}?status=published" class="status-tab {{#if (eq statusFilter 'published')}}active{{/if}}">
-        Published <span class="tab-count">({{statusCounts.published}})</span>
-      </a>
-      <a href="/admin/content/{{type}}?status=archived" class="status-tab {{#if (eq statusFilter 'archived')}}active{{/if}}">
-        Archived <span class="tab-count">({{statusCounts.archived}})</span>
-      </a>
-    </div>
-    {{/if}}
+{{#if workflowEnabled}}
+<!-- Status Filter Tabs -->
+<div class="status-tabs">
+  <a href="/admin/content/{{type}}" class="status-tab {{#unless statusFilter}}active{{/unless}}">
+    All <span class="tab-count">({{statusCounts.all}})</span>
+  </a>
+  <a href="/admin/content/{{type}}?status=draft" class="status-tab {{#if (eq statusFilter 'draft')}}active{{/if}}">
+    Draft <span class="tab-count">({{statusCounts.draft}})</span>
+  </a>
+  <a href="/admin/content/{{type}}?status=pending" class="status-tab {{#if (eq statusFilter 'pending')}}active{{/if}}">
+    Pending <span class="tab-count">({{statusCounts.pending}})</span>
+  </a>
+  <a href="/admin/content/{{type}}?status=published" class="status-tab {{#if (eq statusFilter 'published')}}active{{/if}}">
+    Published <span class="tab-count">({{statusCounts.published}})</span>
+  </a>
+  <a href="/admin/content/{{type}}?status=archived" class="status-tab {{#if (eq statusFilter 'archived')}}active{{/if}}">
+    Archived <span class="tab-count">({{statusCounts.archived}})</span>
+  </a>
+</div>
+{{/if}}
 
-    <!-- Search and Filter Bar -->
-    <div class="search-bar">
-      <form method="GET" action="/admin/content/{{type}}" class="search-form">
-        <input type="text" name="search" placeholder="Search {{type}}..." value="{{search}}" class="search-input">
-        <button type="submit" class="btn btn-small">Search</button>
-        {{#if hasSearch}}
-        <a href="/admin/content/{{type}}" class="btn btn-small btn-secondary">Clear</a>
-        {{/if}}
-      </form>
-
-      <!-- Filter Controls -->
-      <details class="filter-panel">
-        <summary class="filter-toggle">
-          Filters {{#if hasFilters}}<span class="filter-count">({{activeFilters.length}})</span>{{/if}}
-        </summary>
-        <div class="filter-content">
-          <form method="GET" action="/admin/content/{{type}}" class="filter-form" id="filterForm">
-            <!-- Preserve search when applying filters -->
-            {{#if hasSearch}}
-            <input type="hidden" name="search" value="{{search}}">
-            {{/if}}
-
-            <!-- Active Filters -->
-            {{#if hasFilters}}
-            <div class="active-filters">
-              <span class="active-filters-label">Active:</span>
-              {{#each activeFilters}}
-              <span class="filter-tag">
-                {{field}} {{operatorLabel}} {{value}}
-                <a href="/admin/content/{{../type}}?{{#if ../hasSearch}}search={{../search}}&{{/if}}{{#each ../activeFilters}}{{#unless (eq key ../key)}}{{key}}={{value}}&{{/unless}}{{/each}}" class="filter-remove" title="Remove filter">&times;</a>
-              </span>
-              {{/each}}
-              <a href="/admin/content/{{type}}{{#if hasSearch}}?search={{search}}{{/if}}" class="btn btn-small btn-secondary">Clear All</a>
-            </div>
-            {{/if}}
-
-            <!-- Add New Filter -->
-            <div class="add-filter">
-              <select name="filter_field" id="filterField" class="filter-select">
-                <option value="">Select field...</option>
-                {{#each filterFields}}
-                <option value="{{name}}" data-type="{{fieldType}}">{{label}} ({{fieldType}})</option>
-                {{/each}}
-              </select>
-              <select name="filter_op" id="filterOp" class="filter-select">
-                <option value="">Operator</option>
-                {{#each filterOperators}}
-                <option value="{{op}}">{{label}} - {{description}}</option>
-                {{/each}}
-              </select>
-              <input type="text" name="filter_value" id="filterValue" placeholder="Value..." class="filter-input">
-              <button type="button" class="btn btn-small btn-primary" onclick="addFilter()">Add Filter</button>
-            </div>
-
-            <!-- Hidden inputs for existing filters -->
-            {{#each activeFilters}}
-            <input type="hidden" name="{{key}}" value="{{value}}">
-            {{/each}}
-          </form>
-        </div>
-      </details>
-
-      {{#if hasSearch}}
-      <p class="search-results">Found {{pagination.total}} result(s) for "{{search}}"{{#if hasFilters}} with filters{{/if}}</p>
-      {{else}}
-      {{#if hasFilters}}
-      <p class="search-results">{{pagination.total}} item(s) matching filters</p>
-      {{else}}
-      <p class="search-results">{{pagination.total}} item(s) total</p>
-      {{/if}}
-      {{/if}}
-    </div>
-
-    <script>
-    function addFilter() {
-      const field = document.getElementById('filterField').value;
-      const op = document.getElementById('filterOp').value;
-      const value = document.getElementById('filterValue').value;
-
-      if (!field || !value) {
-        alert('Please select a field and enter a value');
-        return;
-      }
-
-      // Build the filter key (field or field__op)
-      const filterKey = op && op !== 'eq' ? field + '__' + op : field;
-
-      // Create hidden input and add to form
-      const form = document.getElementById('filterForm');
-      const input = document.createElement('input');
-      input.type = 'hidden';
-      input.name = filterKey;
-      input.value = value;
-      form.appendChild(input);
-
-      // Submit the form
-      form.submit();
-    }
-    </script>
-
-    {{#if hasItems}}
-    <!-- Bulk Actions Bar -->
-    <form method="POST" action="/admin/content/{{type}}/bulk" id="bulkForm">
-      {{csrfField}}
-      <div class="bulk-actions-bar" id="bulkActionsBar" style="display: none;">
-        <span class="bulk-count"><span id="selectedCount">0</span> selected</span>
-        <select name="action" class="bulk-action-select" id="bulkActionSelect">
-          <option value="">Select action...</option>
-          {{#if workflowEnabled}}
-          <option value="publish">Publish</option>
-          <option value="unpublish">Unpublish</option>
-          <option value="archive">Archive</option>
-          {{/if}}
-          <option value="delete">Delete (to trash)</option>
-        </select>
-        <button type="submit" class="btn btn-primary" onclick="return confirmBulkAction()">Apply</button>
-        <button type="button" class="btn btn-secondary" onclick="clearSelection()">Clear</button>
-      </div>
-
-      <div class="content-cards">
-        {{#each items}}
-        <div class="content-card">
-          <div class="content-card-header">
-            <label class="bulk-checkbox">
-              <input type="checkbox" name="ids" value="{{id}}" onchange="updateBulkSelection()">
-            </label>
-            <!-- Favorite Star -->
-            <button type="button"
-                    class="favorite-btn {{#if isFavorite}}is-favorite{{/if}}"
-                    data-type="{{type}}"
-                    data-id="{{id}}"
-                    onclick="toggleFavorite(this, '{{type}}', '{{id}}')"
-                    title="{{#if isFavorite}}Remove from favorites{{else}}Add to favorites{{/if}}">
-              {{#if isFavorite}}★{{else}}☆{{/if}}
-            </button>
-            <code>{{id}}</code>
-            {{#if ../workflowEnabled}}
-            <span class="status-badge status-{{status}}">{{status}}</span>
-            {{/if}}
-            <span class="content-date">{{createdFormatted}}</span>
-          </div>
-          <div class="content-card-body">
-            <pre>{{preview}}</pre>
-            {{#if scheduledAt}}
-            <div class="scheduled-info">
-              <small>Scheduled: {{scheduledAtFormatted}}</small>
-            </div>
-            {{/if}}
-          </div>
-          <div class="content-card-actions">
-            <a href="/admin/content/{{type}}/{{id}}/edit" class="btn btn-small">Edit</a>
-            {{#if ../workflowEnabled}}
-            {{#if (eq status 'draft')}}
-            <form method="POST" action="/admin/content/{{type}}/{{id}}/publish" class="inline-form">
-              {{../../csrfField}}
-              <button type="submit" class="btn btn-small btn-success">Publish</button>
-            </form>
-            {{/if}}
-            {{#if (eq status 'published')}}
-            <form method="POST" action="/admin/content/{{type}}/{{id}}/unpublish" class="inline-form">
-              {{../../csrfField}}
-              <button type="submit" class="btn btn-small btn-warning">Unpublish</button>
-            </form>
-            {{/if}}
-            {{/if}}
-            <form method="POST" action="/admin/content/{{type}}/{{id}}/delete" class="inline-form" onsubmit="return confirm('Delete this item?')">
-              {{../csrfField}}
-              <button type="submit" class="btn btn-small btn-danger">Delete</button>
-            </form>
-          </div>
-        </div>
-        {{/each}}
-      </div>
-    </form>
-
-    <script>
-    function updateBulkSelection() {
-      const checkboxes = document.querySelectorAll('input[name="ids"]:checked');
-      const count = checkboxes.length;
-      document.getElementById('selectedCount').textContent = count;
-      document.getElementById('bulkActionsBar').style.display = count > 0 ? 'flex' : 'none';
-    }
-
-    function clearSelection() {
-      const checkboxes = document.querySelectorAll('input[name="ids"]');
-      checkboxes.forEach(cb => cb.checked = false);
-      updateBulkSelection();
-    }
-
-    function confirmBulkAction() {
-      const select = document.getElementById('bulkActionSelect');
-      const action = select.value;
-      const count = document.querySelectorAll('input[name="ids"]:checked').length;
-
-      if (!action) {
-        alert('Please select an action');
-        return false;
-      }
-
-      const actionLabels = {
-        'publish': 'publish',
-        'unpublish': 'unpublish',
-        'archive': 'archive',
-        'delete': 'move to trash'
-      };
-
-      return confirm(`Are you sure you want to ${actionLabels[action] || action} ${count} item(s)?`);
-    }
-    </script>
-
-    <style>
-    .bulk-actions-bar {
-      display: none;
-      align-items: center;
-      gap: 1rem;
-      padding: 0.75rem 1rem;
-      background: #e7f3ff;
-      border: 1px solid #b6d4fe;
-      border-radius: 4px;
-      margin-bottom: 1rem;
-    }
-    .bulk-count {
-      font-weight: 500;
-      color: #0d6efd;
-    }
-    .bulk-action-select {
-      padding: 0.375rem 0.75rem;
-      border: 1px solid #ced4da;
-      border-radius: 4px;
-    }
-    .bulk-checkbox {
-      display: flex;
-      align-items: center;
-      margin-right: 0.5rem;
-    }
-    .bulk-checkbox input {
-      width: 18px;
-      height: 18px;
-      cursor: pointer;
-    }
-    .content-card-header {
-      display: flex;
-      align-items: center;
-      gap: 0.5rem;
-    }
-    </style>
-
-    <!-- Pagination Controls -->
-    {{#if hasPagination}}
-    <div class="pagination">
-      {{#if pagination.hasPrev}}
-      <a href="/admin/content/{{type}}?{{baseQuery}}page={{pagination.prevPage}}" class="btn btn-small">&laquo; Previous</a>
-      {{else}}
-      <span class="btn btn-small btn-disabled">&laquo; Previous</span>
-      {{/if}}
-
-      <span class="pagination-info">Page {{pagination.page}} of {{pagination.pages}}</span>
-
-      {{#if pagination.hasNext}}
-      <a href="/admin/content/{{type}}?{{baseQuery}}page={{pagination.nextPage}}" class="btn btn-small">Next &raquo;</a>
-      {{else}}
-      <span class="btn btn-small btn-disabled">Next &raquo;</span>
-      {{/if}}
-    </div>
-    {{/if}}
-    {{else}}
+<!-- Search and Filter Bar -->
+<div class="search-bar">
+  <form method="GET" action="/admin/content/{{type}}" class="search-form">
+    <input type="text" name="search" placeholder="Search {{type}}..." value="{{search}}" class="search-input">
+    <button type="submit" class="btn btn-small">Search</button>
     {{#if hasSearch}}
-    <p class="empty-message">No {{type}} items match "{{search}}". <a href="/admin/content/{{type}}">Clear search</a>.</p>
-    {{else}}
-    <p class="empty-message">No {{type}} items yet. <a href="/admin/content/{{type}}/new">Create one</a>.</p>
+    <a href="/admin/content/{{type}}" class="btn btn-small btn-secondary">Clear</a>
     {{/if}}
-    {{/if}}
+  </form>
+
+  <!-- Quick Filters (exposed) -->
+  <div class="exposed-filters" style="display:flex;gap:var(--gin-space-3);align-items:center;flex-wrap:wrap;margin-top:var(--gin-space-2)">
+    <select name="status" onchange="applyQuickFilter('status', this.value)" class="filter-select" style="min-width:130px" aria-label="Filter by status">
+      <option value="">All statuses</option>
+      <option value="published" {{#if filterStatusPublished}}selected{{/if}}>Published</option>
+      <option value="draft" {{#if filterStatusDraft}}selected{{/if}}>Draft</option>
+      <option value="archived" {{#if filterStatusArchived}}selected{{/if}}>Archived</option>
+    </select>
+    <label style="font-size:var(--gin-font-size-xs);color:var(--gin-text-muted);display:flex;align-items:center;gap:4px">
+      From
+      <input type="date" name="date_from" value="{{filterDateFrom}}" onchange="applyQuickFilter('date_from', this.value)" class="filter-input" style="width:auto;padding:4px 6px" aria-label="Date from">
+    </label>
+    <label style="font-size:var(--gin-font-size-xs);color:var(--gin-text-muted);display:flex;align-items:center;gap:4px">
+      To
+      <input type="date" name="date_to" value="{{filterDateTo}}" onchange="applyQuickFilter('date_to', this.value)" class="filter-input" style="width:auto;padding:4px 6px" aria-label="Date to">
+    </label>
+    <select name="sort" onchange="applyQuickFilter('sort', this.value)" class="filter-select" style="min-width:130px" aria-label="Sort by">
+      <option value="">Sort: newest</option>
+      <option value="created__asc" {{#if sortCreatedAsc}}selected{{/if}}>Oldest first</option>
+      <option value="title__asc" {{#if sortTitleAsc}}selected{{/if}}>Title A-Z</option>
+      <option value="title__desc" {{#if sortTitleDesc}}selected{{/if}}>Title Z-A</option>
+      <option value="updated__desc" {{#if sortUpdatedDesc}}selected{{/if}}>Recently updated</option>
+    </select>
   </div>
-  {{/if}}
-
-  <style>
-    tr.selected { background: #e3f2fd !important; }
-    /* Favorite Button Styles */
-    .favorite-btn {
-      background: none;
-      border: none;
-      font-size: 1.25rem;
-      cursor: pointer;
-      padding: 0.25rem;
-      line-height: 1;
-      color: #dee2e6;
-      transition: color 0.15s, transform 0.15s;
-    }
-    .favorite-btn:hover {
-      color: #ffc107;
-      transform: scale(1.2);
-    }
-    .favorite-btn.is-favorite {
-      color: #ffc107;
-    }
-    .favorite-btn.loading {
-      opacity: 0.5;
-      pointer-events: none;
-    }
-  </style>
-
   <script>
-  // Toggle favorite via AJAX
-  async function toggleFavorite(btn, type, id) {
-    btn.classList.add('loading');
-
-    try {
-      const csrfToken = document.querySelector('input[name="_csrf"]')?.value;
-      const response = await fetch(`/admin/content/${type}/${id}/favorite`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/x-www-form-urlencoded',
-          'X-Requested-With': 'XMLHttpRequest',
-          'X-CSRF-Token': csrfToken,
-        },
-        body: '_csrf=' + encodeURIComponent(csrfToken),
-      });
-
-      if (!response.ok) throw new Error('Failed to toggle favorite');
-
-      const data = await response.json();
-
-      // Update button state
-      if (data.isFavorite) {
-        btn.classList.add('is-favorite');
-        btn.textContent = '★';
-        btn.title = 'Remove from favorites';
-      } else {
-        btn.classList.remove('is-favorite');
-        btn.textContent = '☆';
-        btn.title = 'Add to favorites';
-      }
-    } catch (error) {
-      console.error('Failed to toggle favorite:', error);
-      alert('Failed to toggle favorite. Please try again.');
-    } finally {
-      btn.classList.remove('loading');
+  function applyQuickFilter(name, value) {
+    var url = new URL(window.location.href);
+    if (value) {
+      url.searchParams.set(name, value);
+    } else {
+      url.searchParams.delete(name);
     }
+    window.location.href = url.toString();
   }
   </script>
-  <script src="/public/js/shortcuts.js"></script>
-  <script>Shortcuts.init({ context: 'content-list' });</script>
+
+  <!-- Advanced Filter Controls -->
+  <details class="filter-panel">
+    <summary class="filter-toggle">
+      Advanced Filters {{#if hasFilters}}<span class="filter-count">({{activeFilters.length}})</span>{{/if}}
+    </summary>
+    <div class="filter-content">
+      <form method="GET" action="/admin/content/{{type}}" class="filter-form" id="filterForm">
+        {{#if hasSearch}}
+        <input type="hidden" name="search" value="{{search}}">
+        {{/if}}
+
+        {{#if hasFilters}}
+        <div class="active-filters">
+          <span class="active-filters-label">Active:</span>
+          {{#each activeFilters}}
+          <span class="filter-tag">
+            {{field}} {{operatorLabel}} {{value}}
+            <a href="/admin/content/{{../type}}?{{#if ../hasSearch}}search={{../search}}&{{/if}}{{#each ../activeFilters}}{{#unless (eq key ../key)}}{{key}}={{value}}&{{/unless}}{{/each}}" class="filter-remove" title="Remove filter">&times;</a>
+          </span>
+          {{/each}}
+          <a href="/admin/content/{{type}}{{#if hasSearch}}?search={{search}}{{/if}}" class="btn btn-small btn-secondary">Clear All</a>
+        </div>
+        {{/if}}
+
+        <div class="add-filter">
+          <select name="filter_field" id="filterField" class="filter-select">
+            <option value="">Select field...</option>
+            {{#each filterFields}}
+            <option value="{{name}}" data-type="{{fieldType}}">{{label}} ({{fieldType}})</option>
+            {{/each}}
+          </select>
+          <select name="filter_op" id="filterOp" class="filter-select">
+            <option value="">Operator</option>
+            {{#each filterOperators}}
+            <option value="{{op}}">{{label}} - {{description}}</option>
+            {{/each}}
+          </select>
+          <input type="text" name="filter_value" id="filterValue" placeholder="Value..." class="filter-input">
+          <button type="button" class="btn btn-small btn-primary" onclick="addFilter()">Add Filter</button>
+        </div>
+
+        {{#each activeFilters}}
+        <input type="hidden" name="{{key}}" value="{{value}}">
+        {{/each}}
+      </form>
+    </div>
+  </details>
+
+  {{#if hasSearch}}
+  <p class="search-results">Found {{pagination.total}} result(s) for "{{search}}"{{#if hasFilters}} with filters{{/if}}</p>
+  {{else}}
+  {{#if hasFilters}}
+  <p class="search-results">{{pagination.total}} item(s) matching filters</p>
+  {{else}}
+  <p class="search-results">{{pagination.total}} item(s) total</p>
+  {{/if}}
+  {{/if}}
 </div>
+
+<script>
+function addFilter() {
+  const field = document.getElementById('filterField').value;
+  const op = document.getElementById('filterOp').value;
+  const value = document.getElementById('filterValue').value;
+
+  if (!field || !value) {
+    if (typeof CMS !== 'undefined') {
+      CMS.toast('Please select a field and enter a value', 'warning');
+    } else {
+      alert('Please select a field and enter a value');
+    }
+    return;
+  }
+
+  const filterKey = op && op !== 'eq' ? field + '__' + op : field;
+  const form = document.getElementById('filterForm');
+  const input = document.createElement('input');
+  input.type = 'hidden';
+  input.name = filterKey;
+  input.value = value;
+  form.appendChild(input);
+  form.submit();
+}
+</script>
+
+{{#if hasItems}}
+<!-- Bulk Actions Bar -->
+<form method="POST" action="/admin/content/{{type}}/bulk" id="bulkForm">
+  {{csrfField}}
+  <div class="bulk-actions-bar" id="bulkActionsBar" style="display: none;">
+    <span class="bulk-count"><span id="selectedCount">0</span> selected</span>
+    <select name="action" class="bulk-action-select" id="bulkActionSelect">
+      <option value="">Select action...</option>
+      {{#if workflowEnabled}}
+      <option value="publish">Publish</option>
+      <option value="unpublish">Unpublish</option>
+      <option value="archive">Archive</option>
+      {{/if}}
+      <option value="delete">Delete (to trash)</option>
+    </select>
+    <button type="submit" class="btn btn-primary btn-small" onclick="return confirmBulkAction()">Apply</button>
+    <button type="button" class="btn btn-small" onclick="clearSelection()">Clear</button>
+  </div>
+
+  <div class="content-cards">
+    {{#each items}}
+    <div class="content-card">
+      <div class="content-card-header">
+        <label class="bulk-checkbox">
+          <input type="checkbox" name="ids" value="{{id}}" onchange="updateBulkSelection()">
+        </label>
+        <button type="button"
+                class="favorite-btn {{#if isFavorite}}is-favorite{{/if}}"
+                data-type="{{type}}"
+                data-id="{{id}}"
+                onclick="toggleFavorite(this, '{{type}}', '{{id}}')"
+                title="{{#if isFavorite}}Remove from favorites{{else}}Add to favorites{{/if}}">
+          {{#if isFavorite}}&#9733;{{else}}&#9734;{{/if}}
+        </button>
+        <code>{{id}}</code>
+        {{#if ../workflowEnabled}}
+        <span class="status-badge status-{{status}}">{{status}}</span>
+        {{/if}}
+        <span class="content-date">{{createdFormatted}}</span>
+      </div>
+      <div class="content-card-body">
+        <pre>{{preview}}</pre>
+        {{#if scheduledAt}}
+        <div class="scheduled-info">
+          <small>Scheduled: {{scheduledAtFormatted}}</small>
+        </div>
+        {{/if}}
+      </div>
+      <div class="content-card-actions">
+        <a href="/admin/content/{{type}}/{{id}}/edit" class="btn btn-small">Edit</a>
+        {{#if ../workflowEnabled}}
+        {{#if (eq status 'draft')}}
+        <form method="POST" action="/admin/content/{{type}}/{{id}}/publish" class="inline-form">
+          {{../../csrfField}}
+          <button type="submit" class="btn btn-small btn-success">Publish</button>
+        </form>
+        {{/if}}
+        {{#if (eq status 'published')}}
+        <form method="POST" action="/admin/content/{{type}}/{{id}}/unpublish" class="inline-form">
+          {{../../csrfField}}
+          <button type="submit" class="btn btn-small btn-warning">Unpublish</button>
+        </form>
+        {{/if}}
+        {{/if}}
+        <form method="POST" action="/admin/content/{{type}}/{{id}}/delete" class="inline-form" onsubmit="return confirm('Delete this item?')">
+          {{../csrfField}}
+          <button type="submit" class="btn btn-small btn-danger">Delete</button>
+        </form>
+      </div>
+    </div>
+    {{/each}}
+  </div>
+</form>
+
+<script>
+function updateBulkSelection() {
+  var checkboxes = document.querySelectorAll('input[name="ids"]:checked');
+  var count = checkboxes.length;
+  document.getElementById('selectedCount').textContent = count;
+  document.getElementById('bulkActionsBar').style.display = count > 0 ? 'flex' : 'none';
+}
+
+function clearSelection() {
+  var checkboxes = document.querySelectorAll('input[name="ids"]');
+  checkboxes.forEach(function(cb) { cb.checked = false; });
+  updateBulkSelection();
+}
+
+function confirmBulkAction() {
+  var select = document.getElementById('bulkActionSelect');
+  var action = select.value;
+  var count = document.querySelectorAll('input[name="ids"]:checked').length;
+
+  if (!action) {
+    if (typeof CMS !== 'undefined') {
+      CMS.toast('Please select an action', 'warning');
+    } else {
+      alert('Please select an action');
+    }
+    return false;
+  }
+
+  var actionLabels = {
+    'publish': 'publish',
+    'unpublish': 'unpublish',
+    'archive': 'archive',
+    'delete': 'move to trash'
+  };
+
+  return confirm('Are you sure you want to ' + (actionLabels[action] || action) + ' ' + count + ' item(s)?');
+}
+</script>
+
+<!-- Pagination Controls -->
+{{#if hasPagination}}
+<div class="pagination">
+  {{#if pagination.hasPrev}}
+  <a href="/admin/content/{{type}}?{{baseQuery}}page={{pagination.prevPage}}" class="btn btn-small">&laquo; Previous</a>
+  {{else}}
+  <span class="btn btn-small btn-disabled">&laquo; Previous</span>
+  {{/if}}
+
+  <span class="pagination-info">Page {{pagination.page}} of {{pagination.pages}}</span>
+
+  {{#if pagination.hasNext}}
+  <a href="/admin/content/{{type}}?{{baseQuery}}page={{pagination.nextPage}}" class="btn btn-small">Next &raquo;</a>
+  {{else}}
+  <span class="btn btn-small btn-disabled">Next &raquo;</span>
+  {{/if}}
+</div>
+{{/if}}
+{{else}}
+{{#if hasSearch}}
+<p class="empty-message">No {{type}} items match "{{search}}". <a href="/admin/content/{{type}}">Clear search</a>.</p>
+{{else}}
+<p class="empty-message">No {{type}} items yet. <a href="/admin/content/{{type}}/new">Create one</a>.</p>
+{{/if}}
+{{/if}}
+{{/if}}
+
+<script>
+// Toggle favorite via AJAX
+async function toggleFavorite(btn, type, id) {
+  btn.classList.add('loading');
+
+  try {
+    var csrfToken = document.querySelector('input[name="_csrf"]')?.value;
+    var response = await fetch('/admin/content/' + type + '/' + id + '/favorite', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/x-www-form-urlencoded',
+        'X-Requested-With': 'XMLHttpRequest',
+        'X-CSRF-Token': csrfToken,
+      },
+      body: '_csrf=' + encodeURIComponent(csrfToken),
+    });
+
+    if (!response.ok) throw new Error('Failed to toggle favorite');
+
+    var data = await response.json();
+
+    if (data.isFavorite) {
+      btn.classList.add('is-favorite');
+      btn.innerHTML = '&#9733;';
+      btn.title = 'Remove from favorites';
+    } else {
+      btn.classList.remove('is-favorite');
+      btn.innerHTML = '&#9734;';
+      btn.title = 'Add to favorites';
+    }
+  } catch (error) {
+    console.error('Failed to toggle favorite:', error);
+    if (typeof CMS !== 'undefined') {
+      CMS.toast('Failed to toggle favorite', 'error');
+    }
+  } finally {
+    btn.classList.remove('loading');
+  }
+}
+</script>
+<script src="/public/js/shortcuts.js"></script>
+<script>if(typeof Shortcuts!=='undefined')Shortcuts.init({ context: 'content-list' });</script>

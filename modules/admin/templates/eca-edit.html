@@ -1,0 +1,150 @@
+<div class="admin-content">
+  <h1>{{#if isNew}}Create Rule{{else}}Edit Rule: {{rule.label}}{{/if}}</h1>
+
+  <form method="POST" action="{{formAction}}">
+    {{csrfField}}
+
+    <div class="form-group">
+      <label for="id">Rule ID</label>
+      <input type="text" id="id" name="id" value="{{rule.id}}" {{#unless isNew}}readonly{{/unless}}
+             required pattern="[a-z0-9_-]+" placeholder="my_rule_id"
+             class="form-control" style="max-width:400px">
+      <small class="form-text">Lowercase letters, numbers, hyphens, underscores.</small>
+    </div>
+
+    <div class="form-group">
+      <label for="label">Label</label>
+      <input type="text" id="label" name="label" value="{{rule.label}}" required
+             class="form-control" style="max-width:400px" placeholder="Auto-publish articles">
+    </div>
+
+    <div class="form-group">
+      <label for="event">When this event fires:</label>
+      <select id="event" name="event" class="form-control" style="max-width:400px" required>
+        <option value="">-- Select event --</option>
+        {{#each events}}
+        <option value="{{id}}" {{#if selected}}selected{{/if}}>{{label}} ({{id}})</option>
+        {{/each}}
+      </select>
+    </div>
+
+    <fieldset style="border:1px solid var(--border-color,#ddd);border-radius:4px;padding:1rem;margin:1rem 0">
+      <legend>Conditions (all must pass)</legend>
+      <div id="conditions-list">
+        {{#each rule.conditions}}
+        <div class="condition-row" style="display:flex;gap:0.5rem;margin-bottom:0.5rem;align-items:center">
+          <select name="conditions[{{@index}}][plugin]" class="form-control" style="flex:1">
+            {{#each ../availableConditions}}
+            <option value="{{id}}" {{#if selected}}selected{{/if}}>{{label}}</option>
+            {{/each}}
+          </select>
+          <input type="text" name="conditions[{{@index}}][settings]" value="{{settingsJson}}"
+                 class="form-control" style="flex:2" placeholder='{"field":"status","value":"published"}'>
+          <button type="button" class="btn btn-sm btn-danger remove-row-btn">x</button>
+        </div>
+        {{/each}}
+      </div>
+      <button type="button" class="btn btn-sm btn-outline" id="add-condition-btn">+ Add Condition</button>
+    </fieldset>
+
+    <fieldset style="border:1px solid var(--border-color,#ddd);border-radius:4px;padding:1rem;margin:1rem 0">
+      <legend>Actions (executed in order)</legend>
+      <div id="actions-list">
+        {{#each rule.actions}}
+        <div class="action-row" style="display:flex;gap:0.5rem;margin-bottom:0.5rem;align-items:center">
+          <select name="actions[{{@index}}][plugin]" class="form-control" style="flex:1">
+            {{#each ../availableActions}}
+            <option value="{{id}}" {{#if selected}}selected{{/if}}>{{label}}</option>
+            {{/each}}
+          </select>
+          <input type="text" name="actions[{{@index}}][settings]" value="{{settingsJson}}"
+                 class="form-control" style="flex:2" placeholder='{"message":"Content was updated"}'>
+          <button type="button" class="btn btn-sm btn-danger remove-row-btn">x</button>
+        </div>
+        {{/each}}
+      </div>
+      <button type="button" class="btn btn-sm btn-outline" id="add-action-btn">+ Add Action</button>
+    </fieldset>
+
+    <div class="form-group">
+      <label>
+        <input type="checkbox" name="enabled" value="1" {{#if rule.enabled}}checked{{/if}}>
+        Enabled
+      </label>
+    </div>
+
+    <div class="form-actions" style="margin-top:1.5rem">
+      <button type="submit" class="btn btn-primary">Save Rule</button>
+      <a href="/admin/eca" class="btn btn-outline">Cancel</a>
+    </div>
+  </form>
+</div>
+
+<template id="condition-template">
+  <div class="condition-row" style="display:flex;gap:0.5rem;margin-bottom:0.5rem;align-items:center">
+    <select class="form-control cond-select" style="flex:1"></select>
+    <input type="text" class="form-control cond-settings" style="flex:2" placeholder='{"field":"status","value":"published"}'>
+    <button type="button" class="btn btn-sm btn-danger remove-row-btn">x</button>
+  </div>
+</template>
+
+<template id="action-template">
+  <div class="action-row" style="display:flex;gap:0.5rem;margin-bottom:0.5rem;align-items:center">
+    <select class="form-control act-select" style="flex:1"></select>
+    <input type="text" class="form-control act-settings" style="flex:2" placeholder='{"message":"Hello"}'>
+    <button type="button" class="btn btn-sm btn-danger remove-row-btn">x</button>
+  </div>
+</template>
+
+<script>
+(function() {
+  var condIdx = {{rule.conditions.length}};
+  var actIdx = {{rule.actions.length}};
+
+  // Condition and action option data from server
+  var condOptions = JSON.parse(document.getElementById('eca-cond-data').textContent);
+  var actOptions = JSON.parse(document.getElementById('eca-act-data').textContent);
+
+  function populateSelect(select, options, namePrefix) {
+    options.forEach(function(opt) {
+      var o = document.createElement('option');
+      o.value = opt.id;
+      o.textContent = opt.label;
+      select.appendChild(o);
+    });
+    select.name = namePrefix;
+  }
+
+  document.getElementById('add-condition-btn').addEventListener('click', function() {
+    var tmpl = document.getElementById('condition-template');
+    var row = tmpl.content.cloneNode(true).firstElementChild;
+    var select = row.querySelector('.cond-select');
+    var input = row.querySelector('.cond-settings');
+    populateSelect(select, condOptions, 'conditions[' + condIdx + '][plugin]');
+    input.name = 'conditions[' + condIdx + '][settings]';
+    document.getElementById('conditions-list').appendChild(row);
+    condIdx++;
+  });
+
+  document.getElementById('add-action-btn').addEventListener('click', function() {
+    var tmpl = document.getElementById('action-template');
+    var row = tmpl.content.cloneNode(true).firstElementChild;
+    var select = row.querySelector('.act-select');
+    var input = row.querySelector('.act-settings');
+    populateSelect(select, actOptions, 'actions[' + actIdx + '][plugin]');
+    input.name = 'actions[' + actIdx + '][settings]';
+    document.getElementById('actions-list').appendChild(row);
+    actIdx++;
+  });
+
+  document.addEventListener('click', function(e) {
+    if (e.target.classList.contains('remove-row-btn')) {
+      e.target.parentElement.remove();
+    }
+  });
+})();
+</script>
+
+<!-- Server-rendered JSON data for JS -->
+<script type="application/json" id="eca-cond-data">{{{conditionsJson}}}</script>
+<script type="application/json" id="eca-act-data">{{{actionsJson}}}</script>

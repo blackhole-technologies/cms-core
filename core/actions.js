@@ -51,6 +51,11 @@ let emailSystem = null;
 let tokensSystem = null;
 
 /**
+ * Content service reference (set via wireHooks)
+ */
+let contentService = null;
+
+/**
  * Registered actions
  * Structure: { actionId: { label, execute, schema } }
  */
@@ -637,36 +642,96 @@ export async function batchExecute(actionId, items, settings = {}) {
  * Register built-in actions
  */
 function registerBuiltInActions() {
-  // Content actions - these are stubs that would integrate with content system
+  // Content actions - use real content service when available
   registerAction('content:publish', {
     label: 'Publish content',
     execute: async (context, settings) => {
-      console.log(`[actions] Publishing content: ${context.content?.id}`);
-      return { published: true };
+      if (contentService && context.content?.type && context.content?.id) {
+        await contentService.update(context.content.type, context.content.id, { status: 'published' });
+      }
+      return { published: true, id: context.content?.id };
     }
   });
 
   registerAction('content:unpublish', {
     label: 'Unpublish content',
     execute: async (context, settings) => {
-      console.log(`[actions] Unpublishing content: ${context.content?.id}`);
-      return { unpublished: true };
+      if (contentService && context.content?.type && context.content?.id) {
+        await contentService.update(context.content.type, context.content.id, { status: 'draft' });
+      }
+      return { unpublished: true, id: context.content?.id };
     }
   });
 
   registerAction('content:delete', {
     label: 'Delete content',
     execute: async (context, settings) => {
-      console.log(`[actions] Deleting content: ${context.content?.id}`);
-      return { deleted: true };
+      if (contentService && context.content?.type && context.content?.id) {
+        await contentService.delete(context.content.type, context.content.id);
+      }
+      return { deleted: true, id: context.content?.id };
     }
   });
 
   registerAction('content:clone', {
     label: 'Clone content',
     execute: async (context, settings) => {
-      console.log(`[actions] Cloning content: ${context.content?.id}`);
-      return { cloned: true };
+      if (contentService && context.content?.type && context.content?.id) {
+        const cloned = await contentService.clone?.(context.content.type, context.content.id);
+        return { cloned: true, id: cloned?.id };
+      }
+      return { cloned: false, reason: 'Content service unavailable' };
+    }
+  });
+
+  registerAction('content:set_field', {
+    label: 'Set field value',
+    execute: async (context, settings) => {
+      if (!contentService || !context.content?.type || !context.content?.id) {
+        return { updated: false, reason: 'Content not available' };
+      }
+      const update = {};
+      update[settings.field] = settings.value;
+      await contentService.update(context.content.type, context.content.id, update);
+      return { updated: true, field: settings.field, value: settings.value };
+    },
+    schema: {
+      field: { type: 'string', required: true },
+      value: { type: 'any', required: true }
+    }
+  });
+
+  registerAction('content:set_workflow_state', {
+    label: 'Set workflow state',
+    execute: async (context, settings) => {
+      if (!contentService || !context.content?.type || !context.content?.id) {
+        return { updated: false };
+      }
+      await contentService.update(context.content.type, context.content.id, {
+        _workflow_state: settings.state
+      });
+      return { updated: true, state: settings.state };
+    },
+    schema: {
+      state: { type: 'string', required: true }
+    }
+  });
+
+  registerAction('content:create', {
+    label: 'Create content',
+    execute: async (context, settings) => {
+      if (!contentService) return { created: false };
+      const data = { ...settings.data };
+      // Replace tokens in data values
+      for (const [k, v] of Object.entries(data)) {
+        if (typeof v === 'string') data[k] = replaceTokens(v, context);
+      }
+      const item = await contentService.create(settings.type, data);
+      return { created: true, id: item?.id };
+    },
+    schema: {
+      type: { type: 'string', required: true },
+      data: { type: 'object', required: true }
     }
   });
 
@@ -769,6 +834,60 @@ function registerBuiltInActions() {
       body: { type: 'string', required: true }
     }
   });
+
+  registerAction('system:webhook', {
+    label: 'Call webhook',
+    execute: async (context, settings) => {
+      const url = replaceTokens(settings.url || '', context);
+      const method = (settings.method || 'POST').toUpperCase();
+      const body = settings.includeContext !== false
+        ? JSON.stringify({ event: context._event || null, data: context.content || context.user || {} })
+        : settings.body || '';
+      try {
+        const { request } = await import('node:https');
+        const parsed = new URL(url);
+        return new Promise((resolve, reject) => {
+          const req = (parsed.protocol === 'https:' ? require('node:https') : require('node:http'))
+            .request(url, { method, headers: { 'Content-Type': 'application/json' } }, (res) => {
+              let data = '';
+              res.on('data', d => data += d);
+              res.on('end', () => resolve({ status: res.statusCode, body: data.slice(0, 500) }));
+            });
+          req.on('error', e => resolve({ error: e.message }));
+          if (body && method !== 'GET') req.write(body);
+          req.end();
+        });
+      } catch (err) {
+        return { error: err.message };
+      }
+    },
+    schema: {
+      url: { type: 'string', required: true },
+      method: { type: 'string', enum: ['GET', 'POST', 'PUT', 'PATCH'] },
+      includeContext: { type: 'boolean' },
+      body: { type: 'string' }
+    }
+  });
+
+  registerAction('content:add_tag', {
+    label: 'Add tag to content',
+    execute: async (context, settings) => {
+      if (!contentService || !context.content?.type || !context.content?.id) {
+        return { tagged: false };
+      }
+      const item = contentService.get(context.content.type, context.content.id);
+      if (!item) return { tagged: false };
+      const tags = Array.isArray(item.tags) ? [...item.tags] : [];
+      if (!tags.includes(settings.tag)) {
+        tags.push(settings.tag);
+        await contentService.update(context.content.type, context.content.id, { tags });
+      }
+      return { tagged: true, tag: settings.tag };
+    },
+    schema: {
+      tag: { type: 'string', required: true }
+    }
+  });
 }
 
 // ============================================
@@ -855,6 +974,62 @@ function registerBuiltInConditions() {
     schema: {
       start: { type: 'string' },
       end: { type: 'string' }
+    }
+  });
+
+  registerCondition('content_is_published', {
+    label: 'Content is published',
+    evaluate: async (context, settings) => {
+      return context.content?.status === 'published';
+    }
+  });
+
+  registerCondition('field_is_empty', {
+    label: 'Field is empty',
+    evaluate: async (context, settings) => {
+      const val = context.content?.[settings.field];
+      return val === undefined || val === null || val === '' || (Array.isArray(val) && val.length === 0);
+    },
+    schema: {
+      field: { type: 'string', required: true }
+    }
+  });
+
+  registerCondition('field_not_empty', {
+    label: 'Field is not empty',
+    evaluate: async (context, settings) => {
+      const val = context.content?.[settings.field];
+      return val !== undefined && val !== null && val !== '' && !(Array.isArray(val) && val.length === 0);
+    },
+    schema: {
+      field: { type: 'string', required: true }
+    }
+  });
+
+  registerCondition('path_matches', {
+    label: 'Path matches pattern',
+    evaluate: async (context, settings) => {
+      const path = context.path || context.content?.slug || '';
+      const pattern = settings.pattern || '';
+      if (pattern.includes('*')) {
+        const regex = new RegExp('^' + pattern.replace(/\*/g, '.*') + '$');
+        return regex.test(path);
+      }
+      return path === pattern;
+    },
+    schema: {
+      pattern: { type: 'string', required: true }
+    }
+  });
+
+  registerCondition('content_has_tag', {
+    label: 'Content has tag',
+    evaluate: async (context, settings) => {
+      const tags = context.content?.tags || [];
+      return Array.isArray(tags) && tags.includes(settings.tag);
+    },
+    schema: {
+      tag: { type: 'string', required: true }
     }
   });
 }
@@ -1119,4 +1294,84 @@ export function importConfig(config) {
     rules = { ...config.rules };
     saveRules();
   }
+}
+
+// ============================================
+// HOOK WIRING — connects CMS events to ECA rules
+// ============================================
+
+/**
+ * Wire CMS hook events into the ECA rule engine.
+ * Call this after all modules are initialized (READY phase)
+ * so that content/user operations automatically trigger matching rules.
+ *
+ * @param {Object} hooks - The hooks system
+ * @param {Object} contentSvc - The content service
+ */
+export function wireHooks(hooks, contentSvc) {
+  if (!hooks) return;
+  contentService = contentSvc;
+
+  // Content lifecycle hooks → ECA events
+  const contentHooks = [
+    ['content:afterCreate', 'content:create'],
+    ['content:afterUpdate', 'content:update'],
+    ['content:afterDelete', 'content:delete'],
+    ['content:afterPublish', 'content:publish'],
+    ['content:afterUnpublish', 'content:unpublish'],
+  ];
+
+  for (const [hookName, eventId] of contentHooks) {
+    hooks.register(hookName, async (ctx) => {
+      try {
+        const ecaCtx = { ...ctx, _event: eventId };
+        await triggerEvent(eventId, ecaCtx);
+      } catch (err) {
+        console.error(`[eca] Error triggering ${eventId} from ${hookName}:`, err.message);
+      }
+    }, 100); // Low priority — run after core handlers
+  }
+
+  // User lifecycle hooks → ECA events
+  const userHooks = [
+    ['user:afterLogin', 'user:login'],
+    ['user:afterLogout', 'user:logout'],
+    ['user:afterRegister', 'user:register'],
+    ['user:afterUpdate', 'user:update'],
+  ];
+
+  for (const [hookName, eventId] of userHooks) {
+    hooks.register(hookName, async (ctx) => {
+      try {
+        await triggerEvent(eventId, { ...ctx, _event: eventId });
+      } catch (err) {
+        console.error(`[eca] Error triggering ${eventId} from ${hookName}:`, err.message);
+      }
+    }, 100);
+  }
+
+  // System hooks
+  hooks.register('cron:run', async (ctx) => {
+    try {
+      await triggerEvent('system:cron', { ...ctx, _event: 'system:cron', timestamp: new Date().toISOString() });
+    } catch (err) {
+      console.error('[eca] Error triggering system:cron:', err.message);
+    }
+  }, 100);
+
+  // Register additional events now that we know the full system
+  registerEvent('comment:create', { label: 'Comment created', context: { comment: 'object', content: 'object' } });
+  registerEvent('form:submit', { label: 'Form submitted', context: { form: 'object', data: 'object' } });
+  registerEvent('workflow:transition', { label: 'Workflow transition', context: { content: 'object', from: 'string', to: 'string' } });
+
+  // Wire comment/form/workflow hooks if they exist
+  hooks.register('comment:afterCreate', async (ctx) => {
+    try { await triggerEvent('comment:create', { ...ctx, _event: 'comment:create' }); } catch (e) { /* silent */ }
+  }, 100);
+
+  hooks.register('workflow:afterTransition', async (ctx) => {
+    try { await triggerEvent('workflow:transition', { ...ctx, _event: 'workflow:transition' }); } catch (e) { /* silent */ }
+  }, 100);
+
+  console.log(`[eca] Wired ${contentHooks.length + userHooks.length + 3} hook→event bridges`);
 }

@@ -1,0 +1,13 @@
+{
+  "name": "card",
+  "description": "A content card with optional image, title, body, and link",
+  "props": {
+    "title": { "type": "string", "required": true },
+    "body": { "type": "string" },
+    "image": { "type": "string", "description": "Image URL" },
+    "imageAlt": { "type": "string", "default": "" },
+    "url": { "type": "string", "description": "Link URL" },
+    "variant": { "type": "string", "default": "default", "enum": ["default", "horizontal", "compact"] },
+    "tags": { "type": "string", "description": "Comma-separated tags" }
+  }
+}

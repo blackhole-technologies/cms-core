@@ -1,344 +1,75 @@
-<div class="admin-page">
-
-  <div class="admin-header">
-    <h1>{{pageTitle}}</h1>
-    <nav class="admin-nav">
-      <a href="/admin">Dashboard</a>
-      <a href="/admin/content">Content</a>
-      <a href="/admin/structure" class="active">Structure</a>
-      <a href="/admin/taxonomy">Taxonomy</a>
-    </nav>
-  </div>
-
-  {{#if hasFlash}}
-  <div class="flash flash-{{flash.type}}">
-    {{flash.message}}
-  </div>
-  {{/if}}
-
-  <div class="breadcrumb">
-    <a href="/admin">Dashboard</a> &rarr;
-    <span>Taxonomy</span>
-  </div>
-
-  <div class="admin-section">
-    <div class="section-header-row">
-      <h2>Vocabularies</h2>
-      <button class="btn btn-primary" onclick="toggleForm('create-vocab')">Add Vocabulary</button>
-    </div>
-
-    <div id="create-vocab" class="form-panel" style="display: none;">
-      <h3>Create Vocabulary</h3>
-      <form method="POST" action="/admin/taxonomy/vocabularies">
-        {{csrfField}}
-        <div class="form-group">
-          <label for="name">Name</label>
-          <input type="text" id="name" name="name" required placeholder="e.g., Categories">
-        </div>
-        <div class="form-group">
-          <label for="machine_name">Machine Name</label>
-          <input type="text" id="machine_name" name="machine_name" required placeholder="e.g., categories" pattern="[a-z_]+">
-          <small>Lowercase letters and underscores only</small>
-        </div>
-        <div class="form-group">
-          <label for="description">Description</label>
-          <textarea id="description" name="description" rows="2" placeholder="Optional description"></textarea>
-        </div>
-        <div class="form-group">
-          <label class="checkbox-label">
-            <input type="checkbox" name="hierarchical" value="true">
-            Hierarchical (allow parent/child relationships)
-          </label>
-        </div>
-        <div class="form-actions">
-          <button type="submit" class="btn btn-primary">Create</button>
-          <button type="button" class="btn btn-secondary" onclick="toggleForm('create-vocab')">Cancel</button>
-        </div>
-      </form>
-    </div>
-
-    {{#if vocabularies.length}}
-    <table class="data-table">
-      <thead>
-        <tr>
-          <th>Name</th>
-          <th>Machine Name</th>
-          <th>Terms</th>
-          <th>Hierarchical</th>
-          <th>Actions</th>
-        </tr>
-      </thead>
-      <tbody>
-        {{#each vocabularies}}
-        <tr>
-          <td>
-            <strong>{{name}}</strong>
-            {{#if description}}
-            <br><small class="description">{{description}}</small>
-            {{/if}}
-          </td>
-          <td><code>{{machine_name}}</code></td>
-          <td>
-            <span class="count-badge">{{termCount}}</span>
-          </td>
-          <td>
-            {{#if hierarchical}}
-            <span class="status-badge status-enabled">Yes</span>
-            {{else}}
-            <span class="status-badge status-disabled">No</span>
-            {{/if}}
-          </td>
-          <td>
-            <div class="action-buttons">
-              <a href="/admin/taxonomy/{{machine_name}}/terms" class="btn btn-sm">Manage Terms</a>
-              <button class="btn btn-sm btn-secondary" onclick="toggleForm('edit-{{machine_name}}')">Edit</button>
-              <form method="POST" action="/admin/taxonomy/vocabularies/{{machine_name}}/delete" style="display: inline;">
-                {{../csrfField}}
-                <button type="submit" class="btn btn-sm btn-danger" onclick="return confirm('Delete this vocabulary and all its terms?')">Delete</button>
-              </form>
-            </div>
-          </td>
-        </tr>
-        <tr id="edit-{{machine_name}}" class="edit-row" style="display: none;">
-          <td colspan="5">
-            <div class="form-panel">
-              <h3>Edit Vocabulary</h3>
-              <form method="POST" action="/admin/taxonomy/vocabularies/{{machine_name}}">
-                {{../csrfField}}
-                <input type="hidden" name="_method" value="PUT">
-                <div class="form-group">
-                  <label>Name</label>
-                  <input type="text" name="name" value="{{name}}" required>
-                </div>
-                <div class="form-group">
-                  <label>Description</label>
-                  <textarea name="description" rows="2">{{description}}</textarea>
-                </div>
-                <div class="form-group">
-                  <label class="checkbox-label">
-                    <input type="checkbox" name="hierarchical" value="true" {{#if hierarchical}}checked{{/if}}>
-                    Hierarchical
-                  </label>
-                </div>
-                <div class="form-actions">
-                  <button type="submit" class="btn btn-primary">Save</button>
-                  <button type="button" class="btn btn-secondary" onclick="toggleForm('edit-{{machine_name}}')">Cancel</button>
-                </div>
-              </form>
-            </div>
-          </td>
-        </tr>
-        {{/each}}
-      </tbody>
-    </table>
-    {{else}}
-    <p class="empty-message">No vocabularies defined. Create one to start organizing your content with taxonomy terms.</p>
-    {{/if}}
-  </div>
-
-  <div class="admin-section">
-    <h2>About Taxonomies</h2>
-    <div class="info-grid">
-      <div class="info-card">
-        <h3>What are Vocabularies?</h3>
-        <p>Vocabularies are collections of related taxonomy terms. For example, "Categories" or "Tags".</p>
-      </div>
-      <div class="info-card">
-        <h3>Hierarchical vs Flat</h3>
-        <p>Hierarchical vocabularies allow nested terms (like Categories). Flat vocabularies are simple lists (like Tags).</p>
-      </div>
-      <div class="info-card">
-        <h3>Using Taxonomy</h3>
-        <p>Assign taxonomy terms to content to organize and categorize your site's content for better navigation and filtering.</p>
-      </div>
-    </div>
-  </div>
-
-  <style>
-    .section-header-row {
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-      margin-bottom: 1rem;
-    }
-    .section-header-row h2 {
-      margin: 0;
-    }
-    .form-panel {
-      background: #f9fafb;
-      border: 1px solid #e5e7eb;
-      border-radius: 8px;
-      padding: 1.5rem;
-      margin-bottom: 1.5rem;
-    }
-    .form-panel h3 {
-      margin: 0 0 1rem 0;
-      font-size: 1.1rem;
-    }
-    .form-group {
-      margin-bottom: 1rem;
-    }
-    .form-group label {
-      display: block;
-      margin-bottom: 0.25rem;
-      font-size: 0.9rem;
-      font-weight: 500;
-      color: #374151;
-    }
-    .form-group input[type="text"],
-    .form-group textarea {
-      width: 100%;
-      padding: 0.5rem;
-      border: 1px solid #d1d5db;
-      border-radius: 4px;
-      font-size: 0.9rem;
-    }
-    .form-group small {
-      display: block;
-      margin-top: 0.25rem;
-      font-size: 0.8rem;
-      color: #6b7280;
-    }
-    .checkbox-label {
-      display: flex;
-      align-items: center;
-      gap: 0.5rem;
-      font-weight: normal;
-      cursor: pointer;
-    }
-    .form-actions {
-      display: flex;
-      gap: 0.5rem;
-      margin-top: 1rem;
-    }
-    .data-table {
-      width: 100%;
-      border-collapse: collapse;
-    }
-    .data-table th,
-    .data-table td {
-      padding: 0.75rem;
-      text-align: left;
-      border-bottom: 1px solid #e5e7eb;
-    }
-    .data-table th {
-      background: #f9fafb;
-      font-weight: 500;
-      font-size: 0.85rem;
-      text-transform: uppercase;
-      color: #6b7280;
-    }
-    .description {
-      color: #6b7280;
-      font-size: 0.85rem;
-    }
-    .count-badge {
-      background: #e0e7ff;
-      color: #3730a3;
-      padding: 0.25rem 0.5rem;
-      border-radius: 9999px;
-      font-size: 0.8rem;
-      font-weight: 500;
-    }
-    .status-badge {
-      display: inline-block;
-      padding: 0.25rem 0.5rem;
-      border-radius: 4px;
-      font-size: 0.75rem;
-      font-weight: 500;
-    }
-    .status-enabled {
-      background: #d1fae5;
-      color: #065f46;
-    }
-    .status-disabled {
-      background: #f3f4f6;
-      color: #6b7280;
-    }
-    .action-buttons {
-      display: flex;
-      gap: 0.5rem;
-      flex-wrap: wrap;
-    }
-    .btn {
-      display: inline-block;
-      padding: 0.5rem 1rem;
-      border: none;
-      border-radius: 4px;
-      font-size: 0.9rem;
-      cursor: pointer;
-      text-decoration: none;
-    }
-    .btn-primary {
-      background: #2563eb;
-      color: white;
-    }
-    .btn-primary:hover {
-      background: #1d4ed8;
-    }
-    .btn-secondary {
-      background: #e5e7eb;
-      color: #374151;
-    }
-    .btn-secondary:hover {
-      background: #d1d5db;
-    }
-    .btn-danger {
-      background: #dc2626;
-      color: white;
-    }
-    .btn-danger:hover {
-      background: #b91c1c;
-    }
-    .btn-sm {
-      padding: 0.25rem 0.5rem;
-      font-size: 0.8rem;
-    }
-    .edit-row td {
-      padding: 0;
-    }
-    .edit-row .form-panel {
-      margin: 0;
-      border-radius: 0;
-      border-left: none;
-      border-right: none;
-    }
-    .empty-message {
-      text-align: center;
-      padding: 2rem;
-      color: #6b7280;
-      font-style: italic;
-    }
-    .info-grid {
-      display: grid;
-      grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
-      gap: 1rem;
-    }
-    .info-card {
-      background: #f9fafb;
-      border: 1px solid #e5e7eb;
-      border-radius: 8px;
-      padding: 1rem;
-    }
-    .info-card h3 {
-      margin: 0 0 0.5rem 0;
-      font-size: 1rem;
-      color: #111827;
-    }
-    .info-card p {
-      margin: 0;
-      font-size: 0.85rem;
-      color: #6b7280;
-    }
-  </style>
-  <script>
-    function toggleForm(id) {
-      const el = document.getElementById(id);
-      if (el) {
-        el.style.display = el.style.display === 'none' ? 'block' : 'none';
-      }
-    }
-  </script>
-  <script src="/public/js/shortcuts.js"></script>
-  <script>Shortcuts.init({ context: 'global' });</script>
+<div class="admin-breadcrumb">
+  <a href="/admin">Dashboard</a> <span>&rsaquo;</span>
+  <a href="/admin/structure">Structure</a> <span>&rsaquo;</span>
+  <span>Taxonomy</span>
 </div>
+
+<div class="section-header-row">
+  <h1 class="admin-page-title">Taxonomy</h1>
+  <a href="/admin/taxonomy/vocabularies/new" class="btn btn-primary">+ Add vocabulary</a>
+</div>
+
+{{#if hasFlash}}
+<div class="messages messages--{{flash.type}}" style="margin-bottom:var(--gin-space-4, 1rem)">
+  <span>{{flash.message}}</span>
+</div>
+{{/if}}
+
+{{#if hasVocabularies}}
+<div class="admin-panel">
+  <table class="admin-table">
+    <thead>
+      <tr>
+        <th>Vocabulary name</th>
+        <th>Description</th>
+        <th>Operations</th>
+      </tr>
+    </thead>
+    <tbody>
+      {{#each vocabularies}}
+      <tr>
+        <td><strong>{{name}}</strong></td>
+        <td style="color:var(--gin-text-light, #545560)">{{#if description}}{{description}}{{else}}<em style="color:var(--gin-text-muted)">No description</em>{{/if}}</td>
+        <td class="actions">
+          <div class="dropbutton-wrapper">
+            <a href="/admin/taxonomy/{{id}}/terms" class="dropbutton-primary">List terms</a>
+            <button type="button" class="dropbutton-toggle" aria-label="More operations"></button>
+            <ul class="dropbutton-menu">
+              <li><a href="/admin/taxonomy/{{id}}/edit">Edit</a></li>
+              <li class="danger"><a href="#" onclick="if(confirm('Delete vocabulary {{name}} and all its terms?')){document.getElementById('del-vocab-{{id}}').submit()}return false">Delete</a></li>
+            </ul>
+            <form id="del-vocab-{{id}}" method="POST" action="/admin/taxonomy/vocabularies/{{id}}/delete" style="display:none">
+              <input type="hidden" name="csrf_token" value="{{../csrfToken}}">
+            </form>
+          </div>
+        </td>
+      </tr>
+      {{/each}}
+    </tbody>
+  </table>
+</div>
+{{else}}
+<div class="admin-panel">
+  <div class="admin-panel-body" style="text-align:center;padding:var(--gin-space-12, 3rem)">
+    <p class="text-muted">No vocabularies defined. Create one to start organizing your content with taxonomy terms.</p>
+    <a href="/admin/taxonomy/vocabularies/new" class="btn btn-primary">+ Add vocabulary</a>
+  </div>
+</div>
+{{/if}}
+
+<script>
+(function() {
+  document.querySelectorAll('.dropbutton-toggle').forEach(function(btn) {
+    btn.addEventListener('click', function(e) {
+      e.stopPropagation();
+      var wrapper = btn.closest('.dropbutton-wrapper');
+      var isOpen = wrapper.classList.contains('open');
+      document.querySelectorAll('.dropbutton-wrapper.open').forEach(function(w) { w.classList.remove('open'); });
+      if (!isOpen) wrapper.classList.add('open');
+    });
+  });
+  document.addEventListener('click', function() {
+    document.querySelectorAll('.dropbutton-wrapper.open').forEach(function(w) { w.classList.remove('open'); });
+  });
+})();
+</script>

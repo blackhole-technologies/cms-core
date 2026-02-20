@@ -1,12 +1,4 @@
-<!DOCTYPE html>
-<html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Image Styles - {{siteName}}</title>
-</head>
-<body>
-    <div class="admin-container">
+<div class="admin-container">
         <header class="admin-header">
             <h1>Image Styles</h1>
             <div class="header-actions">
@@ -52,7 +44,7 @@
                             <span class="usage-count">{{usageCount}}</span>
                         </td>
                         <td class="actions">
-                            <a href="/admin/config/media/image-styles/{{name}}/edit" class="btn btn-sm">Edit</a>
+                            <a href="/admin/image-styles/{{name}}/edit" class="btn btn-sm">Edit</a>
                             <button class="btn btn-sm btn-secondary" onclick="flushStyle('{{name}}')">Flush</button>
                             {{^isProtected}}
                             <button class="btn btn-sm btn-danger" onclick="deleteStyle('{{name}}')">Delete</button>
@@ -130,5 +122,3 @@
                 .catch(err => alert('Request failed: ' + err.message));
         }
     </script>
-</body>
-</html>

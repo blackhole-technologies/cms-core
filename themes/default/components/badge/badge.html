@@ -1,0 +1,6 @@
+<span class="sdc-badge sdc-badge--{{variant}} sdc-badge--{{size}}">
+  {{label}}
+  {{#if removable}}
+  <button class="sdc-badge__remove" aria-label="Remove {{label}}" onclick="this.parentElement.remove()">&#10005;</button>
+  {{/if}}
+</span>

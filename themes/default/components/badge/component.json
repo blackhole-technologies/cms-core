@@ -1,0 +1,10 @@
+{
+  "name": "badge",
+  "description": "A small label for status indicators, counts, and tags",
+  "props": {
+    "label": { "type": "string", "required": true },
+    "variant": { "type": "string", "default": "default", "enum": ["default", "primary", "success", "warning", "danger", "outline"] },
+    "size": { "type": "string", "default": "md", "enum": ["sm", "md", "lg"] },
+    "removable": { "type": "boolean", "default": false }
+  }
+}

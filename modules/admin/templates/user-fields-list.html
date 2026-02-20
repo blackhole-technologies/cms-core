@@ -1,16 +1,8 @@
-<!DOCTYPE html>
-<html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>User Profile Fields - {{site_name}}</title>
-</head>
-<body>
-    <div class="admin-content">
+<div class="admin-content">
         <header class="content-header">
             <h1>User Profile Fields</h1>
             <div class="header-actions">
-                <a href="/admin/user-fields/add" class="btn btn-primary">Add Field</a>
+                <a href="/admin/config/user-fields/add" class="btn btn-primary">Add Field</a>
             </div>
         </header>
 
@@ -76,7 +68,7 @@
                                 </td>
                                 <td class="weight-cell">{{weight}}</td>
                                 <td class="actions-cell">
-                                    <a href="/admin/user-fields/edit/{{field_id}}" class="btn btn-sm">Edit</a>
+                                    <a href="/admin/config/user-fields/edit/{{field_id}}" class="btn btn-sm">Edit</a>
                                     {{^is_system}}
                                     <button class="btn btn-sm btn-danger delete-field" data-field-id="{{field_id}}">Delete</button>
                                     {{/is_system}}
@@ -100,7 +92,7 @@
             <div class="empty-state">
                 <h3>No profile fields configured</h3>
                 <p>Get started by adding your first user profile field.</p>
-                <a href="/admin/user-fields/add" class="btn btn-primary">Add Field</a>
+                <a href="/admin/config/user-fields/add" class="btn btn-primary">Add Field</a>
             </div>
             {{/has_categories}}
         </div>
@@ -162,7 +154,7 @@
                     weight: index
                 }));
 
-                fetch('/admin/user-fields/reorder', {
+                fetch('/admin/config/user-fields/reorder', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ category, order })
@@ -185,11 +177,9 @@
                 btn.addEventListener('click', function() {
                     if (confirm('Delete this field? User data will be permanently lost.')) {
                         const fieldId = this.dataset.fieldId;
-                        window.location.href = '/admin/user-fields/delete/' + fieldId;
+                        window.location.href = '/admin/config/user-fields/delete/' + fieldId;
                     }
                 });
             });
         });
     </script>
-</body>
-</html>

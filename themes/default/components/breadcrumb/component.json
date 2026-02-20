@@ -1,0 +1,8 @@
+{
+  "name": "breadcrumb",
+  "description": "Navigation breadcrumb trail showing the current page hierarchy",
+  "props": {
+    "items": { "type": "array", "required": true, "description": "Array of {label, url} objects. Last item is active (no link)." },
+    "separator": { "type": "string", "default": "/" }
+  }
+}

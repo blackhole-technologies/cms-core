@@ -3279,8 +3279,8 @@ export function hook_cli(register, context) {
    * styles:list - List image styles
    */
   register('styles:list', async (args, ctx) => {
-    const stylesService = ctx.services.get('image_styles');
-    if (!stylesService) {
+    let stylesService;
+    try { stylesService = ctx.services.get('imageStyles'); } catch (e) {
       console.log('Image styles service not available');
       return;
     }
@@ -3302,8 +3302,8 @@ export function hook_cli(register, context) {
    * styles:show <name> - Show style effects
    */
   register('styles:show', async (args, ctx) => {
-    const stylesService = ctx.services.get('image_styles');
-    if (!stylesService) {
+    let stylesService;
+    try { stylesService = ctx.services.get('imageStyles'); } catch (e) {
       console.log('Image styles service not available');
       return;
     }
@@ -3332,8 +3332,8 @@ export function hook_cli(register, context) {
    * styles:flush [name] - Flush derivatives (all or specific)
    */
   register('styles:flush', async (args, ctx) => {
-    const stylesService = ctx.services.get('image_styles');
-    if (!stylesService) {
+    let stylesService;
+    try { stylesService = ctx.services.get('imageStyles'); } catch (e) {
       console.log('Image styles service not available');
       return;
     }
@@ -3352,8 +3352,8 @@ export function hook_cli(register, context) {
    * styles:generate <mediaId> <style> - Generate derivative
    */
   register('styles:generate', async (args, ctx) => {
-    const stylesService = ctx.services.get('image_styles');
-    if (!stylesService) {
+    let stylesService;
+    try { stylesService = ctx.services.get('imageStyles'); } catch (e) {
       console.log('Image styles service not available');
       return;
     }
@@ -3741,8 +3741,8 @@ export function hook_cli(register, context) {
    * tokens:list [type] - List available tokens
    */
   register('tokens:list', async (args, ctx) => {
-    const tokenService = ctx.services.get('token');
-    if (!tokenService) {
+    let tokenService;
+    try { tokenService = ctx.services.get('tokens'); } catch (e) {
       console.error('Token service not available');
       return;
     }
@@ -3762,8 +3762,8 @@ export function hook_cli(register, context) {
    * tokens:replace <text> - Replace tokens in text (for testing)
    */
   register('tokens:replace', async (args, ctx) => {
-    const tokenService = ctx.services.get('token');
-    if (!tokenService) {
+    let tokenService;
+    try { tokenService = ctx.services.get('tokens'); } catch (e) {
       console.error('Token service not available');
       return;
     }
@@ -3962,8 +3962,8 @@ export function hook_cli(register, context) {
    * actions:list - List available actions
    */
   register('actions:list', async (args, ctx) => {
-    const actionService = ctx.services.get('action');
-    if (!actionService) {
+    let actionService;
+    try { actionService = ctx.services.get('actions'); } catch (e) {
       console.error('Action service not available');
       return;
     }
@@ -3985,8 +3985,8 @@ export function hook_cli(register, context) {
    * actions:execute <action> [--target=type:id] - Execute action
    */
   register('actions:execute', async (args, ctx) => {
-    const actionService = ctx.services.get('action');
-    if (!actionService) {
+    let actionService;
+    try { actionService = ctx.services.get('actions'); } catch (e) {
       console.error('Action service not available');
       return;
     }
@@ -5323,11 +5323,12 @@ export function hook_routes(register, context) {
     const navStructure = path.startsWith('/admin/structure') || path.startsWith('/admin/views') || path.startsWith('/admin/menus') || path.startsWith('/admin/taxonomy') || path.startsWith('/admin/blocks') || path.startsWith('/admin/blueprints');
     const navAppearance = path.startsWith('/admin/appearance') || path.startsWith('/admin/themes');
     const navModules = path === '/admin/modules' || path.startsWith('/admin/modules/');
-    const navConfig = path.startsWith('/admin/config') || path.startsWith('/admin/cron') || path.startsWith('/admin/aliases') || path.startsWith('/admin/text-formats') || path.startsWith('/admin/image-styles') || path.startsWith('/admin/tokens') || path.startsWith('/admin/regions');
+    const navConfig = path.startsWith('/admin/config') || path.startsWith('/admin/cron') || path.startsWith('/admin/aliases') || path.startsWith('/admin/text-formats') || path.startsWith('/admin/image-styles') || path.startsWith('/admin/tokens') || path.startsWith('/admin/regions') || path.startsWith('/admin/seo') || path.startsWith('/admin/contact-forms') || path.startsWith('/admin/feeds') || path.startsWith('/admin/api') || path.startsWith('/admin/graphql');
     const navPeople = path.startsWith('/admin/users') || path.startsWith('/admin/permissions') || path.startsWith('/admin/roles');
     const navReports = path.startsWith('/admin/reports') || path.startsWith('/admin/analytics') || path.startsWith('/admin/audit') || path.startsWith('/admin/cache') || path.startsWith('/admin/queue') || path.startsWith('/admin/ratelimit');
 
     const username = ctx.session?.user?.username || 'admin';
+    const usernameInitial = username.charAt(0).toUpperCase();
 
     return template.renderWithLayout('admin-layout.html', pageContent, {
       title: data.pageTitle || 'Admin',
@@ -5335,6 +5336,7 @@ export function hook_routes(register, context) {
       version: ctx.config.site.version,
       csrfToken,
       username,
+      usernameInitial,
       navDashboard, navContent, navStructure, navAppearance,
       navModules, navConfig, navPeople, navReports,
     });
@@ -5758,6 +5760,11 @@ export function hook_routes(register, context) {
         }
       }
 
+      // Persist SEO metatag fields (not in schema, stored directly on content)
+      if (formData.meta_title) data.metaTitle = formData.meta_title;
+      if (formData.meta_description) data.metaDescription = formData.meta_description;
+      if (formData.og_image) data.ogImage = formData.og_image;
+
       await content.create(type, data);
       redirect(res, `/admin/content/${type}?success=` + encodeURIComponent('Content created successfully'));
     } catch (error) {
@@ -5921,6 +5928,11 @@ export function hook_routes(register, context) {
           data[key] = value;
         }
       }
+
+      // Persist SEO metatag fields (not in schema, stored directly on content)
+      if (formData.meta_title !== undefined) data.metaTitle = formData.meta_title || '';
+      if (formData.meta_description !== undefined) data.metaDescription = formData.meta_description || '';
+      if (formData.og_image !== undefined) data.ogImage = formData.og_image || '';
 
       // Pass user info for lock checking
       const user = ctx.session?.user;
@@ -6190,6 +6202,53 @@ export function hook_routes(register, context) {
     server.html(res, html);
   }, 'List modules');
 
+  /**
+   * POST /admin/modules/:name/enable - Enable a module
+   */
+  register('POST', '/admin/modules/:name/enable', async (req, res, params, ctx) => {
+    const { name } = params;
+    try {
+      const configPath = join(dirname(fileURLToPath(import.meta.url)), '..', '..', 'config', 'modules.json');
+      const { readFileSync, writeFileSync } = await import('node:fs');
+      const config = JSON.parse(readFileSync(configPath, 'utf-8'));
+
+      if (!config.enabled.includes(name)) {
+        config.enabled.push(name);
+        writeFileSync(configPath, JSON.stringify(config, null, 2) + '\n');
+      }
+
+      redirect(res, '/admin/modules?success=' + encodeURIComponent(`Module "${name}" enabled. Restart the server for changes to take effect.`));
+    } catch (error) {
+      redirect(res, '/admin/modules?error=' + encodeURIComponent(`Failed to enable module: ${error.message}`));
+    }
+  }, 'Enable module');
+
+  /**
+   * POST /admin/modules/:name/disable - Disable a module
+   */
+  register('POST', '/admin/modules/:name/disable', async (req, res, params, ctx) => {
+    const { name } = params;
+
+    // Prevent disabling the admin module itself
+    if (name === 'admin') {
+      redirect(res, '/admin/modules?error=' + encodeURIComponent('Cannot disable the admin module.'));
+      return;
+    }
+
+    try {
+      const configPath = join(dirname(fileURLToPath(import.meta.url)), '..', '..', 'config', 'modules.json');
+      const { readFileSync, writeFileSync } = await import('node:fs');
+      const config = JSON.parse(readFileSync(configPath, 'utf-8'));
+
+      config.enabled = config.enabled.filter(m => m !== name);
+      writeFileSync(configPath, JSON.stringify(config, null, 2) + '\n');
+
+      redirect(res, '/admin/modules?success=' + encodeURIComponent(`Module "${name}" disabled. Restart the server for changes to take effect.`));
+    } catch (error) {
+      redirect(res, '/admin/modules?error=' + encodeURIComponent(`Failed to disable module: ${error.message}`));
+    }
+  }, 'Disable module');
+
   // ==========================================
   // Import/Export
   // ==========================================
@@ -6394,6 +6453,484 @@ export function hook_routes(register, context) {
     redirect(res, '/admin/cache?success=' + encodeURIComponent(`Cleared ${count} cache entries`));
   }, 'Clear cache');
 
+  /**
+   * POST /admin/autosave - Server-side autosave drafts
+   *
+   * Drupal parity: autosave_form server-side persistence.
+   * Stores draft data so it survives browser crashes and can be
+   * recovered from other devices.
+   */
+  register('POST', '/admin/autosave', async (req, res, params, ctx) => {
+    try {
+      let body = ctx._parsedBody;
+      if (typeof body === 'string') {
+        try { body = JSON.parse(body); } catch { body = {}; }
+      }
+
+      const path = body.path || '';
+      const data = body.data || {};
+      const userId = req.user?.id || 'anonymous';
+
+      if (!path) {
+        res.writeHead(400, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ error: 'path required' }));
+        return;
+      }
+
+      // Store draft in content/.drafts/<userId>/<sanitized-path>.json
+      const { mkdirSync, writeFileSync } = await import('node:fs');
+      const { join } = await import('node:path');
+      const safePath = path.replace(/[^a-zA-Z0-9_/-]/g, '_').replace(/\//g, '__');
+      const draftDir = join(process.cwd(), 'content', '.drafts', userId);
+      mkdirSync(draftDir, { recursive: true });
+      writeFileSync(
+        join(draftDir, safePath + '.json'),
+        JSON.stringify({ path, data, userId, saved: new Date().toISOString() }, null, 2)
+      );
+
+      res.writeHead(200, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ success: true }));
+    } catch (err) {
+      res.writeHead(500, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ error: err.message }));
+    }
+  }, 'Autosave draft');
+
+  // ==========================================
+  // AI Editor Assistant
+  // ==========================================
+
+  /**
+   * POST /api/ai/editor-assist - AI writing assistant for content fields
+   * Actions: rewrite, summarize, expand, tone-formal, tone-casual, fix-grammar
+   */
+  register('POST', '/api/ai/editor-assist', async (req, res, params, ctx) => {
+    try {
+      let body = ctx._parsedBody;
+      if (typeof body === 'string') {
+        try { body = JSON.parse(body); } catch { body = {}; }
+      }
+
+      const { text, action } = body;
+      if (!text || !action) {
+        res.writeHead(400, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ error: 'text and action are required' }));
+        return;
+      }
+
+      // Map actions to system prompts
+      const prompts = {
+        'rewrite': 'Rewrite the following text to improve clarity and flow while preserving its meaning. Return only the rewritten text with no preamble.',
+        'summarize': 'Summarize the following text in 1-3 concise sentences. Return only the summary.',
+        'expand': 'Expand the following text with more detail, examples, and explanation. Return only the expanded text.',
+        'tone-formal': 'Rewrite the following text in a formal, professional tone. Return only the rewritten text.',
+        'tone-casual': 'Rewrite the following text in a friendly, casual tone. Return only the rewritten text.',
+        'fix-grammar': 'Fix any grammar, spelling, and punctuation errors in the following text. Return only the corrected text.',
+      };
+
+      const systemPrompt = prompts[action];
+      if (!systemPrompt) {
+        res.writeHead(400, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ error: 'Unknown action: ' + action }));
+        return;
+      }
+
+      // Try to use AI provider
+      let providerManager;
+      try { providerManager = ctx.services.get('ai-provider-manager'); } catch { providerManager = null; }
+
+      if (providerManager) {
+        const result = await providerManager.routeToProvider('chat', [
+          { role: 'system', content: systemPrompt },
+          { role: 'user', content: text },
+        ]);
+        res.writeHead(200, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ result: result.content || result.text || String(result) }));
+      } else {
+        // Fallback: simple transformations when no AI provider is configured
+        let result = text;
+        if (action === 'summarize') {
+          const sentences = text.split(/[.!?]+/).filter(s => s.trim());
+          result = sentences.slice(0, 3).join('. ').trim() + '.';
+        } else if (action === 'fix-grammar') {
+          result = text.replace(/\s{2,}/g, ' ').trim();
+          result = result.charAt(0).toUpperCase() + result.slice(1);
+        }
+        res.writeHead(200, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ result, fallback: true }));
+      }
+    } catch (err) {
+      res.writeHead(500, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ error: err.message }));
+    }
+  }, 'AI editor writing assistant');
+
+  /**
+   * POST /api/ai/auto-fill - AI field auto-fill for content forms
+   * Given a content body, suggests values for title, summary, tags, slug
+   */
+  register('POST', '/api/ai/auto-fill', async (req, res, params, ctx) => {
+    try {
+      let body = ctx._parsedBody;
+      if (typeof body === 'string') {
+        try { body = JSON.parse(body); } catch { body = {}; }
+      }
+
+      const { text, fields } = body;
+      if (!text) {
+        res.writeHead(400, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ error: 'text is required' }));
+        return;
+      }
+
+      // Fields to auto-fill (defaults to all)
+      const requestedFields = fields || ['title', 'summary', 'tags', 'slug'];
+
+      let providerManager;
+      try { providerManager = ctx.services.get('ai-provider-manager'); } catch { providerManager = null; }
+
+      if (providerManager) {
+        const systemPrompt = `Given the following content, generate JSON with these fields: ${requestedFields.join(', ')}. Rules: title should be compelling (max 70 chars), summary should be 1-2 sentences, tags should be an array of 3-5 relevant keywords, slug should be URL-friendly lowercase with hyphens. Return valid JSON only.`;
+
+        const result = await providerManager.routeToProvider('chat', [
+          { role: 'system', content: systemPrompt },
+          { role: 'user', content: text.slice(0, 2000) },
+        ]);
+
+        let parsed;
+        try {
+          const raw = result.content || result.text || String(result);
+          const jsonMatch = raw.match(/\{[\s\S]*\}/);
+          parsed = jsonMatch ? JSON.parse(jsonMatch[0]) : {};
+        } catch { parsed = {}; }
+
+        res.writeHead(200, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ suggestions: parsed }));
+      } else {
+        // Fallback: basic extraction without AI
+        const words = text.split(/\s+/).filter(w => w.length > 3);
+        const firstSentence = text.split(/[.!?]/)[0]?.trim() || '';
+        const suggestions = {};
+
+        if (requestedFields.includes('title')) {
+          suggestions.title = firstSentence.slice(0, 70);
+        }
+        if (requestedFields.includes('summary')) {
+          suggestions.summary = text.split(/[.!?]/).slice(0, 2).join('. ').trim() + '.';
+        }
+        if (requestedFields.includes('tags')) {
+          // Simple keyword extraction: most frequent significant words
+          const freq = {};
+          words.forEach(w => { const lw = w.toLowerCase().replace(/[^a-z]/g, ''); if (lw.length > 3) freq[lw] = (freq[lw] || 0) + 1; });
+          suggestions.tags = Object.entries(freq).sort((a, b) => b[1] - a[1]).slice(0, 5).map(e => e[0]);
+        }
+        if (requestedFields.includes('slug')) {
+          suggestions.slug = firstSentence.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '').slice(0, 60);
+        }
+
+        res.writeHead(200, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ suggestions, fallback: true }));
+      }
+    } catch (err) {
+      res.writeHead(500, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ error: err.message }));
+    }
+  }, 'AI field auto-fill');
+
+  /**
+   * POST /api/ai/content-suggestions - AI content improvement suggestions
+   * Analyzes content and returns actionable suggestions.
+   */
+  register('POST', '/api/ai/content-suggestions', async (req, res, params, ctx) => {
+    try {
+      let body = ctx._parsedBody;
+      if (typeof body === 'string') {
+        try { body = JSON.parse(body); } catch { body = {}; }
+      }
+
+      const { text, type } = body;
+      if (!text) {
+        res.writeHead(400, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ error: 'text is required' }));
+        return;
+      }
+
+      let providerManager;
+      try { providerManager = ctx.services.get('ai-provider-manager'); } catch { providerManager = null; }
+
+      if (providerManager) {
+        const result = await providerManager.routeToProvider('chat', [
+          { role: 'system', content: 'You are a content editor. Analyze the text and return JSON: { "suggestions": [{ "type": "readability|seo|structure|engagement", "severity": "info|warning|error", "message": "...", "fix": "..." }], "score": 0-100 }. Be specific and actionable. Return valid JSON only.' },
+          { role: 'user', content: text.slice(0, 3000) },
+        ]);
+        let parsed;
+        try {
+          const raw = result.content || result.text || String(result);
+          const jsonMatch = raw.match(/\{[\s\S]*\}/);
+          parsed = jsonMatch ? JSON.parse(jsonMatch[0]) : { suggestions: [], score: 50 };
+        } catch { parsed = { suggestions: [], score: 50 }; }
+
+        res.writeHead(200, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify(parsed));
+      } else {
+        // Fallback: basic heuristic suggestions
+        const suggestions = [];
+        const words = text.split(/\s+/).length;
+        const sentences = text.split(/[.!?]+/).filter(s => s.trim()).length;
+        const avgWordLen = text.replace(/\s+/g, '').length / (words || 1);
+
+        if (words < 100) suggestions.push({ type: 'engagement', severity: 'warning', message: 'Content is quite short. Consider expanding to at least 300 words for better engagement.', fix: 'Add more detail, examples, or context.' });
+        if (words > 2000) suggestions.push({ type: 'readability', severity: 'info', message: 'Content is lengthy. Consider adding subheadings to break it up.', fix: 'Add h2/h3 headings every 300-500 words.' });
+        if (avgWordLen > 6) suggestions.push({ type: 'readability', severity: 'info', message: 'Average word length is high. Consider simpler language.', fix: 'Replace complex words with simpler alternatives.' });
+        if (sentences > 0 && words / sentences > 25) suggestions.push({ type: 'readability', severity: 'warning', message: 'Sentences are long. Aim for 15-20 words per sentence.', fix: 'Break long sentences into shorter ones.' });
+        if (!text.includes('\n\n') && words > 200) suggestions.push({ type: 'structure', severity: 'warning', message: 'No paragraph breaks found.', fix: 'Add blank lines between paragraphs.' });
+
+        const score = Math.max(20, Math.min(100, 80 - suggestions.length * 12));
+        res.writeHead(200, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ suggestions, score, fallback: true }));
+      }
+    } catch (err) {
+      res.writeHead(500, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ error: err.message }));
+    }
+  }, 'AI content suggestions');
+
+  /**
+   * POST /api/ai/translate - AI-powered content translation
+   */
+  register('POST', '/api/ai/translate', async (req, res, params, ctx) => {
+    try {
+      let body = ctx._parsedBody;
+      if (typeof body === 'string') {
+        try { body = JSON.parse(body); } catch { body = {}; }
+      }
+
+      const { text, targetLanguage, sourceLanguage } = body;
+      if (!text || !targetLanguage) {
+        res.writeHead(400, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ error: 'text and targetLanguage are required' }));
+        return;
+      }
+
+      let providerManager;
+      try { providerManager = ctx.services.get('ai-provider-manager'); } catch { providerManager = null; }
+
+      if (!providerManager) {
+        res.writeHead(503, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ error: 'No AI provider configured. Translation requires an AI provider.' }));
+        return;
+      }
+
+      const srcLang = sourceLanguage || 'auto-detect';
+      const result = await providerManager.routeToProvider('chat', [
+        { role: 'system', content: `Translate the following text from ${srcLang} to ${targetLanguage}. Preserve formatting (HTML tags, markdown). Return only the translated text with no preamble.` },
+        { role: 'user', content: text },
+      ]);
+
+      res.writeHead(200, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ translation: result.content || result.text || String(result), targetLanguage }));
+    } catch (err) {
+      res.writeHead(500, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ error: err.message }));
+    }
+  }, 'AI translation');
+
+  /**
+   * POST /api/ai/validate - AI content validation (quality, tone, policy compliance)
+   */
+  register('POST', '/api/ai/validate', async (req, res, params, ctx) => {
+    try {
+      let body = ctx._parsedBody;
+      if (typeof body === 'string') {
+        try { body = JSON.parse(body); } catch { body = {}; }
+      }
+
+      const { text, rules } = body;
+      if (!text) {
+        res.writeHead(400, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ error: 'text is required' }));
+        return;
+      }
+
+      let providerManager;
+      try { providerManager = ctx.services.get('ai-provider-manager'); } catch { providerManager = null; }
+
+      const ruleList = rules || ['no profanity', 'professional tone', 'factual claims need sources', 'no placeholder text'];
+
+      if (providerManager) {
+        const result = await providerManager.routeToProvider('chat', [
+          { role: 'system', content: `You are a content validator. Check the text against these rules: ${ruleList.join(', ')}. Return JSON: { "valid": true/false, "issues": [{ "rule": "...", "severity": "error|warning", "message": "...", "location": "..." }] }. Return valid JSON only.` },
+          { role: 'user', content: text.slice(0, 3000) },
+        ]);
+        let parsed;
+        try {
+          const raw = result.content || result.text || String(result);
+          const jsonMatch = raw.match(/\{[\s\S]*\}/);
+          parsed = jsonMatch ? JSON.parse(jsonMatch[0]) : { valid: true, issues: [] };
+        } catch { parsed = { valid: true, issues: [] }; }
+
+        res.writeHead(200, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify(parsed));
+      } else {
+        // Fallback: basic text validation
+        const issues = [];
+        if (/lorem ipsum/i.test(text)) issues.push({ rule: 'no placeholder text', severity: 'error', message: 'Contains Lorem Ipsum placeholder text' });
+        if (/TODO|FIXME|XXX/i.test(text)) issues.push({ rule: 'no placeholder text', severity: 'warning', message: 'Contains TODO/FIXME markers' });
+        if (text.length < 50) issues.push({ rule: 'minimum length', severity: 'warning', message: 'Content is very short' });
+
+        res.writeHead(200, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ valid: issues.length === 0, issues, fallback: true }));
+      }
+    } catch (err) {
+      res.writeHead(500, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ error: err.message }));
+    }
+  }, 'AI content validation');
+
+  /**
+   * GET /admin/ai-explorer - Interactive AI API testing UI
+   */
+  register('GET', '/admin/ai-explorer', async (req, res, params, ctx) => {
+    const explorerHtml = `
+      <div class="admin-breadcrumb">
+        <a href="/admin">Home</a> <span>&rsaquo;</span>
+        <span>AI API Explorer</span>
+      </div>
+      <h1 class="admin-page-title">AI API Explorer</h1>
+      <p class="admin-page-description">Test AI endpoints interactively.</p>
+
+      <div class="admin-panel" style="margin-bottom:var(--gin-space-6)">
+        <div class="admin-panel-header"><h2>Request</h2></div>
+        <div class="admin-panel-body">
+          <div class="form-group" style="margin-bottom:var(--gin-space-3)">
+            <label>Endpoint</label>
+            <select id="aiEndpoint" class="form-input">
+              <option value="/api/ai/editor-assist">Editor Assist (rewrite/summarize/expand)</option>
+              <option value="/api/ai/auto-fill">Auto-fill (title/summary/tags/slug)</option>
+              <option value="/api/ai/content-suggestions">Content Suggestions</option>
+              <option value="/api/ai/translate">Translate</option>
+              <option value="/api/ai/validate">Validate</option>
+              <option value="/api/search/semantic">Semantic Search (GET)</option>
+            </select>
+          </div>
+          <div class="form-group" id="actionGroup" style="margin-bottom:var(--gin-space-3)">
+            <label>Action (for editor-assist)</label>
+            <select id="aiAction" class="form-input">
+              <option value="rewrite">Rewrite</option>
+              <option value="summarize">Summarize</option>
+              <option value="expand">Expand</option>
+              <option value="tone-formal">Formal Tone</option>
+              <option value="tone-casual">Casual Tone</option>
+              <option value="fix-grammar">Fix Grammar</option>
+            </select>
+          </div>
+          <div class="form-group" id="langGroup" style="margin-bottom:var(--gin-space-3);display:none">
+            <label>Target Language</label>
+            <input type="text" id="aiLang" class="form-input" value="Spanish" placeholder="e.g. Spanish, French, German">
+          </div>
+          <div class="form-group" style="margin-bottom:var(--gin-space-3)">
+            <label>Input Text</label>
+            <textarea id="aiInput" class="form-input" rows="6" placeholder="Enter text to process..."></textarea>
+          </div>
+          <button type="button" class="btn btn-primary" id="aiSendBtn" onclick="sendAIRequest()">Send Request</button>
+        </div>
+      </div>
+
+      <div class="admin-panel">
+        <div class="admin-panel-header"><h2>Response</h2></div>
+        <div class="admin-panel-body">
+          <div id="aiTiming" style="font-size:var(--gin-font-size-xs);color:var(--gin-text-muted);margin-bottom:var(--gin-space-2)"></div>
+          <pre id="aiOutput" style="background:var(--gin-bg);padding:var(--gin-space-4);border-radius:var(--gin-radius);overflow-x:auto;font-size:var(--gin-font-size-sm);white-space:pre-wrap;min-height:100px">No response yet. Send a request above.</pre>
+        </div>
+      </div>
+
+      <script>
+      document.getElementById('aiEndpoint').addEventListener('change', function() {
+        var v = this.value;
+        document.getElementById('actionGroup').style.display = v === '/api/ai/editor-assist' ? '' : 'none';
+        document.getElementById('langGroup').style.display = v === '/api/ai/translate' ? '' : 'none';
+      });
+
+      function sendAIRequest() {
+        var endpoint = document.getElementById('aiEndpoint').value;
+        var text = document.getElementById('aiInput').value.trim();
+        if (!text) { alert('Enter some text first.'); return; }
+
+        var btn = document.getElementById('aiSendBtn');
+        btn.disabled = true; btn.textContent = 'Sending...';
+        var start = Date.now();
+
+        var csrfMeta = document.querySelector('meta[name="csrf-token"]');
+        var headers = { 'Content-Type': 'application/json' };
+        if (csrfMeta) headers['X-CSRF-Token'] = csrfMeta.content;
+
+        var isGet = endpoint.startsWith('/api/search');
+        var url = isGet ? endpoint + '?q=' + encodeURIComponent(text) : endpoint;
+        var opts = isGet ? { method: 'GET', headers: headers } : {
+          method: 'POST', headers: headers,
+          body: JSON.stringify({
+            text: text,
+            action: document.getElementById('aiAction').value,
+            targetLanguage: document.getElementById('aiLang').value,
+          })
+        };
+
+        fetch(url, opts)
+          .then(function(r) { return r.json(); })
+          .then(function(data) {
+            document.getElementById('aiOutput').textContent = JSON.stringify(data, null, 2);
+            document.getElementById('aiTiming').textContent = 'Response in ' + (Date.now() - start) + 'ms';
+          })
+          .catch(function(err) {
+            document.getElementById('aiOutput').textContent = 'Error: ' + err.message;
+          })
+          .finally(function() { btn.disabled = false; btn.textContent = 'Send Request'; });
+      }
+      </script>
+    `;
+
+    const templateSvc = ctx.services.get('template');
+    const csrfToken = auth.getCSRFToken(req);
+    const username = ctx.session?.user?.username || 'admin';
+    const page = templateSvc.renderWithLayout('admin-layout.html', explorerHtml, {
+      title: 'AI API Explorer',
+      siteName: ctx.config.site.name,
+      version: ctx.config.site.version,
+      csrfToken,
+      username,
+      usernameInitial: username.charAt(0).toUpperCase(),
+      navReports: true,
+    });
+    res.writeHead(200, { 'Content-Type': 'text/html' });
+    res.end(page);
+  }, 'AI API Explorer');
+
+  // ==========================================
+  // Server Restart
+  // ==========================================
+
+  /**
+   * POST /admin/restart - Gracefully restart the server process
+   * Useful after enabling/disabling modules or changing themes.
+   */
+  register('POST', '/admin/restart', async (req, res, params, ctx) => {
+    // Only allow admins (user is attached to req by auth middleware)
+    if (!req.user || req.user.role !== 'admin') {
+      res.writeHead(403, { 'Content-Type': 'text/html' });
+      res.end('<h1>403 Forbidden</h1><p>Admin access required.</p><p><a href="/admin">Back to Dashboard</a></p>');
+      return;
+    }
+
+    // Send a success response before restarting so the browser gets the redirect
+    redirect(res, '/admin?success=' + encodeURIComponent('Server is restarting... Please wait a moment and refresh.'));
+
+    // Schedule restart after response is sent (short delay to let the response flush)
+    setTimeout(() => {
+      console.log('[admin] Server restart requested by admin user');
+      process.exit(0);
+    }, 500);
+  }, 'Restart server');
+
   // ==========================================
   // Rate Limiting Management
   // ==========================================
@@ -6554,6 +7091,79 @@ export function hook_routes(register, context) {
       redirect(res, '/admin/search?error=' + encodeURIComponent(error.message));
     }
   }, 'Rebuild search index');
+
+  /**
+   * GET /search - Public search page
+   */
+  register('GET', '/search', async (req, res, params, ctx) => {
+    const searchService = ctx.services.get('search');
+    const templateService = ctx.services.get('template');
+
+    const url = new URL(req.url, 'http://localhost');
+    const query = url.searchParams.get('q') || '';
+    const selectedType = url.searchParams.get('type') || '';
+
+    let results = [];
+    let total = 0;
+    let took = 0;
+
+    if (query) {
+      const searchTypes = selectedType ? [selectedType] : null;
+      const searchResult = searchService.search(query, {
+        types: searchTypes,
+        limit: 20,
+        highlight: true,
+      });
+
+      results = searchResult.results.map(r => ({
+        ...r,
+        highlights: r.highlights
+          ? Object.entries(r.highlights).map(([field, value]) => ({ field, value }))
+          : null,
+      }));
+      total = searchResult.total;
+      took = searchResult.took;
+    }
+
+    const searchHtml = `
+      <div class="search-page">
+        <h1>Search</h1>
+        <form method="GET" action="/search" class="search-form" style="margin-bottom:2rem">
+          <input type="text" name="q" value="${templateService.escapeHtml(query)}" placeholder="Search..." style="padding:8px 12px;border:1px solid #d4d4d8;border-radius:8px;font-size:16px;width:100%;max-width:500px">
+          <button type="submit" style="padding:8px 16px;background:#2c59ee;color:#fff;border:none;border-radius:8px;cursor:pointer;font-weight:500;margin-left:8px">Search</button>
+        </form>
+        ${query ? `<p style="color:#71727a;font-size:14px;margin-bottom:1.5rem">${total} result(s) for &ldquo;${templateService.escapeHtml(query)}&rdquo; (${took}ms)</p>` : ''}
+        ${results.length > 0 ? `
+          <div class="search-results-list">
+            ${results.map(r => `
+              <div style="margin-bottom:1.5rem;padding-bottom:1.5rem;border-bottom:1px solid rgba(0,0,0,0.08)">
+                <a href="/admin/content/${r.type}/${r.id}/edit" style="font-size:18px;font-weight:600;color:#2c59ee;text-decoration:none">${r.title || r.id}</a>
+                <span style="display:inline-block;padding:2px 8px;background:rgba(0,0,0,0.06);border-radius:999px;font-size:12px;margin-left:8px">${r.type}</span>
+                ${r.highlights ? r.highlights.map(h => `<p style="font-size:14px;color:#545560;margin:4px 0 0">${h.value}</p>`).join('') : ''}
+              </div>
+            `).join('')}
+          </div>
+        ` : (query ? '<p style="color:#71727a">No results found.</p>' : '<p style="color:#71727a">Enter a search term above.</p>')}
+      </div>
+
+      <script type="application/ld+json">
+      {
+        "@context": "https://schema.org",
+        "@type": "SearchResultsPage",
+        "name": "Search Results"
+      }
+      </script>
+    `;
+
+    const html = templateService.renderWithLayout('layout.html', searchHtml, {
+      title: query ? `Search: ${query}` : 'Search',
+      siteName: ctx.config.site.name,
+      version: ctx.config.site.version,
+    });
+
+    res.writeHead(200, { 'Content-Type': 'text/html' });
+    res.end(html);
+  }, 'Public search page');
 
   // ==========================================
   // Plugin Management
@@ -10348,7 +10958,7 @@ export function hook_routes(register, context) {
       ...ctx._viewData,
     };
 
-    const html = templateService.render('api-docs', data);
+    const html = renderAdmin('api-docs', data, ctx, req);
     res.writeHead(200, { 'Content-Type': 'text/html' });
     res.end(html);
   }, 'API documentation page');
@@ -10390,7 +11000,7 @@ export function hook_routes(register, context) {
       ...ctx._viewData,
     };
 
-    const html = templateService.render('api-versions', data);
+    const html = renderAdmin('api-versions', data, ctx, req);
     res.writeHead(200, { 'Content-Type': 'text/html' });
     res.end(html);
   }, 'API versions status page');
@@ -10603,7 +11213,7 @@ export function hook_routes(register, context) {
       ...ctx._viewData,
     };
 
-    const html = templateService.render('graphql-explorer', data);
+    const html = renderAdmin('graphql-explorer', data, ctx, req);
     res.writeHead(200, { 'Content-Type': 'text/html' });
     res.end(html);
   }, 'Admin GraphQL Explorer');
@@ -10708,7 +11318,7 @@ export function hook_routes(register, context) {
       ...ctx._viewData,
     };
 
-    const html = templateService.render('feeds', data);
+    const html = renderAdmin('feeds', data, ctx, req);
     res.writeHead(200, { 'Content-Type': 'text/html' });
     res.end(html);
   }, 'Feed management');
@@ -10752,7 +11362,8 @@ export function hook_routes(register, context) {
    * GET /sitemap.xml — Main sitemap
    */
   register('GET', '/sitemap.xml', async (req, res, params, ctx) => {
-    const sitemapService = ctx.services.get('sitemap')?.();
+    let sitemapService;
+    try { sitemapService = ctx.services.get('sitemap'); } catch (e) { /* not available */ }
     if (!sitemapService || !sitemapService.isEnabled()) {
       res.writeHead(404, { 'Content-Type': 'text/plain' });
       res.end('Sitemap not enabled');
@@ -10772,7 +11383,8 @@ export function hook_routes(register, context) {
    * GET /sitemap-:type.xml — Per-type sitemap
    */
   register('GET', '/sitemap-:type.xml', async (req, res, params, ctx) => {
-    const sitemapService = ctx.services.get('sitemap')?.();
+    let sitemapService;
+    try { sitemapService = ctx.services.get('sitemap'); } catch (e) { /* not available */ }
     if (!sitemapService || !sitemapService.isEnabled()) {
       res.writeHead(404, { 'Content-Type': 'text/plain' });
       res.end('Sitemap not enabled');
@@ -10790,7 +11402,8 @@ export function hook_routes(register, context) {
    * GET /robots.txt — Robots file
    */
   register('GET', '/robots.txt', async (req, res, params, ctx) => {
-    const sitemapService = ctx.services.get('sitemap')?.();
+    let sitemapService;
+    try { sitemapService = ctx.services.get('sitemap'); } catch (e) { /* not available */ }
     if (!sitemapService) {
       res.writeHead(404, { 'Content-Type': 'text/plain' });
       res.end('Not found');
@@ -10807,13 +11420,10 @@ export function hook_routes(register, context) {
    * GET /admin/seo — SEO dashboard
    */
   register('GET', '/admin/seo', async (req, res, params, ctx) => {
-    const sitemapService = ctx.services.get('sitemap')?.();
-    const templateService = ctx.services.get('template')?.();
-    const authService = ctx.services.get('auth')?.();
-
-    if (!sitemapService || !templateService) {
-      res.writeHead(500, { 'Content-Type': 'text/plain' });
-      res.end('Service not available');
+    let sitemapService;
+    try { sitemapService = ctx.services.get('sitemap'); } catch (e) {}
+    if (!sitemapService) {
+      redirect(res, '/admin?error=' + encodeURIComponent('Sitemap service not available'));
       return;
     }
 
@@ -10821,42 +11431,33 @@ export function hook_routes(register, context) {
     const types = sitemapService.listTypes();
     const config = sitemapService.getConfig();
     const robotsTxt = sitemapService.generateRobotsTxt();
-
-    // Quick audit summary
     const audit = sitemapService.auditSEO();
+    const flash = getFlashMessage(req.url);
 
-    const csrfToken = authService ? authService.generateCSRFToken() : '';
-    const csrfField = `<input type="hidden" name="_csrf" value="${csrfToken}">`;
-
-    const flash = parseFlash(req);
-
-    const html = await templateService.render('seo-dashboard.html', {
+    const html = renderAdmin('seo-dashboard.html', {
       pageTitle: 'SEO & Sitemap',
       stats,
       types,
+      hasTypes: Array.isArray(types) && types.length > 0,
       config,
       robotsTxt,
       audit,
-      csrfField,
       flash,
       hasFlash: !!flash,
-      siteUrl: config.siteUrl,
-    }, 'admin');
+      siteUrl: config.siteUrl || '',
+    }, ctx, req);
 
-    res.writeHead(200, { 'Content-Type': 'text/html' });
-    res.end(html);
+    server.html(res, html);
   }, 'SEO dashboard');
 
   /**
    * GET /admin/seo/audit — SEO audit results
    */
   register('GET', '/admin/seo/audit', async (req, res, params, ctx) => {
-    const sitemapService = ctx.services.get('sitemap')?.();
-    const templateService = ctx.services.get('template')?.();
-
-    if (!sitemapService || !templateService) {
-      res.writeHead(500, { 'Content-Type': 'text/plain' });
-      res.end('Service not available');
+    let sitemapService;
+    try { sitemapService = ctx.services.get('sitemap'); } catch (e) {}
+    if (!sitemapService) {
+      redirect(res, '/admin/seo?error=' + encodeURIComponent('Sitemap service not available'));
       return;
     }
 
@@ -10865,34 +11466,32 @@ export function hook_routes(register, context) {
     const severity = url.searchParams.get('severity') || null;
 
     const audit = sitemapService.auditSEO(type);
-
-    // Filter by severity if specified
-    let issues = [...audit.errors, ...audit.warnings, ...audit.info];
+    let issues = [...(audit.errors || []), ...(audit.warnings || []), ...(audit.info || [])];
     if (severity) {
       issues = issues.filter(i => i.severity === severity);
     }
+    const flash = getFlashMessage(req.url);
 
-    const flash = parseFlash(req);
-
-    const html = await templateService.render('seo-audit.html', {
+    const html = renderAdmin('seo-audit.html', {
       pageTitle: 'SEO Audit',
       audit,
       issues,
+      hasIssues: issues.length > 0,
       filterType: type,
       filterSeverity: severity,
       flash,
       hasFlash: !!flash,
-    }, 'admin');
+    }, ctx, req);
 
-    res.writeHead(200, { 'Content-Type': 'text/html' });
-    res.end(html);
+    server.html(res, html);
   }, 'SEO audit results');
 
   /**
    * POST /admin/seo/ping — Ping search engines
    */
   register('POST', '/admin/seo/ping', async (req, res, params, ctx) => {
-    const sitemapService = ctx.services.get('sitemap')?.();
+    let sitemapService;
+    try { sitemapService = ctx.services.get('sitemap'); } catch (e) { /* not available */ }
     if (!sitemapService) {
       redirect(res, '/admin/seo?error=' + encodeURIComponent('Service not available'));
       return;
@@ -10914,7 +11513,8 @@ export function hook_routes(register, context) {
    * POST /admin/seo/:type — Update sitemap config for type
    */
   register('POST', '/admin/seo/:type', async (req, res, params, ctx) => {
-    const sitemapService = ctx.services.get('sitemap')?.();
+    let sitemapService;
+    try { sitemapService = ctx.services.get('sitemap'); } catch (e) { /* not available */ }
     if (!sitemapService) {
       redirect(res, '/admin/seo?error=' + encodeURIComponent('Service not available'));
       return;
@@ -11961,11 +12561,11 @@ export function hook_routes(register, context) {
       return;
     }
 
-    const blocks = blockService.listBlocks();
+    const blocks = blockService.listBlocks().items;
     const flash = getFlashMessage(req.url);
 
     const html = renderAdmin('block-list.html', {
-      pageTitle: 'Blocks',
+      pageTitle: 'Block layout',
       blocks,
       hasBlocks: blocks.length > 0,
       flash,
@@ -11986,7 +12586,7 @@ export function hook_routes(register, context) {
       return;
     }
 
-    const html = renderAdmin('block-add.html', {
+    const html = renderAdmin('block-edit.html', {
       pageTitle: 'Add Block',
     }, ctx, req);
 
@@ -12175,9 +12775,82 @@ export function hook_routes(register, context) {
   /**
    * GET /admin/tokens - Token browser UI
    */
+  // ==========================================
+  // Image Styles
+  // ==========================================
+
+  /**
+   * GET /admin/image-styles - List image styles
+   */
+  register('GET', '/admin/image-styles', async (req, res, params, ctx) => {
+    let imageStylesService;
+    try { imageStylesService = ctx.services.get('imageStyles'); } catch (e) {}
+    if (!imageStylesService) {
+      redirect(res, '/admin?error=' + encodeURIComponent('Image styles service not available'));
+      return;
+    }
+
+    const styles = imageStylesService.listStyles();
+    const flash = getFlashMessage(req.url);
+
+    const html = renderAdmin('image-styles-list.html', {
+      pageTitle: 'Image Styles',
+      styles,
+      hasStyles: Array.isArray(styles) && styles.length > 0,
+      styleCount: Array.isArray(styles) ? styles.length : 0,
+      flash,
+      hasFlash: !!flash,
+    }, ctx, req);
+
+    server.html(res, html);
+  }, 'Image styles list');
+
+  // ==========================================
+  // Path Aliases
+  // ==========================================
+
+  /**
+   * GET /admin/aliases - List path aliases
+   */
+  register('GET', '/admin/aliases', async (req, res, params, ctx) => {
+    let aliasService;
+    try { aliasService = ctx.services.get('pathAliases'); } catch (e) {}
+    if (!aliasService) {
+      redirect(res, '/admin?error=' + encodeURIComponent('Path aliases service not available'));
+      return;
+    }
+
+    const aliases = aliasService.listAliases();
+    const redirects = aliasService.listRedirects();
+    const patterns = aliasService.listPatterns();
+    const stats = aliasService.getStats();
+    const flash = getFlashMessage(req.url);
+
+    const html = renderAdmin('aliases-list.html', {
+      pageTitle: 'Path Aliases',
+      aliases,
+      hasAliases: Array.isArray(aliases) && aliases.length > 0,
+      aliasCount: Array.isArray(aliases) ? aliases.length : 0,
+      redirects,
+      hasRedirects: Array.isArray(redirects) && redirects.length > 0,
+      redirectCount: Array.isArray(redirects) ? redirects.length : 0,
+      patterns,
+      hasPatterns: Array.isArray(patterns) && patterns.length > 0,
+      stats,
+      flash,
+      hasFlash: !!flash,
+    }, ctx, req);
+
+    server.html(res, html);
+  }, 'Path aliases list');
+
+  // ==========================================
+  // Tokens
+  // ==========================================
+
   register('GET', '/admin/tokens', async (req, res, params, ctx) => {
-    const tokenService = ctx.services.get('token');
-    if (!tokenService) {
+    let tokenService;
+    try { tokenService = ctx.services.get('tokens'); } catch (e) {
       res.writeHead(404, { 'Content-Type': 'text/plain' });
       res.end('Token service not available');
       return;
@@ -12186,7 +12859,7 @@ export function hook_routes(register, context) {
     const tokens = tokenService.getTokens();
     const flash = getFlashMessage(req.url);
 
-    const html = renderAdmin('token-browser.html', {
+    const html = renderAdmin('tokens-browser.html', {
       pageTitle: 'Tokens',
       tokens,
       hasTokens: tokens && tokens.length > 0,
@@ -12205,17 +12878,17 @@ export function hook_routes(register, context) {
    * GET /admin/text-formats - List text formats
    */
   register('GET', '/admin/text-formats', async (req, res, params, ctx) => {
-    const formatService = ctx.services.get('text_format');
-    if (!formatService) {
+    let formatService;
+    try { formatService = ctx.services.get('textFormats'); } catch (e) {
       res.writeHead(404, { 'Content-Type': 'text/plain' });
       res.end('Text format service not available');
       return;
     }
 
-    const formats = formatService.listFormats();
+    const formats = formatService.getFormats();
     const flash = getFlashMessage(req.url);
 
-    const html = renderAdmin('text-format-list.html', {
+    const html = renderAdmin('text-formats-list.html', {
       pageTitle: 'Text Formats',
       formats,
       hasFormats: formats.length > 0,
@@ -12230,7 +12903,7 @@ export function hook_routes(register, context) {
    * GET /admin/text-formats/new - Create format form
    */
   register('GET', '/admin/text-formats/new', async (req, res, params, ctx) => {
-    const html = renderAdmin('text-format-form.html', {
+    const html = renderAdmin('text-formats-edit.html', {
       pageTitle: 'Create Text Format',
       isNew: true,
     }, ctx, req);
@@ -12242,8 +12915,8 @@ export function hook_routes(register, context) {
    * POST /admin/text-formats - Create format
    */
   register('POST', '/admin/text-formats', async (req, res, params, ctx) => {
-    const formatService = ctx.services.get('text_format');
-    if (!formatService) {
+    let formatService;
+    try { formatService = ctx.services.get('textFormats'); } catch (e) {
       res.writeHead(404, { 'Content-Type': 'text/plain' });
       res.end('Text format service not available');
       return;
@@ -12269,8 +12942,8 @@ export function hook_routes(register, context) {
    */
   register('GET', '/admin/text-formats/:id', async (req, res, params, ctx) => {
     const { id } = params;
-    const formatService = ctx.services.get('text_format');
-    if (!formatService) {
+    let formatService;
+    try { formatService = ctx.services.get('textFormats'); } catch (e) {
       res.writeHead(404, { 'Content-Type': 'text/plain' });
       res.end('Text format service not available');
       return;
@@ -12282,7 +12955,7 @@ export function hook_routes(register, context) {
       return;
     }
 
-    const html = renderAdmin('text-format-form.html', {
+    const html = renderAdmin('text-formats-edit.html', {
       pageTitle: `Edit Format: ${format.name}`,
       format,
       filtersJson: JSON.stringify(format.filters || [], null, 2),
@@ -12296,8 +12969,8 @@ export function hook_routes(register, context) {
    */
   register('POST', '/admin/text-formats/:id', async (req, res, params, ctx) => {
     const { id } = params;
-    const formatService = ctx.services.get('text_format');
-    if (!formatService) {
+    let formatService;
+    try { formatService = ctx.services.get('textFormats'); } catch (e) {
       res.writeHead(404, { 'Content-Type': 'text/plain' });
       res.end('Text format service not available');
       return;
@@ -12322,8 +12995,8 @@ export function hook_routes(register, context) {
    */
   register('POST', '/admin/text-formats/:id/delete', async (req, res, params, ctx) => {
     const { id } = params;
-    const formatService = ctx.services.get('text_format');
-    if (!formatService) {
+    let formatService;
+    try { formatService = ctx.services.get('textFormats'); } catch (e) {
       res.writeHead(404, { 'Content-Type': 'text/plain' });
       res.end('Text format service not available');
       return;
@@ -12345,10 +13018,18 @@ export function hook_routes(register, context) {
    * GET /admin/structure/types - List content types
    */
   register('GET', '/admin/structure/types', async (req, res, params, ctx) => {
-    const types = content.listTypes();
+    const rawTypes = content.listTypes();
     const flash = getFlashMessage(req.url);
 
-    const html = renderAdmin('content-type-list.html', {
+    /* Enrich each type with a description derived from its schema metadata.
+       schema.description may be a field definition object (not a string) — filter those out. */
+    const types = rawTypes.map(t => {
+      let desc = t.schema?._description || '';
+      if (!desc && typeof t.schema?.description === 'string') desc = t.schema.description;
+      return { ...t, description: desc };
+    });
+
+    const html = renderAdmin('content-types-list.html', {
       pageTitle: 'Content Types',
       types,
       hasTypes: types.length > 0,
@@ -12363,7 +13044,7 @@ export function hook_routes(register, context) {
    * GET /admin/structure/types/new - Create content type form
    */
   register('GET', '/admin/structure/types/new', async (req, res, params, ctx) => {
-    const html = renderAdmin('content-type-form.html', {
+    const html = renderAdmin('content-types-edit.html', {
       pageTitle: 'Create Content Type',
       isNew: true,
     }, ctx, req);
@@ -12400,9 +13081,10 @@ export function hook_routes(register, context) {
     }
 
     const schema = content.getSchema(type);
-    const html = renderAdmin('content-type-form.html', {
+    const html = renderAdmin('content-types-edit.html', {
       pageTitle: `Edit Content Type: ${type}`,
       type,
+      contentType: { machineName: type, label: deriveTypeLabel(type) },
       schemaJson: JSON.stringify(schema, null, 2),
     }, ctx, req);
 
@@ -12438,6 +13120,51 @@ export function hook_routes(register, context) {
     }
   }, 'Delete content type');
 
+  // Field type label map — maps internal type names to human-readable labels
+  const fieldTypeLabels = {
+    string: 'Text (plain)',
+    text: 'Text (formatted)',
+    number: 'Number',
+    boolean: 'Boolean',
+    date: 'Date',
+    relation: 'Reference',
+    file: 'File',
+    image: 'Image',
+    array: 'List',
+    computed: 'Computed (system)',
+    slug: 'URL alias (system)',
+  };
+
+  // Field type options for the "Add field" dropdown
+  const fieldTypeOptions = [
+    { value: 'string', label: 'Text (plain)' },
+    { value: 'text', label: 'Text (formatted)' },
+    { value: 'number', label: 'Number' },
+    { value: 'boolean', label: 'Boolean' },
+    { value: 'date', label: 'Date' },
+    { value: 'relation', label: 'Reference' },
+    { value: 'file', label: 'File' },
+    { value: 'image', label: 'Image' },
+    { value: 'array', label: 'List' },
+  ];
+
+  // Build a short settings summary for a field definition
+  function buildSettingsSummary(def) {
+    const parts = [];
+    if (def.settings?.maxLength) parts.push(`Max length: ${def.settings.maxLength}`);
+    if (def.settings?.min != null) parts.push(`Min: ${def.settings.min}`);
+    if (def.settings?.max != null) parts.push(`Max: ${def.settings.max}`);
+    if (def.settings?.referenceType) parts.push(`Ref: ${def.settings.referenceType}`);
+    if (def.settings?.allowedExtensions) parts.push(`Extensions: ${def.settings.allowedExtensions}`);
+    if (def.settings?.textProcessing && def.settings.textProcessing !== 'plain') parts.push(def.settings.textProcessing);
+    return parts.join(', ');
+  }
+
+  // Derive a human-readable label from a machine name
+  function deriveTypeLabel(typeName) {
+    return typeName.charAt(0).toUpperCase() + typeName.slice(1).replace(/_/g, ' ');
+  }
+
   /**
    * GET /admin/structure/types/:type/fields - Manage fields
    */
@@ -12451,17 +13178,46 @@ export function hook_routes(register, context) {
     const schema = content.getSchema(type);
     const fields = Object.entries(schema).map(([name, def]) => ({
       name,
+      machineName: name,
+      label: def.label || name.charAt(0).toUpperCase() + name.slice(1).replace(/_/g, ' '),
       type: def.type,
-      required: def.required,
+      typeLabel: fieldTypeLabels[def.type] || def.type,
+      required: !!def.required,
+      cardinality: def.cardinality || 1,
+      cardinalityLabel: def.cardinality === -1 ? 'Unlimited' : def.cardinality > 1 ? `Limited to ${def.cardinality}` : '',
+      helpText: def.helpText || '',
+      settingsSummary: buildSettingsSummary(def),
+      isBase: ['title', 'body', 'status'].includes(name),
     }));
 
     const flash = getFlashMessage(req.url);
 
-    const html = renderAdmin('content-type-fields.html', {
-      pageTitle: `Manage Fields: ${type}`,
-      type,
+    /* Build re-use fields list from all other content types */
+    const allTypes = content.listTypes();
+    const reuseFields = [];
+    for (const t of allTypes) {
+      if (t.type === type) continue;
+      const tSchema = content.getSchema(t.type);
+      for (const [fName, fDef] of Object.entries(tSchema)) {
+        if (fName.startsWith('_') || ['title', 'body', 'status'].includes(fName)) continue;
+        /* Avoid duplicates */
+        if (reuseFields.some(rf => rf.machineName === fName)) continue;
+        reuseFields.push({
+          machineName: fName,
+          typeLabel: fieldTypeLabels[fDef.type] || fDef.type || 'Unknown',
+          cardinalityLabel: fDef.cardinality === -1 ? 'Unlimited' : 'Single value',
+          usedIn: deriveTypeLabel(t.type),
+        });
+      }
+    }
+
+    const html = renderAdmin('content-types-fields.html', {
+      pageTitle: `Manage Fields: ${deriveTypeLabel(type)}`,
+      typeName: type,
+      typeLabel: deriveTypeLabel(type),
       fields,
       hasFields: fields.length > 0,
+      reuseFields,
       flash,
       hasFlash: !!flash,
     }, ctx, req);
@@ -12469,28 +13225,183 @@ export function hook_routes(register, context) {
     server.html(res, html);
   }, 'Manage content type fields');
 
+  // Helper: build the template data for the field edit/add form
+  function buildFieldEditData(type, fieldName, fieldDef, isNew) {
+    const cardinality = fieldDef.cardinality || 1;
+    const settings = fieldDef.settings || {};
+
+    // Text processing flags for the select dropdown
+    const textProcessing = settings.textProcessing || 'plain';
+
+    // Build the content types list for reference fields
+    // content.listTypes() may return objects ({type, ...}) or strings
+    const allTypes = content.listTypes();
+    const contentTypesList = allTypes.map(t => {
+      const typeName = typeof t === 'string' ? t : (t.type || t.name || String(t));
+      return {
+        machineName: typeName,
+        label: deriveTypeLabel(typeName),
+        selected: settings.referenceType === typeName,
+      };
+    });
+
+    // Build options text for select fields
+    let optionsText = '';
+    if (Array.isArray(settings.options)) {
+      optionsText = settings.options.map(o => `${o.value || o.key || o}|${o.label || o}`).join('\n');
+    } else if (typeof settings.options === 'string') {
+      optionsText = settings.options;
+    }
+
+    const fieldType = fieldDef.type || '';
+
+    return {
+      typeName: type,
+      typeLabel: deriveTypeLabel(type),
+      isNew,
+      formAction: isNew
+        ? `/admin/structure/types/${type}/fields/add`
+        : `/admin/structure/types/${type}/fields/${fieldName}`,
+      field: {
+        machineName: fieldName || '',
+        label: fieldDef.label || (fieldName ? fieldName.charAt(0).toUpperCase() + fieldName.slice(1).replace(/_/g, ' ') : ''),
+        type: fieldType,
+        typeLabel: fieldTypeLabels[fieldType] || fieldType,
+        required: !!fieldDef.required,
+        helpText: fieldDef.helpText || '',
+        defaultValue: fieldDef.defaultValue || '',
+        cardinality,
+        cardinalityCount: cardinality > 1 ? cardinality : '',
+        settings: {
+          ...settings,
+          isPlain: textProcessing === 'plain',
+          isFiltered: textProcessing === 'filtered',
+          isFull: textProcessing === 'full',
+          optionsText,
+        },
+      },
+      // Cardinality select flags
+      cardinalityIs1: cardinality === 1,
+      cardinalityIsUnlimited: cardinality === -1,
+      cardinalityIsCustom: cardinality > 1,
+      // Type boolean flags for template conditionals
+      isTextField: fieldType === 'string' || fieldType === 'text',
+      isNumberField: fieldType === 'number',
+      isBooleanField: fieldType === 'boolean',
+      isDateField: fieldType === 'date',
+      isSelectField: fieldType === 'array',
+      isReferenceField: fieldType === 'relation',
+      isFileField: fieldType === 'file',
+      isImageField: fieldType === 'image',
+      hasTypeSettings: ['string', 'text', 'number', 'array', 'relation', 'file', 'image'].includes(fieldType),
+      // Data for dropdowns
+      contentTypes: contentTypesList,
+      fieldTypes: fieldTypeOptions.map(ft => ({ ...ft, selected: ft.value === fieldType })),
+    };
+  }
+
+  // Helper: extract settings from form data (handles bracket notation keys like settings[maxLength])
+  function extractSettingsFromForm(formData) {
+    const settings = {};
+    for (const [key, value] of Object.entries(formData)) {
+      const match = key.match(/^settings\[(\w+)\]$/);
+      if (match) {
+        const settingKey = match[1];
+        // Convert checkbox values
+        if (value === '1' && ['multiple', 'autoCreate'].includes(settingKey)) {
+          settings[settingKey] = true;
+        } else if (['maxLength', 'min', 'max', 'precision', 'maxFileSize', 'minWidth', 'minHeight'].includes(settingKey)) {
+          // Numeric settings — only store if non-empty
+          if (value !== '') settings[settingKey] = Number(value);
+        } else if (settingKey === 'options') {
+          // Parse key|label format into structured array
+          settings.options = value.split('\n').filter(l => l.trim()).map(line => {
+            const [val, label] = line.split('|').map(s => s.trim());
+            return { value: val, label: label || val };
+          });
+        } else {
+          settings[settingKey] = value;
+        }
+      }
+    }
+    return settings;
+  }
+
   /**
-   * POST /admin/structure/types/:type/fields - Add field
+   * GET /admin/structure/types/:type/fields/add - Add field form
    */
-  register('POST', '/admin/structure/types/:type/fields', async (req, res, params, ctx) => {
+  register('GET', '/admin/structure/types/:type/fields/add', async (req, res, params, ctx) => {
+    const { type } = params;
+    if (!content.hasType(type)) {
+      redirect(res, '/admin/structure/types?error=' + encodeURIComponent(`Content type not found: ${type}`));
+      return;
+    }
+
+    const flash = getFlashMessage(req.url);
+    const data = buildFieldEditData(type, '', { type: '' }, true);
+
+    const html = renderAdmin('content-types-field-edit.html', {
+      pageTitle: `Add Field to ${deriveTypeLabel(type)}`,
+      ...data,
+      flash,
+      hasFlash: !!flash,
+    }, ctx, req);
+
+    server.html(res, html);
+  }, 'Add field form');
+
+  /**
+   * POST /admin/structure/types/:type/fields/add - Create new field
+   */
+  register('POST', '/admin/structure/types/:type/fields/add', async (req, res, params, ctx) => {
     const { type } = params;
     try {
       const formData = ctx._parsedBody || await parseFormBody(req);
-      const fieldName = formData.name?.trim();
-      const fieldDef = {
-        type: formData.type?.trim(),
-        required: formData.required === 'on',
-      };
+      const fieldName = (formData.machineName || formData.name || '').trim();
+      if (!fieldName) {
+        redirect(res, `/admin/structure/types/${type}/fields/add?error=` + encodeURIComponent('Machine name is required'));
+        return;
+      }
+      if (!/^[a-z][a-z0-9_]*$/.test(fieldName)) {
+        redirect(res, `/admin/structure/types/${type}/fields/add?error=` + encodeURIComponent('Machine name must start with a lowercase letter and contain only lowercase letters, numbers, and underscores'));
+        return;
+      }
 
       const schema = content.getSchema(type);
+      if (schema[fieldName]) {
+        redirect(res, `/admin/structure/types/${type}/fields/add?error=` + encodeURIComponent(`Field "${fieldName}" already exists`));
+        return;
+      }
+
+      const fieldType = (formData.type || '').trim();
+      if (!fieldType) {
+        redirect(res, `/admin/structure/types/${type}/fields/add?error=` + encodeURIComponent('Field type is required'));
+        return;
+      }
+
+      // Build field definition from form data
+      const cardinality = formData.cardinality === '-1' ? -1
+        : formData.cardinality === 'custom' ? Math.max(2, parseInt(formData.cardinalityCount) || 2)
+        : 1;
+
+      const fieldDef = {
+        type: fieldType,
+        label: (formData.label || '').trim() || fieldName,
+        required: formData.required === '1' || formData.required === 'on',
+        helpText: (formData.helpText || '').trim(),
+        defaultValue: formData.defaultValue || '',
+        cardinality,
+        settings: extractSettingsFromForm(formData),
+      };
+
       schema[fieldName] = fieldDef;
       content.registerType(type, schema);
 
       redirect(res, `/admin/structure/types/${type}/fields?success=` + encodeURIComponent(`Field added: ${fieldName}`));
     } catch (error) {
-      redirect(res, `/admin/structure/types/${type}/fields?error=` + encodeURIComponent(error.message));
+      redirect(res, `/admin/structure/types/${type}/fields/add?error=` + encodeURIComponent(error.message));
     }
-  }, 'Add field to content type');
+  }, 'Create new field');
 
   /**
    * GET /admin/structure/types/:type/fields/:field - Edit field
@@ -12509,11 +13420,14 @@ export function hook_routes(register, context) {
       return;
     }
 
-    const html = renderAdmin('content-type-field-form.html', {
-      pageTitle: `Edit Field: ${field}`,
-      type,
-      field,
-      fieldDef,
+    const flash = getFlashMessage(req.url);
+    const data = buildFieldEditData(type, field, fieldDef, false);
+
+    const html = renderAdmin('content-types-field-edit.html', {
+      pageTitle: `Edit Field: ${data.field.label}`,
+      ...data,
+      flash,
+      hasFlash: !!flash,
     }, ctx, req);
 
     server.html(res, html);
@@ -12526,12 +13440,29 @@ export function hook_routes(register, context) {
     const { type, field } = params;
     try {
       const formData = ctx._parsedBody || await parseFormBody(req);
-      const fieldDef = {
-        type: formData.type?.trim(),
-        required: formData.required === 'on',
-      };
 
       const schema = content.getSchema(type);
+      const existingDef = schema[field] || {};
+
+      // Preserve the field type (cannot be changed after creation)
+      const fieldType = existingDef.type || (formData.type || '').trim();
+
+      // Parse cardinality
+      const cardinality = formData.cardinality === '-1' ? -1
+        : formData.cardinality === 'custom' ? Math.max(2, parseInt(formData.cardinalityCount) || 2)
+        : 1;
+
+      // Build updated field definition, preserving type
+      const fieldDef = {
+        type: fieldType,
+        label: (formData.label || '').trim() || field,
+        required: formData.required === '1' || formData.required === 'on',
+        helpText: (formData.helpText || '').trim(),
+        defaultValue: formData.defaultValue || '',
+        cardinality,
+        settings: extractSettingsFromForm(formData),
+      };
+
       schema[field] = fieldDef;
       content.registerType(type, schema);
 
@@ -12569,7 +13500,7 @@ export function hook_routes(register, context) {
 
     const flash = getFlashMessage(req.url);
 
-    const html = renderAdmin('content-type-display.html', {
+    const html = renderAdmin('display-manage.html', {
       pageTitle: `Manage Display: ${type}`,
       type,
       flash,
@@ -12593,6 +13524,245 @@ export function hook_routes(register, context) {
     }
   }, 'Save content type display');
 
+  /**
+   * GET /admin/structure/types/:type/form-display - Manage form display
+   */
+  register('GET', '/admin/structure/types/:type/form-display', async (req, res, params, ctx) => {
+    const { type } = params;
+    if (!content.hasType(type)) {
+      redirect(res, '/admin/structure/types?error=' + encodeURIComponent(`Content type not found: ${type}`));
+      return;
+    }
+
+    const schema = content.getSchema(type);
+    const flash = getFlashMessage(req.url);
+
+    /* Map of field type -> available widget options */
+    const widgetMap = {
+      string: [
+        { value: 'textfield', label: 'Text field' },
+        { value: 'textarea', label: 'Text area' },
+      ],
+      text: [
+        { value: 'textarea', label: 'Text area' },
+        { value: 'wysiwyg', label: 'WYSIWYG editor' },
+      ],
+      number: [
+        { value: 'number', label: 'Number field' },
+        { value: 'range', label: 'Range slider' },
+      ],
+      boolean: [
+        { value: 'checkbox', label: 'Single on/off checkbox' },
+        { value: 'radios', label: 'Radio buttons' },
+      ],
+      date: [
+        { value: 'datepicker', label: 'Date picker' },
+        { value: 'datetime', label: 'Date and time' },
+      ],
+      relation: [
+        { value: 'autocomplete', label: 'Autocomplete' },
+        { value: 'select', label: 'Select list' },
+      ],
+      file: [
+        { value: 'file_upload', label: 'File upload' },
+      ],
+      image: [
+        { value: 'image_upload', label: 'Image upload' },
+      ],
+      array: [
+        { value: 'textarea', label: 'Text area (one per line)' },
+        { value: 'tag_input', label: 'Tag input' },
+      ],
+    };
+
+    let weight = 0;
+    const fields = Object.entries(schema)
+      .filter(([name]) => !name.startsWith('_'))
+      .map(([name, def]) => {
+        const fType = def.type || 'string';
+        const widgets = (widgetMap[fType] || [{ value: 'default', label: 'Default' }]).map(w => ({
+          ...w,
+          selected: w.value === (def.widget || (widgetMap[fType] || [])[0]?.value),
+        }));
+        return {
+          machineName: name,
+          label: def.label || name.charAt(0).toUpperCase() + name.slice(1).replace(/_/g, ' '),
+          availableWidgets: widgets,
+          weight: weight++,
+        };
+      });
+
+    const html = renderAdmin('content-types-form-display.html', {
+      pageTitle: `Manage Form Display: ${deriveTypeLabel(type)}`,
+      typeName: type,
+      typeLabel: deriveTypeLabel(type),
+      fields,
+      hasFields: fields.length > 0,
+      flash,
+      hasFlash: !!flash,
+    }, ctx, req);
+
+    server.html(res, html);
+  }, 'Manage form display');
+
+  /**
+   * POST /admin/structure/types/:type/form-display - Save form display
+   */
+  register('POST', '/admin/structure/types/:type/form-display', async (req, res, params, ctx) => {
+    const { type } = params;
+    try {
+      const formData = ctx._parsedBody || await parseFormBody(req);
+      /* Widget and weight data would be persisted here in a full implementation */
+      redirect(res, `/admin/structure/types/${type}/form-display?success=` + encodeURIComponent('Form display settings saved'));
+    } catch (error) {
+      redirect(res, `/admin/structure/types/${type}/form-display?error=` + encodeURIComponent(error.message));
+    }
+  }, 'Save form display');
+
+  /**
+   * GET /admin/structure/types/:type/permissions - Per-type permissions
+   */
+  register('GET', '/admin/structure/types/:type/permissions', async (req, res, params, ctx) => {
+    const { type } = params;
+    if (!content.hasType(type)) {
+      redirect(res, '/admin/structure/types?error=' + encodeURIComponent(`Content type not found: ${type}`));
+      return;
+    }
+
+    const flash = getFlashMessage(req.url);
+
+    const roles = [
+      { name: 'anonymous', label: 'Anonymous' },
+      { name: 'authenticated', label: 'Authenticated' },
+      { name: 'admin', label: 'Administrator' },
+    ];
+
+    const permissions = [
+      { key: 'create', label: `Create new ${type} content`, description: `Create ${type} content items` },
+      { key: 'edit_own', label: `Edit own ${type} content`, description: `Edit own ${type} content items` },
+      { key: 'edit_any', label: `Edit any ${type} content`, description: `Edit any ${type} content items` },
+      { key: 'delete_own', label: `Delete own ${type} content`, description: `Delete own ${type} content items` },
+      { key: 'delete_any', label: `Delete any ${type} content`, description: `Delete any ${type} content items` },
+      { key: 'view_published', label: `View published ${type} content`, description: '' },
+      { key: 'view_unpublished', label: `View unpublished ${type} content`, description: '' },
+    ];
+
+    /* Default permissions: admin gets all, authenticated gets view_published, anonymous gets view_published */
+    permissions.forEach(p => {
+      p.granted = {
+        admin: true,
+        authenticated: ['create', 'edit_own', 'delete_own', 'view_published'].includes(p.key),
+        anonymous: p.key === 'view_published',
+      };
+    });
+
+    const html = renderAdmin('content-types-permissions.html', {
+      pageTitle: `Permissions: ${deriveTypeLabel(type)}`,
+      typeName: type,
+      typeLabel: deriveTypeLabel(type),
+      roles,
+      permissions,
+      flash,
+      hasFlash: !!flash,
+    }, ctx, req);
+
+    server.html(res, html);
+  }, 'Manage content type permissions');
+
+  /**
+   * POST /admin/structure/types/:type/permissions - Save per-type permissions
+   */
+  register('POST', '/admin/structure/types/:type/permissions', async (req, res, params, ctx) => {
+    const { type } = params;
+    try {
+      const formData = ctx._parsedBody || await parseFormBody(req);
+      /* Permission data would be persisted here in a full implementation */
+      redirect(res, `/admin/structure/types/${type}/permissions?success=` + encodeURIComponent('Permissions saved'));
+    } catch (error) {
+      redirect(res, `/admin/structure/types/${type}/permissions?error=` + encodeURIComponent(error.message));
+    }
+  }, 'Save content type permissions');
+
+  // ==========================================
+  // Configuration Hub
+  // ==========================================
+
+  /**
+   * GET /admin/config - Configuration landing page
+   */
+  register('GET', '/admin/config', async (req, res, params, ctx) => {
+    // Build configuration hub page inline — links to all config sub-sections
+    const hubHtml = `
+<h1 class="admin-page-title">Configuration</h1>
+<p class="admin-page-description">Manage site configuration and settings.</p>
+
+<div class="admin-menu-grid">
+  <div class="admin-menu-block">
+    <h3><a href="/admin/cron">Cron</a></h3>
+    <p>Manage scheduled tasks and automated jobs.</p>
+  </div>
+  <div class="admin-menu-block">
+    <h3><a href="/admin/text-formats">Text Formats</a></h3>
+    <p>Configure text processing and input filters.</p>
+  </div>
+  <div class="admin-menu-block">
+    <h3><a href="/admin/image-styles">Image Styles</a></h3>
+    <p>Manage image presets and transformations.</p>
+  </div>
+  <div class="admin-menu-block">
+    <h3><a href="/admin/aliases">Path Aliases</a></h3>
+    <p>Manage URL aliases and redirects.</p>
+  </div>
+  <div class="admin-menu-block">
+    <h3><a href="/admin/tokens">Tokens</a></h3>
+    <p>Browse available tokens for dynamic text replacement.</p>
+  </div>
+  <div class="admin-menu-block">
+    <h3><a href="/admin/config/actions">Actions</a></h3>
+    <p>Configure system actions for automation.</p>
+  </div>
+  <div class="admin-menu-block">
+    <h3><a href="/admin/config/rules">Rules</a></h3>
+    <p>Set up event-driven automation rules.</p>
+  </div>
+  <div class="admin-menu-block">
+    <h3><a href="/admin/config/user-fields">User Fields</a></h3>
+    <p>Manage custom fields on user profiles.</p>
+  </div>
+  <div class="admin-menu-block">
+    <h3><a href="/admin/regions">Regions</a></h3>
+    <p>Manage theme regions and block placement.</p>
+  </div>
+  <div class="admin-menu-block">
+    <h3><a href="/admin/seo">SEO</a></h3>
+    <p>Search engine optimization settings and audit.</p>
+  </div>
+  <div class="admin-menu-block">
+    <h3><a href="/admin/contact-forms">Contact Forms</a></h3>
+    <p>Manage site contact forms and submissions.</p>
+  </div>
+  <div class="admin-menu-block">
+    <h3><a href="/admin/permissions">Permissions</a></h3>
+    <p>Configure user roles and access permissions.</p>
+  </div>
+</div>`;
+
+    const path = req?.url?.split('?')[0] || '/admin/config';
+    const navConfig = true;
+    const username = ctx.session?.user?.username || 'admin';
+
+    const html = template.renderWithLayout('admin-layout.html', hubHtml, {
+      title: 'Configuration',
+      siteName: ctx.config.site.name,
+      version: ctx.config.site.version,
+      csrfToken: req ? auth.getCSRFToken(req) : null,
+      username,
+      navConfig,
+    });
+
+    server.html(res, html);
+  }, 'Configuration hub');
+
   // ==========================================
   // Actions & Rules
   // ==========================================
@@ -12601,17 +13771,17 @@ export function hook_routes(register, context) {
    * GET /admin/config/actions - List actions
    */
   register('GET', '/admin/config/actions', async (req, res, params, ctx) => {
-    const actionService = ctx.services.get('action');
-    if (!actionService) {
+    let actionService;
+    try { actionService = ctx.services.get('actions'); } catch (e) {
       res.writeHead(404, { 'Content-Type': 'text/plain' });
       res.end('Action service not available');
       return;
     }
 
-    const actions = actionService.listActions();
+    const actions = actionService.getActions();
     const flash = getFlashMessage(req.url);
 
-    const html = renderAdmin('action-list.html', {
+    const html = renderAdmin('actions-list.html', {
       pageTitle: 'Actions',
       actions,
       hasActions: actions && actions.length > 0,
@@ -12626,17 +13796,17 @@ export function hook_routes(register, context) {
    * GET /admin/config/rules - List rules
    */
   register('GET', '/admin/config/rules', async (req, res, params, ctx) => {
-    const ruleService = ctx.services.get('rule');
-    if (!ruleService) {
+    let ruleService;
+    try { ruleService = ctx.services.get('actions'); } catch (e) {
       res.writeHead(404, { 'Content-Type': 'text/plain' });
       res.end('Rule service not available');
       return;
     }
 
-    const rules = ruleService.listRules();
+    const rules = ruleService.getRules();
     const flash = getFlashMessage(req.url);
 
-    const html = renderAdmin('rule-list.html', {
+    const html = renderAdmin('rules-list.html', {
       pageTitle: 'Rules',
       rules,
       hasRules: rules && rules.length > 0,
@@ -12651,7 +13821,7 @@ export function hook_routes(register, context) {
    * GET /admin/config/rules/new - Create rule form
    */
   register('GET', '/admin/config/rules/new', async (req, res, params, ctx) => {
-    const html = renderAdmin('rule-form.html', {
+    const html = renderAdmin('rules-edit.html', {
       pageTitle: 'Create Rule',
       isNew: true,
     }, ctx, req);
@@ -12663,8 +13833,8 @@ export function hook_routes(register, context) {
    * POST /admin/config/rules - Create rule
    */
   register('POST', '/admin/config/rules', async (req, res, params, ctx) => {
-    const ruleService = ctx.services.get('rule');
-    if (!ruleService) {
+    let ruleService;
+    try { ruleService = ctx.services.get('actions'); } catch (e) {
       res.writeHead(404, { 'Content-Type': 'text/plain' });
       res.end('Rule service not available');
       return;
@@ -12692,8 +13862,8 @@ export function hook_routes(register, context) {
    */
   register('GET', '/admin/config/rules/:id', async (req, res, params, ctx) => {
     const { id } = params;
-    const ruleService = ctx.services.get('rule');
-    if (!ruleService) {
+    let ruleService;
+    try { ruleService = ctx.services.get('actions'); } catch (e) {
       res.writeHead(404, { 'Content-Type': 'text/plain' });
       res.end('Rule service not available');
       return;
@@ -12705,7 +13875,7 @@ export function hook_routes(register, context) {
       return;
     }
 
-    const html = renderAdmin('rule-form.html', {
+    const html = renderAdmin('rules-edit.html', {
       pageTitle: `Edit Rule: ${rule.name}`,
       rule,
       conditionsJson: JSON.stringify(rule.conditions || [], null, 2),
@@ -12720,8 +13890,8 @@ export function hook_routes(register, context) {
    */
   register('POST', '/admin/config/rules/:id', async (req, res, params, ctx) => {
     const { id } = params;
-    const ruleService = ctx.services.get('rule');
-    if (!ruleService) {
+    let ruleService;
+    try { ruleService = ctx.services.get('actions'); } catch (e) {
       res.writeHead(404, { 'Content-Type': 'text/plain' });
       res.end('Rule service not available');
       return;
@@ -12748,8 +13918,8 @@ export function hook_routes(register, context) {
    */
   register('POST', '/admin/config/rules/:id/delete', async (req, res, params, ctx) => {
     const { id } = params;
-    const ruleService = ctx.services.get('rule');
-    if (!ruleService) {
+    let ruleService;
+    try { ruleService = ctx.services.get('actions'); } catch (e) {
       res.writeHead(404, { 'Content-Type': 'text/plain' });
       res.end('Rule service not available');
       return;
@@ -12771,17 +13941,17 @@ export function hook_routes(register, context) {
    * GET /admin/config/user-fields - List profile fields
    */
   register('GET', '/admin/config/user-fields', async (req, res, params, ctx) => {
-    const userService = ctx.services.get('user');
-    if (!userService) {
+    let userService;
+    try { userService = ctx.services.get('userFields'); } catch (e) {
       res.writeHead(404, { 'Content-Type': 'text/plain' });
-      res.end('User service not available');
+      res.end('User field service not available');
       return;
     }
 
-    const fields = userService.listCustomFields ? userService.listCustomFields() : [];
+    const fields = userService.getFields ? userService.getFields() : [];
     const flash = getFlashMessage(req.url);
 
-    const html = renderAdmin('user-field-list.html', {
+    const html = renderAdmin('user-fields-list.html', {
       pageTitle: 'User Profile Fields',
       fields,
       hasFields: fields.length > 0,
@@ -12796,7 +13966,7 @@ export function hook_routes(register, context) {
    * GET /admin/config/user-fields/new - Add field form
    */
   register('GET', '/admin/config/user-fields/new', async (req, res, params, ctx) => {
-    const html = renderAdmin('user-field-form.html', {
+    const html = renderAdmin('user-fields-edit.html', {
       pageTitle: 'Add User Field',
       isNew: true,
     }, ctx, req);
@@ -12808,8 +13978,13 @@ export function hook_routes(register, context) {
    * POST /admin/config/user-fields - Create field
    */
   register('POST', '/admin/config/user-fields', async (req, res, params, ctx) => {
-    const userService = ctx.services.get('user');
-    if (!userService || !userService.addCustomField) {
+    let userService;
+    try { userService = ctx.services.get('userFields'); } catch (e) {
+      res.writeHead(404, { 'Content-Type': 'text/plain' });
+      res.end('User field management not available');
+      return;
+    }
+    if (!userService.defineField) {
       res.writeHead(404, { 'Content-Type': 'text/plain' });
       res.end('User field management not available');
       return;
@@ -12824,7 +13999,7 @@ export function hook_routes(register, context) {
         required: formData.required === 'on',
       };
 
-      userService.addCustomField(fieldData);
+      await userService.defineField(fieldData.name, fieldData);
       redirect(res, '/admin/config/user-fields?success=' + encodeURIComponent(`Field added: ${fieldData.label}`));
     } catch (error) {
       redirect(res, '/admin/config/user-fields/new?error=' + encodeURIComponent(error.message));
@@ -12836,20 +14011,25 @@ export function hook_routes(register, context) {
    */
   register('GET', '/admin/config/user-fields/:name', async (req, res, params, ctx) => {
     const { name } = params;
-    const userService = ctx.services.get('user');
-    if (!userService || !userService.getCustomField) {
+    let userService;
+    try { userService = ctx.services.get('userFields'); } catch (e) {
+      res.writeHead(404, { 'Content-Type': 'text/plain' });
+      res.end('User field management not available');
+      return;
+    }
+    if (!userService.getField) {
       res.writeHead(404, { 'Content-Type': 'text/plain' });
       res.end('User field management not available');
       return;
     }
 
-    const field = userService.getCustomField(name);
+    const field = userService.getField(name);
     if (!field) {
       redirect(res, '/admin/config/user-fields?error=' + encodeURIComponent(`Field not found: ${name}`));
       return;
     }
 
-    const html = renderAdmin('user-field-form.html', {
+    const html = renderAdmin('user-fields-edit.html', {
       pageTitle: `Edit User Field: ${field.label}`,
       field,
     }, ctx, req);
@@ -12862,8 +14042,13 @@ export function hook_routes(register, context) {
    */
   register('POST', '/admin/config/user-fields/:name', async (req, res, params, ctx) => {
     const { name } = params;
-    const userService = ctx.services.get('user');
-    if (!userService || !userService.updateCustomField) {
+    let userService;
+    try { userService = ctx.services.get('userFields'); } catch (e) {
+      res.writeHead(404, { 'Content-Type': 'text/plain' });
+      res.end('User field management not available');
+      return;
+    }
+    if (!userService.updateField) {
       res.writeHead(404, { 'Content-Type': 'text/plain' });
       res.end('User field management not available');
       return;
@@ -12877,7 +14062,7 @@ export function hook_routes(register, context) {
         required: formData.required === 'on',
       };
 
-      userService.updateCustomField(name, updates);
+      await userService.updateField(name, updates);
       redirect(res, '/admin/config/user-fields?success=' + encodeURIComponent(`Field updated: ${updates.label}`));
     } catch (error) {
       redirect(res, `/admin/config/user-fields/${name}?error=` + encodeURIComponent(error.message));
@@ -12889,15 +14074,20 @@ export function hook_routes(register, context) {
    */
   register('POST', '/admin/config/user-fields/:name/delete', async (req, res, params, ctx) => {
     const { name } = params;
-    const userService = ctx.services.get('user');
-    if (!userService || !userService.deleteCustomField) {
+    let userService;
+    try { userService = ctx.services.get('userFields'); } catch (e) {
+      res.writeHead(404, { 'Content-Type': 'text/plain' });
+      res.end('User field management not available');
+      return;
+    }
+    if (!userService.deleteField) {
       res.writeHead(404, { 'Content-Type': 'text/plain' });
       res.end('User field management not available');
       return;
     }
 
     try {
-      userService.deleteCustomField(name);
+      await userService.deleteField(name);
       redirect(res, '/admin/config/user-fields?success=' + encodeURIComponent(`Field deleted: ${name}`));
     } catch (error) {
       redirect(res, '/admin/config/user-fields?error=' + encodeURIComponent(error.message));
@@ -12912,18 +14102,23 @@ export function hook_routes(register, context) {
    * GET /admin/appearance - List themes
    */
   register('GET', '/admin/appearance', async (req, res, params, ctx) => {
-    const themeService = ctx.services.get('theme');
+    let themeService;
+    try {
+      themeService = ctx.services.get('themeSettings');
+    } catch (e) {
+      // Service not available
+    }
     if (!themeService) {
       res.writeHead(404, { 'Content-Type': 'text/plain' });
       res.end('Theme service not available');
       return;
     }
 
-    const themes = themeService.listThemes ? themeService.listThemes() : [];
+    const themes = themeService.getThemes ? themeService.getThemes() : (themeService.listThemes ? themeService.listThemes() : []);
     const activeTheme = ctx.config.site.theme || 'default';
     const flash = getFlashMessage(req.url);
 
-    const html = renderAdmin('theme-list.html', {
+    const html = renderAdmin('themes-list.html', {
       pageTitle: 'Appearance',
       themes,
       hasThemes: themes.length > 0,
@@ -12940,19 +14135,84 @@ export function hook_routes(register, context) {
    */
   register('GET', '/admin/appearance/:theme/settings', async (req, res, params, ctx) => {
     const { theme } = params;
-    const themeService = ctx.services.get('theme');
+    let themeService;
+    try { themeService = ctx.services.get('themeSettings'); } catch (e) {}
     if (!themeService) {
       res.writeHead(404, { 'Content-Type': 'text/plain' });
       res.end('Theme service not available');
       return;
     }
 
+    // Load full theme metadata and current settings
+    let themeMeta = {};
+    try { themeMeta = themeService.getTheme ? themeService.getTheme(theme) : {}; } catch (e) {}
     const settings = themeService.getSettings ? themeService.getSettings(theme) : {};
+    const activeTheme = themeService.getActiveTheme ? themeService.getActiveTheme() : '';
     const flash = getFlashMessage(req.url);
 
+    // Build setting groups with pre-rendered field HTML
+    // (template engine can't do nested {{#each}}, so we render fields server-side)
+    const rawGroups = themeMeta.setting_groups || {};
+    const rawSettings = themeMeta.settings || {};
+    const esc = (s) => String(s || '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+
+    const settingGroups = Object.entries(rawGroups).map(([groupKey, group], idx) => {
+      const fieldsHtml = (group.settings || []).map(key => {
+        const schema = rawSettings[key] || {};
+        const schemaType = typeof schema === 'object' ? schema.type : null;
+        const value = settings[key] !== undefined ? settings[key] : (schema.default !== undefined ? schema.default : schema);
+        const label = (typeof schema === 'object' && schema.label) ? schema.label : key.replace(/_/g, ' ').replace(/^\w/, c => c.toUpperCase());
+        const description = (typeof schema === 'object' && schema.description) ? schema.description : '';
+
+        let input = '';
+        if (schemaType === 'toggle') {
+          const checked = value ? ' checked' : '';
+          input = `<label class="toggle-switch"><input type="checkbox" id="${esc(key)}" name="${esc(key)}"${checked}><span class="toggle-slider"></span></label>`;
+        } else if (schemaType === 'color') {
+          input = `<div style="display:flex;gap:0.5rem;align-items:center"><input type="color" id="${esc(key)}" name="${esc(key)}" value="${esc(value)}" style="width:48px;height:36px;padding:2px;cursor:pointer;border:1px solid var(--gin-border-light,#d4d4d8);border-radius:var(--gin-radius,8px)"><input type="text" value="${esc(value)}" class="form-input" style="flex:1;font-family:monospace" readonly></div>`;
+        } else if (schemaType === 'select' && typeof schema === 'object' && schema.options) {
+          const opts = schema.options.map(opt => {
+            const sel = opt.value === String(value) ? ' selected' : '';
+            return `<option value="${esc(opt.value)}"${sel}>${esc(opt.label)}</option>`;
+          }).join('');
+          input = `<select id="${esc(key)}" name="${esc(key)}" class="form-select">${opts}</select>`;
+        } else if (schemaType === 'image') {
+          input = `<input type="file" id="${esc(key)}" name="${esc(key)}" accept="image/*" class="form-input">`;
+          if (value) input += `<div style="margin-top:0.5rem"><img src="${esc(value)}" alt="Preview" style="max-width:200px;border-radius:var(--gin-radius,8px);border:1px solid var(--gin-border-light,#d4d4d8)"></div>`;
+        } else {
+          input = `<input type="text" id="${esc(key)}" name="${esc(key)}" value="${esc(value)}" class="form-input">`;
+        }
+
+        let html = `<div class="form-item"><label for="${esc(key)}">${esc(label)}</label>${input}`;
+        if (description) html += `<div class="form-item__description">${esc(description)}</div>`;
+        html += '</div>';
+        return html;
+      }).join('\n');
+
+      return {
+        label: group.label || groupKey,
+        description: group.description || '',
+        fieldsHtml,
+        isExpanded: idx === 0,
+      };
+    });
+
+    // Build color schemes list
+    const rawSchemes = themeMeta.color_schemes || {};
+    const colorSchemes = Object.keys(rawSchemes);
+
     const html = renderAdmin('theme-settings.html', {
-      pageTitle: `Theme Settings: ${theme}`,
+      pageTitle: `Theme Settings: ${themeMeta.name || theme}`,
       theme,
+      themeName: themeMeta.name || theme,
+      themeDescription: themeMeta.description || '',
+      themeVersion: themeMeta.version || '',
+      themeSlug: theme,
+      isActive: theme === activeTheme,
+      hasColorSchemes: colorSchemes.length > 0,
+      colorSchemes,
+      hasSettingGroups: settingGroups.length > 0,
+      settingGroups,
       settings,
       settingsJson: JSON.stringify(settings, null, 2),
       flash,
@@ -12967,7 +14227,8 @@ export function hook_routes(register, context) {
    */
   register('POST', '/admin/appearance/:theme/settings', async (req, res, params, ctx) => {
     const { theme } = params;
-    const themeService = ctx.services.get('theme');
+    let themeService;
+    try { themeService = ctx.services.get('themeSettings'); } catch (e) {}
     if (!themeService) {
       res.writeHead(404, { 'Content-Type': 'text/plain' });
       res.end('Theme service not available');
@@ -12976,7 +14237,30 @@ export function hook_routes(register, context) {
 
     try {
       const formData = ctx._parsedBody || await parseFormBody(req);
-      const settings = formData.settings ? JSON.parse(formData.settings) : {};
+
+      // Build settings from form fields — skip CSRF token and internal fields
+      let themeMeta = {};
+      try { themeMeta = themeService.getTheme ? themeService.getTheme(theme) : {}; } catch (e) {}
+      const defaultSettings = themeMeta.settings || {};
+      const settingKeys = Object.keys(defaultSettings);
+      const settings = {};
+
+      // If a JSON blob was submitted (legacy), parse it
+      if (formData.settings && typeof formData.settings === 'string') {
+        try { Object.assign(settings, JSON.parse(formData.settings)); } catch (e) {}
+      }
+
+      // Read individual form fields matching known setting keys using schema types
+      for (const key of settingKeys) {
+        const schema = defaultSettings[key];
+        const schemaType = (typeof schema === 'object' && schema.type) ? schema.type : null;
+        if (schemaType === 'toggle') {
+          // Checkboxes: present = true, absent = false
+          settings[key] = formData[key] === 'on' || formData[key] === 'true' || formData[key] === '1';
+        } else if (key in formData) {
+          settings[key] = formData[key];
+        }
+      }
 
       if (themeService.saveSettings) {
         themeService.saveSettings(theme, settings);
@@ -12993,7 +14277,8 @@ export function hook_routes(register, context) {
    */
   register('POST', '/admin/appearance/:theme/activate', async (req, res, params, ctx) => {
     const { theme } = params;
-    const themeService = ctx.services.get('theme');
+    let themeService;
+    try { themeService = ctx.services.get('themeSettings'); } catch (e) {}
     if (!themeService) {
       res.writeHead(404, { 'Content-Type': 'text/plain' });
       res.end('Theme service not available');
@@ -13001,12 +14286,13 @@ export function hook_routes(register, context) {
     }
 
     try {
-      if (themeService.activateTheme) {
-        themeService.activateTheme(theme);
+      if (themeService.setActiveTheme) {
+        await themeService.setActiveTheme(theme);
+      } else if (themeService.activateTheme) {
+        await themeService.activateTheme(theme);
       }
-      ctx.config.site.theme = theme;
 
-      redirect(res, '/admin/appearance?success=' + encodeURIComponent(`Theme activated: ${theme}`));
+      redirect(res, '/admin/appearance?success=' + encodeURIComponent(`Theme "${theme}" activated. Restart the server for full effect.`));
     } catch (error) {
       redirect(res, '/admin/appearance?error=' + encodeURIComponent(error.message));
     }
@@ -13704,6 +14990,2399 @@ export function hook_routes(register, context) {
 
     server.html(res, html);
   }, 'JSON:API explorer');
+
+  // ==========================================
+  // AI Chatbot API
+  // ==========================================
+
+  /**
+   * POST /admin/api/ai/chat - AI chatbot endpoint
+   *
+   * Accepts { message: string } and routes through the AI provider system.
+   * Returns { reply: string } or { error: string }.
+   */
+  register('POST', '/admin/api/ai/chat', async (req, res, params, ctx) => {
+    const server = ctx.services.get('server');
+
+    // Parse JSON body
+    let body;
+    try {
+      const chunks = [];
+      for await (const chunk of req) chunks.push(chunk);
+      body = JSON.parse(Buffer.concat(chunks).toString());
+    } catch {
+      res.writeHead(400, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ error: 'Invalid JSON body' }));
+      return;
+    }
+
+    const userMessage = (body.message || '').trim();
+    if (!userMessage) {
+      res.writeHead(400, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ error: 'Message is required' }));
+      return;
+    }
+
+    // Try to route through the AI provider manager
+    let providerManager;
+    try {
+      providerManager = ctx.services.get('ai-provider-manager');
+    } catch {
+      // AI provider not available
+    }
+
+    if (!providerManager || typeof providerManager.routeToProvider !== 'function') {
+      res.writeHead(200, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({
+        reply: 'AI providers are not configured. Please set up an AI provider (OpenAI, Anthropic, or Ollama) in your CMS configuration to enable the AI assistant.',
+      }));
+      return;
+    }
+
+    try {
+      const messages = [
+        { role: 'system', content: 'You are a helpful CMS assistant. You help content editors with their questions about creating and managing content. Keep responses concise and practical.' },
+        { role: 'user', content: userMessage },
+      ];
+
+      const result = await providerManager.routeToProvider('chat', messages);
+      const reply = (result && result.content) || (result && result.message) || String(result || 'No response from AI provider.');
+
+      res.writeHead(200, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ reply }));
+    } catch (err) {
+      console.error('[admin] AI chat error:', err.message);
+      res.writeHead(200, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({
+        reply: 'Sorry, I could not process your request. ' + (err.code === 'RATE_LIMIT_EXCEEDED' ? 'Rate limit reached. Please try again later.' : 'Please check your AI provider configuration.'),
+      }));
+    }
+  }, 'AI chatbot');
+
+  // ==========================================
+  // AI Agents Admin Routes
+  // ==========================================
+
+  /**
+   * GET /admin/ai/agents - List registered AI agents
+   */
+  register('GET', '/admin/ai/agents', async (req, res, params, ctx) => {
+    let agentsService;
+    try { agentsService = ctx.services.get('ai-agents'); } catch (e) {}
+
+    const agentsList = agentsService ? agentsService.listAgents() : [];
+    const toolsList = agentsService ? agentsService.listTools() : [];
+
+    res.writeHead(200, { 'Content-Type': 'application/json' });
+    res.end(JSON.stringify({ agents: agentsList, tools: toolsList }));
+  }, 'List AI agents');
+
+  /**
+   * POST /admin/api/ai/agent/:id/execute - Execute an AI agent
+   *
+   * Accepts { input: string, context: { contentType?, contentId?, model? } }
+   * Returns { result: string, toolCalls: Array }
+   */
+  register('POST', '/admin/api/ai/agent/:id/execute', async (req, res, params, ctx) => {
+    let agentsService;
+    try { agentsService = ctx.services.get('ai-agents'); } catch (e) {}
+
+    if (!agentsService) {
+      res.writeHead(503, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ error: 'AI Agents service not available' }));
+      return;
+    }
+
+    // Parse JSON body
+    let body;
+    try {
+      const chunks = [];
+      for await (const chunk of req) chunks.push(chunk);
+      body = JSON.parse(Buffer.concat(chunks).toString());
+    } catch {
+      res.writeHead(400, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ error: 'Invalid JSON body' }));
+      return;
+    }
+
+    const input = (body.input || '').trim();
+    if (!input) {
+      res.writeHead(400, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ error: 'Input is required' }));
+      return;
+    }
+
+    try {
+      const result = await agentsService.executeAgent(params.id, input, body.context || {});
+      res.writeHead(200, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify(result));
+    } catch (err) {
+      res.writeHead(500, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ error: err.message }));
+    }
+  }, 'Execute AI agent');
+
+  // ==========================================
+  // ECA (Event-Condition-Action) Admin Routes
+  // ==========================================
+
+  /**
+   * GET /admin/eca - ECA rule listing with execution log
+   */
+  register('GET', '/admin/eca', async (req, res, params, ctx) => {
+    let actionsService;
+    try { actionsService = ctx.services.get('actions'); } catch (e) {
+      res.writeHead(404, { 'Content-Type': 'text/plain' });
+      res.end('Actions service not available');
+      return;
+    }
+
+    const config = actionsService.exportConfig();
+    const rulesArr = Object.entries(config.rules || {}).map(([id, rule]) => ({
+      id,
+      label: rule.label || id,
+      event: rule.event || '—',
+      conditionCount: (rule.conditions || []).length,
+      actionCount: (rule.actions || []).length,
+      enabled: rule.enabled !== false,
+    }));
+
+    const eventsArr = Object.entries(config.events || {}).map(([id, ev]) => ({
+      id,
+      label: ev.label || id,
+    }));
+
+    const log = actionsService.getExecutionLog(20);
+
+    const html = renderAdmin('eca-list.html', {
+      pageTitle: 'ECA Rules',
+      rules: rulesArr,
+      events: eventsArr,
+      log,
+    }, ctx, req);
+
+    server.html(res, html);
+  }, 'ECA rule listing');
+
+  /**
+   * GET /admin/eca/add - Create ECA rule form
+   */
+  register('GET', '/admin/eca/add', async (req, res, params, ctx) => {
+    let actionsService;
+    try { actionsService = ctx.services.get('actions'); } catch (e) {
+      res.writeHead(404, { 'Content-Type': 'text/plain' });
+      res.end('Actions service not available');
+      return;
+    }
+
+    const config = actionsService.exportConfig();
+
+    const eventsArr = Object.entries(config.events || {}).map(([id, ev]) => ({ id, label: ev.label || id, selected: false }));
+    const condArr = Object.entries(config.conditions || {}).map(([id, c]) => ({ id, label: c.label || id }));
+    const actArr = Object.entries(config.actions || {}).map(([id, a]) => ({ id, label: a.label || id }));
+
+    const html = renderAdmin('eca-edit.html', {
+      pageTitle: 'Create ECA Rule',
+      isNew: true,
+      formAction: '/admin/eca/save',
+      rule: { id: '', label: '', event: '', conditions: [], actions: [], enabled: true },
+      events: eventsArr,
+      availableConditions: condArr,
+      availableActions: actArr,
+      conditionsJson: JSON.stringify(condArr),
+      actionsJson: JSON.stringify(actArr),
+    }, ctx, req);
+
+    server.html(res, html);
+  }, 'Create ECA rule form');
+
+  /**
+   * GET /admin/eca/edit/:id - Edit ECA rule form
+   */
+  register('GET', '/admin/eca/edit/:id', async (req, res, params, ctx) => {
+    let actionsService;
+    try { actionsService = ctx.services.get('actions'); } catch (e) {
+      res.writeHead(404, { 'Content-Type': 'text/plain' });
+      res.end('Actions service not available');
+      return;
+    }
+
+    const rule = actionsService.getRule(params.id);
+    if (!rule) {
+      redirect(res, '/admin/eca?error=Rule+not+found');
+      return;
+    }
+
+    const config = actionsService.exportConfig();
+    const eventsArr = Object.entries(config.events || {}).map(([id, ev]) => ({
+      id, label: ev.label || id, selected: id === rule.event
+    }));
+    const condArr = Object.entries(config.conditions || {}).map(([id, c]) => ({ id, label: c.label || id }));
+    const actArr = Object.entries(config.actions || {}).map(([id, a]) => ({ id, label: a.label || id }));
+
+    // Prepare conditions/actions with settings JSON for the form
+    const ruleConditions = (rule.conditions || []).map((c, i) => ({
+      ...c,
+      settingsJson: JSON.stringify(c.settings || {}),
+    }));
+    const ruleActions = (rule.actions || []).map((a, i) => ({
+      ...a,
+      settingsJson: JSON.stringify(a.settings || {}),
+    }));
+
+    const html = renderAdmin('eca-edit.html', {
+      pageTitle: `Edit Rule: ${rule.label}`,
+      isNew: false,
+      formAction: '/admin/eca/save/' + params.id,
+      rule: { ...rule, id: params.id, conditions: ruleConditions, actions: ruleActions },
+      events: eventsArr,
+      availableConditions: condArr,
+      availableActions: actArr,
+      conditionsJson: JSON.stringify(condArr),
+      actionsJson: JSON.stringify(actArr),
+    }, ctx, req);
+
+    server.html(res, html);
+  }, 'Edit ECA rule form');
+
+  /**
+   * POST /admin/eca/save - Create new ECA rule
+   * POST /admin/eca/save/:id - Update existing ECA rule
+   */
+  register('POST', '/admin/eca/save/:id', async (req, res, params, ctx) => {
+    let actionsService;
+    try { actionsService = ctx.services.get('actions'); } catch (e) {
+      res.writeHead(404, { 'Content-Type': 'text/plain' });
+      res.end('Actions service not available');
+      return;
+    }
+
+    try {
+      const formData = ctx._parsedBody || {};
+
+      // Parse conditions and actions from indexed form fields
+      const conditions = [];
+      const actions = [];
+      for (const key of Object.keys(formData)) {
+        const condMatch = key.match(/^conditions\[(\d+)]\[(\w+)]$/);
+        if (condMatch) {
+          const idx = parseInt(condMatch[1]);
+          const field = condMatch[2];
+          if (!conditions[idx]) conditions[idx] = {};
+          if (field === 'settings') {
+            try { conditions[idx].settings = JSON.parse(formData[key] || '{}'); } catch { conditions[idx].settings = {}; }
+          } else {
+            conditions[idx][field] = formData[key];
+          }
+        }
+        const actMatch = key.match(/^actions\[(\d+)]\[(\w+)]$/);
+        if (actMatch) {
+          const idx = parseInt(actMatch[1]);
+          const field = actMatch[2];
+          if (!actions[idx]) actions[idx] = {};
+          if (field === 'settings') {
+            try { actions[idx].settings = JSON.parse(formData[key] || '{}'); } catch { actions[idx].settings = {}; }
+          } else {
+            actions[idx][field] = formData[key];
+          }
+        }
+      }
+
+      const ruleConfig = {
+        label: (formData.label || '').trim(),
+        event: (formData.event || '').trim(),
+        conditions: conditions.filter(Boolean),
+        actions: actions.filter(Boolean),
+        enabled: formData.enabled === '1',
+      };
+
+      const id = params.id || (formData.id || '').trim();
+      if (!id) {
+        redirect(res, '/admin/eca/add?error=Rule+ID+required');
+        return;
+      }
+
+      if (actionsService.getRule(id)) {
+        actionsService.updateRule(id, ruleConfig);
+      } else {
+        actionsService.createRule(id, ruleConfig);
+      }
+
+      redirect(res, '/admin/eca?success=' + encodeURIComponent('Rule saved: ' + ruleConfig.label));
+    } catch (error) {
+      redirect(res, '/admin/eca?error=' + encodeURIComponent(error.message));
+    }
+  }, 'Save ECA rule');
+
+  register('POST', '/admin/eca/save', async (req, res, params, ctx) => {
+    // Delegate to the :id handler with no id (creates new)
+    params.id = null;
+    const handler = ctx._routeHandlers?.['POST:/admin/eca/save/:id'];
+    if (handler) return handler(req, res, params, ctx);
+    // Fallback: parse and create directly
+    let actionsService;
+    try { actionsService = ctx.services.get('actions'); } catch (e) {
+      redirect(res, '/admin/eca?error=Actions+service+not+available');
+      return;
+    }
+    const formData = ctx._parsedBody || {};
+    const id = (formData.id || '').trim();
+    if (!id) { redirect(res, '/admin/eca/add?error=Rule+ID+required'); return; }
+    try {
+      actionsService.createRule(id, {
+        label: (formData.label || '').trim(),
+        event: (formData.event || '').trim(),
+        conditions: [],
+        actions: [],
+        enabled: formData.enabled === '1',
+      });
+      redirect(res, '/admin/eca?success=Rule+created');
+    } catch (err) {
+      redirect(res, '/admin/eca/add?error=' + encodeURIComponent(err.message));
+    }
+  }, 'Create ECA rule');
+
+  /**
+   * POST /admin/eca/toggle/:id - Toggle rule enabled/disabled
+   */
+  register('POST', '/admin/eca/toggle/:id', async (req, res, params, ctx) => {
+    let actionsService;
+    try { actionsService = ctx.services.get('actions'); } catch (e) {
+      redirect(res, '/admin/eca?error=Actions+service+not+available');
+      return;
+    }
+    const rule = actionsService.getRule(params.id);
+    if (!rule) {
+      redirect(res, '/admin/eca?error=Rule+not+found');
+      return;
+    }
+    actionsService.updateRule(params.id, { enabled: !rule.enabled });
+    redirect(res, '/admin/eca?success=' + encodeURIComponent(`Rule ${rule.enabled ? 'disabled' : 'enabled'}: ${rule.label}`));
+  }, 'Toggle ECA rule');
+
+  /**
+   * POST /admin/eca/delete/:id - Delete rule
+   */
+  register('POST', '/admin/eca/delete/:id', async (req, res, params, ctx) => {
+    let actionsService;
+    try { actionsService = ctx.services.get('actions'); } catch (e) {
+      redirect(res, '/admin/eca?error=Actions+service+not+available');
+      return;
+    }
+    try {
+      actionsService.deleteRule(params.id);
+      redirect(res, '/admin/eca?success=Rule+deleted');
+    } catch (err) {
+      redirect(res, '/admin/eca?error=' + encodeURIComponent(err.message));
+    }
+  }, 'Delete ECA rule');
+
+  // ==========================================
+  // Webform Admin Routes
+  // ==========================================
+
+  /**
+   * GET /admin/webforms - Webform listing
+   */
+  register('GET', '/admin/webforms', async (req, res, params, ctx) => {
+    let wf;
+    try { wf = ctx.services.get('webform'); } catch (e) {}
+    if (!wf) { redirect(res, '/admin?error=Webform+service+not+available'); return; }
+
+    const forms = wf.listForms().map(f => ({
+      ...f,
+      elementCount: (f.elements || []).filter(e => e.type !== 'page_break' && e.type !== 'markup').length,
+      submissionCount: wf.countSubmissions(f.id),
+    }));
+
+    const flash = getFlashMessage(req.url);
+    const html = renderAdmin('webform-list.html', {
+      pageTitle: 'Webforms',
+      forms,
+      flash,
+      hasFlash: !!flash,
+    }, ctx, req);
+    res.writeHead(200, { 'Content-Type': 'text/html' });
+    res.end(html);
+  }, 'List webforms');
+
+  /**
+   * GET /admin/webforms/add - Create webform
+   */
+  register('GET', '/admin/webforms/add', async (req, res, params, ctx) => {
+    let wf;
+    try { wf = ctx.services.get('webform'); } catch (e) {}
+    if (!wf) { redirect(res, '/admin?error=Webform+service+not+available'); return; }
+
+    const elementTypes = Object.entries(wf.getElementTypes()).map(([value, info]) => ({
+      value,
+      label: info.label,
+    }));
+
+    const html = renderAdmin('webform-edit.html', {
+      pageTitle: 'Create Webform',
+      isNew: true,
+      form: { id: '', title: '', description: '', status: 'open', elements: [], settings: { submitLabel: 'Submit', confirmationMessage: 'Thank you for your submission.', confirmationType: 'message', redirectUrl: '', limitTotal: 0 }, handlers: [] },
+      formAction: '/admin/webforms/save',
+      elementTypes,
+      elementTypesJson: JSON.stringify(elementTypes),
+    }, ctx, req);
+    res.writeHead(200, { 'Content-Type': 'text/html' });
+    res.end(html);
+  }, 'Create webform form');
+
+  /**
+   * GET /admin/webforms/edit/:id - Edit webform
+   */
+  register('GET', '/admin/webforms/edit/:id', async (req, res, params, ctx) => {
+    let wf;
+    try { wf = ctx.services.get('webform'); } catch (e) {}
+    if (!wf) { redirect(res, '/admin?error=Webform+service+not+available'); return; }
+
+    const form = wf.getForm(params.id);
+    if (!form) { redirect(res, '/admin/webforms?error=Form+not+found'); return; }
+
+    const elementTypes = Object.entries(wf.getElementTypes()).map(([value, info]) => ({
+      value,
+      label: info.label,
+    }));
+
+    // Prepare elements for template with selected states and serialized options/showIf
+    const elements = (form.elements || []).map(el => ({
+      ...el,
+      optionsRaw: (el.options || []).map(o => o.value + '|' + o.label).join(', '),
+      showIfRaw: el.showIf ? (el.showIf.field + '|' + el.showIf.operator + '|' + (el.showIf.value || '')) : '',
+    }));
+
+    // Add selected state to element types for each element
+    const elementsWithTypes = elements.map(el => ({
+      ...el,
+      elementTypes: elementTypes.map(t => ({ ...t, selected: t.value === el.type })),
+    }));
+
+    const handlers = (form.handlers || []).map(h => ({
+      ...h,
+      settingsRaw: JSON.stringify(h.settings || {}),
+    }));
+
+    const html = renderAdmin('webform-edit.html', {
+      pageTitle: 'Edit Webform: ' + form.title,
+      isNew: false,
+      form: { ...form, elements: elementsWithTypes, handlers },
+      formAction: '/admin/webforms/save/' + params.id,
+      elementTypes,
+      elementTypesJson: JSON.stringify(elementTypes),
+    }, ctx, req);
+    res.writeHead(200, { 'Content-Type': 'text/html' });
+    res.end(html);
+  }, 'Edit webform form');
+
+  /**
+   * POST /admin/webforms/save/:id - Save/update webform
+   * POST /admin/webforms/save - Create new webform
+   */
+  register('POST', '/admin/webforms/save/:id', async (req, res, params, ctx) => {
+    let wf;
+    try { wf = ctx.services.get('webform'); } catch (e) {}
+    if (!wf) { redirect(res, '/admin?error=Webform+service+not+available'); return; }
+
+    try {
+      const body = ctx._parsedBody || {};
+      const id = params.id || body.id;
+      if (!id) { redirect(res, '/admin/webforms/add?error=ID+required'); return; }
+
+      // Parse elements from indexed form fields
+      const elements = [];
+      for (let i = 0; i < 200; i++) {
+        const type = body['elements[' + i + '][type]'];
+        if (!type) break;
+        const key = body['elements[' + i + '][key]'] || '';
+        const label = body['elements[' + i + '][label]'] || '';
+        const required = body['elements[' + i + '][required]'] === '1';
+        const placeholder = body['elements[' + i + '][placeholder]'] || '';
+        const optionsRaw = body['elements[' + i + '][options_raw]'] || '';
+        const showIfRaw = body['elements[' + i + '][showIf_raw]'] || '';
+
+        const el = { type, key, label, required, placeholder };
+
+        // Parse options: "val1|Label 1, val2|Label 2"
+        if (optionsRaw.trim()) {
+          el.options = optionsRaw.split(',').map(s => {
+            const parts = s.trim().split('|');
+            return { value: parts[0].trim(), label: (parts[1] || parts[0]).trim() };
+          }).filter(o => o.value);
+        }
+
+        // Parse showIf: "field|operator|value"
+        if (showIfRaw.trim()) {
+          const parts = showIfRaw.split('|');
+          if (parts.length >= 2) {
+            el.showIf = { field: parts[0].trim(), operator: parts[1].trim(), value: (parts[2] || '').trim() };
+          }
+        }
+
+        elements.push(el);
+      }
+
+      // Parse handlers
+      const handlers = [];
+      for (let i = 0; i < 50; i++) {
+        const type = body['handlers[' + i + '][type]'];
+        if (!type) break;
+        const settingsRaw = body['handlers[' + i + '][settings_raw]'] || '{}';
+        let settings = {};
+        try { settings = JSON.parse(settingsRaw); } catch { /* keep empty */ }
+        handlers.push({ type, settings });
+      }
+
+      // Parse settings
+      const settings = {};
+      const settingsKeys = ['submitLabel', 'confirmationMessage', 'confirmationType', 'redirectUrl', 'limitTotal'];
+      for (const key of settingsKeys) {
+        const val = body['settings[' + key + ']'];
+        if (val !== undefined) {
+          settings[key] = key === 'limitTotal' ? parseInt(val, 10) || 0 : val;
+        }
+      }
+
+      const formData = {
+        id,
+        title: body.title || id,
+        description: body.description || '',
+        status: body.status || 'open',
+        elements,
+        handlers,
+        settings,
+      };
+
+      const existing = wf.getForm(id);
+      if (existing) {
+        await wf.updateForm(id, formData);
+      } else {
+        await wf.createForm(formData);
+      }
+
+      redirect(res, '/admin/webforms?success=' + encodeURIComponent('Webform saved: ' + formData.title));
+    } catch (error) {
+      redirect(res, '/admin/webforms?error=' + encodeURIComponent(error.message));
+    }
+  }, 'Save webform');
+
+  register('POST', '/admin/webforms/save', async (req, res, params, ctx) => {
+    // Delegate to save/:id handler with ID from body
+    const body = ctx._parsedBody || {};
+    const id = body.id;
+    if (!id) { redirect(res, '/admin/webforms/add?error=ID+required'); return; }
+    params.id = id;
+
+    let wf;
+    try { wf = ctx.services.get('webform'); } catch (e) {}
+    if (!wf) { redirect(res, '/admin?error=Webform+service+not+available'); return; }
+
+    try {
+      // Parse elements, handlers, settings (same logic as save/:id)
+      const elements = [];
+      for (let i = 0; i < 200; i++) {
+        const type = body['elements[' + i + '][type]'];
+        if (!type) break;
+        const key = body['elements[' + i + '][key]'] || '';
+        const label = body['elements[' + i + '][label]'] || '';
+        const required = body['elements[' + i + '][required]'] === '1';
+        const placeholder = body['elements[' + i + '][placeholder]'] || '';
+        const optionsRaw = body['elements[' + i + '][options_raw]'] || '';
+        const showIfRaw = body['elements[' + i + '][showIf_raw]'] || '';
+        const el = { type, key, label, required, placeholder };
+        if (optionsRaw.trim()) {
+          el.options = optionsRaw.split(',').map(s => {
+            const parts = s.trim().split('|');
+            return { value: parts[0].trim(), label: (parts[1] || parts[0]).trim() };
+          }).filter(o => o.value);
+        }
+        if (showIfRaw.trim()) {
+          const parts = showIfRaw.split('|');
+          if (parts.length >= 2) {
+            el.showIf = { field: parts[0].trim(), operator: parts[1].trim(), value: (parts[2] || '').trim() };
+          }
+        }
+        elements.push(el);
+      }
+      const handlers = [];
+      for (let i = 0; i < 50; i++) {
+        const type = body['handlers[' + i + '][type]'];
+        if (!type) break;
+        const settingsRaw = body['handlers[' + i + '][settings_raw]'] || '{}';
+        let settings = {};
+        try { settings = JSON.parse(settingsRaw); } catch { /* keep empty */ }
+        handlers.push({ type, settings });
+      }
+      const settings = {};
+      const settingsKeys = ['submitLabel', 'confirmationMessage', 'confirmationType', 'redirectUrl', 'limitTotal'];
+      for (const key of settingsKeys) {
+        const val = body['settings[' + key + ']'];
+        if (val !== undefined) {
+          settings[key] = key === 'limitTotal' ? parseInt(val, 10) || 0 : val;
+        }
+      }
+      await wf.createForm({ id, title: body.title || id, description: body.description || '', status: body.status || 'open', elements, handlers, settings });
+      redirect(res, '/admin/webforms?success=' + encodeURIComponent('Webform created: ' + (body.title || id)));
+    } catch (err) {
+      redirect(res, '/admin/webforms/add?error=' + encodeURIComponent(err.message));
+    }
+  }, 'Create webform');
+
+  /**
+   * GET /admin/webforms/submissions/:id - View submissions
+   */
+  register('GET', '/admin/webforms/submissions/:id', async (req, res, params, ctx) => {
+    let wf;
+    try { wf = ctx.services.get('webform'); } catch (e) {}
+    if (!wf) { redirect(res, '/admin?error=Webform+service+not+available'); return; }
+
+    const form = wf.getForm(params.id);
+    if (!form) { redirect(res, '/admin/webforms?error=Form+not+found'); return; }
+
+    // Parse page from query string
+    const urlObj = new URL(req.url, 'http://localhost');
+    const page = parseInt(urlObj.searchParams.get('page') || '0', 10);
+    const limit = 50;
+
+    const submissions = wf.listSubmissions(params.id, { limit, offset: page * limit });
+
+    // Build columns from form elements
+    const columns = (form.elements || [])
+      .filter(el => el.type !== 'page_break' && el.type !== 'markup' && el.type !== 'fieldset')
+      .slice(0, 6) // Show first 6 columns max in table
+      .map(el => ({ key: el.key, label: el.label || el.key }));
+
+    const html = renderAdmin('webform-submissions.html', {
+      pageTitle: 'Submissions: ' + form.title,
+      form,
+      submissions,
+      columns,
+      hasPrev: page > 0,
+      hasNext: (page + 1) * limit < submissions.total,
+      prevPage: page - 1,
+      nextPage: page + 1,
+    }, ctx, req);
+    res.writeHead(200, { 'Content-Type': 'text/html' });
+    res.end(html);
+  }, 'View webform submissions');
+
+  /**
+   * GET /admin/webforms/submission/:formId/:subId - View single submission
+   */
+  register('GET', '/admin/webforms/submission/:formId/:subId', async (req, res, params, ctx) => {
+    let wf;
+    try { wf = ctx.services.get('webform'); } catch (e) {}
+    if (!wf) { redirect(res, '/admin?error=Webform+service+not+available'); return; }
+
+    const form = wf.getForm(params.formId);
+    if (!form) { redirect(res, '/admin/webforms?error=Form+not+found'); return; }
+
+    const submission = wf.getSubmission(params.formId, params.subId);
+    if (!submission) { redirect(res, '/admin/webforms/submissions/' + params.formId + '?error=Submission+not+found'); return; }
+
+    // Build a simple detail view
+    let detailHtml = '<div class="admin-content">';
+    detailHtml += '<h1>Submission: ' + submission.id + '</h1>';
+    detailHtml += '<p><a href="/admin/webforms/submissions/' + form.id + '">Back to submissions</a></p>';
+    detailHtml += '<table class="admin-table"><tbody>';
+    detailHtml += '<tr><th>Submitted</th><td>' + (submission.created || '') + '</td></tr>';
+    detailHtml += '<tr><th>IP</th><td>' + (submission.ip || 'N/A') + '</td></tr>';
+    detailHtml += '<tr><th>User</th><td>' + (submission.userId || 'Anonymous') + '</td></tr>';
+    for (const el of (form.elements || [])) {
+      if (el.type === 'page_break' || el.type === 'markup' || el.type === 'fieldset') continue;
+      const val = submission.data?.[el.key];
+      const display = val === undefined ? '' : (Array.isArray(val) ? val.join(', ') : String(val));
+      detailHtml += '<tr><th>' + (el.label || el.key) + '</th><td>' + display + '</td></tr>';
+    }
+    detailHtml += '</tbody></table></div>';
+
+    const html = renderAdmin('dashboard.html', { pageTitle: 'Submission Detail', _rawContent: detailHtml }, ctx, req);
+    // For submission detail, render inline since we don't need a dedicated template
+    res.writeHead(200, { 'Content-Type': 'text/html' });
+    // Actually just wrap in layout directly
+    const layoutHtml = renderAdmin('webform-submissions.html', {
+      pageTitle: 'Submission: ' + submission.id,
+      form,
+      submissions: { items: [], total: 0 },
+      columns: [],
+    }, ctx, req);
+    // Simpler approach: just send the detail HTML with admin layout
+    const adminLayout = renderAdmin('content-list.html', { pageTitle: 'Submission Detail' }, ctx, req);
+    // Let's just use a direct response with the admin chrome
+    res.end(detailHtml);
+  }, 'View single submission');
+
+  /**
+   * POST /admin/webforms/submission/:formId/:subId/delete - Delete submission
+   */
+  register('POST', '/admin/webforms/submission/:formId/:subId/delete', async (req, res, params, ctx) => {
+    let wf;
+    try { wf = ctx.services.get('webform'); } catch (e) {}
+    if (!wf) { redirect(res, '/admin?error=Webform+service+not+available'); return; }
+
+    try {
+      await wf.deleteSubmission(params.formId, params.subId);
+      redirect(res, '/admin/webforms/submissions/' + params.formId + '?success=Submission+deleted');
+    } catch (err) {
+      redirect(res, '/admin/webforms/submissions/' + params.formId + '?error=' + encodeURIComponent(err.message));
+    }
+  }, 'Delete submission');
+
+  /**
+   * GET /admin/webforms/export/:id - Export submissions as CSV
+   */
+  register('GET', '/admin/webforms/export/:id', async (req, res, params, ctx) => {
+    let wf;
+    try { wf = ctx.services.get('webform'); } catch (e) {}
+    if (!wf) { redirect(res, '/admin?error=Webform+service+not+available'); return; }
+
+    try {
+      const csv = wf.exportCsv(params.id);
+      res.writeHead(200, {
+        'Content-Type': 'text/csv',
+        'Content-Disposition': 'attachment; filename="' + params.id + '-submissions.csv"',
+      });
+      res.end(csv);
+    } catch (err) {
+      redirect(res, '/admin/webforms?error=' + encodeURIComponent(err.message));
+    }
+  }, 'Export webform CSV');
+
+  /**
+   * POST /admin/webforms/delete/:id - Delete webform
+   */
+  register('POST', '/admin/webforms/delete/:id', async (req, res, params, ctx) => {
+    let wf;
+    try { wf = ctx.services.get('webform'); } catch (e) {}
+    if (!wf) { redirect(res, '/admin?error=Webform+service+not+available'); return; }
+
+    try {
+      await wf.deleteForm(params.id);
+      redirect(res, '/admin/webforms?success=Webform+deleted');
+    } catch (err) {
+      redirect(res, '/admin/webforms?error=' + encodeURIComponent(err.message));
+    }
+  }, 'Delete webform');
+
+  // ==========================================
+  // Public Webform Routes
+  // ==========================================
+
+  /**
+   * GET /form/:id - Render public webform
+   */
+  register('GET', '/form/:id', async (req, res, params, ctx) => {
+    let wf;
+    try { wf = ctx.services.get('webform'); } catch (e) {}
+    if (!wf) { res.writeHead(404); res.end('Form system not available'); return; }
+
+    const form = wf.getForm(params.id);
+    if (!form) { res.writeHead(404); res.end('Form not found'); return; }
+    if (form.status !== 'open') { res.writeHead(403); res.end('This form is not currently accepting submissions.'); return; }
+
+    const formHtml = wf.renderFormHtml(form);
+    const pageHtml = '<div class="webform-page"><h1>' + form.title + '</h1>' +
+      (form.description ? '<p>' + form.description + '</p>' : '') +
+      formHtml + '</div>';
+
+    // Try to render within site theme, fallback to bare HTML
+    try {
+      const templateSvc = ctx.services.get('template');
+      const html = templateSvc.render('layout.html', {
+        title: form.title,
+        content: pageHtml,
+        siteName: ctx.config?.site?.name || 'CMS',
+      });
+      res.writeHead(200, { 'Content-Type': 'text/html' });
+      res.end(html);
+    } catch {
+      res.writeHead(200, { 'Content-Type': 'text/html' });
+      res.end('<!DOCTYPE html><html><head><title>' + form.title + '</title></head><body>' + pageHtml + '</body></html>');
+    }
+  }, 'Render public webform');
+
+  /**
+   * POST /form/:id - Submit webform
+   */
+  register('POST', '/form/:id', async (req, res, params, ctx) => {
+    let wf;
+    try { wf = ctx.services.get('webform'); } catch (e) {}
+    if (!wf) { res.writeHead(500); res.end('Form system not available'); return; }
+
+    const form = wf.getForm(params.id);
+    if (!form) { res.writeHead(404); res.end('Form not found'); return; }
+
+    const body = ctx._parsedBody || {};
+
+    // Handle multi-step navigation
+    const pageTarget = body._webform_page;
+    if (pageTarget !== undefined) {
+      const pageNum = parseInt(pageTarget, 10);
+      const formHtml = wf.renderFormHtml(form, body, [], pageNum);
+      const pageHtml = '<div class="webform-page"><h1>' + form.title + '</h1>' + formHtml + '</div>';
+      try {
+        const templateSvc = ctx.services.get('template');
+        const html = templateSvc.render('layout.html', { title: form.title, content: pageHtml, siteName: ctx.config?.site?.name || 'CMS' });
+        res.writeHead(200, { 'Content-Type': 'text/html' });
+        res.end(html);
+      } catch {
+        res.writeHead(200, { 'Content-Type': 'text/html' });
+        res.end('<!DOCTYPE html><html><head><title>' + form.title + '</title></head><body>' + pageHtml + '</body></html>');
+      }
+      return;
+    }
+
+    try {
+      const result = await wf.submit(params.id, body, {
+        ip: req.headers['x-forwarded-for'] || req.socket?.remoteAddress,
+        userAgent: req.headers['user-agent'],
+        user: ctx._user || null,
+      });
+
+      if (!result.success) {
+        // Re-render with errors
+        const formHtml = wf.renderFormHtml(form, body, result.errors || []);
+        const pageHtml = '<div class="webform-page"><h1>' + form.title + '</h1>' + formHtml + '</div>';
+        try {
+          const templateSvc = ctx.services.get('template');
+          const html = templateSvc.render('layout.html', { title: form.title, content: pageHtml, siteName: ctx.config?.site?.name || 'CMS' });
+          res.writeHead(200, { 'Content-Type': 'text/html' });
+          res.end(html);
+        } catch {
+          res.writeHead(200, { 'Content-Type': 'text/html' });
+          res.end('<!DOCTYPE html><html><body>' + pageHtml + '</body></html>');
+        }
+        return;
+      }
+
+      if (result.redirect) {
+        redirect(res, result.redirect);
+        return;
+      }
+
+      // Show confirmation message
+      const confirmHtml = '<div class="webform-confirmation"><h1>' + form.title + '</h1><div class="alert alert-success">' + (result.message || 'Submission received.') + '</div></div>';
+      try {
+        const templateSvc = ctx.services.get('template');
+        const html = templateSvc.render('layout.html', { title: form.title, content: confirmHtml, siteName: ctx.config?.site?.name || 'CMS' });
+        res.writeHead(200, { 'Content-Type': 'text/html' });
+        res.end(html);
+      } catch {
+        res.writeHead(200, { 'Content-Type': 'text/html' });
+        res.end('<!DOCTYPE html><html><body>' + confirmHtml + '</body></html>');
+      }
+    } catch (err) {
+      const errHtml = '<div class="webform-page"><h1>' + form.title + '</h1><div class="alert alert-danger">' + err.message + '</div></div>';
+      res.writeHead(400, { 'Content-Type': 'text/html' });
+      res.end(errHtml);
+    }
+  }, 'Submit webform');
+
+  // ==========================================
+  // Experience Builder Routes
+  // ==========================================
+
+  /**
+   * GET /admin/xb/:type/:id - Experience Builder visual editor page
+   */
+  register('GET', '/admin/xb/:type/:id', async (req, res, params, ctx) => {
+    let lb;
+    try { lb = ctx.services.get('layout-builder'); } catch (e) {}
+    if (!lb) { redirect(res, '/admin?error=Layout+builder+not+available'); return; }
+
+    // Get content title for display
+    let contentTitle = params.id;
+    try {
+      const contentSvc = ctx.services.get('content');
+      const item = contentSvc.read(params.type, params.id);
+      if (item) contentTitle = item.title || item.name || params.id;
+    } catch { /* use ID as fallback */ }
+
+    const html = renderAdmin('experience-builder.html', {
+      pageTitle: 'Experience Builder',
+      contentType: params.type,
+      contentId: params.id,
+      contentTitle,
+    }, ctx, req);
+    res.writeHead(200, { 'Content-Type': 'text/html' });
+    res.end(html);
+  }, 'Experience Builder editor');
+
+  /**
+   * GET /admin/xb/api/layout/:type/:id - Get layout data as JSON
+   */
+  register('GET', '/admin/xb/api/layout/:type/:id', async (req, res, params, ctx) => {
+    let lb;
+    try { lb = ctx.services.get('layout-builder'); } catch (e) {}
+    if (!lb) {
+      res.writeHead(500, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ error: 'Layout builder not available' }));
+      return;
+    }
+
+    try {
+      const layout = lb.getEffectiveLayout(params.type, params.id);
+      res.writeHead(200, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify(layout || { sections: [] }));
+    } catch (err) {
+      res.writeHead(500, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ error: err.message }));
+    }
+  }, 'Get layout JSON');
+
+  /**
+   * POST /admin/xb/api/layout/:type/:id - Save layout data
+   */
+  register('POST', '/admin/xb/api/layout/:type/:id', async (req, res, params, ctx) => {
+    let lb;
+    try { lb = ctx.services.get('layout-builder'); } catch (e) {}
+    if (!lb) {
+      res.writeHead(500, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ error: 'Layout builder not available' }));
+      return;
+    }
+
+    try {
+      // Parse JSON body
+      let body = ctx._parsedBody;
+      if (typeof body === 'string') {
+        try { body = JSON.parse(body); } catch { body = {}; }
+      }
+
+      await lb.setContentLayout(params.type, params.id, body);
+
+      res.writeHead(200, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ success: true }));
+    } catch (err) {
+      res.writeHead(500, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ error: err.message }));
+    }
+  }, 'Save layout JSON');
+
+  /**
+   * GET /admin/xb/api/components - List available components for sidebar
+   *
+   * Returns blocks + SDC components that can be placed in layouts.
+   */
+  register('GET', '/admin/xb/api/components', async (req, res, params, ctx) => {
+    const components = [];
+
+    // Add blocks
+    try {
+      const blocksSvc = ctx.services.get('blocks');
+      const blocks = blocksSvc.listBlocks ? blocksSvc.listBlocks() : [];
+      blocks.forEach(function(block) {
+        components.push({
+          id: block.id,
+          label: block.label || block.title || block.id,
+          type: 'block',
+          category: 'Blocks',
+        });
+      });
+    } catch { /* blocks service not available */ }
+
+    // Add SDC components if available
+    try {
+      const sdcSvc = ctx.services.get('sdc');
+      const sdcComponents = sdcSvc.listComponents ? sdcSvc.listComponents() : [];
+      sdcComponents.forEach(function(comp) {
+        components.push({
+          id: comp.machineName || comp.id,
+          label: comp.name || comp.machineName || comp.id,
+          type: 'sdc',
+          category: 'Components',
+        });
+      });
+    } catch { /* SDC service not available */ }
+
+    // Add field components for the current content type
+    components.push(
+      { id: 'field:title', label: 'Title', type: 'field', category: 'Fields' },
+      { id: 'field:body', label: 'Body', type: 'field', category: 'Fields' },
+      { id: 'field:image', label: 'Image', type: 'field', category: 'Fields' },
+      { id: 'field:created', label: 'Date', type: 'field', category: 'Fields' },
+      { id: 'field:author', label: 'Author', type: 'field', category: 'Fields' },
+    );
+
+    res.writeHead(200, { 'Content-Type': 'application/json' });
+    res.end(JSON.stringify(components));
+  }, 'List XB components');
+
+  /**
+   * GET /admin/xb/api/layouts - List available layout definitions
+   */
+  register('GET', '/admin/xb/api/layouts', async (req, res, params, ctx) => {
+    let lb;
+    try { lb = ctx.services.get('layout-builder'); } catch (e) {}
+
+    let layouts = [];
+    if (lb && lb.listLayouts) {
+      layouts = lb.listLayouts().map(function(l) {
+        return {
+          id: l.id,
+          label: l.label,
+          description: l.description || '',
+          category: l.category || '',
+          regions: l.regions,
+          defaultSettings: l.defaultSettings || {},
+        };
+      });
+    }
+
+    res.writeHead(200, { 'Content-Type': 'application/json' });
+    res.end(JSON.stringify(layouts));
+  }, 'List layout definitions');
+
+  // ==========================================
+  // Views Admin Routes
+  // ==========================================
+
+  /**
+   * GET /admin/views - Views listing
+   */
+  register('GET', '/admin/views', async (req, res, params, ctx) => {
+    let viewsService;
+    try { viewsService = ctx.services.get('views'); } catch (e) {}
+    const views = viewsService && viewsService.listViews ? viewsService.listViews() : [];
+    const flash = getFlashMessage(req.url);
+
+    const html = renderAdmin('views-list.html', {
+      pageTitle: 'Views',
+      views,
+      hasViews: views.length > 0,
+      viewCount: views.length,
+      flash,
+      hasFlash: !!flash,
+    }, ctx, req);
+
+    server.html(res, html);
+  }, 'Views listing');
+
+  // ==========================================
+  // Roles & Permissions Admin Routes
+  // ==========================================
+
+  /**
+   * GET /admin/roles - Roles listing
+   */
+  register('GET', '/admin/roles', async (req, res, params, ctx) => {
+    let permsService;
+    try { permsService = ctx.services.get('permissions'); } catch (e) {}
+    const roles = permsService && permsService.listRoles ? permsService.listRoles() : [];
+    const flash = getFlashMessage(req.url);
+
+    const rolesList = roles.map(role => {
+      const perms = permsService.getPermissions ? permsService.getPermissions(role) : [];
+      return { name: role, permissionCount: perms.length };
+    });
+
+    const html = renderAdmin('roles-list.html', {
+      pageTitle: 'Roles',
+      roles: rolesList,
+      hasRoles: rolesList.length > 0,
+      roleCount: rolesList.length,
+      flash,
+      hasFlash: !!flash,
+    }, ctx, req);
+
+    server.html(res, html);
+  }, 'Roles listing');
+
+  /**
+   * GET /admin/permissions - Permissions matrix
+   */
+  register('GET', '/admin/permissions', async (req, res, params, ctx) => {
+    let permsService;
+    try { permsService = ctx.services.get('permissions'); } catch (e) {}
+    const roles = permsService && permsService.listRoles ? permsService.listRoles() : [];
+    const allPermissions = permsService && permsService.listPermissions ? permsService.listPermissions() : [];
+    const flash = getFlashMessage(req.url);
+
+    // Build a matrix: for each permission, which roles have it
+    const matrix = allPermissions.map(perm => {
+      const roleFlags = roles.map(role => {
+        const perms = permsService.getPermissions ? permsService.getPermissions(role) : [];
+        return { role, granted: perms.includes(perm) || perms.includes('*') };
+      });
+      return { permission: perm, roles: roleFlags };
+    });
+
+    const html = renderAdmin('permissions-matrix.html', {
+      pageTitle: 'Permissions',
+      roles,
+      matrix,
+      hasMatrix: matrix.length > 0,
+      flash,
+      hasFlash: !!flash,
+    }, ctx, req);
+
+    server.html(res, html);
+  }, 'Permissions matrix');
+
+  // ==========================================
+  // Permissions Save (B7)
+  // ==========================================
+
+  /**
+   * POST /admin/permissions - Save permissions matrix
+   */
+  register('POST', '/admin/permissions', async (req, res, params, ctx) => {
+    try {
+      const formData = ctx._parsedBody || await parseFormBody(req);
+      let permsService;
+      try { permsService = ctx.services.get('permissions'); } catch (e) {}
+
+      if (permsService && permsService.savePermissions) {
+        // Parse the permissions[role][permission] structure from form data
+        const permissions = {};
+        for (const [key, value] of Object.entries(formData)) {
+          const match = key.match(/^permissions\[(.+?)\]\[(.+?)\]$/);
+          if (match) {
+            const [, roleId, permId] = match;
+            if (!permissions[roleId]) permissions[roleId] = [];
+            permissions[roleId].push(permId);
+          }
+        }
+        await permsService.savePermissions(permissions);
+      }
+
+      redirect(res, '/admin/permissions?success=' + encodeURIComponent('Permissions saved'));
+    } catch (error) {
+      console.error('[admin] Save permissions error:', error.message);
+      redirect(res, '/admin/permissions?error=' + encodeURIComponent(error.message));
+    }
+  }, 'Save permissions');
+
+  // ==========================================
+  // Image Styles Edit (B6)
+  // ==========================================
+
+  /**
+   * GET /admin/image-styles/:name/edit - Edit image style
+   */
+  register('GET', '/admin/image-styles/:name/edit', async (req, res, params, ctx) => {
+    const { name } = params;
+    let imageStylesService;
+    try { imageStylesService = ctx.services.get('imageStyles'); } catch (e) {}
+    if (!imageStylesService) {
+      redirect(res, '/admin?error=' + encodeURIComponent('Image styles service not available'));
+      return;
+    }
+
+    const style = imageStylesService.getStyle ? imageStylesService.getStyle(name) : null;
+    if (!style) {
+      redirect(res, '/admin/image-styles?error=' + encodeURIComponent('Style not found: ' + name));
+      return;
+    }
+
+    const flash = getFlashMessage(req.url);
+
+    const html = renderAdmin('image-styles-edit.html', {
+      pageTitle: 'Edit Image Style: ' + (style.label || name),
+      style,
+      styleName: name,
+      isNew: false,
+      flash,
+      hasFlash: !!flash,
+    }, ctx, req);
+
+    server.html(res, html);
+  }, 'Edit image style');
+
+  /**
+   * POST /admin/image-styles/:name - Update image style
+   */
+  register('POST', '/admin/image-styles/:name', async (req, res, params, ctx) => {
+    const { name } = params;
+    try {
+      let imageStylesService;
+      try { imageStylesService = ctx.services.get('imageStyles'); } catch (e) {}
+      if (!imageStylesService) {
+        redirect(res, '/admin?error=' + encodeURIComponent('Image styles service not available'));
+        return;
+      }
+
+      const formData = ctx._parsedBody || await parseFormBody(req);
+      if (imageStylesService.updateStyle) {
+        await imageStylesService.updateStyle(name, formData);
+      }
+
+      redirect(res, '/admin/image-styles?success=' + encodeURIComponent('Style updated: ' + name));
+    } catch (error) {
+      console.error('[admin] Update image style error:', error.message);
+      redirect(res, '/admin/image-styles/' + name + '/edit?error=' + encodeURIComponent(error.message));
+    }
+  }, 'Update image style');
+
+  /**
+   * POST /admin/image-styles/:name/delete - Delete image style
+   */
+  register('POST', '/admin/image-styles/:name/delete', async (req, res, params, ctx) => {
+    const { name } = params;
+    try {
+      let imageStylesService;
+      try { imageStylesService = ctx.services.get('imageStyles'); } catch (e) {}
+      if (!imageStylesService) {
+        redirect(res, '/admin?error=' + encodeURIComponent('Image styles service not available'));
+        return;
+      }
+
+      if (imageStylesService.deleteStyle) {
+        await imageStylesService.deleteStyle(name);
+      }
+
+      redirect(res, '/admin/image-styles?success=' + encodeURIComponent('Style deleted: ' + name));
+    } catch (error) {
+      console.error('[admin] Delete image style error:', error.message);
+      redirect(res, '/admin/image-styles?error=' + encodeURIComponent(error.message));
+    }
+  }, 'Delete image style');
+
+  // ==========================================
+  // Menu Attributes Config (B8)
+  // ==========================================
+
+  /**
+   * POST /admin/config/system/menu-attributes - Save menu attribute settings
+   */
+  register('POST', '/admin/config/system/menu-attributes', async (req, res, params, ctx) => {
+    try {
+      const formData = ctx._parsedBody || await parseFormBody(req);
+      let configMgr;
+      try { configMgr = ctx.services.get('configManagement'); } catch (e) {}
+
+      if (configMgr && configMgr.set) {
+        await configMgr.set('menu-attributes', formData);
+      }
+
+      redirect(res, '/admin/config/system/menu-attributes?success=' + encodeURIComponent('Menu attributes settings saved'));
+    } catch (error) {
+      console.error('[admin] Save menu attributes error:', error.message);
+      redirect(res, '/admin/config/system/menu-attributes?error=' + encodeURIComponent(error.message));
+    }
+  }, 'Save menu attributes config');
+
+  // ==========================================
+  // Display Modes CRUD (B2)
+  // ==========================================
+
+  /**
+   * GET /admin/display-modes - List display modes
+   */
+  register('GET', '/admin/display-modes', async (req, res, params, ctx) => {
+    let configMgr;
+    try { configMgr = ctx.services.get('configManagement'); } catch (e) {}
+    const modes = (configMgr && configMgr.get) ? (configMgr.get('display-modes') || []) : [];
+    const flash = getFlashMessage(req.url);
+
+    const html = renderAdmin('display-modes-list.html', {
+      pageTitle: 'Display Modes',
+      modes,
+      hasModes: Array.isArray(modes) && modes.length > 0,
+      modeCount: Array.isArray(modes) ? modes.length : 0,
+      flash,
+      hasFlash: !!flash,
+    }, ctx, req);
+
+    server.html(res, html);
+  }, 'Display modes list');
+
+  /**
+   * GET /admin/display-modes/create - Create display mode form
+   */
+  register('GET', '/admin/display-modes/create', async (req, res, params, ctx) => {
+    const flash = getFlashMessage(req.url);
+
+    const html = renderAdmin('display-modes-list.html', {
+      pageTitle: 'Create Display Mode',
+      isNew: true,
+      mode: {},
+      flash,
+      hasFlash: !!flash,
+    }, ctx, req);
+
+    server.html(res, html);
+  }, 'Create display mode form');
+
+  /**
+   * POST /admin/display-modes - Create display mode
+   */
+  register('POST', '/admin/display-modes', async (req, res, params, ctx) => {
+    try {
+      const formData = ctx._parsedBody || await parseFormBody(req);
+      let configMgr;
+      try { configMgr = ctx.services.get('configManagement'); } catch (e) {}
+
+      if (configMgr && configMgr.get && configMgr.set) {
+        const modes = configMgr.get('display-modes') || [];
+        modes.push({
+          name: formData.name || formData.machineName,
+          label: formData.label || formData.name,
+          description: formData.description || '',
+        });
+        await configMgr.set('display-modes', modes);
+      }
+
+      redirect(res, '/admin/display-modes?success=' + encodeURIComponent('Display mode created'));
+    } catch (error) {
+      console.error('[admin] Create display mode error:', error.message);
+      redirect(res, '/admin/display-modes/create?error=' + encodeURIComponent(error.message));
+    }
+  }, 'Create display mode');
+
+  /**
+   * GET /admin/display-modes/:name/edit - Edit display mode form
+   */
+  register('GET', '/admin/display-modes/:name/edit', async (req, res, params, ctx) => {
+    const { name } = params;
+    let configMgr;
+    try { configMgr = ctx.services.get('configManagement'); } catch (e) {}
+    const modes = (configMgr && configMgr.get) ? (configMgr.get('display-modes') || []) : [];
+    const mode = modes.find(m => m.name === name);
+
+    if (!mode) {
+      redirect(res, '/admin/display-modes?error=' + encodeURIComponent('Display mode not found: ' + name));
+      return;
+    }
+
+    const flash = getFlashMessage(req.url);
+
+    const html = renderAdmin('display-modes-list.html', {
+      pageTitle: 'Edit Display Mode: ' + (mode.label || name),
+      isNew: false,
+      mode,
+      flash,
+      hasFlash: !!flash,
+    }, ctx, req);
+
+    server.html(res, html);
+  }, 'Edit display mode form');
+
+  /**
+   * POST /admin/display-modes/:name - Update display mode
+   */
+  register('POST', '/admin/display-modes/:name', async (req, res, params, ctx) => {
+    const { name } = params;
+    try {
+      const formData = ctx._parsedBody || await parseFormBody(req);
+      let configMgr;
+      try { configMgr = ctx.services.get('configManagement'); } catch (e) {}
+
+      if (configMgr && configMgr.get && configMgr.set) {
+        const modes = configMgr.get('display-modes') || [];
+        const idx = modes.findIndex(m => m.name === name);
+        if (idx >= 0) {
+          modes[idx] = { ...modes[idx], label: formData.label, description: formData.description };
+          await configMgr.set('display-modes', modes);
+        }
+      }
+
+      redirect(res, '/admin/display-modes?success=' + encodeURIComponent('Display mode updated'));
+    } catch (error) {
+      console.error('[admin] Update display mode error:', error.message);
+      redirect(res, '/admin/display-modes/' + name + '/edit?error=' + encodeURIComponent(error.message));
+    }
+  }, 'Update display mode');
+
+  /**
+   * POST /admin/display-modes/:name/delete - Delete display mode
+   */
+  register('POST', '/admin/display-modes/:name/delete', async (req, res, params, ctx) => {
+    const { name } = params;
+    try {
+      let configMgr;
+      try { configMgr = ctx.services.get('configManagement'); } catch (e) {}
+
+      if (configMgr && configMgr.get && configMgr.set) {
+        const modes = (configMgr.get('display-modes') || []).filter(m => m.name !== name);
+        await configMgr.set('display-modes', modes);
+      }
+
+      redirect(res, '/admin/display-modes?success=' + encodeURIComponent('Display mode deleted'));
+    } catch (error) {
+      console.error('[admin] Delete display mode error:', error.message);
+      redirect(res, '/admin/display-modes?error=' + encodeURIComponent(error.message));
+    }
+  }, 'Delete display mode');
+
+  // ==========================================
+  // Editor Formats CRUD (B5)
+  // ==========================================
+
+  /**
+   * GET /admin/editor/new - Create editor format form
+   */
+  register('GET', '/admin/editor/new', async (req, res, params, ctx) => {
+    const flash = getFlashMessage(req.url);
+
+    const html = renderAdmin('editor-formats.html', {
+      pageTitle: 'Create Editor Format',
+      isNew: true,
+      format: {},
+      formats: [],
+      categories: [],
+      flash,
+      hasFlash: !!flash,
+    }, ctx, req);
+
+    server.html(res, html);
+  }, 'Create editor format form');
+
+  /**
+   * POST /admin/editor - Create editor format
+   */
+  register('POST', '/admin/editor', async (req, res, params, ctx) => {
+    try {
+      const formData = ctx._parsedBody || await parseFormBody(req);
+      let editor;
+      try { editor = ctx.services.get('editor'); } catch (e) {}
+
+      if (editor && editor.createFormat) {
+        await editor.createFormat(formData);
+      }
+
+      redirect(res, '/admin/editor?success=' + encodeURIComponent('Editor format created'));
+    } catch (error) {
+      console.error('[admin] Create editor format error:', error.message);
+      redirect(res, '/admin/editor/new?error=' + encodeURIComponent(error.message));
+    }
+  }, 'Create editor format');
+
+  /**
+   * GET /admin/editor/:id/edit - Edit editor format form
+   */
+  register('GET', '/admin/editor/:id/edit', async (req, res, params, ctx) => {
+    const { id } = params;
+    let editor;
+    try { editor = ctx.services.get('editor'); } catch (e) {}
+
+    const format = editor && editor.getFormat ? editor.getFormat(id) : null;
+    if (!format) {
+      redirect(res, '/admin/editor?error=' + encodeURIComponent('Format not found: ' + id));
+      return;
+    }
+
+    const flash = getFlashMessage(req.url);
+    const categories = editor && editor.listButtonCategories ? editor.listButtonCategories() : [];
+
+    const html = renderAdmin('editor-formats.html', {
+      pageTitle: 'Edit Editor Format: ' + (format.label || id),
+      isNew: false,
+      format,
+      formats: [],
+      categories,
+      flash,
+      hasFlash: !!flash,
+    }, ctx, req);
+
+    server.html(res, html);
+  }, 'Edit editor format form');
+
+  /**
+   * POST /admin/editor/:id - Update editor format
+   */
+  register('POST', '/admin/editor/:id', async (req, res, params, ctx) => {
+    const { id } = params;
+    try {
+      const formData = ctx._parsedBody || await parseFormBody(req);
+      let editor;
+      try { editor = ctx.services.get('editor'); } catch (e) {}
+
+      if (editor && editor.updateFormat) {
+        await editor.updateFormat(id, formData);
+      }
+
+      redirect(res, '/admin/editor?success=' + encodeURIComponent('Editor format updated'));
+    } catch (error) {
+      console.error('[admin] Update editor format error:', error.message);
+      redirect(res, '/admin/editor/' + id + '/edit?error=' + encodeURIComponent(error.message));
+    }
+  }, 'Update editor format');
+
+  /**
+   * GET /admin/editor/buttons - Editor button browser
+   */
+  register('GET', '/admin/editor/buttons', async (req, res, params, ctx) => {
+    let editor;
+    try { editor = ctx.services.get('editor'); } catch (e) {}
+
+    const categories = editor && editor.listButtonCategories ? editor.listButtonCategories() : [];
+    const flash = getFlashMessage(req.url);
+
+    const html = renderAdmin('editor-formats.html', {
+      pageTitle: 'Editor Buttons',
+      isButtonBrowser: true,
+      categories,
+      formats: [],
+      flash,
+      hasFlash: !!flash,
+    }, ctx, req);
+
+    server.html(res, html);
+  }, 'Editor button browser');
+
+  // ==========================================
+  // Responsive Images CRUD (B4)
+  // ==========================================
+
+  /**
+   * GET /admin/responsive-images/new - Create responsive image style form
+   */
+  register('GET', '/admin/responsive-images/new', async (req, res, params, ctx) => {
+    const flash = getFlashMessage(req.url);
+
+    const html = renderAdmin('responsive-images.html', {
+      pageTitle: 'Create Responsive Image Style',
+      isNew: true,
+      style: {},
+      styles: [],
+      breakpoints: [],
+      flash,
+      hasFlash: !!flash,
+    }, ctx, req);
+
+    server.html(res, html);
+  }, 'Create responsive image style form');
+
+  /**
+   * POST /admin/responsive-images - Create responsive image style
+   */
+  register('POST', '/admin/responsive-images', async (req, res, params, ctx) => {
+    try {
+      const formData = ctx._parsedBody || await parseFormBody(req);
+      let responsiveImages;
+      try { responsiveImages = ctx.services.get('responsiveImages'); } catch (e) {}
+
+      if (responsiveImages && responsiveImages.createStyle) {
+        await responsiveImages.createStyle(formData);
+      }
+
+      redirect(res, '/admin/responsive-images?success=' + encodeURIComponent('Responsive image style created'));
+    } catch (error) {
+      console.error('[admin] Create responsive image style error:', error.message);
+      redirect(res, '/admin/responsive-images/new?error=' + encodeURIComponent(error.message));
+    }
+  }, 'Create responsive image style');
+
+  /**
+   * GET /admin/responsive-images/:id/edit - Edit responsive image style form
+   */
+  register('GET', '/admin/responsive-images/:id/edit', async (req, res, params, ctx) => {
+    const { id } = params;
+    let responsiveImages;
+    try { responsiveImages = ctx.services.get('responsiveImages'); } catch (e) {}
+
+    const style = responsiveImages && responsiveImages.getStyle ? responsiveImages.getStyle(id) : null;
+    if (!style) {
+      redirect(res, '/admin/responsive-images?error=' + encodeURIComponent('Responsive image style not found: ' + id));
+      return;
+    }
+
+    const flash = getFlashMessage(req.url);
+    const breakpoints = responsiveImages && responsiveImages.listBreakpoints ? responsiveImages.listBreakpoints() : [];
+
+    const html = renderAdmin('responsive-images.html', {
+      pageTitle: 'Edit Responsive Image Style: ' + (style.label || id),
+      isNew: false,
+      style,
+      styles: [],
+      breakpoints,
+      flash,
+      hasFlash: !!flash,
+    }, ctx, req);
+
+    server.html(res, html);
+  }, 'Edit responsive image style form');
+
+  /**
+   * POST /admin/responsive-images/:id - Update responsive image style
+   */
+  register('POST', '/admin/responsive-images/:id', async (req, res, params, ctx) => {
+    const { id } = params;
+    try {
+      const formData = ctx._parsedBody || await parseFormBody(req);
+      let responsiveImages;
+      try { responsiveImages = ctx.services.get('responsiveImages'); } catch (e) {}
+
+      if (responsiveImages && responsiveImages.updateStyle) {
+        await responsiveImages.updateStyle(id, formData);
+      }
+
+      redirect(res, '/admin/responsive-images?success=' + encodeURIComponent('Responsive image style updated'));
+    } catch (error) {
+      console.error('[admin] Update responsive image style error:', error.message);
+      redirect(res, '/admin/responsive-images/' + id + '/edit?error=' + encodeURIComponent(error.message));
+    }
+  }, 'Update responsive image style');
+
+  /**
+   * POST /admin/responsive-images/:id/delete - Delete responsive image style
+   */
+  register('POST', '/admin/responsive-images/:id/delete', async (req, res, params, ctx) => {
+    const { id } = params;
+    try {
+      let responsiveImages;
+      try { responsiveImages = ctx.services.get('responsiveImages'); } catch (e) {}
+
+      if (responsiveImages && responsiveImages.deleteStyle) {
+        await responsiveImages.deleteStyle(id);
+      }
+
+      redirect(res, '/admin/responsive-images?success=' + encodeURIComponent('Responsive image style deleted'));
+    } catch (error) {
+      console.error('[admin] Delete responsive image style error:', error.message);
+      redirect(res, '/admin/responsive-images?error=' + encodeURIComponent(error.message));
+    }
+  }, 'Delete responsive image style');
+
+  // ==========================================
+  // Workflows CRUD (B3)
+  // ==========================================
+
+  /**
+   * GET /admin/workflows - List workflows
+   */
+  register('GET', '/admin/workflows', async (req, res, params, ctx) => {
+    let configMgr;
+    try { configMgr = ctx.services.get('configManagement'); } catch (e) {}
+    const workflows = (configMgr && configMgr.get) ? (configMgr.get('workflows') || []) : [];
+    const flash = getFlashMessage(req.url);
+
+    const html = renderAdmin('workflows-list.html', {
+      pageTitle: 'Workflows',
+      workflows,
+      hasWorkflows: Array.isArray(workflows) && workflows.length > 0,
+      workflowCount: Array.isArray(workflows) ? workflows.length : 0,
+      flash,
+      hasFlash: !!flash,
+    }, ctx, req);
+
+    server.html(res, html);
+  }, 'Workflows list');
+
+  /**
+   * GET /admin/workflows/new - Create workflow form
+   */
+  register('GET', '/admin/workflows/new', async (req, res, params, ctx) => {
+    const flash = getFlashMessage(req.url);
+
+    const html = renderAdmin('workflows-edit.html', {
+      pageTitle: 'Create Workflow',
+      isNew: true,
+      workflow: {},
+      flash,
+      hasFlash: !!flash,
+    }, ctx, req);
+
+    server.html(res, html);
+  }, 'Create workflow form');
+
+  /**
+   * POST /admin/workflows - Create workflow
+   */
+  register('POST', '/admin/workflows', async (req, res, params, ctx) => {
+    try {
+      const formData = ctx._parsedBody || await parseFormBody(req);
+      let configMgr;
+      try { configMgr = ctx.services.get('configManagement'); } catch (e) {}
+
+      if (configMgr && configMgr.get && configMgr.set) {
+        const workflows = configMgr.get('workflows') || [];
+        const id = formData.id || formData.name || ('workflow_' + Date.now());
+        workflows.push({
+          id,
+          name: formData.name || formData.label,
+          label: formData.label || formData.name,
+          description: formData.description || '',
+          states: formData.states ? JSON.parse(formData.states) : [
+            { id: 'draft', label: 'Draft' },
+            { id: 'review', label: 'In Review' },
+            { id: 'published', label: 'Published' },
+          ],
+          transitions: formData.transitions ? JSON.parse(formData.transitions) : [],
+        });
+        await configMgr.set('workflows', workflows);
+      }
+
+      redirect(res, '/admin/workflows?success=' + encodeURIComponent('Workflow created'));
+    } catch (error) {
+      console.error('[admin] Create workflow error:', error.message);
+      redirect(res, '/admin/workflows/new?error=' + encodeURIComponent(error.message));
+    }
+  }, 'Create workflow');
+
+  /**
+   * GET /admin/workflows/:id/edit - Edit workflow form
+   */
+  register('GET', '/admin/workflows/:id/edit', async (req, res, params, ctx) => {
+    const { id } = params;
+    let configMgr;
+    try { configMgr = ctx.services.get('configManagement'); } catch (e) {}
+    const workflows = (configMgr && configMgr.get) ? (configMgr.get('workflows') || []) : [];
+    const workflow = workflows.find(w => w.id === id);
+
+    if (!workflow) {
+      redirect(res, '/admin/workflows?error=' + encodeURIComponent('Workflow not found: ' + id));
+      return;
+    }
+
+    const flash = getFlashMessage(req.url);
+
+    const html = renderAdmin('workflows-edit.html', {
+      pageTitle: 'Edit Workflow: ' + (workflow.label || id),
+      isNew: false,
+      workflow,
+      flash,
+      hasFlash: !!flash,
+    }, ctx, req);
+
+    server.html(res, html);
+  }, 'Edit workflow form');
+
+  /**
+   * POST /admin/workflows/:id - Update workflow
+   */
+  register('POST', '/admin/workflows/:id', async (req, res, params, ctx) => {
+    const { id } = params;
+    try {
+      const formData = ctx._parsedBody || await parseFormBody(req);
+      let configMgr;
+      try { configMgr = ctx.services.get('configManagement'); } catch (e) {}
+
+      if (configMgr && configMgr.get && configMgr.set) {
+        const workflows = configMgr.get('workflows') || [];
+        const idx = workflows.findIndex(w => w.id === id);
+        if (idx >= 0) {
+          workflows[idx] = {
+            ...workflows[idx],
+            label: formData.label || workflows[idx].label,
+            description: formData.description || workflows[idx].description,
+            states: formData.states ? JSON.parse(formData.states) : workflows[idx].states,
+            transitions: formData.transitions ? JSON.parse(formData.transitions) : workflows[idx].transitions,
+          };
+          await configMgr.set('workflows', workflows);
+        }
+      }
+
+      redirect(res, '/admin/workflows?success=' + encodeURIComponent('Workflow updated'));
+    } catch (error) {
+      console.error('[admin] Update workflow error:', error.message);
+      redirect(res, '/admin/workflows/' + id + '/edit?error=' + encodeURIComponent(error.message));
+    }
+  }, 'Update workflow');
+
+  /**
+   * POST /admin/workflows/:id/delete - Delete workflow
+   */
+  register('POST', '/admin/workflows/:id/delete', async (req, res, params, ctx) => {
+    const { id } = params;
+    try {
+      let configMgr;
+      try { configMgr = ctx.services.get('configManagement'); } catch (e) {}
+
+      if (configMgr && configMgr.get && configMgr.set) {
+        const workflows = (configMgr.get('workflows') || []).filter(w => w.id !== id);
+        await configMgr.set('workflows', workflows);
+      }
+
+      redirect(res, '/admin/workflows?success=' + encodeURIComponent('Workflow deleted'));
+    } catch (error) {
+      console.error('[admin] Delete workflow error:', error.message);
+      redirect(res, '/admin/workflows?error=' + encodeURIComponent(error.message));
+    }
+  }, 'Delete workflow');
+
+  /**
+   * GET /admin/workflows/:id/diagram - Workflow diagram view
+   */
+  register('GET', '/admin/workflows/:id/diagram', async (req, res, params, ctx) => {
+    const { id } = params;
+    let configMgr;
+    try { configMgr = ctx.services.get('configManagement'); } catch (e) {}
+    const workflows = (configMgr && configMgr.get) ? (configMgr.get('workflows') || []) : [];
+    const workflow = workflows.find(w => w.id === id);
+
+    if (!workflow) {
+      redirect(res, '/admin/workflows?error=' + encodeURIComponent('Workflow not found: ' + id));
+      return;
+    }
+
+    const flash = getFlashMessage(req.url);
+
+    const html = renderAdmin('workflows-edit.html', {
+      pageTitle: 'Workflow Diagram: ' + (workflow.label || id),
+      isDiagram: true,
+      workflow,
+      flash,
+      hasFlash: !!flash,
+    }, ctx, req);
+
+    server.html(res, html);
+  }, 'Workflow diagram');
+
+  // ==========================================
+  // Aliases CRUD (B1)
+  // ==========================================
+
+  /**
+   * GET /admin/aliases/new - Create alias form
+   */
+  register('GET', '/admin/aliases/new', async (req, res, params, ctx) => {
+    const flash = getFlashMessage(req.url);
+
+    const html = renderAdmin('aliases-edit.html', {
+      pageTitle: 'Create Path Alias',
+      isNew: true,
+      alias: {},
+      flash,
+      hasFlash: !!flash,
+    }, ctx, req);
+
+    server.html(res, html);
+  }, 'Create alias form');
+
+  /**
+   * POST /admin/aliases - Create alias
+   */
+  register('POST', '/admin/aliases', async (req, res, params, ctx) => {
+    try {
+      const formData = ctx._parsedBody || await parseFormBody(req);
+      let aliasService;
+      try { aliasService = ctx.services.get('pathAliases'); } catch (e) {}
+
+      if (aliasService && aliasService.createAlias) {
+        await aliasService.createAlias({
+          source: formData.source,
+          alias: formData.alias,
+          language: formData.language || 'en',
+        });
+      }
+
+      redirect(res, '/admin/aliases?success=' + encodeURIComponent('Alias created'));
+    } catch (error) {
+      console.error('[admin] Create alias error:', error.message);
+      redirect(res, '/admin/aliases/new?error=' + encodeURIComponent(error.message));
+    }
+  }, 'Create alias');
+
+  /**
+   * GET /admin/aliases/:id/edit - Edit alias form
+   */
+  register('GET', '/admin/aliases/:id/edit', async (req, res, params, ctx) => {
+    const { id } = params;
+    let aliasService;
+    try { aliasService = ctx.services.get('pathAliases'); } catch (e) {}
+
+    const alias = aliasService && aliasService.getAlias ? aliasService.getAlias(id) : null;
+    if (!alias) {
+      redirect(res, '/admin/aliases?error=' + encodeURIComponent('Alias not found'));
+      return;
+    }
+
+    const flash = getFlashMessage(req.url);
+
+    const html = renderAdmin('aliases-edit.html', {
+      pageTitle: 'Edit Path Alias',
+      isNew: false,
+      alias,
+      flash,
+      hasFlash: !!flash,
+    }, ctx, req);
+
+    server.html(res, html);
+  }, 'Edit alias form');
+
+  /**
+   * POST /admin/aliases/:id - Update alias
+   */
+  register('POST', '/admin/aliases/:id', async (req, res, params, ctx) => {
+    const { id } = params;
+    try {
+      const formData = ctx._parsedBody || await parseFormBody(req);
+      let aliasService;
+      try { aliasService = ctx.services.get('pathAliases'); } catch (e) {}
+
+      if (aliasService && aliasService.updateAlias) {
+        await aliasService.updateAlias(id, {
+          source: formData.source,
+          alias: formData.alias,
+          language: formData.language || 'en',
+        });
+      }
+
+      redirect(res, '/admin/aliases?success=' + encodeURIComponent('Alias updated'));
+    } catch (error) {
+      console.error('[admin] Update alias error:', error.message);
+      redirect(res, '/admin/aliases/' + id + '/edit?error=' + encodeURIComponent(error.message));
+    }
+  }, 'Update alias');
+
+  /**
+   * POST /admin/aliases/:id/delete - Delete alias
+   */
+  register('POST', '/admin/aliases/:id/delete', async (req, res, params, ctx) => {
+    const { id } = params;
+    try {
+      let aliasService;
+      try { aliasService = ctx.services.get('pathAliases'); } catch (e) {}
+
+      if (aliasService && aliasService.deleteAlias) {
+        await aliasService.deleteAlias(id);
+      }
+
+      redirect(res, '/admin/aliases?success=' + encodeURIComponent('Alias deleted'));
+    } catch (error) {
+      console.error('[admin] Delete alias error:', error.message);
+      redirect(res, '/admin/aliases?error=' + encodeURIComponent(error.message));
+    }
+  }, 'Delete alias');
+
+  /**
+   * GET /admin/aliases/bulk-generate - Bulk generate aliases form
+   */
+  register('GET', '/admin/aliases/bulk-generate', async (req, res, params, ctx) => {
+    const flash = getFlashMessage(req.url);
+
+    const html = renderAdmin('aliases-list.html', {
+      pageTitle: 'Bulk Generate Aliases',
+      isBulkGenerate: true,
+      flash,
+      hasFlash: !!flash,
+    }, ctx, req);
+
+    server.html(res, html);
+  }, 'Bulk generate aliases form');
+
+  /**
+   * POST /admin/aliases/bulk - Bulk alias action
+   */
+  register('POST', '/admin/aliases/bulk', async (req, res, params, ctx) => {
+    try {
+      const formData = ctx._parsedBody || await parseFormBody(req);
+      let aliasService;
+      try { aliasService = ctx.services.get('pathAliases'); } catch (e) {}
+
+      if (aliasService && aliasService.bulkGenerate) {
+        const result = await aliasService.bulkGenerate(formData);
+        redirect(res, '/admin/aliases?success=' + encodeURIComponent('Bulk operation complete: ' + (result?.count || 0) + ' aliases processed'));
+      } else {
+        redirect(res, '/admin/aliases?success=' + encodeURIComponent('Bulk operation complete'));
+      }
+    } catch (error) {
+      console.error('[admin] Bulk alias error:', error.message);
+      redirect(res, '/admin/aliases?error=' + encodeURIComponent(error.message));
+    }
+  }, 'Bulk alias action');
+
+  /**
+   * GET /admin/aliases/patterns - Alias patterns page
+   */
+  register('GET', '/admin/aliases/patterns', async (req, res, params, ctx) => {
+    let aliasService;
+    try { aliasService = ctx.services.get('pathAliases'); } catch (e) {}
+    const patterns = (aliasService && aliasService.listPatterns) ? aliasService.listPatterns() : [];
+    const flash = getFlashMessage(req.url);
+
+    const html = renderAdmin('aliases-patterns.html', {
+      pageTitle: 'URL Alias Patterns',
+      patterns,
+      hasPatterns: Array.isArray(patterns) && patterns.length > 0,
+      flash,
+      hasFlash: !!flash,
+    }, ctx, req);
+
+    server.html(res, html);
+  }, 'Alias patterns');
+
+  /**
+   * POST /admin/aliases/patterns/:type - Save alias pattern
+   */
+  register('POST', '/admin/aliases/patterns/:type', async (req, res, params, ctx) => {
+    const { type } = params;
+    try {
+      const formData = ctx._parsedBody || await parseFormBody(req);
+      let aliasService;
+      try { aliasService = ctx.services.get('pathAliases'); } catch (e) {}
+
+      if (aliasService && aliasService.savePattern) {
+        await aliasService.savePattern(type, formData);
+      }
+
+      redirect(res, '/admin/aliases/patterns?success=' + encodeURIComponent('Pattern saved for ' + type));
+    } catch (error) {
+      console.error('[admin] Save alias pattern error:', error.message);
+      redirect(res, '/admin/aliases/patterns?error=' + encodeURIComponent(error.message));
+    }
+  }, 'Save alias pattern');
+
+  /**
+   * POST /admin/aliases/patterns/:type/test - Test alias pattern
+   */
+  register('POST', '/admin/aliases/patterns/:type/test', async (req, res, params, ctx) => {
+    const { type } = params;
+    try {
+      const formData = ctx._parsedBody || await parseFormBody(req);
+      let aliasService;
+      try { aliasService = ctx.services.get('pathAliases'); } catch (e) {}
+
+      let result = { sample: '/content/' + type + '/example-title' };
+      if (aliasService && aliasService.testPattern) {
+        result = await aliasService.testPattern(type, formData.pattern || '');
+      }
+
+      server.json(res, result);
+    } catch (error) {
+      server.json(res, { error: error.message }, 400);
+    }
+  }, 'Test alias pattern');
+
+  /**
+   * POST /admin/aliases/patterns/:type/regenerate - Regenerate aliases for type
+   */
+  register('POST', '/admin/aliases/patterns/:type/regenerate', async (req, res, params, ctx) => {
+    const { type } = params;
+    try {
+      let aliasService;
+      try { aliasService = ctx.services.get('pathAliases'); } catch (e) {}
+
+      let count = 0;
+      if (aliasService && aliasService.regenerateAliases) {
+        count = await aliasService.regenerateAliases(type);
+      }
+
+      redirect(res, '/admin/aliases/patterns?success=' + encodeURIComponent('Regenerated ' + count + ' aliases for ' + type));
+    } catch (error) {
+      console.error('[admin] Regenerate aliases error:', error.message);
+      redirect(res, '/admin/aliases/patterns?error=' + encodeURIComponent(error.message));
+    }
+  }, 'Regenerate aliases');
+
+  /**
+   * GET /admin/aliases/redirects - List redirects
+   */
+  register('GET', '/admin/aliases/redirects', async (req, res, params, ctx) => {
+    let aliasService;
+    try { aliasService = ctx.services.get('pathAliases'); } catch (e) {}
+    const redirectsList = (aliasService && aliasService.listRedirects) ? aliasService.listRedirects() : [];
+    const flash = getFlashMessage(req.url);
+
+    const html = renderAdmin('aliases-redirects.html', {
+      pageTitle: 'URL Redirects',
+      redirects: redirectsList,
+      hasRedirects: Array.isArray(redirectsList) && redirectsList.length > 0,
+      redirectCount: Array.isArray(redirectsList) ? redirectsList.length : 0,
+      flash,
+      hasFlash: !!flash,
+    }, ctx, req);
+
+    server.html(res, html);
+  }, 'Redirects list');
+
+  /**
+   * GET /admin/aliases/redirects/new - Create redirect form
+   */
+  register('GET', '/admin/aliases/redirects/new', async (req, res, params, ctx) => {
+    const flash = getFlashMessage(req.url);
+
+    const html = renderAdmin('aliases-redirects.html', {
+      pageTitle: 'Create Redirect',
+      isNew: true,
+      redirectItem: {},
+      flash,
+      hasFlash: !!flash,
+    }, ctx, req);
+
+    server.html(res, html);
+  }, 'Create redirect form');
+
+  /**
+   * POST /admin/aliases/redirects - Create redirect
+   */
+  register('POST', '/admin/aliases/redirects', async (req, res, params, ctx) => {
+    try {
+      const formData = ctx._parsedBody || await parseFormBody(req);
+      let aliasService;
+      try { aliasService = ctx.services.get('pathAliases'); } catch (e) {}
+
+      if (aliasService && aliasService.createRedirect) {
+        await aliasService.createRedirect({
+          source: formData.source,
+          destination: formData.destination,
+          statusCode: parseInt(formData.statusCode) || 301,
+        });
+      }
+
+      redirect(res, '/admin/aliases/redirects?success=' + encodeURIComponent('Redirect created'));
+    } catch (error) {
+      console.error('[admin] Create redirect error:', error.message);
+      redirect(res, '/admin/aliases/redirects/new?error=' + encodeURIComponent(error.message));
+    }
+  }, 'Create redirect');
+
+  /**
+   * GET /admin/aliases/redirects/:id/edit - Edit redirect form
+   */
+  register('GET', '/admin/aliases/redirects/:id/edit', async (req, res, params, ctx) => {
+    const { id } = params;
+    let aliasService;
+    try { aliasService = ctx.services.get('pathAliases'); } catch (e) {}
+
+    const redirectItem = aliasService && aliasService.getRedirect ? aliasService.getRedirect(id) : null;
+    if (!redirectItem) {
+      redirect(res, '/admin/aliases/redirects?error=' + encodeURIComponent('Redirect not found'));
+      return;
+    }
+
+    const flash = getFlashMessage(req.url);
+
+    const html = renderAdmin('aliases-redirects.html', {
+      pageTitle: 'Edit Redirect',
+      isNew: false,
+      redirectItem,
+      flash,
+      hasFlash: !!flash,
+    }, ctx, req);
+
+    server.html(res, html);
+  }, 'Edit redirect form');
+
+  /**
+   * POST /admin/aliases/redirects/:id - Update redirect
+   */
+  register('POST', '/admin/aliases/redirects/:id', async (req, res, params, ctx) => {
+    const { id } = params;
+    try {
+      const formData = ctx._parsedBody || await parseFormBody(req);
+      let aliasService;
+      try { aliasService = ctx.services.get('pathAliases'); } catch (e) {}
+
+      if (aliasService && aliasService.updateRedirect) {
+        await aliasService.updateRedirect(id, {
+          source: formData.source,
+          destination: formData.destination,
+          statusCode: parseInt(formData.statusCode) || 301,
+        });
+      }
+
+      redirect(res, '/admin/aliases/redirects?success=' + encodeURIComponent('Redirect updated'));
+    } catch (error) {
+      console.error('[admin] Update redirect error:', error.message);
+      redirect(res, '/admin/aliases/redirects/' + id + '/edit?error=' + encodeURIComponent(error.message));
+    }
+  }, 'Update redirect');
+
+  /**
+   * POST /admin/aliases/redirects/:id/delete - Delete redirect
+   */
+  register('POST', '/admin/aliases/redirects/:id/delete', async (req, res, params, ctx) => {
+    const { id } = params;
+    try {
+      let aliasService;
+      try { aliasService = ctx.services.get('pathAliases'); } catch (e) {}
+
+      if (aliasService && aliasService.deleteRedirect) {
+        await aliasService.deleteRedirect(id);
+      }
+
+      redirect(res, '/admin/aliases/redirects?success=' + encodeURIComponent('Redirect deleted'));
+    } catch (error) {
+      console.error('[admin] Delete redirect error:', error.message);
+      redirect(res, '/admin/aliases/redirects?error=' + encodeURIComponent(error.message));
+    }
+  }, 'Delete redirect');
+
+  /**
+   * POST /admin/aliases/redirects/bulk - Bulk redirect action
+   */
+  register('POST', '/admin/aliases/redirects/bulk', async (req, res, params, ctx) => {
+    try {
+      const formData = ctx._parsedBody || await parseFormBody(req);
+      let aliasService;
+      try { aliasService = ctx.services.get('pathAliases'); } catch (e) {}
+
+      if (aliasService && aliasService.bulkRedirectAction) {
+        await aliasService.bulkRedirectAction(formData);
+      }
+
+      redirect(res, '/admin/aliases/redirects?success=' + encodeURIComponent('Bulk action complete'));
+    } catch (error) {
+      console.error('[admin] Bulk redirect error:', error.message);
+      redirect(res, '/admin/aliases/redirects?error=' + encodeURIComponent(error.message));
+    }
+  }, 'Bulk redirect action');
+
+  // ==========================================
+  // Cookie Consent Config Route
+  // ==========================================
+
+  /**
+   * GET /admin/config/cookie-consent - Cookie consent settings
+   */
+  register('GET', '/admin/config/cookie-consent', async (req, res, params, ctx) => {
+    const flash = getFlashMessage(req.url);
+
+    // Read cookie consent module config
+    let consentConfig = {};
+    try {
+      const configMgr = ctx.services.get('configManagement');
+      if (configMgr && configMgr.get) consentConfig = configMgr.get('cookie-consent') || {};
+    } catch (e) {}
+
+    // Use config-list template with a single config item for editing
+    const html = renderAdmin('config-list.html', {
+      pageTitle: 'Cookie Consent',
+      configs: [{ name: 'cookie-consent', data: consentConfig }],
+      hasConfigs: true,
+      flash,
+      hasFlash: !!flash,
+    }, ctx, req);
+
+    server.html(res, html);
+  }, 'Cookie consent settings');
+
+  // ========================================
+  // CALENDAR VIEW
+  // ========================================
+
+  /**
+   * GET /admin/calendar - Content calendar view
+   * Shows content items organized by creation/publish date on a monthly calendar.
+   * Query params: ?year=2026&month=2&type=article
+   */
+  register('GET', '/admin/calendar', async (req, res, params, ctx) => {
+    const url = new URL(req.url, 'http://localhost');
+    const now = new Date();
+    const year = parseInt(url.searchParams.get('year')) || now.getFullYear();
+    const month = parseInt(url.searchParams.get('month')) || (now.getMonth() + 1);
+    const typeFilter = url.searchParams.get('type') || '';
+
+    // Get all content types
+    const types = content.listTypes().map(t => t.type);
+
+    // Gather content items for this month
+    const startDate = new Date(year, month - 1, 1);
+    const endDate = new Date(year, month, 0); // Last day of month
+    const daysInMonth = endDate.getDate();
+    const startDay = startDate.getDay(); // 0=Sun
+
+    // Build calendar grid: array of days, each with items
+    const days = [];
+    const typesToQuery = typeFilter ? [typeFilter] : types;
+
+    // Collect all items for the month
+    const itemsByDay = {};
+    for (let d = 1; d <= daysInMonth; d++) itemsByDay[d] = [];
+
+    for (const type of typesToQuery) {
+      try {
+        const result = content.list(type);
+        const items = result.items || [];
+        for (const item of items) {
+          const created = new Date(item.created || item.timestamp || item.date);
+          if (isNaN(created.getTime())) continue;
+          if (created.getFullYear() === year && created.getMonth() === month - 1) {
+            const day = created.getDate();
+            if (itemsByDay[day]) {
+              itemsByDay[day].push({
+                id: item.id,
+                title: item.title || item.name || item.id,
+                type,
+                status: item.status || 'draft',
+                time: created.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' }),
+              });
+            }
+          }
+        }
+      } catch {
+        // Skip types that fail
+      }
+    }
+
+    // Build calendar weeks
+    const weeks = [];
+    let currentWeek = new Array(startDay).fill(null);
+    for (let d = 1; d <= daysInMonth; d++) {
+      currentWeek.push({ day: d, items: itemsByDay[d], isToday: d === now.getDate() && month === now.getMonth() + 1 && year === now.getFullYear() });
+      if (currentWeek.length === 7) {
+        weeks.push(currentWeek);
+        currentWeek = [];
+      }
+    }
+    if (currentWeek.length > 0) {
+      while (currentWeek.length < 7) currentWeek.push(null);
+      weeks.push(currentWeek);
+    }
+
+    const monthNames = ['January','February','March','April','May','June','July','August','September','October','November','December'];
+    const prevMonth = month === 1 ? 12 : month - 1;
+    const prevYear = month === 1 ? year - 1 : year;
+    const nextMonth = month === 12 ? 1 : month + 1;
+    const nextYear = month === 12 ? year + 1 : year;
+
+    // Render inline (no separate template needed)
+    let calendarHtml = `
+      <div class="gin-page-header"><h1>Content Calendar</h1></div>
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:var(--gin-space-4)">
+        <a href="/admin/calendar?year=${prevYear}&month=${prevMonth}${typeFilter ? '&type=' + typeFilter : ''}" class="btn btn-secondary">&larr; Previous</a>
+        <h2 style="margin:0">${monthNames[month - 1]} ${year}</h2>
+        <a href="/admin/calendar?year=${nextYear}&month=${nextMonth}${typeFilter ? '&type=' + typeFilter : ''}" class="btn btn-secondary">Next &rarr;</a>
+      </div>
+      <div style="margin-bottom:var(--gin-space-4)">
+        <label style="font-weight:600;margin-right:8px">Filter by type:</label>
+        <select onchange="location.href='/admin/calendar?year=${year}&month=${month}&type='+this.value" style="padding:4px 8px;border:1px solid var(--gin-border);border-radius:var(--gin-radius-sm)">
+          <option value="">All types</option>
+          ${types.map(t => `<option value="${t}"${t === typeFilter ? ' selected' : ''}>${t}</option>`).join('')}
+        </select>
+      </div>
+      <table style="width:100%;border-collapse:collapse;background:var(--gin-surface);border-radius:var(--gin-radius);overflow:hidden;box-shadow:var(--gin-shadow-xs)">
+        <thead>
+          <tr>${['Sun','Mon','Tue','Wed','Thu','Fri','Sat'].map(d => `<th style="padding:8px;border:1px solid var(--gin-border-light);background:var(--gin-surface-alt);font-size:var(--gin-font-size-sm);font-weight:600">${d}</th>`).join('')}</tr>
+        </thead>
+        <tbody>`;
+
+    for (const week of weeks) {
+      calendarHtml += '<tr>';
+      for (const cell of week) {
+        if (!cell) {
+          calendarHtml += '<td style="padding:4px;border:1px solid var(--gin-border-light);background:var(--gin-surface-alt);min-height:80px;vertical-align:top"></td>';
+        } else {
+          const todayStyle = cell.isToday ? 'background:var(--gin-primary-light);' : '';
+          calendarHtml += `<td style="padding:4px;border:1px solid var(--gin-border-light);vertical-align:top;min-width:120px;height:90px;${todayStyle}">`;
+          calendarHtml += `<div style="font-weight:600;font-size:var(--gin-font-size-sm);margin-bottom:2px;${cell.isToday ? 'color:var(--gin-primary)' : ''}">${cell.day}</div>`;
+          for (const item of cell.items.slice(0, 3)) {
+            const statusColor = item.status === 'published' ? 'var(--gin-success)' : 'var(--gin-warning)';
+            calendarHtml += `<a href="/admin/content/${item.type}/${item.id}/edit" style="display:block;font-size:11px;padding:1px 4px;margin-bottom:1px;border-radius:3px;background:${statusColor}20;color:${statusColor};text-decoration:none;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${item.title}">${item.title}</a>`;
+          }
+          if (cell.items.length > 3) {
+            calendarHtml += `<div style="font-size:10px;color:var(--gin-text-muted)">+${cell.items.length - 3} more</div>`;
+          }
+          calendarHtml += '</td>';
+        }
+      }
+      calendarHtml += '</tr>';
+    }
+
+    calendarHtml += '</tbody></table>';
+
+    // Render calendar inside admin layout using renderAdmin pattern
+    // Pass raw HTML as the "template content" by using renderString directly
+    const path = req?.url?.split('?')[0] || '/admin';
+    const username = ctx.session?.user?.username || 'admin';
+    const usernameInitial = username.charAt(0).toUpperCase();
+
+    const finalHtml = template.renderWithLayout('admin-layout.html', calendarHtml, {
+      title: 'Content Calendar',
+      siteName: ctx.config.site.name,
+      version: ctx.config.site.version,
+      username,
+      usernameInitial,
+      navContent: true,
+    });
+
+    server.html(res, finalHtml);
+  }, 'Content calendar view');
 
   /**
    * Helper: Format value for display

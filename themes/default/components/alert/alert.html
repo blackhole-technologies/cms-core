@@ -1,0 +1,14 @@
+<div class="sdc-alert sdc-alert--{{type}}" role="alert">
+  {{#if icon}}
+  <span class="sdc-alert__icon" aria-hidden="true">
+    {{#if (eq type "success")}}&#10003;{{/if}}
+    {{#if (eq type "warning")}}&#9888;{{/if}}
+    {{#if (eq type "error")}}&#10007;{{/if}}
+    {{#if (eq type "info")}}&#8505;{{/if}}
+  </span>
+  {{/if}}
+  <span class="sdc-alert__message">{{message}}</span>
+  {{#if dismissible}}
+  <button class="sdc-alert__close" aria-label="Dismiss" onclick="this.parentElement.remove()">&#10005;</button>
+  {{/if}}
+</div>

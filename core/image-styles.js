@@ -137,9 +137,21 @@ function loadStylesConfig() {
 
 /**
  * Detect available image processing tool
- * Priority: convert (ImageMagick) > gm (GraphicsMagick)
+ * Priority: sharp (npm) > convert (ImageMagick) > gm (GraphicsMagick)
  */
 function detectProcessingTool() {
+  // Try Sharp first — best quality and performance, installed via npm
+  try {
+    // Dynamic import check — Sharp is an optional dependency
+    const sharpPath = require.resolve('sharp');
+    if (sharpPath) {
+      processingTool = 'sharp';
+      return;
+    }
+  } catch (e) {
+    // Sharp not installed
+  }
+
   try {
     execSync('convert -version', { stdio: 'ignore' });
     processingTool = 'imagemagick';
@@ -462,13 +474,104 @@ function getDerivativePath(mediaId, styleName) {
  * @param {Array} effects - Array of effect definitions
  */
 async function processImageWithEffects(sourcePath, outputPath, effects) {
-  if (processingTool === 'imagemagick') {
+  if (processingTool === 'sharp') {
+    await processWithSharp(sourcePath, outputPath, effects);
+  } else if (processingTool === 'imagemagick') {
     await processWithImageMagick(sourcePath, outputPath, effects);
   } else if (processingTool === 'graphicsmagick') {
     await processWithGraphicsMagick(sourcePath, outputPath, effects);
   } else {
     throw new Error('No image processing tool available');
   }
+}
+
+/**
+ * Process image with Sharp (npm package)
+ * Provides high-quality, fast image processing without external tools.
+ */
+async function processWithSharp(sourcePath, outputPath, effects) {
+  // Dynamic import since Sharp is optional
+  let sharp;
+  try {
+    sharp = (await import('sharp')).default;
+  } catch (e) {
+    throw new Error('Sharp module not available: ' + e.message);
+  }
+
+  let pipeline = sharp(sourcePath);
+
+  for (const effect of effects) {
+    switch (effect.type) {
+      case 'scale': {
+        const opts = {};
+        if (effect.width) opts.width = effect.width;
+        if (effect.height) opts.height = effect.height;
+        if (!effect.upscale) opts.withoutEnlargement = true;
+        opts.fit = 'inside';
+        pipeline = pipeline.resize(opts);
+        break;
+      }
+
+      case 'crop': {
+        // Map anchor names to Sharp gravity
+        const gravityMap = {
+          'center': 'centre',
+          'top-left': 'northwest',
+          'top': 'north',
+          'top-right': 'northeast',
+          'left': 'west',
+          'right': 'east',
+          'bottom-left': 'southwest',
+          'bottom': 'south',
+          'bottom-right': 'southeast',
+        };
+        const opts = {
+          width: effect.width,
+          height: effect.height,
+          fit: 'cover',
+          position: gravityMap[effect.anchor] || 'centre',
+        };
+        pipeline = pipeline.resize(opts);
+        break;
+      }
+
+      case 'rotate':
+        pipeline = pipeline.rotate(effect.angle || 0);
+        break;
+
+      case 'quality': {
+        // Quality is applied at output time — store for later
+        pipeline._cmsQuality = effect.value;
+        break;
+      }
+
+      case 'convert': {
+        // Format conversion (e.g., to WebP)
+        if (effect.format === 'webp') {
+          pipeline = pipeline.webp({ quality: effect.quality || 80 });
+        } else if (effect.format === 'avif') {
+          pipeline = pipeline.avif({ quality: effect.quality || 50 });
+        } else if (effect.format === 'png') {
+          pipeline = pipeline.png();
+        } else if (effect.format === 'jpeg' || effect.format === 'jpg') {
+          pipeline = pipeline.jpeg({ quality: effect.quality || 85 });
+        }
+        break;
+      }
+    }
+  }
+
+  // Apply quality if set and output is JPEG/WebP
+  if (pipeline._cmsQuality) {
+    const ext = outputPath.split('.').pop().toLowerCase();
+    if (ext === 'jpg' || ext === 'jpeg') {
+      pipeline = pipeline.jpeg({ quality: pipeline._cmsQuality });
+    } else if (ext === 'webp') {
+      pipeline = pipeline.webp({ quality: pipeline._cmsQuality });
+    }
+  }
+
+  await pipeline.toFile(outputPath);
 }
 
 /**

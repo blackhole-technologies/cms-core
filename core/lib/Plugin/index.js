@@ -11,3 +11,5 @@
 export { PluginManager } from './PluginManager.js';
 export { PluginBase } from './PluginBase.js';
 export { AIProvider } from './AIProvider.js';
+export { FunctionCallPlugin } from './FunctionCallPlugin.js';
+export { FunctionCallPluginManager } from './FunctionCallPluginManager.js';

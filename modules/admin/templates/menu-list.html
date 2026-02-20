@@ -1,307 +1,79 @@
-<div class="admin-page">
-
-  <div class="admin-header">
-    <h1>{{pageTitle}}</h1>
-    <nav class="admin-nav">
-      <a href="/admin">Dashboard</a>
-      <a href="/admin/content">Content</a>
-      <a href="/admin/structure" class="active">Structure</a>
-      <a href="/admin/menus">Menus</a>
-    </nav>
-  </div>
-
-  {{#if hasFlash}}
-  <div class="flash flash-{{flash.type}}">
-    {{flash.message}}
-  </div>
-  {{/if}}
-
-  <div class="breadcrumb">
-    <a href="/admin">Dashboard</a> &rarr;
-    <span>Menus</span>
-  </div>
-
-  <div class="admin-section">
-    <div class="section-header-row">
-      <h2>Site Menus</h2>
-      <button class="btn btn-primary" onclick="toggleForm('create-menu')">Add Menu</button>
-    </div>
-
-    <div id="create-menu" class="form-panel" style="display: none;">
-      <h3>Create Menu</h3>
-      <form method="POST" action="/admin/menus">
-        {{csrfField}}
-        <div class="form-group">
-          <label for="title">Title</label>
-          <input type="text" id="title" name="title" required placeholder="e.g., Main Navigation">
-        </div>
-        <div class="form-group">
-          <label for="machine_name">Machine Name</label>
-          <input type="text" id="machine_name" name="machine_name" required placeholder="e.g., main-nav" pattern="[a-z0-9-]+">
-          <small>Lowercase letters, numbers, and hyphens only</small>
-        </div>
-        <div class="form-group">
-          <label for="description">Description</label>
-          <textarea id="description" name="description" rows="2" placeholder="Optional description"></textarea>
-        </div>
-        <div class="form-actions">
-          <button type="submit" class="btn btn-primary">Create</button>
-          <button type="button" class="btn btn-secondary" onclick="toggleForm('create-menu')">Cancel</button>
-        </div>
-      </form>
-    </div>
-
-    {{#if menus.length}}
-    <div class="menus-grid">
-      {{#each menus}}
-      <div class="menu-card">
-        <div class="menu-header">
-          <h3>{{title}}</h3>
-          <span class="menu-badge">{{itemCount}} items</span>
-        </div>
-        {{#if description}}
-        <p class="menu-description">{{description}}</p>
-        {{/if}}
-        <div class="menu-meta">
-          <code>{{id}}</code>
-        </div>
-        <div class="menu-actions">
-          <a href="/admin/menus/{{id}}" class="btn btn-primary">Manage Items</a>
-          <button class="btn btn-secondary btn-sm" onclick="toggleForm('edit-{{id}}')">Edit</button>
-          {{#unless locked}}
-          <form method="POST" action="/admin/menus/{{id}}/delete" style="display: inline;">
-            {{../csrfField}}
-            <button type="submit" class="btn btn-danger btn-sm" onclick="return confirm('Delete this menu and all its items?')">Delete</button>
-          </form>
-          {{/unless}}
-        </div>
-
-        <div id="edit-{{id}}" class="edit-panel" style="display: none;">
-          <h4>Edit Menu</h4>
-          <form method="POST" action="/admin/menus/{{id}}/update">
-            {{../csrfField}}
-            <div class="form-group">
-              <label>Title</label>
-              <input type="text" name="title" value="{{title}}" required>
-            </div>
-            <div class="form-group">
-              <label>Description</label>
-              <textarea name="description" rows="2">{{description}}</textarea>
-            </div>
-            <div class="form-actions">
-              <button type="submit" class="btn btn-primary btn-sm">Save</button>
-              <button type="button" class="btn btn-secondary btn-sm" onclick="toggleForm('edit-{{id}}')">Cancel</button>
-            </div>
-          </form>
-        </div>
-      </div>
-      {{/each}}
-    </div>
-    {{else}}
-    <p class="empty-message">No menus defined. Create one to start building site navigation.</p>
-    {{/if}}
-  </div>
-
-  <div class="admin-section">
-    <h2>About Menus</h2>
-    <div class="info-grid">
-      <div class="info-card">
-        <h3>What are Menus?</h3>
-        <p>Menus are collections of navigation links displayed on your site. Common menus include Main Navigation, Footer Links, and User Account menus.</p>
-      </div>
-      <div class="info-card">
-        <h3>Menu Items</h3>
-        <p>Each menu contains items (links) that can be organized hierarchically with parent/child relationships for dropdown navigation.</p>
-      </div>
-      <div class="info-card">
-        <h3>Theme Integration</h3>
-        <p>Reference menus in your theme templates using their machine name to display navigation anywhere on your site.</p>
-      </div>
-    </div>
-  </div>
-
-  <style>
-    .section-header-row {
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-      margin-bottom: 1rem;
-    }
-    .section-header-row h2 {
-      margin: 0;
-    }
-    .form-panel {
-      background: #f9fafb;
-      border: 1px solid #e5e7eb;
-      border-radius: 8px;
-      padding: 1.5rem;
-      margin-bottom: 1.5rem;
-    }
-    .form-panel h3 {
-      margin: 0 0 1rem 0;
-      font-size: 1.1rem;
-    }
-    .form-group {
-      margin-bottom: 1rem;
-    }
-    .form-group label {
-      display: block;
-      margin-bottom: 0.25rem;
-      font-size: 0.9rem;
-      font-weight: 500;
-      color: #374151;
-    }
-    .form-group input[type="text"],
-    .form-group textarea {
-      width: 100%;
-      padding: 0.5rem;
-      border: 1px solid #d1d5db;
-      border-radius: 4px;
-      font-size: 0.9rem;
-    }
-    .form-group small {
-      display: block;
-      margin-top: 0.25rem;
-      font-size: 0.8rem;
-      color: #6b7280;
-    }
-    .form-actions {
-      display: flex;
-      gap: 0.5rem;
-      margin-top: 1rem;
-    }
-    .menus-grid {
-      display: grid;
-      grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
-      gap: 1.5rem;
-    }
-    .menu-card {
-      background: #f9fafb;
-      border: 1px solid #e5e7eb;
-      border-radius: 8px;
-      padding: 1.25rem;
-    }
-    .menu-header {
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-      margin-bottom: 0.5rem;
-    }
-    .menu-header h3 {
-      margin: 0;
-      font-size: 1.1rem;
-      color: #111827;
-    }
-    .menu-badge {
-      background: #e0e7ff;
-      color: #3730a3;
-      padding: 0.25rem 0.5rem;
-      border-radius: 9999px;
-      font-size: 0.75rem;
-      font-weight: 500;
-    }
-    .menu-description {
-      color: #6b7280;
-      font-size: 0.85rem;
-      margin: 0 0 0.75rem 0;
-    }
-    .menu-meta {
-      margin-bottom: 1rem;
-    }
-    .menu-meta code {
-      background: #e5e7eb;
-      padding: 0.25rem 0.5rem;
-      border-radius: 4px;
-      font-size: 0.8rem;
-    }
-    .menu-actions {
-      display: flex;
-      gap: 0.5rem;
-      flex-wrap: wrap;
-      padding-top: 1rem;
-      border-top: 1px solid #e5e7eb;
-    }
-    .edit-panel {
-      background: white;
-      border: 1px solid #e5e7eb;
-      border-radius: 4px;
-      padding: 1rem;
-      margin-top: 1rem;
-    }
-    .edit-panel h4 {
-      margin: 0 0 0.75rem 0;
-      font-size: 0.95rem;
-    }
-    .btn {
-      display: inline-block;
-      padding: 0.5rem 1rem;
-      border: none;
-      border-radius: 4px;
-      font-size: 0.9rem;
-      cursor: pointer;
-      text-decoration: none;
-    }
-    .btn-primary {
-      background: #2563eb;
-      color: white;
-    }
-    .btn-primary:hover {
-      background: #1d4ed8;
-    }
-    .btn-secondary {
-      background: #e5e7eb;
-      color: #374151;
-    }
-    .btn-secondary:hover {
-      background: #d1d5db;
-    }
-    .btn-danger {
-      background: #dc2626;
-      color: white;
-    }
-    .btn-danger:hover {
-      background: #b91c1c;
-    }
-    .btn-sm {
-      padding: 0.25rem 0.5rem;
-      font-size: 0.8rem;
-    }
-    .empty-message {
-      text-align: center;
-      padding: 2rem;
-      color: #6b7280;
-      font-style: italic;
-    }
-    .info-grid {
-      display: grid;
-      grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
-      gap: 1rem;
-    }
-    .info-card {
-      background: #f9fafb;
-      border: 1px solid #e5e7eb;
-      border-radius: 8px;
-      padding: 1rem;
-    }
-    .info-card h3 {
-      margin: 0 0 0.5rem 0;
-      font-size: 1rem;
-      color: #111827;
-    }
-    .info-card p {
-      margin: 0;
-      font-size: 0.85rem;
-      color: #6b7280;
-    }
-  </style>
-  <script>
-    function toggleForm(id) {
-      const el = document.getElementById(id);
-      if (el) {
-        el.style.display = el.style.display === 'none' ? 'block' : 'none';
-      }
-    }
-  </script>
-  <script src="/public/js/shortcuts.js"></script>
-  <script>Shortcuts.init({ context: 'global' });</script>
+<div class="admin-breadcrumb">
+  <a href="/admin">Dashboard</a> <span>&rsaquo;</span>
+  <a href="/admin/structure">Structure</a> <span>&rsaquo;</span>
+  <span>Menus</span>
 </div>
+
+<div class="section-header-row">
+  <h1 class="admin-page-title">Menus</h1>
+  <a href="/admin/menus/new" class="btn btn-primary">+ Add menu</a>
+</div>
+
+{{#if hasFlash}}
+<div class="messages messages--{{flash.type}}" style="margin-bottom:var(--gin-space-4, 1rem)">
+  <span>{{flash.message}}</span>
+</div>
+{{/if}}
+
+{{#if hasMenus}}
+<div class="admin-panel">
+  <table class="admin-table">
+    <thead>
+      <tr>
+        <th>Title</th>
+        <th>Description</th>
+        <th>Operations</th>
+      </tr>
+    </thead>
+    <tbody>
+      {{#each menus}}
+      <tr>
+        <td><strong>{{title}}</strong></td>
+        <td style="color:var(--gin-text-light, #545560)">{{#if description}}{{description}}{{else}}<em style="color:var(--gin-text-muted)">No description</em>{{/if}}</td>
+        <td class="actions">
+          <div class="dropbutton-wrapper">
+            <a href="/admin/menus/{{id}}" class="dropbutton-primary">Edit menu</a>
+            <button type="button" class="dropbutton-toggle" aria-label="More operations"></button>
+            <ul class="dropbutton-menu">
+              <li><a href="/admin/menus/{{id}}/items">Manage items</a></li>
+              {{#unless locked}}
+              <li class="danger"><a href="#" onclick="if(confirm('Delete menu {{title}} and all its items?')){document.getElementById('del-menu-{{id}}').submit()}return false">Delete</a></li>
+              {{/unless}}
+            </ul>
+            {{#unless locked}}
+            <form id="del-menu-{{id}}" method="POST" action="/admin/menus/{{id}}/delete" style="display:none">
+              <input type="hidden" name="csrf_token" value="{{../csrfToken}}">
+            </form>
+            {{/unless}}
+          </div>
+        </td>
+      </tr>
+      {{/each}}
+    </tbody>
+  </table>
+</div>
+{{else}}
+<div class="admin-panel">
+  <div class="admin-panel-body" style="text-align:center;padding:var(--gin-space-12, 3rem)">
+    <p class="text-muted">No menus defined. Create one to start building site navigation.</p>
+    <a href="/admin/menus/new" class="btn btn-primary">+ Add menu</a>
+  </div>
+</div>
+{{/if}}
+
+<script>
+(function() {
+  document.querySelectorAll('.dropbutton-toggle').forEach(function(btn) {
+    btn.addEventListener('click', function(e) {
+      e.stopPropagation();
+      var wrapper = btn.closest('.dropbutton-wrapper');
+      var isOpen = wrapper.classList.contains('open');
+      document.querySelectorAll('.dropbutton-wrapper.open').forEach(function(w) { w.classList.remove('open'); });
+      if (!isOpen) wrapper.classList.add('open');
+    });
+  });
+  document.addEventListener('click', function() {
+    document.querySelectorAll('.dropbutton-wrapper.open').forEach(function(w) { w.classList.remove('open'); });
+  });
+})();
+</script>

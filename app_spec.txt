@@ -12,59 +12,59 @@
 
 ---
 
-## TIER 1: AI CORE (Features 0-24)
+## TIER 1: AI AGENTS (Features 0-24)
 
 These must pass before any functional features.
 
 ### Features
 
-### Feature 0: AI Provider plugin interface (getModels, isUsable, getSupportedOperations)
+### Feature 0: Function call plugin interface (name, description, parameters, execute)
 
-### Feature 1: AI Provider plugin manager (discover, load, instantiate providers)
+### Feature 1: Function call plugin manager
 
-### Feature 2: OpenAI provider implementation
+### Feature 2: Tool: list_entity_types - enumerate all content types
 
-### Feature 3: Anthropic provider implementation
+### Feature 3: Tool: list_bundles - list content type bundles
 
-### Feature 4: Ollama provider implementation (local models)
+### Feature 4: Tool: list_content - query content with filters
 
-### Feature 5: Chat operation type with streaming support
+### Feature 5: Tool: get_content - read specific content item
 
-### Feature 6: Chat message format (system, user, assistant roles)
+### Feature 6: Tool: create_content - create new content
 
-### Feature 7: Embeddings operation type (text to vector)
+### Feature 7: Tool: update_content - modify existing content
 
-### Feature 8: Text-to-Speech operation type
+### Feature 8: Tool: delete_content - remove content
 
-### Feature 9: Speech-to-Text operation type
+### Feature 9: Tool: create_content_type - define new content type
 
-### Feature 10: Text-to-Image operation type
+### Feature 10: Tool: modify_content_type - update content type schema
 
-### Feature 11: Image classification operation type
+### Feature 11: Tool: list_field_types - enumerate available field types
 
-### Feature 12: Content moderation operation type
+### Feature 12: Tool: get_field_config - read field configuration
 
-### Feature 13: Provider configuration UI in admin
+### Feature 13: Tool: modify_field_config - update field settings
 
-### Feature 14: Model selection per operation type
+### Feature 14: Tool: list_users - enumerate users
 
-### Feature 15: API key storage in config (encrypted)
+### Feature 15: Tool: get_user - read user details
 
-### Feature 16: Provider health check endpoint
+### Feature 16: Tool: create_user - create new user
 
-### Feature 17: Usage tracking and logging
+### Feature 17: Tool: modify_user - update user
 
-### Feature 18: Rate limiting per provider
+### Feature 18: Tool: execute_cli - run CLI commands (sandboxed)
 
-### Feature 19: Fallback provider chains
+### Feature 19: Tool: search_content - full-text search
 
-### Feature 20: CLI: ai:providers - list configured providers
+### Feature 20: Agent conversation context management
 
-### Feature 21: CLI: ai:chat - interactive chat session
+### Feature 21: Agent memory/state persistence
 
-### Feature 22: CLI: ai:embed - generate embeddings
+### Feature 22: Agent permission scoping
 
-### Feature 23: CLI: ai:test - test provider connectivity
+### Feature 23: CLI: ai:agent - start agent conversation
 
-### Feature 24: Admin: /admin/config/ai - AI settings dashboard
+### Feature 24: Admin: /admin/ai/agents - agent management
 

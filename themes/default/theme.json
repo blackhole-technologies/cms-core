@@ -1,0 +1,51 @@
+{
+  "name": "Default",
+  "version": "0.0.1",
+  "description": "Default CMS theme with minimal, clean styling for public-facing pages",
+  "author": "CMS Core",
+  "screenshot": null,
+  "settings": {
+    "site_logo": {
+      "type": "image",
+      "default": "",
+      "label": "Site Logo",
+      "description": "Upload a logo to display in the site header"
+    },
+    "footer_text": {
+      "type": "text",
+      "default": "",
+      "label": "Footer Text",
+      "description": "Custom text displayed in the site footer"
+    },
+    "primary_color": {
+      "type": "color",
+      "default": "#2c59ee",
+      "label": "Primary Color",
+      "description": "Main color for links and buttons"
+    },
+    "show_site_name": {
+      "type": "toggle",
+      "default": true,
+      "label": "Show Site Name",
+      "description": "Display the site name in the header"
+    }
+  },
+  "setting_groups": {
+    "header": {
+      "label": "Header",
+      "description": "Configure the site header area",
+      "settings": ["site_logo", "show_site_name"]
+    },
+    "style": {
+      "label": "Style",
+      "description": "Visual appearance settings",
+      "settings": ["primary_color"]
+    },
+    "footer": {
+      "label": "Footer",
+      "description": "Configure the site footer",
+      "settings": ["footer_text"]
+    }
+  },
+  "color_schemes": {}
+}

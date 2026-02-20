@@ -818,7 +818,7 @@ function renderHtmlField(field, value, options) {
 
   return `
     <div class="html-field">
-      <textarea id="${id}" name="${name}" class="form-input form-html" rows="${rows}">${safeValue}</textarea>
+      <textarea id="${id}" name="${name}" class="form-input form-html" rows="${rows}" data-editor="richtext">${safeValue}</textarea>
     </div>
   `;
 }

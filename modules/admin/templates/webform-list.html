@@ -1,0 +1,57 @@
+<div class="admin-content">
+  <div class="admin-header">
+    <h1>Webforms</h1>
+    <a href="/admin/webforms/add" class="btn btn-primary">+ Add Webform</a>
+  </div>
+
+  <p class="description">Create and manage configurable forms with conditional logic, multi-step wizards, and submission handling.</p>
+
+  {{#if forms.length}}
+  <table class="admin-table">
+    <thead>
+      <tr>
+        <th>Form</th>
+        <th>Elements</th>
+        <th>Submissions</th>
+        <th>Status</th>
+        <th>Operations</th>
+      </tr>
+    </thead>
+    <tbody>
+      {{#each forms}}
+      <tr>
+        <td>
+          <strong>{{title}}</strong><br>
+          <small class="text-muted">{{id}}</small>
+          {{#if description}}<br><small>{{description}}</small>{{/if}}
+        </td>
+        <td>{{elementCount}}</td>
+        <td>{{submissionCount}}</td>
+        <td>
+          {{#if (eq status "open")}}
+            <span class="badge badge-success">Open</span>
+          {{else}}
+            <span class="badge badge-secondary">Closed</span>
+          {{/if}}
+        </td>
+        <td>
+          <a href="/admin/webforms/edit/{{id}}" class="btn btn-sm">Edit</a>
+          <a href="/admin/webforms/submissions/{{id}}" class="btn btn-sm btn-outline">Submissions</a>
+          <a href="/form/{{id}}" class="btn btn-sm btn-outline" target="_blank">View</a>
+          <form method="POST" action="/admin/webforms/delete/{{id}}" style="display:inline"
+                onsubmit="return confirm('Delete this webform and all submissions?')">
+            {{csrfField}}
+            <button type="submit" class="btn btn-sm btn-danger">Delete</button>
+          </form>
+        </td>
+      </tr>
+      {{/each}}
+    </tbody>
+  </table>
+  {{else}}
+  <div class="empty-state">
+    <p>No webforms created yet.</p>
+    <a href="/admin/webforms/add" class="btn btn-primary">Create your first webform</a>
+  </div>
+  {{/if}}
+</div>

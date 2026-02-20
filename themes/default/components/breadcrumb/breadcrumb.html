@@ -1,0 +1,14 @@
+<nav class="sdc-breadcrumb" aria-label="Breadcrumb">
+  <ol class="sdc-breadcrumb__list">
+    {{#each items}}
+    <li class="sdc-breadcrumb__item {{#if @last}}sdc-breadcrumb__item--active{{/if}}">
+      {{#unless @last}}
+      <a href="{{this.url}}" class="sdc-breadcrumb__link">{{this.label}}</a>
+      <span class="sdc-breadcrumb__separator" aria-hidden="true">{{../separator}}</span>
+      {{else}}
+      <span aria-current="page">{{this.label}}</span>
+      {{/unless}}
+    </li>
+    {{/each}}
+  </ol>
+</nav>

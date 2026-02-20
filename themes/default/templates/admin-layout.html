@@ -1,34 +1,345 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="en" data-theme="light">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="color-scheme" content="light dark">
   <title>{{title}} | CMS Core Admin</title>
   <link rel="stylesheet" href="/public/css/admin.css">
+  <link rel="stylesheet" href="/public/css/editor.css">
+  <script>
+    /* Apply saved theme + accent color before first paint to avoid flash */
+    (function() {
+      var theme = localStorage.getItem('cms-theme');
+      if (theme === 'dark' || (!theme && window.matchMedia('(prefers-color-scheme: dark)').matches)) {
+        document.documentElement.setAttribute('data-theme', 'dark');
+      }
+      var accent = localStorage.getItem('cms-accent-color');
+      if (accent) {
+        var r = parseInt(accent.slice(1, 3), 16);
+        var g = parseInt(accent.slice(3, 5), 16);
+        var b = parseInt(accent.slice(5, 7), 16);
+        document.documentElement.style.setProperty('--gin-primary-rgb', r + ', ' + g + ', ' + b);
+      }
+    })();
+  </script>
 </head>
 <body class="admin-page">
-  <div class="admin-toolbar">
+  <a href="#main-content" class="skip-link">Skip to main content</a>
+
+  <div class="admin-toolbar" role="navigation" aria-label="Primary toolbar">
     <a href="/admin" class="toolbar-logo">CMS Core</a>
-    <nav>
-      <a href="/admin" {{#if navDashboard}}class="active"{{/if}}>Dashboard</a>
-      <a href="/admin/content" {{#if navContent}}class="active"{{/if}}>Content</a>
-      <a href="/admin/structure/types" {{#if navStructure}}class="active"{{/if}}>Structure</a>
-      <a href="/admin/appearance" {{#if navAppearance}}class="active"{{/if}}>Appearance</a>
-      <a href="/admin/modules" {{#if navModules}}class="active"{{/if}}>Modules</a>
-      <a href="/admin/config" {{#if navConfig}}class="active"{{/if}}>Configuration</a>
-      <a href="/admin/users" {{#if navPeople}}class="active"{{/if}}>People</a>
-      <a href="/admin/reports/status" {{#if navReports}}class="active"{{/if}}>Reports</a>
-    </nav>
+
+    <!-- Hamburger toggle — visible only on mobile -->
+    <button class="sidebar-hamburger" aria-label="Toggle navigation" aria-expanded="false">
+      <span></span><span></span><span></span>
+    </button>
+
+    <div class="toolbar-spacer"></div>
+
     <div class="toolbar-user">
-      <span>{{username}}</span>
-      <a href="/">View site</a>
-      <a href="/logout">Log out</a>
+      <input type="color" class="accent-color-picker" value="#2c59ee" aria-label="Accent color" title="Choose accent color">
+      <button class="dark-mode-toggle" aria-label="Toggle dark mode" title="Toggle dark mode">
+        <span class="icon-sun">&#9728;</span>
+        <span class="icon-moon">&#9790;</span>
+      </button>
+      <div class="toolbar-dropdown">
+        <button type="button" class="toolbar-dropdown-trigger" aria-haspopup="true">
+          <span class="toolbar-avatar" title="{{username}}">{{usernameInitial}}</span>
+          <span>{{username}}</span>
+          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 12 15 18 9"/></svg>
+        </button>
+        <div class="toolbar-dropdown-menu" role="menu">
+          <a href="/admin/user/profile" role="menuitem">Profile</a>
+          <a href="/" role="menuitem">View site</a>
+          <div class="toolbar-dropdown-divider"></div>
+          <a href="/logout" role="menuitem">Log out</a>
+        </div>
+      </div>
     </div>
   </div>
-  <div class="admin-wrapper">
-    {{{content}}}
+
+  <div class="admin-wrapper admin-with-sidebar">
+    <!-- Mobile sidebar overlay -->
+    <div class="sidebar-overlay" aria-hidden="true"></div>
+
+    <aside class="admin-sidebar" role="navigation" aria-label="Admin sidebar">
+      <ul class="sidebar-nav">
+        <!-- Dashboard — direct link, no drawer -->
+        <li>
+          <a href="/admin" class="sidebar-link {{#if navDashboard}}active{{/if}}">
+            <svg class="sidebar-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/></svg>
+            <span>Dashboard</span>
+          </a>
+        </li>
+
+        <!-- Content — drawer trigger -->
+        <li>
+          <button type="button" class="sidebar-link {{#if navContent}}active{{/if}}" data-drawer="content" aria-expanded="false">
+            <svg class="sidebar-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg>
+            <span>Content</span>
+            <svg class="sidebar-chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg>
+          </button>
+        </li>
+
+        <!-- Structure — drawer trigger -->
+        <li>
+          <button type="button" class="sidebar-link {{#if navStructure}}active{{/if}}" data-drawer="structure" aria-expanded="false">
+            <svg class="sidebar-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="12 2 2 7 12 12 22 7 12 2"/><polyline points="2 17 12 22 22 17"/><polyline points="2 12 12 17 22 12"/></svg>
+            <span>Structure</span>
+            <svg class="sidebar-chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg>
+          </button>
+        </li>
+
+        <!-- Appearance — drawer trigger -->
+        <li>
+          <button type="button" class="sidebar-link {{#if navAppearance}}active{{/if}}" data-drawer="appearance" aria-expanded="false">
+            <svg class="sidebar-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 19l7-7 3 3-7 7-3-3z"/><path d="M18 13l-1.5-7.5L2 2l3.5 14.5L13 18l5-5z"/><path d="M2 2l7.586 7.586"/><circle cx="11" cy="11" r="2"/></svg>
+            <span>Appearance</span>
+            <svg class="sidebar-chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg>
+          </button>
+        </li>
+
+        <!-- Extend — drawer trigger -->
+        <li>
+          <button type="button" class="sidebar-link {{#if navModules}}active{{/if}}" data-drawer="extend" aria-expanded="false">
+            <svg class="sidebar-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M13.5 2H10.5C9.67 2 9 2.67 9 3.5V6H4.5C3.67 6 3 6.67 3 7.5V10.5C3 11.33 3.67 12 4.5 12H9V16.5C9 17.33 9.67 18 10.5 18H13.5C14.33 18 15 17.33 15 16.5V12H19.5C20.33 12 21 11.33 21 10.5V7.5C21 6.67 20.33 6 19.5 6H15V3.5C15 2.67 14.33 2 13.5 2Z"/></svg>
+            <span>Extend</span>
+            <svg class="sidebar-chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg>
+          </button>
+        </li>
+
+        <!-- Configuration — drawer trigger -->
+        <li>
+          <button type="button" class="sidebar-link {{#if navConfig}}active{{/if}}" data-drawer="configuration" aria-expanded="false">
+            <svg class="sidebar-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
+            <span>Configuration</span>
+            <svg class="sidebar-chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg>
+          </button>
+        </li>
+
+        <!-- People — drawer trigger -->
+        <li>
+          <button type="button" class="sidebar-link {{#if navPeople}}active{{/if}}" data-drawer="people" aria-expanded="false">
+            <svg class="sidebar-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
+            <span>People</span>
+            <svg class="sidebar-chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg>
+          </button>
+        </li>
+
+        <!-- Reports — drawer trigger -->
+        <li>
+          <button type="button" class="sidebar-link {{#if navReports}}active{{/if}}" data-drawer="reports" aria-expanded="false">
+            <svg class="sidebar-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg>
+            <span>Reports</span>
+            <svg class="sidebar-chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg>
+          </button>
+        </li>
+
+        <!-- Tools — drawer trigger -->
+        <li>
+          <button type="button" class="sidebar-link" data-drawer="tools" aria-expanded="false">
+            <svg class="sidebar-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z"/></svg>
+            <span>Tools</span>
+            <svg class="sidebar-chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg>
+          </button>
+        </li>
+
+        <!-- Help — pinned to bottom, direct link -->
+        <li class="sidebar-item--bottom">
+          <a href="/admin/help" class="sidebar-link">
+            <svg class="sidebar-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+            <span>Help</span>
+          </a>
+        </li>
+      </ul>
+
+      <!-- Slideout drawer panel -->
+      <div class="sidebar-drawer" id="sidebarDrawer" aria-hidden="true">
+        <div class="sidebar-drawer__header">
+          <h3 class="sidebar-drawer__title" id="drawerTitle"></h3>
+        </div>
+        <ul class="sidebar-drawer__list" id="drawerList"></ul>
+      </div>
+
+    </aside>
+
+    <!-- Drawer data — populated by server, consumed by JS -->
+    <script id="sidebar-drawer-data" type="application/json">
+    {
+      "content": {
+        "title": "Content",
+        "items": [
+          { "label": "Content list", "href": "/admin/content" },
+          { "label": "Comments", "href": "/admin/comments" },
+          { "label": "Trash", "href": "/admin/trash" }
+        ]
+      },
+      "structure": {
+        "title": "Structure",
+        "items": [
+          { "label": "Content types", "href": "/admin/structure/types" },
+          { "label": "Taxonomy", "href": "/admin/taxonomy" },
+          { "label": "Menus", "href": "/admin/menus" },
+          { "label": "Blocks", "href": "/admin/blocks" },
+          { "label": "Views", "href": "/admin/views" },
+          { "label": "Webforms", "href": "/admin/webforms" },
+          { "label": "ECA Rules", "href": "/admin/eca" },
+          { "label": "Layout Builder", "href": "/admin/layout-builder" },
+          { "label": "Blueprints", "href": "/admin/blueprints" }
+        ]
+      },
+      "appearance": {
+        "title": "Appearance",
+        "items": [
+          { "label": "Themes", "href": "/admin/appearance" }
+        ]
+      },
+      "extend": {
+        "title": "Extend",
+        "items": [
+          { "label": "Module list", "href": "/admin/modules" }
+        ]
+      },
+      "configuration": {
+        "title": "Configuration",
+        "items": [
+          { "label": "Text formats", "href": "/admin/text-formats" },
+          { "label": "Image styles", "href": "/admin/image-styles" },
+          { "label": "Path aliases", "href": "/admin/aliases" },
+          { "label": "Tokens", "href": "/admin/tokens" },
+          { "label": "Regions", "href": "/admin/regions" },
+          { "label": "Actions", "href": "/admin/config/actions" },
+          { "label": "Rules", "href": "/admin/config/rules" },
+          { "label": "User fields", "href": "/admin/config/user-fields" },
+          { "label": "SEO", "href": "/admin/seo" },
+          { "label": "Contact forms", "href": "/admin/contact-forms" },
+          { "label": "Cookie consent", "href": "/admin/config/cookie-consent" }
+        ]
+      },
+      "people": {
+        "title": "People",
+        "items": [
+          { "label": "Users", "href": "/admin/users" },
+          { "label": "Roles", "href": "/admin/roles" },
+          { "label": "Permissions", "href": "/admin/permissions" }
+        ]
+      },
+      "reports": {
+        "title": "Reports",
+        "items": [
+          { "label": "Status report", "href": "/admin/reports/status" },
+          { "label": "Analytics", "href": "/admin/analytics" },
+          { "label": "Audit log", "href": "/admin/audit" },
+          { "label": "Cache", "href": "/admin/cache" },
+          { "label": "Queue", "href": "/admin/queue" }
+        ]
+      },
+      "tools": {
+        "title": "Tools",
+        "items": [
+          { "label": "Clear cache", "href": "/admin/cache/clear" },
+          { "label": "Run cron", "href": "/admin/cron/run" },
+          { "label": "Rebuild search index", "href": "/admin/search/reindex" },
+          { "label": "Config export", "href": "/admin/config/export" },
+          { "label": "Config import", "href": "/admin/config/import" },
+          { "label": "Checklist", "href": "/admin/checklist" },
+          { "label": "Database backup", "href": "/admin/backup" }
+        ]
+      }
+    }
+    </script>
+
+    <main class="admin-main" id="main-content">
+      {{{content}}}
+    </main>
   </div>
+
+  <!-- Toast container for notifications -->
+  <div class="toast-container" id="toastContainer"></div>
+
+  <!-- AI Chatbot Widget -->
+  <button class="ai-chat-fab" id="aiChatToggle" aria-label="Open AI assistant" title="AI Assistant">
+    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
+  </button>
+  <div class="ai-chat-panel" id="aiChatPanel" style="display:none" role="dialog" aria-label="AI Assistant">
+    <div class="ai-chat-header">
+      <strong>AI Assistant</strong>
+      <button class="ai-chat-close" id="aiChatClose" aria-label="Close">&times;</button>
+    </div>
+    <div class="ai-chat-messages" id="aiChatMessages">
+      <div class="ai-chat-msg ai-chat-msg--assistant">How can I help you with your content today?</div>
+    </div>
+    <form class="ai-chat-input" id="aiChatForm" autocomplete="off">
+      <input type="text" id="aiChatInput" placeholder="Ask anything..." aria-label="Type a message" required>
+      <button type="submit" class="btn btn-primary btn-small">Send</button>
+    </form>
+  </div>
+
+  <script src="/public/js/admin.js"></script>
+  <script src="/public/js/editor.bundle.js"></script>
+  <script src="/public/js/command-palette.js"></script>
+  <script src="/public/js/media-modal.js"></script>
   <script src="/public/js/shortcuts.js"></script>
   <script>if(typeof Shortcuts!=='undefined')Shortcuts.init({context:'global'});</script>
+  <script>
+  /* AI Chatbot Widget */
+  (function() {
+    var toggle = document.getElementById('aiChatToggle');
+    var panel = document.getElementById('aiChatPanel');
+    var closeBtn = document.getElementById('aiChatClose');
+    var form = document.getElementById('aiChatForm');
+    var input = document.getElementById('aiChatInput');
+    var messages = document.getElementById('aiChatMessages');
+
+    if (!toggle || !panel) return;
+
+    toggle.addEventListener('click', function() {
+      var open = panel.style.display !== 'none';
+      panel.style.display = open ? 'none' : 'flex';
+      if (!open) input.focus();
+    });
+
+    closeBtn.addEventListener('click', function() {
+      panel.style.display = 'none';
+    });
+
+    function addMsg(text, cls) {
+      var div = document.createElement('div');
+      div.className = 'ai-chat-msg ' + cls;
+      div.textContent = text;
+      messages.appendChild(div);
+      messages.scrollTop = messages.scrollHeight;
+      return div;
+    }
+
+    form.addEventListener('submit', function(e) {
+      e.preventDefault();
+      var msg = input.value.trim();
+      if (!msg) return;
+      addMsg(msg, 'ai-chat-msg--user');
+      input.value = '';
+      input.disabled = true;
+
+      fetch('/admin/api/ai/chat', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'same-origin',
+        body: JSON.stringify({ message: msg }),
+      })
+      .then(function(r) { return r.json(); })
+      .then(function(data) {
+        addMsg(data.reply || data.error || 'No response.', data.error ? 'ai-chat-msg--error' : 'ai-chat-msg--assistant');
+      })
+      .catch(function(err) {
+        addMsg('Network error: ' + err.message, 'ai-chat-msg--error');
+      })
+      .finally(function() {
+        input.disabled = false;
+        input.focus();
+      });
+    });
+  })();
+  </script>
 </body>
 </html>

@@ -108,6 +108,10 @@ export function init(cfg = {}, baseDir = '', template = null) {
  * @param {string} subject - Email subject
  * @param {string} body - Email body (plain text or HTML)
  * @param {Object} options - Send options
+ * @param {Array} [options.attachments] - File attachments
+ * @param {string} options.attachments[].filename - Display filename
+ * @param {Buffer|string} options.attachments[].content - File content (Buffer or base64 string)
+ * @param {string} [options.attachments[].contentType] - MIME type (default: application/octet-stream)
  * @returns {Promise<Object>} Send result
  */
 export async function send(to, subject, body, options = {}) {
@@ -123,6 +127,7 @@ export async function send(to, subject, body, options = {}) {
     subject,
     body,
     isHtml,
+    attachments: options.attachments || [],
     timestamp: new Date().toISOString()
   };
 
@@ -304,6 +309,14 @@ function sendConsole(email) {
   } else {
     console.log(email.body.slice(0, 500) + (email.body.length > 500 ? '...' : ''));
   }
+  if (email.attachments && email.attachments.length > 0) {
+    console.log('-'.repeat(60));
+    console.log(`Attachments (${email.attachments.length}):`);
+    for (const att of email.attachments) {
+      const size = att.content ? (Buffer.isBuffer(att.content) ? att.content.length : att.content.length) : 0;
+      console.log(`  - ${att.filename} (${att.contentType || 'application/octet-stream'}, ${size} bytes)`);
+    }
+  }
   console.log('='.repeat(60) + '\n');
 
   return {
@@ -319,7 +332,9 @@ function sendConsole(email) {
 async function sendSmtp(email) {
   // Build MIME message
   const boundary = `----=_Part_${Date.now()}_${Math.random().toString(36).slice(2)}`;
+  const altBoundary = `----=_Alt_${Date.now()}_${Math.random().toString(36).slice(2)}`;
   const messageId = `<${Date.now()}.${Math.random().toString(36).slice(2)}@${config.smtp.host}>`;
+  const hasAttachments = email.attachments && email.attachments.length > 0;
 
   let message = '';
   message += `From: ${email.from}\r\n`;
@@ -330,7 +345,45 @@ async function sendSmtp(email) {
   message += `Date: ${new Date().toUTCString()}\r\n`;
   message += `MIME-Version: 1.0\r\n`;
 
-  if (email.isHtml) {
+  if (hasAttachments) {
+    // multipart/mixed wraps body + attachments
+    message += `Content-Type: multipart/mixed; boundary="${boundary}"\r\n\r\n`;
+
+    // Body part
+    message += `--${boundary}\r\n`;
+    if (email.isHtml) {
+      message += `Content-Type: multipart/alternative; boundary="${altBoundary}"\r\n\r\n`;
+      message += `--${altBoundary}\r\n`;
+      message += `Content-Type: text/plain; charset=utf-8\r\n\r\n`;
+      message += stripHtml(email.body) + '\r\n\r\n';
+      message += `--${altBoundary}\r\n`;
+      message += `Content-Type: text/html; charset=utf-8\r\n\r\n`;
+      message += email.body + '\r\n\r\n';
+      message += `--${altBoundary}--\r\n`;
+    } else {
+      message += `Content-Type: text/plain; charset=utf-8\r\n\r\n`;
+      message += email.body + '\r\n';
+    }
+
+    // Attachment parts
+    for (const att of email.attachments) {
+      const contentType = att.contentType || 'application/octet-stream';
+      const b64 = Buffer.isBuffer(att.content)
+        ? att.content.toString('base64')
+        : att.content;
+      const filename = (att.filename || 'attachment').replace(/[^\w.\-]/g, '_');
+
+      message += `\r\n--${boundary}\r\n`;
+      message += `Content-Type: ${contentType}; name="${filename}"\r\n`;
+      message += `Content-Disposition: attachment; filename="${filename}"\r\n`;
+      message += `Content-Transfer-Encoding: base64\r\n\r\n`;
+      // Split base64 into 76-char lines per RFC 2045
+      for (let i = 0; i < b64.length; i += 76) {
+        message += b64.slice(i, i + 76) + '\r\n';
+      }
+    }
+    message += `--${boundary}--\r\n`;
+  } else if (email.isHtml) {
     message += `Content-Type: multipart/alternative; boundary="${boundary}"\r\n\r\n`;
     message += `--${boundary}\r\n`;
     message += `Content-Type: text/plain; charset=utf-8\r\n\r\n`;

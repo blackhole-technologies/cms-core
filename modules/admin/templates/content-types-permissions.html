@@ -1,0 +1,63 @@
+<div class="admin-breadcrumb">
+  <a href="/admin">Dashboard</a> <span>&rsaquo;</span>
+  <a href="/admin/structure/types">Structure</a> <span>&rsaquo;</span>
+  <a href="/admin/structure/types">Content Types</a> <span>&rsaquo;</span>
+  <a href="/admin/structure/types/{{typeName}}">{{typeLabel}}</a> <span>&rsaquo;</span>
+  <span>Manage Permissions</span>
+</div>
+
+<div class="section-header-row">
+  <h1 class="admin-page-title">Permissions: {{typeLabel}}</h1>
+</div>
+
+<nav class="tabs-local-tasks">
+  <a href="/admin/structure/types/{{typeName}}" class="tab">Edit</a>
+  <a href="/admin/structure/types/{{typeName}}/fields" class="tab">Manage fields</a>
+  <a href="/admin/structure/types/{{typeName}}/form-display" class="tab">Manage form display</a>
+  <a href="/admin/structure/types/{{typeName}}/display" class="tab">Manage display</a>
+  <a href="/admin/structure/types/{{typeName}}/permissions" class="tab active">Manage permissions</a>
+</nav>
+
+{{#if hasFlash}}
+<div class="messages messages--{{flash.type}}" style="margin-bottom:var(--gin-space-4, 1rem)">
+  <span>{{flash.message}}</span>
+</div>
+{{/if}}
+
+<div class="admin-panel">
+  <form method="POST" action="/admin/structure/types/{{typeName}}/permissions">
+    <input type="hidden" name="csrf_token" value="{{csrfToken}}">
+
+    <table class="admin-table">
+      <thead>
+        <tr>
+          <th>Permission</th>
+          {{#each roles}}
+          <th style="text-align:center">{{label}}</th>
+          {{/each}}
+        </tr>
+      </thead>
+      <tbody>
+        {{#each permissions}}
+        <tr>
+          <td>
+            <strong>{{label}}</strong>
+            {{#if description}}<br><span style="font-size:0.85em;color:var(--gin-text-muted, #888)">{{description}}</span>{{/if}}
+          </td>
+          {{#each ../roles}}
+          <td style="text-align:center">
+            <input type="checkbox" name="perms[{{../key}}][{{name}}]" value="1"
+              {{#if (lookup ../granted name)}}checked{{/if}}>
+          </td>
+          {{/each}}
+        </tr>
+        {{/each}}
+      </tbody>
+    </table>
+
+    <div style="padding:var(--gin-space-3, 0.75rem) var(--gin-space-4, 1rem);border-top:1px solid var(--gin-border-color, #d4d4d8)">
+      <button type="submit" class="btn btn-primary">Save permissions</button>
+      <a href="/admin/structure/types/{{typeName}}/fields" class="btn btn-secondary">Cancel</a>
+    </div>
+  </form>
+</div>

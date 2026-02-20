@@ -645,12 +645,34 @@ export function hook_routes(register, context) {
 
   /**
    * Render a page with layout
+   * Uses admin-layout.html for /admin/* pages, layout.html for public pages
    */
   function renderPage(templateName, data, ctx, req) {
     const pageTemplate = loadTemplate(templateName);
     const csrfToken = req ? auth.getCSRFToken(req) : '';
     const pageContent = template.renderString(pageTemplate, { ...data, csrfToken });
 
+    const path = req?.url?.split('?')[0] || '/';
+    const isAdmin = path.startsWith('/admin');
+
+    if (isAdmin) {
+      // Use admin layout with toolbar, sidebar, and nav flags
+      const navPeople = true; // Users module is always under People
+      const username = ctx.session?.user?.username || req?.user?.username || 'admin';
+      const usernameInitial = username.charAt(0).toUpperCase();
+
+      return template.renderWithLayout('admin-layout.html', pageContent, {
+        title: data.pageTitle || 'Admin',
+        siteName: ctx.config.site.name,
+        version: ctx.config.site.version,
+        csrfToken,
+        username,
+        usernameInitial,
+        navPeople,
+      });
+    }
+
+    // Public pages (login, logout) use the public layout
     return template.renderWithLayout('layout.html', pageContent, {
       title: data.pageTitle || 'CMS',
       siteName: ctx.config.site.name,
@@ -732,13 +754,19 @@ export function hook_routes(register, context) {
       const { username, password } = formData;
 
       if (!username || !password) {
-        redirect(res, '/login?error=' + encodeURIComponent('Username and password required'));
+        redirect(res, '/login?error=' + encodeURIComponent('Username/email and password required'));
         return;
       }
 
-      // Find user by username
+      // Find user by username or email (parity with Drupal's login_emailusername)
       const users = content.list('user').items;
-      const user = users.find(u => u.username === username);
+      let user = null;
+      if (username.includes('@')) {
+        user = users.find(u => u.email === username);
+      }
+      if (!user) {
+        user = users.find(u => u.username === username);
+      }
 
       if (!user) {
         redirect(res, '/login?error=' + encodeURIComponent('Invalid username or password'));
@@ -1403,4 +1431,185 @@ export function hook_routes(register, context) {
 
     server.json(res, { deleted: true, type, id });
   }, 'API: Delete content');
+
+  // ==========================================
+  // Public User Profile Routes (B9)
+  // ==========================================
+
+  /**
+   * GET /user/:id - Public user profile page
+   */
+  register('GET', '/user/:id', async (req, res, params, ctx) => {
+    const { id } = params;
+
+    const user = content.read('user', id);
+    if (!user) {
+      res.writeHead(404, { 'Content-Type': 'text/html' });
+      res.end('<h1>404 Not Found</h1><p>User not found.</p>');
+      return;
+    }
+
+    // Determine viewing permissions
+    const session = auth.getSession(req);
+    let currentUser = null;
+    if (session) {
+      currentUser = content.read('user', session.userId);
+    }
+
+    const isOwner = currentUser && currentUser.id === user.id;
+    const isAdmin = currentUser && currentUser.role === 'admin';
+    const canEdit = isOwner || isAdmin;
+
+    // Load user profile fields if available
+    let userFieldsService;
+    try { userFieldsService = ctx.services.get('userFields'); } catch (e) {}
+    const profileFields = userFieldsService && userFieldsService.getFieldValues
+      ? userFieldsService.getFieldValues(id)
+      : [];
+
+    // Build categories for display
+    const categories = userFieldsService && userFieldsService.getCategories
+      ? userFieldsService.getCategories(id, isAdmin ? 'admin' : (currentUser ? 'authenticated' : 'public'))
+      : [];
+
+    const html = renderPage('user-profile.html', {
+      pageTitle: user.username + ' - Profile',
+      user: {
+        id: user.id,
+        name: user.username,
+        initials: user.username.charAt(0).toUpperCase(),
+        role: user.role || 'editor',
+        role_label: (user.role || 'editor').charAt(0).toUpperCase() + (user.role || 'editor').slice(1),
+        email: user.email || '',
+        email_visible: isAdmin || isOwner,
+        avatar: null,
+        created_date: new Date(user.created).toLocaleDateString('en-US', {
+          year: 'numeric', month: 'long', day: 'numeric',
+        }),
+        last_login: user.lastLogin ? formatLastLogin(user.lastLogin) : null,
+      },
+      can_edit: canEdit,
+      is_admin: isAdmin,
+      has_fields: categories.length > 0,
+      categories,
+    }, ctx, req);
+
+    server.html(res, html);
+  }, 'User profile');
+
+  /**
+   * GET /user/:id/edit - Edit user profile form
+   */
+  register('GET', '/user/:id/edit', async (req, res, params, ctx) => {
+    const { id } = params;
+
+    // Must be authenticated
+    const session = auth.getSession(req);
+    if (!session) {
+      redirect(res, '/login');
+      return;
+    }
+
+    const currentUser = content.read('user', session.userId);
+    const user = content.read('user', id);
+
+    if (!user) {
+      res.writeHead(404, { 'Content-Type': 'text/html' });
+      res.end('<h1>404 Not Found</h1><p>User not found.</p>');
+      return;
+    }
+
+    // Only owner or admin can edit
+    const isOwner = currentUser && currentUser.id === user.id;
+    const isAdmin = currentUser && currentUser.role === 'admin';
+    if (!isOwner && !isAdmin) {
+      res.writeHead(403, { 'Content-Type': 'text/html' });
+      res.end('<h1>403 Forbidden</h1><p>You do not have permission to edit this profile.</p>');
+      return;
+    }
+
+    // Load user profile fields
+    let userFieldsService;
+    try { userFieldsService = ctx.services.get('userFields'); } catch (e) {}
+    const fields = userFieldsService && userFieldsService.getEditableFields
+      ? userFieldsService.getEditableFields(id)
+      : [];
+
+    const flash = getFlashMessage(req.url);
+
+    const html = renderPage('user-profile-edit.html', {
+      pageTitle: 'Edit Profile: ' + user.username,
+      user: {
+        id: user.id,
+        name: user.username,
+        username: user.username,
+        email: user.email || '',
+        initials: user.username.charAt(0).toUpperCase(),
+      },
+      fields,
+      hasFields: fields.length > 0,
+      is_admin: isAdmin,
+      flash,
+      hasFlash: !!flash,
+    }, ctx, req);
+
+    server.html(res, html);
+  }, 'Edit user profile form');
+
+  /**
+   * POST /user/:id/edit - Save user profile
+   */
+  register('POST', '/user/:id/edit', async (req, res, params, ctx) => {
+    const { id } = params;
+
+    // Must be authenticated
+    const session = auth.getSession(req);
+    if (!session) {
+      redirect(res, '/login');
+      return;
+    }
+
+    const currentUser = content.read('user', session.userId);
+    const user = content.read('user', id);
+
+    if (!user) {
+      redirect(res, '/?error=' + encodeURIComponent('User not found'));
+      return;
+    }
+
+    // Only owner or admin can edit
+    const isOwner = currentUser && currentUser.id === user.id;
+    const isAdmin = currentUser && currentUser.role === 'admin';
+    if (!isOwner && !isAdmin) {
+      res.writeHead(403, { 'Content-Type': 'text/html' });
+      res.end('<h1>403 Forbidden</h1>');
+      return;
+    }
+
+    try {
+      const formData = await parseFormBody(req);
+
+      // Update basic user fields (email)
+      const updates = {};
+      if (formData.email !== undefined) {
+        updates.email = formData.email;
+      }
+
+      if (Object.keys(updates).length > 0) {
+        await content.update('user', id, updates);
+      }
+
+      // Save profile field values if service available
+      let userFieldsService;
+      try { userFieldsService = ctx.services.get('userFields'); } catch (e) {}
+      if (userFieldsService && userFieldsService.saveFieldValues) {
+        await userFieldsService.saveFieldValues(id, formData);
+      }
+
+      redirect(res, '/user/' + id + '?success=' + encodeURIComponent('Profile updated'));
+    } catch (error) {
+      console.error('[users] Save profile error:', error.message);
+      redirect(res, '/user/' + id + '/edit?error=' + encodeURIComponent(error.message));
+    }
+  }, 'Save user profile');
 }

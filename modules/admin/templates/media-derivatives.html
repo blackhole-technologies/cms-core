@@ -1,67 +1,4 @@
-<!DOCTYPE html>
-<html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Image Derivatives - {{media.filename}} - {{siteName}}</title>
-    <style>
-        .original-info {
-            background: #f9f9f9;
-            padding: 1.5rem;
-            border-radius: 4px;
-            margin-bottom: 2rem;
-        }
-        .original-preview {
-            max-width: 400px;
-            max-height: 400px;
-            border: 1px solid #ddd;
-        }
-        .derivative-grid {
-            display: grid;
-            grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
-            gap: 1.5rem;
-            margin-top: 2rem;
-        }
-        .derivative-card {
-            border: 1px solid #ddd;
-            border-radius: 4px;
-            padding: 1rem;
-            background: white;
-        }
-        .derivative-preview {
-            max-width: 100%;
-            height: auto;
-            border: 1px solid #eee;
-            margin-bottom: 0.5rem;
-        }
-        .derivative-info {
-            font-size: 0.9rem;
-            color: #666;
-        }
-        .info-row {
-            display: flex;
-            justify-content: space-between;
-            margin-bottom: 0.5rem;
-        }
-        .status-badge {
-            display: inline-block;
-            padding: 0.25rem 0.5rem;
-            border-radius: 3px;
-            font-size: 0.85rem;
-            font-weight: 500;
-        }
-        .status-exists {
-            background: #d4edda;
-            color: #155724;
-        }
-        .status-missing {
-            background: #f8d7da;
-            color: #721c24;
-        }
-    </style>
-</head>
-<body>
-    <div class="admin-container">
+<div class="admin-container">
         <header class="admin-header">
             <h1>Image Derivatives</h1>
             <div class="header-actions">
@@ -237,5 +174,3 @@
                 .catch(err => alert('Request failed: ' + err.message));
         }
     </script>
-</body>
-</html>

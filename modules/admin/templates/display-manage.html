@@ -17,6 +17,14 @@
     <span>Manage Display</span>
   </div>
 
+  <nav class="tabs-local-tasks">
+    <a href="/admin/structure/types/{{contentType.name}}" class="tab">Edit</a>
+    <a href="/admin/structure/types/{{contentType.name}}/fields" class="tab">Manage fields</a>
+    <a href="/admin/structure/types/{{contentType.name}}/form-display" class="tab">Manage form display</a>
+    <a href="/admin/structure/types/{{contentType.name}}/display" class="tab active">Manage display</a>
+    <a href="/admin/structure/types/{{contentType.name}}/permissions" class="tab">Manage permissions</a>
+  </nav>
+
   {{#if hasFlash}}
   <div class="flash flash-{{flash.type}}">
     {{flash.message}}
@@ -35,7 +43,7 @@
 
       {{#each viewModes}}
       <div class="tab-content {{#if this.isActive}}active{{/if}}" id="tab-{{this.name}}">
-        <form method="POST" action="/admin/display/{{contentType.name}}/{{this.name}}">
+        <form method="POST" action="/admin/structure/types/{{contentType.name}}/display/{{this.name}}">
           <div class="fields-display-section">
             <h3>Field Display Settings</h3>
 
