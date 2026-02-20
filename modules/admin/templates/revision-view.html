@@ -1,42 +1,45 @@
 <!-- Revision view template -->
-<div class="admin-page">
-  <div class="page-header">
-    <h1>View Revision</h1>
-    <div class="breadcrumb">
-      <a href="/admin/content">Content</a> &raquo;
-      <a href="/admin/content/{{type}}">{{type}}</a> &raquo;
-      <a href="/admin/content/{{type}}/{{id}}/edit">{{id}}</a> &raquo;
-      <a href="/admin/content/{{type}}/{{id}}/revisions">Revisions</a> &raquo;
-      {{timestamp}}
+<div class="admin-breadcrumb">
+  <a href="/admin">Home</a> <span>&rsaquo;</span>
+  <a href="/admin/content">Content</a> <span>&rsaquo;</span>
+  <a href="/admin/content/{{type}}">{{type}}</a> <span>&rsaquo;</span>
+  <a href="/admin/content/{{type}}/{{id}}/edit">{{id}}</a> <span>&rsaquo;</span>
+  <a href="/admin/content/{{type}}/{{id}}/revisions">Revisions</a> <span>&rsaquo;</span>
+  <span>{{timestamp}}</span>
+</div>
+
+<h1 class="admin-page-title">View Revision</h1>
+
+{{#if hasFlash}}
+<div class="flash flash-{{flash.type}}">
+  {{flash.message}}
+</div>
+{{/if}}
+
+<div class="admin-panel">
+  <div class="admin-panel-header"><h2>Revision Metadata</h2></div>
+  <div class="admin-panel-body">
+    <div style="display:flex;flex-wrap:wrap;gap:var(--gin-space-6, 1.5rem)">
+      <div>
+        <span class="text-xs text-muted" style="display:block;margin-bottom:2px">Revision Timestamp</span>
+        <span class="font-mono text-sm">{{timestampFormatted}}</span>
+      </div>
+      <div>
+        <span class="text-xs text-muted" style="display:block;margin-bottom:2px">Created</span>
+        <span class="font-mono text-sm">{{createdFormatted}}</span>
+      </div>
+      <div>
+        <span class="text-xs text-muted" style="display:block;margin-bottom:2px">ID</span>
+        <code>{{revision.id}}</code>
+      </div>
     </div>
   </div>
+</div>
 
-  {{#if hasFlash}}
-  <div class="flash flash-{{flash.type}}">
-    {{flash.message}}
-  </div>
-  {{/if}}
-
-  <div class="admin-section">
-    <div class="revision-meta">
-      <div class="meta-item">
-        <span class="meta-label">Revision Timestamp:</span>
-        <span class="meta-value">{{timestampFormatted}}</span>
-      </div>
-      <div class="meta-item">
-        <span class="meta-label">Created:</span>
-        <span class="meta-value">{{createdFormatted}}</span>
-      </div>
-      <div class="meta-item">
-        <span class="meta-label">ID:</span>
-        <span class="meta-value">{{revision.id}}</span>
-      </div>
-    </div>
-  </div>
-
-  <div class="admin-section">
-    <h2>Revision Content</h2>
-    <table class="data-table">
+<div class="admin-panel">
+  <div class="admin-panel-header"><h2>Revision Content</h2></div>
+  <div class="admin-panel-body" style="padding:0">
+    <table class="admin-table">
       <thead>
         <tr>
           <th>Field</th>
@@ -47,19 +50,15 @@
       </thead>
       <tbody>
         {{#each fields}}
-        <tr class="{{#if changed}}changed{{/if}}">
+        <tr>
           <td><strong>{{name}}</strong></td>
-          <td class="value-cell">
-            <pre>{{value}}</pre>
-          </td>
-          <td class="value-cell">
-            <pre>{{currentValue}}</pre>
-          </td>
+          <td><pre style="margin:0;padding:var(--gin-space-2, 0.5rem);background:var(--gin-surface-alt, #fafafa);border-radius:var(--gin-radius-sm, 4px);font-size:var(--gin-font-size-xs, 12px);white-space:pre-wrap;word-break:break-word;max-height:150px;overflow-y:auto">{{value}}</pre></td>
+          <td><pre style="margin:0;padding:var(--gin-space-2, 0.5rem);background:var(--gin-surface-alt, #fafafa);border-radius:var(--gin-radius-sm, 4px);font-size:var(--gin-font-size-xs, 12px);white-space:pre-wrap;word-break:break-word;max-height:150px;overflow-y:auto">{{currentValue}}</pre></td>
           <td>
             {{#if changed}}
-            <span class="badge badge-changed">Changed</span>
+            <span class="status-badge status-badge--draft">Changed</span>
             {{else}}
-            <span class="badge badge-same">Same</span>
+            <span class="status-badge status-badge--archived">Same</span>
             {{/if}}
           </td>
         </tr>
@@ -67,175 +66,23 @@
       </tbody>
     </table>
   </div>
+</div>
 
-  <div class="admin-section actions-section">
-    <h2>Actions</h2>
-    <p>Reverting will restore this revision as the current version. The current version will be saved as a new revision so you can undo if needed.</p>
-
-    <div class="action-buttons">
-      <form method="POST" action="/admin/content/{{type}}/{{id}}/revisions/{{timestamp}}/revert" style="display: inline;" onsubmit="return confirm('Revert to this revision? Current version will be saved.');">
+<div class="admin-panel" style="background:var(--gin-primary-bg, #eff6ff)">
+  <div class="admin-panel-body">
+    <h3 style="margin:0 0 var(--gin-space-2, 0.5rem) 0;font-size:var(--gin-font-size-md, 16px)">Actions</h3>
+    <p style="margin:0 0 var(--gin-space-3, 0.75rem) 0;color:var(--gin-text-muted, #71717a)">Reverting will restore this revision as the current version. The current version will be saved as a new revision so you can undo if needed.</p>
+    <div style="display:flex;gap:var(--gin-space-2, 0.5rem);flex-wrap:wrap">
+      <form method="POST" action="/admin/content/{{type}}/{{id}}/revisions/{{timestamp}}/revert" class="inline-form" onsubmit="return confirm('Revert to this revision? Current version will be saved.');">
         {{csrfField}}
         <button type="submit" class="btn btn-primary">Revert to This Revision</button>
       </form>
-      <a href="/admin/content/{{type}}/{{id}}/revisions/{{timestamp}}/diff" class="btn btn-secondary">View Diff</a>
+      <a href="/admin/content/{{type}}/{{id}}/revisions/{{timestamp}}/diff" class="btn">View Diff</a>
     </div>
-  </div>
-
-  <div class="form-actions">
-    <a href="/admin/content/{{type}}/{{id}}/revisions" class="btn btn-secondary">Back to Revisions</a>
-    <a href="/admin/content/{{type}}/{{id}}/edit" class="btn btn-secondary">Back to Edit</a>
   </div>
 </div>
 
-<style>
-.page-header {
-  margin-bottom: 1.5rem;
-}
-
-.page-header h1 {
-  margin-bottom: 0.5rem;
-}
-
-.breadcrumb {
-  font-size: 0.9rem;
-  color: #666;
-}
-
-.breadcrumb a {
-  color: #007bff;
-  text-decoration: none;
-}
-
-.breadcrumb a:hover {
-  text-decoration: underline;
-}
-
-.admin-section {
-  margin-bottom: 1.5rem;
-  padding: 1.5rem;
-  background: #fff;
-  border: 1px solid #dee2e6;
-  border-radius: 8px;
-}
-
-.admin-section h2 {
-  margin-top: 0;
-  font-size: 1.1rem;
-  color: #333;
-}
-
-.revision-meta {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 2rem;
-}
-
-.meta-item {
-  display: flex;
-  flex-direction: column;
-}
-
-.meta-label {
-  font-size: 0.85rem;
-  color: #666;
-  margin-bottom: 0.25rem;
-}
-
-.meta-value {
-  font-family: monospace;
-  font-size: 0.95rem;
-  color: #333;
-}
-
-.data-table {
-  width: 100%;
-  border-collapse: collapse;
-}
-
-.data-table th,
-.data-table td {
-  padding: 0.75rem;
-  text-align: left;
-  border-bottom: 1px solid #dee2e6;
-  vertical-align: top;
-}
-
-.data-table th {
-  background: #f8f9fa;
-  font-weight: 600;
-  font-size: 0.9rem;
-}
-
-.data-table tr.changed {
-  background: #fff3cd;
-}
-
-.value-cell {
-  max-width: 300px;
-}
-
-.value-cell pre {
-  margin: 0;
-  padding: 0.5rem;
-  background: #f8f9fa;
-  border-radius: 4px;
-  font-size: 0.85rem;
-  white-space: pre-wrap;
-  word-break: break-word;
-  max-height: 150px;
-  overflow-y: auto;
-}
-
-.badge {
-  display: inline-block;
-  padding: 0.2rem 0.5rem;
-  border-radius: 4px;
-  font-size: 0.75rem;
-  font-weight: 600;
-}
-
-.badge-changed {
-  background: #ffc107;
-  color: #333;
-}
-
-.badge-same {
-  background: #e9ecef;
-  color: #666;
-}
-
-.actions-section {
-  background: #f0f7ff;
-  border-color: #b8daff;
-}
-
-.action-buttons {
-  display: flex;
-  gap: 0.75rem;
-  margin-top: 1rem;
-}
-
-.form-actions {
-  display: flex;
-  gap: 0.5rem;
-  margin-top: 1rem;
-}
-
-.flash {
-  padding: 1rem;
-  border-radius: 4px;
-  margin-bottom: 1rem;
-}
-
-.flash-success {
-  background: #d4edda;
-  border: 1px solid #c3e6cb;
-  color: #155724;
-}
-
-.flash-error {
-  background: #f8d7da;
-  border: 1px solid #f5c6cb;
-  color: #721c24;
-}
-</style>
+<div style="display:flex;gap:var(--gin-space-2, 0.5rem);margin-top:var(--gin-space-4, 1rem)">
+  <a href="/admin/content/{{type}}/{{id}}/revisions" class="btn">Back to Revisions</a>
+  <a href="/admin/content/{{type}}/{{id}}/edit" class="btn">Back to Edit</a>
+</div>

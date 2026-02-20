@@ -5,7 +5,7 @@ This is a FRESH context window - you have no memory of previous sessions.
 
 ### ⚠️ CMS-CORE ARCHITECTURE RULES (READ FIRST)
 
-**1. Read `CLAUDE.md` BEFORE writing any code.** It defines the 8 meta-patterns, directory structure, and where code goes.
+**1. CLAUDE.md is loaded automatically by the SDK.** It defines the 8 meta-patterns and where code goes.
 
 **2. Read the template for whatever you're building:**
 - New plugin type? → `.autoforge/templates/plugin-manager.js` + `plugin-base.js`
@@ -45,14 +45,11 @@ Start by orienting yourself:
 # 1. See your working directory
 pwd
 
-# 2. Read the project architecture guide FIRST
-cat CLAUDE.md
-
-# 3. Read the project specification
+# 2. Read the project specification
 cat app_spec.txt
 
 # 4. Read progress notes from previous sessions (last 500 lines to avoid context overflow)
-tail -500 claude-progress.txt
+tail -500 .autoforge/progress.txt 2>/dev/null || echo "No previous progress notes found"
 
 # 5. Check recent git history
 git log --oneline -20
@@ -108,7 +105,7 @@ If you must skip (truly external blocker only):
 Use the feature_skip tool with feature_id={id}
 ```
 
-Document the SPECIFIC external blocker in `claude-progress.txt`. "Functionality not built" is NEVER a valid reason.
+Document the SPECIFIC external blocker in `.autoforge/progress.txt`. "Functionality not built" is NEVER a valid reason.
 
 ### STEP 4: IMPLEMENT THE FEATURE
 
@@ -207,7 +204,7 @@ git commit -m "feat: implement [feature name] with browser verification"
 
 ### STEP 8: UPDATE PROGRESS NOTES
 
-Update `claude-progress.txt` with:
+Update `.autoforge/progress.txt` with:
 
 - What you accomplished this session
 - Which test(s) you completed
@@ -215,12 +212,24 @@ Update `claude-progress.txt` with:
 - What should be worked on next
 - Current completion status (e.g., "45/200 tests passing")
 
+### FILE HYGIENE RULES
+
+**DO NOT create files in the project root.** All agent output goes to designated directories:
+
+- Progress notes → `.autoforge/progress.txt`
+- Test files → `tests/unit/`, `tests/integration/`, or `tests/browser/`
+- Test fixtures → `tests/fixtures/`
+- Screenshots → `tests/screenshots/`
+- Source code → `core/`, `modules/`, `config/`, `content/`, `themes/`, `public/`
+
+**DO NOT create at root:** session summaries, regression reports, verification docs, feature reports, or any `.md`/`.txt`/`.png` artifacts. The git log and feature database are the record of what happened.
+
 ### STEP 9: END SESSION CLEANLY
 
 Before context fills up:
 
 1. Commit all working code
-2. Update claude-progress.txt
+2. Update `.autoforge/progress.txt`
 3. Mark features as passing if tests verified
 4. Ensure no uncommitted changes
 5. Leave app in working state (no broken features)

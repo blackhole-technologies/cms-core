@@ -1,0 +1,115 @@
+<div class="admin-breadcrumb">
+  <a href="/admin">Dashboard</a> <span>&rsaquo;</span>
+  <a href="/admin/structure/types">Structure</a> <span>&rsaquo;</span>
+  <a href="/admin/structure/types">Content Types</a> <span>&rsaquo;</span>
+  <a href="/admin/structure/types/{{typeName}}">{{typeLabel}}</a> <span>&rsaquo;</span>
+  <span>Manage Form Display</span>
+</div>
+
+<div class="section-header-row">
+  <h1 class="admin-page-title">Manage Form Display: {{typeLabel}}</h1>
+</div>
+
+<nav class="tabs-local-tasks">
+  <a href="/admin/structure/types/{{typeName}}" class="tab">Edit</a>
+  <a href="/admin/structure/types/{{typeName}}/fields" class="tab">Manage fields</a>
+  <a href="/admin/structure/types/{{typeName}}/form-display" class="tab active">Manage form display</a>
+  <a href="/admin/structure/types/{{typeName}}/display" class="tab">Manage display</a>
+  <a href="/admin/structure/types/{{typeName}}/permissions" class="tab">Manage permissions</a>
+</nav>
+
+{{#if hasFlash}}
+<div class="messages messages--{{flash.type}}" style="margin-bottom:var(--gin-space-4, 1rem)">
+  <span>{{flash.message}}</span>
+</div>
+{{/if}}
+
+{{#if hasFields}}
+<div class="admin-panel">
+  <form method="POST" action="/admin/structure/types/{{typeName}}/form-display">
+    <input type="hidden" name="csrf_token" value="{{csrfToken}}">
+
+    <table class="admin-table">
+      <thead>
+        <tr>
+          <th style="width:2rem"></th>
+          <th>Field</th>
+          <th>Widget</th>
+          <th style="width:80px">Weight</th>
+        </tr>
+      </thead>
+      <tbody id="form-display-tbody">
+        {{#each fields}}
+        <tr class="field-row" draggable="true" data-field="{{machineName}}">
+          <td class="field-handle" style="cursor:grab;text-align:center;color:var(--gin-text-light, #666)">⋮⋮</td>
+          <td>
+            <strong>{{label}}</strong>
+            <br>
+            <code style="font-size:0.85em;color:var(--gin-text-muted, #888)">{{machineName}}</code>
+          </td>
+          <td>
+            <select name="widgets[{{machineName}}]" class="form-select" style="width:auto;min-width:180px">
+              {{#each availableWidgets}}
+              <option value="{{value}}" {{#if selected}}selected{{/if}}>{{label}}</option>
+              {{/each}}
+            </select>
+          </td>
+          <td>
+            <input type="number" name="weights[{{machineName}}]" value="{{weight}}" class="form-text" style="width:60px;text-align:center">
+          </td>
+        </tr>
+        {{/each}}
+      </tbody>
+    </table>
+
+    <div style="padding:var(--gin-space-3, 0.75rem) var(--gin-space-4, 1rem);border-top:1px solid var(--gin-border-color, #d4d4d8)">
+      <button type="submit" class="btn btn-primary">Save</button>
+      <a href="/admin/structure/types/{{typeName}}/fields" class="btn btn-secondary">Cancel</a>
+    </div>
+  </form>
+</div>
+{{else}}
+<div class="admin-panel">
+  <div class="admin-panel-body" style="text-align:center;padding:var(--gin-space-12, 3rem)">
+    <p class="text-muted">No fields have been added to this content type yet.</p>
+    <a href="/admin/structure/types/{{typeName}}/fields/add" class="btn btn-primary">+ Add your first field</a>
+  </div>
+</div>
+{{/if}}
+
+<script>
+/* Drag and drop reordering for form display */
+(function() {
+  var tbody = document.getElementById('form-display-tbody');
+  if (!tbody) return;
+  var dragged = null;
+
+  tbody.addEventListener('dragstart', function(e) {
+    var row = e.target.closest('.field-row');
+    if (row) { dragged = row; row.style.opacity = '0.4'; }
+  });
+
+  tbody.addEventListener('dragend', function(e) {
+    if (dragged) { dragged.style.opacity = '1'; dragged = null; updateWeights(); }
+  });
+
+  tbody.addEventListener('dragover', function(e) {
+    e.preventDefault();
+    var target = e.target.closest('.field-row');
+    if (target && target !== dragged) {
+      var rect = target.getBoundingClientRect();
+      var mid = rect.top + rect.height / 2;
+      if (e.clientY < mid) tbody.insertBefore(dragged, target);
+      else tbody.insertBefore(dragged, target.nextSibling);
+    }
+  });
+
+  function updateWeights() {
+    var rows = tbody.querySelectorAll('.field-row');
+    rows.forEach(function(row, i) {
+      var input = row.querySelector('input[type="number"]');
+      if (input) input.value = i;
+    });
+  }
+})();
+</script>

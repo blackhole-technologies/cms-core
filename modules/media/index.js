@@ -243,38 +243,66 @@ export function hook_routes(register, context) {
   }, 'Upload form');
 
   /**
-   * POST /admin/media/upload - Handle file upload
+   * POST /admin/media/upload - Handle single or bulk file upload
+   *
+   * Accepts one or many files in a single multipart request.
+   * For XHR/fetch callers: returns JSON with per-file results.
+   * For HTML form callers: redirects back to media list.
    */
   register('POST', '/admin/media/upload', async (req, res, params, ctx) => {
     try {
-      // Parse multipart form data
       const { fields, files } = await media.parseUpload(req);
 
       if (files.length === 0) {
-        redirect(res, '/admin/media/upload?error=' + encodeURIComponent('No file selected'));
+        // Detect XHR vs form submission
+        const accept = req.headers['accept'] || '';
+        if (accept.includes('application/json')) {
+          server.json(res, { error: 'No file selected', results: [] }, 400);
+        } else {
+          redirect(res, '/admin/media/upload?error=' + encodeURIComponent('No file selected'));
+        }
         return;
       }
 
-      const file = files[0];
+      // Process all files in the request (supports bulk upload)
+      const results = [];
+      for (const file of files) {
+        try {
+          const saved = media.saveFile(file);
+          await content.create('media', {
+            filename: saved.filename,
+            path: saved.relativePath,
+            mimetype: saved.type,
+            size: saved.size,
+            alt: fields.alt || '',
+          });
+          results.push({ success: true, filename: file.originalName, path: saved.relativePath });
+        } catch (err) {
+          results.push({ success: false, filename: file.originalName, error: err.message });
+        }
+      }
 
-      // Save file to disk
-      const saved = media.saveFile(file);
+      const successCount = results.filter(r => r.success).length;
+      const accept = req.headers['accept'] || '';
 
-      // Create media content entry
-      await content.create('media', {
-        filename: saved.filename,
-        path: saved.relativePath,
-        mimetype: saved.type,
-        size: saved.size,
-        alt: fields.alt || '',
-      });
-
-      redirect(res, '/admin/media?success=' + encodeURIComponent(`Uploaded: ${file.originalName}`));
+      if (accept.includes('application/json')) {
+        server.json(res, { results, uploaded: successCount, total: files.length });
+      } else {
+        const msg = successCount === 1
+          ? `Uploaded: ${results[0].filename}`
+          : `Uploaded ${successCount} of ${files.length} files`;
+        redirect(res, '/admin/media?success=' + encodeURIComponent(msg));
+      }
     } catch (error) {
       console.error('[media] Upload error:', error.message);
-      redirect(res, '/admin/media/upload?error=' + encodeURIComponent(error.message));
+      const accept = req.headers['accept'] || '';
+      if (accept.includes('application/json')) {
+        server.json(res, { error: error.message, results: [] }, 500);
+      } else {
+        redirect(res, '/admin/media/upload?error=' + encodeURIComponent(error.message));
+      }
     }
-  }, 'Handle upload');
+  }, 'Handle single or bulk upload');
 
   /**
    * POST /admin/media/:id/delete - Delete media

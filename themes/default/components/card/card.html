@@ -1,0 +1,22 @@
+<div class="sdc-card sdc-card--{{variant}}">
+  {{#if image}}
+  <div class="sdc-card__media">
+    <img src="{{image}}" alt="{{imageAlt}}" loading="lazy">
+  </div>
+  {{/if}}
+  <div class="sdc-card__content">
+    {{#if url}}
+    <h3 class="sdc-card__title"><a href="{{url}}">{{title}}</a></h3>
+    {{else}}
+    <h3 class="sdc-card__title">{{title}}</h3>
+    {{/if}}
+    {{#if body}}
+    <p class="sdc-card__body">{{body}}</p>
+    {{/if}}
+    {{#if tags}}
+    <div class="sdc-card__tags">
+      {{tags}}
+    </div>
+    {{/if}}
+  </div>
+</div>

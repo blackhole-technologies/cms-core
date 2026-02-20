@@ -1,0 +1,10 @@
+{
+  "name": "alert",
+  "description": "A dismissible alert/message banner for status, warnings, and errors",
+  "props": {
+    "message": { "type": "string", "required": true },
+    "type": { "type": "string", "default": "info", "enum": ["info", "success", "warning", "error"] },
+    "dismissible": { "type": "boolean", "default": true },
+    "icon": { "type": "boolean", "default": true }
+  }
+}

@@ -9,6 +9,20 @@
 <div class="flash flash-{{flash.type}}">{{flash.message}}</div>
 {{/if}}
 
+<!-- Quick Action Buttons -->
+<div class="dashboard-quick-actions">
+  {{#each contentTypeActions}}
+  <a href="/admin/content/{{type}}/new" class="btn btn-primary btn-small">+ New {{type}}</a>
+  {{/each}}
+  <a href="/admin/users" class="btn btn-small">Manage users</a>
+  <a href="/admin/cache" class="btn btn-small">Clear cache</a>
+  <form method="POST" action="/admin/restart" style="display:inline">
+    {{csrfField}}
+    <button type="submit" class="btn btn-small" onclick="return confirm('Restart the server? The page will reload in a few seconds.')">Restart server</button>
+  </form>
+</div>
+
+<!-- Stats Row -->
 <div class="admin-stats">
   <div class="admin-stat-card">
     <div class="admin-stat-value">{{userContentTypeCount}}</div>
@@ -96,7 +110,7 @@
           </tbody>
         </table>
         {{else}}
-        <p class="empty-message">No content yet.</p>
+        <p class="empty-message">No content yet. Create your first piece of content above.</p>
         {{/if}}
       </div>
     </div>
@@ -111,8 +125,11 @@
           <tbody>
             {{#each recentActivity}}
             <tr>
-              <td><strong>{{actor.username}}</strong> {{label}} {{#if target}}<a href="/admin/content/{{target.type}}/{{target.id}}/edit">{{target.title}}</a>{{/if}}</td>
-              <td style="text-align:right;white-space:nowrap;color:var(--admin-text-muted);font-size:12px">{{relativeTime}}</td>
+              <td>
+                <span class="toolbar-avatar" style="display:inline-flex;width:24px;height:24px;font-size:0.7rem;vertical-align:middle;margin-right:0.5rem">{{actor.initial}}</span>
+                <strong>{{actor.username}}</strong> {{label}} {{#if target}}<a href="/admin/content/{{target.type}}/{{target.id}}/edit">{{target.title}}</a>{{/if}}
+              </td>
+              <td class="text-right text-xs text-muted" style="white-space:nowrap">{{relativeTime}}</td>
             </tr>
             {{/each}}
           </tbody>
@@ -162,7 +179,7 @@
         <p>Users, roles, permissions</p>
         <ul>
           <li><a href="/admin/users">User accounts</a></li>
-          <li><a href="/admin/permissions-matrix">Permissions</a></li>
+          <li><a href="/admin/permissions">Permissions</a></li>
         </ul>
       </div>
       <div class="admin-menu-block">

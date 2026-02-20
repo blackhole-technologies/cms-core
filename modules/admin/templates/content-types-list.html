@@ -1,128 +1,100 @@
-<!DOCTYPE html>
-<html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Content Types - Admin</title>
-</head>
-<body>
-    <div class="content-types-list">
-        <header class="page-header">
-            <h1>Content Types</h1>
-            <div class="actions">
-                <a href="/admin/content-types/create" class="btn btn-primary">Create Content Type</a>
-            </div>
-        </header>
+<div class="admin-breadcrumb">
+  <a href="/admin">Dashboard</a> <span>&rsaquo;</span>
+  <a href="/admin/structure/types">Structure</a> <span>&rsaquo;</span>
+  <span>Content Types</span>
+</div>
 
-        {{#hasFilters}}
-        <div class="filters">
-            <label for="bundle-filter">Filter by Bundle:</label>
-            <select id="bundle-filter" name="bundle">
-                <option value="">All Bundles</option>
-                {{#bundles}}
-                <option value="{{value}}" {{#selected}}selected{{/selected}}>{{label}}</option>
-                {{/bundles}}
-            </select>
-        </div>
-        {{/hasFilters}}
+<div class="section-header-row">
+  <h1 class="admin-page-title">Content Types</h1>
+  <a href="/admin/structure/types/new" class="btn btn-primary">Create Content Type</a>
+</div>
 
-        {{#contentTypes.length}}
-        <table class="content-types-table">
-            <thead>
-                <tr>
-                    <th>Machine Name</th>
-                    <th>Label</th>
-                    <th>Bundle</th>
-                    <th>Description</th>
-                    <th>Fields</th>
-                    <th>Content</th>
-                    <th>Actions</th>
-                </tr>
-            </thead>
-            <tbody>
-                {{#contentTypes}}
-                <tr data-type-id="{{id}}" data-machine-name="{{machineName}}">
-                    <td><code>{{machineName}}</code></td>
-                    <td>{{label}}</td>
-                    <td>{{bundle}}</td>
-                    <td>{{description}}</td>
-                    <td class="text-center">{{fieldCount}}</td>
-                    <td class="text-center">{{contentCount}}</td>
-                    <td class="actions">
-                        <a href="/admin/content-types/{{machineName}}/edit" class="btn btn-sm btn-secondary">Edit</a>
-                        <a href="/admin/content-types/{{machineName}}/fields" class="btn btn-sm btn-secondary">Manage Fields</a>
-                        {{#canDelete}}
-                        <button type="button" class="btn btn-sm btn-danger" data-delete="{{machineName}}">Delete</button>
-                        {{/canDelete}}
-                    </td>
-                </tr>
-                {{/contentTypes}}
-            </tbody>
-        </table>
-        {{/contentTypes.length}}
+{{#if hasFilters}}
+<div class="admin-panel" style="margin-bottom:var(--gin-space-4, 1rem)">
+  <div class="admin-panel-body" style="padding:var(--gin-space-3, 0.75rem) var(--gin-space-4, 1rem)">
+    <label for="bundle-filter">Filter by Bundle:</label>
+    <select id="bundle-filter" name="bundle" class="form-select" style="width:auto;display:inline-block;margin-left:var(--gin-space-2, 0.5rem)">
+      <option value="">All Bundles</option>
+      {{#each bundles}}
+      <option value="{{value}}">{{label}}</option>
+      {{/each}}
+    </select>
+  </div>
+</div>
+{{/if}}
 
-        {{^contentTypes.length}}
-        <div class="empty-state">
-            <p>No content types found.</p>
-            <a href="/admin/content-types/create" class="btn btn-primary">Create Your First Content Type</a>
-        </div>
-        {{/contentTypes.length}}
+{{#if hasTypes}}
+<div class="admin-panel">
+  <table class="admin-table">
+    <thead>
+      <tr>
+        <th>Name</th>
+        <th>Description</th>
+        <th>Operations</th>
+      </tr>
+    </thead>
+    <tbody>
+      {{#each types}}
+      <tr>
+        <td><strong>{{type}}</strong></td>
+        <td style="color:var(--gin-text-light, #545560)">{{#if description}}{{description}}{{else}}<em style="color:var(--gin-text-muted, #71727a)">No description</em>{{/if}}</td>
+        <td class="actions">
+          <div class="dropbutton-wrapper">
+            <a href="/admin/structure/types/{{type}}/fields" class="dropbutton-primary">Manage fields</a>
+            <button type="button" class="dropbutton-toggle" aria-label="More operations"></button>
+            <ul class="dropbutton-menu">
+              <li><a href="/admin/structure/types/{{type}}">Edit</a></li>
+              <li><a href="/admin/structure/types/{{type}}/form-display">Manage form display</a></li>
+              <li><a href="/admin/structure/types/{{type}}/display">Manage display</a></li>
+              <li class="danger"><a href="#" onclick="if(confirm('Delete content type {{type}}?')){document.getElementById('delete-form-{{type}}').submit()}return false">Delete</a></li>
+            </ul>
+            <form id="delete-form-{{type}}" method="POST" action="/admin/structure/types/{{type}}/delete" style="display:none">
+              <input type="hidden" name="csrf_token" value="{{../csrfToken}}">
+            </form>
+          </div>
+        </td>
+      </tr>
+      {{/each}}
+    </tbody>
+  </table>
+</div>
+{{else}}
+<div class="admin-panel">
+  <div class="admin-panel-body" style="text-align:center;padding:var(--gin-space-12, 3rem)">
+    <p class="text-muted">No content types found.</p>
+    <a href="/admin/structure/types/new" class="btn btn-primary">Create Your First Content Type</a>
+  </div>
+</div>
+{{/if}}
 
-        <!-- Delete Confirmation Modal -->
-        <div id="delete-modal" class="modal" style="display: none;">
-            <div class="modal-content">
-                <h3>Confirm Delete</h3>
-                <p>Are you sure you want to delete the content type <strong id="delete-type-name"></strong>?</p>
-                <p class="warning">This action cannot be undone. All content of this type will also be deleted.</p>
-                <form id="delete-form" method="POST" action="">
-                    <input type="hidden" name="csrf_token" value="{{csrfToken}}">
-                    <div class="modal-actions">
-                        <button type="button" class="btn btn-secondary" data-modal-cancel>Cancel</button>
-                        <button type="submit" class="btn btn-danger">Delete</button>
-                    </div>
-                </form>
-            </div>
-        </div>
-    </div>
+<script>
+document.getElementById('bundle-filter')?.addEventListener('change', function(e) {
+  var bundle = e.target.value;
+  var url = new URL(window.location);
+  if (bundle) { url.searchParams.set('bundle', bundle); }
+  else { url.searchParams.delete('bundle'); }
+  window.location = url.toString();
+});
 
-    <script>
-        // Bundle filter
-        document.getElementById('bundle-filter')?.addEventListener('change', function(e) {
-            const bundle = e.target.value;
-            const url = new URL(window.location);
-            if (bundle) {
-                url.searchParams.set('bundle', bundle);
-            } else {
-                url.searchParams.delete('bundle');
-            }
-            window.location = url.toString();
-        });
-
-        // Delete modal
-        const modal = document.getElementById('delete-modal');
-        const deleteForm = document.getElementById('delete-form');
-        const deleteTypeName = document.getElementById('delete-type-name');
-
-        document.querySelectorAll('[data-delete]').forEach(btn => {
-            btn.addEventListener('click', function(e) {
-                const machineName = e.target.dataset.delete;
-                deleteTypeName.textContent = machineName;
-                deleteForm.action = `/admin/content-types/${machineName}/delete`;
-                modal.style.display = 'block';
-            });
-        });
-
-        document.querySelectorAll('[data-modal-cancel]').forEach(btn => {
-            btn.addEventListener('click', () => {
-                modal.style.display = 'none';
-            });
-        });
-
-        window.addEventListener('click', (e) => {
-            if (e.target === modal) {
-                modal.style.display = 'none';
-            }
-        });
-    </script>
-</body>
-</html>
+/* Dropbutton toggle behavior */
+(function() {
+  document.querySelectorAll('.dropbutton-toggle').forEach(function(btn) {
+    btn.addEventListener('click', function(e) {
+      e.stopPropagation();
+      var wrapper = btn.closest('.dropbutton-wrapper');
+      var isOpen = wrapper.classList.contains('open');
+      /* Close all open dropbuttons first */
+      document.querySelectorAll('.dropbutton-wrapper.open').forEach(function(w) {
+        w.classList.remove('open');
+      });
+      if (!isOpen) wrapper.classList.add('open');
+    });
+  });
+  /* Close on outside click */
+  document.addEventListener('click', function() {
+    document.querySelectorAll('.dropbutton-wrapper.open').forEach(function(w) {
+      w.classList.remove('open');
+    });
+  });
+})();
+</script>

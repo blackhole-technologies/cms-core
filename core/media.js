@@ -472,14 +472,32 @@ export function saveFile(file, options = {}) {
   const absolutePath = join(targetDir, filename);
   const relativePath = `${subDir}/${filename}`;
 
+  // SVG sanitization: strip dangerous elements (script, event handlers, foreign objects)
+  let fileData = file.data;
+  if (ext === '.svg') {
+    let svgContent = typeof fileData === 'string' ? fileData : fileData.toString('utf-8');
+    // Remove script tags and their content
+    svgContent = svgContent.replace(/<script[\s\S]*?<\/script>/gi, '');
+    // Remove event handler attributes (onclick, onload, onerror, etc.)
+    svgContent = svgContent.replace(/\s+on\w+\s*=\s*("[^"]*"|'[^']*'|[^\s>]*)/gi, '');
+    // Remove javascript: URLs
+    svgContent = svgContent.replace(/href\s*=\s*["']javascript:[^"']*["']/gi, 'href="#"');
+    svgContent = svgContent.replace(/xlink:href\s*=\s*["']javascript:[^"']*["']/gi, 'xlink:href="#"');
+    // Remove foreignObject (can embed HTML/JS)
+    svgContent = svgContent.replace(/<foreignObject[\s\S]*?<\/foreignObject>/gi, '');
+    // Remove use elements pointing to external resources
+    svgContent = svgContent.replace(/<use[^>]+href\s*=\s*["']https?:\/\/[^"']*["'][^>]*\/?>/gi, '');
+    fileData = Buffer.from(svgContent, 'utf-8');
+  }
+
   // Write file
-  writeFileSync(absolutePath, file.data);
+  writeFileSync(absolutePath, fileData);
 
   return {
     path: absolutePath,
     relativePath,
     filename,
-    size: file.size,
+    size: fileData.length || file.size,
     type: getMimeType(filename),
   };
 }

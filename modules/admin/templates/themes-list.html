@@ -1,176 +1,111 @@
-<div class="admin-page">
-
-  <div class="admin-header">
-    <h1>{{pageTitle}}</h1>
-    <nav class="admin-nav">
-      <a href="/admin">Dashboard</a>
-      <a href="/admin/themes" class="active">Themes</a>
-      <a href="/admin/modules">Modules</a>
-    </nav>
-  </div>
-
-  {{#if hasFlash}}
-  <div class="flash flash-{{flash.type}}">
-    {{flash.message}}
-  </div>
-  {{/if}}
-
-  {{#if error}}
-  <div class="flash flash-error">
-    {{error}}
-  </div>
-  {{/if}}
-
-  <div class="admin-section">
-    <div class="section-header">
-      <h2>Available Themes</h2>
-    </div>
-
-    {{#if hasThemes}}
-    <div class="themes-grid">
-      {{#each themes}}
-      <div class="theme-card {{#if isActive}}theme-active{{/if}}">
-        <div class="theme-screenshot">
-          {{#if screenshot}}
-          <img src="{{screenshot}}" alt="{{name}} screenshot">
-          {{else}}
-          <div class="theme-screenshot-placeholder">
-            <span>No Preview</span>
-          </div>
-          {{/if}}
-        </div>
-
-        <div class="theme-info">
-          <h3>
-            {{name}}
-            {{#if isActive}}
-            <span class="badge badge-success">Active</span>
-            {{/if}}
-            {{#if isDefault}}
-            <span class="badge badge-info">Default</span>
-            {{/if}}
-          </h3>
-
-          {{#if description}}
-          <p class="theme-description">{{description}}</p>
-          {{/if}}
-
-          <div class="theme-meta">
-            {{#if version}}
-            <span class="theme-version">v{{version}}</span>
-            {{/if}}
-            {{#if author}}
-            <span class="theme-author">by {{author}}</span>
-            {{/if}}
-          </div>
-
-          {{#if hasColorSchemes}}
-          <div class="theme-schemes">
-            <strong>Color Schemes:</strong>
-            {{#each colorSchemes}}
-            <span class="scheme-badge">{{this}}</span>
-            {{/each}}
-          </div>
-          {{/if}}
-        </div>
-
-        <div class="theme-actions">
-          {{#if isActive}}
-          <a href="/admin/themes/settings/{{slug}}" class="btn btn-primary">
-            <svg class="icon" width="16" height="16" viewBox="0 0 16 16" fill="currentColor">
-              <path d="M8 4.754a3.246 3.246 0 1 0 0 6.492 3.246 3.246 0 0 0 0-6.492zM5.754 8a2.246 2.246 0 1 1 4.492 0 2.246 2.246 0 0 1-4.492 0z"/>
-              <path d="M9.796 1.343c-.527-1.79-3.065-1.79-3.592 0l-.094.319a.873.873 0 0 1-1.255.52l-.292-.16c-1.64-.892-3.433.902-2.54 2.541l.159.292a.873.873 0 0 1-.52 1.255l-.319.094c-1.79.527-1.79 3.065 0 3.592l.319.094a.873.873 0 0 1 .52 1.255l-.16.292c-.892 1.64.901 3.434 2.541 2.54l.292-.159a.873.873 0 0 1 1.255.52l.094.319c.527 1.79 3.065 1.79 3.592 0l.094-.319a.873.873 0 0 1 1.255-.52l.292.16c1.64.893 3.434-.902 2.54-2.541l-.159-.292a.873.873 0 0 1 .52-1.255l.319-.094c1.79-.527 1.79-3.065 0-3.592l-.319-.094a.873.873 0 0 1-.52-1.255l.16-.292c.893-1.64-.902-3.433-2.541-2.54l-.292.159a.873.873 0 0 1-1.255-.52l-.094-.319z"/>
-            </svg>
-            Settings
-          </a>
-          <button class="btn btn-secondary" disabled>
-            <svg class="icon" width="16" height="16" viewBox="0 0 16 16" fill="currentColor">
-              <path d="M5.5 5.5A.5.5 0 0 1 6 6v6a.5.5 0 0 1-1 0V6a.5.5 0 0 1 .5-.5zm2.5 0a.5.5 0 0 1 .5.5v6a.5.5 0 0 1-1 0V6a.5.5 0 0 1 .5-.5zm3 .5a.5.5 0 0 0-1 0v6a.5.5 0 0 0 1 0V6z"/>
-              <path fill-rule="evenodd" d="M14.5 3a1 1 0 0 1-1 1H13v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V4h-.5a1 1 0 0 1-1-1V2a1 1 0 0 1 1-1H6a1 1 0 0 1 1-1h2a1 1 0 0 1 1 1h3.5a1 1 0 0 1 1 1v1zM4.118 4 4 4.059V13a1 1 0 0 0 1 1h6a1 1 0 0 0 1-1V4.059L11.882 4H4.118zM2.5 3V2h11v1h-11z"/>
-            </svg>
-            Disable
-          </button>
-          {{else}}
-          <button class="btn btn-primary" onclick="enableTheme('{{slug}}')">
-            <svg class="icon" width="16" height="16" viewBox="0 0 16 16" fill="currentColor">
-              <path d="M10.97 4.97a.75.75 0 0 1 1.07 1.05l-3.99 4.99a.75.75 0 0 1-1.08.02L4.324 8.384a.75.75 0 1 1 1.06-1.06l2.094 2.093 3.473-4.425a.267.267 0 0 1 .02-.022z"/>
-            </svg>
-            Enable
-          </button>
-          <a href="/admin/themes/settings/{{slug}}" class="btn btn-secondary">
-            <svg class="icon" width="16" height="16" viewBox="0 0 16 16" fill="currentColor">
-              <path d="M8 4.754a3.246 3.246 0 1 0 0 6.492 3.246 3.246 0 0 0 0-6.492zM5.754 8a2.246 2.246 0 1 1 4.492 0 2.246 2.246 0 0 1-4.492 0z"/>
-              <path d="M9.796 1.343c-.527-1.79-3.065-1.79-3.592 0l-.094.319a.873.873 0 0 1-1.255.52l-.292-.16c-1.64-.892-3.433.902-2.54 2.541l.159.292a.873.873 0 0 1-.52 1.255l-.319.094c-1.79.527-1.79 3.065 0 3.592l.319.094a.873.873 0 0 1 .52 1.255l-.16.292c-.892 1.64.901 3.434 2.541 2.54l.292-.159a.873.873 0 0 1 1.255.52l.094.319c.527 1.79 3.065 1.79 3.592 0l.094-.319a.873.873 0 0 1 1.255-.52l.292.16c1.64.893 3.434-.902 2.54-2.541l-.159-.292a.873.873 0 0 1 .52-1.255l.319-.094c1.79-.527 1.79-3.065 0-3.592l-.319-.094a.873.873 0 0 1-.52-1.255l.16-.292c.893-1.64-.902-3.433-2.541-2.54l-.292.159a.873.873 0 0 1-1.255-.52l-.094-.319z"/>
-            </svg>
-            Settings
-          </a>
-          {{/if}}
-        </div>
-      </div>
-      {{/each}}
-    </div>
-    {{else}}
-    <div class="empty-state">
-      <p>No themes available.</p>
-    </div>
-    {{/if}}
-  </div>
+<div class="admin-breadcrumb">
+  <a href="/admin">Home</a> <span>&rsaquo;</span>
+  <a href="/admin/appearance">Appearance</a> <span>&rsaquo;</span>
+  <span>Themes</span>
 </div>
 
-<script>
-function enableTheme(slug) {
-  if (confirm('Enable this theme? It will become the active theme for your site.')) {
-    fetch(`/admin/themes/enable/${slug}`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      }
-    })
-    .then(response => response.json())
-    .then(data => {
-      if (data.success) {
-        window.location.reload();
-      } else {
-        alert(data.error || 'Failed to enable theme');
-      }
-    })
-    .catch(error => {
-      alert('Error enabling theme: ' + error.message);
-    });
-  }
-}
-</script>
+<h1 class="admin-page-title">{{pageTitle}}</h1>
+<p class="admin-page-description">Manage themes for your site. The active theme controls how your public pages look.</p>
+
+{{#if hasFlash}}
+<div class="flash flash-{{flash.type}}">
+  {{flash.message}}
+  <form method="POST" action="/admin/restart" style="display:inline;margin-left:var(--gin-space-3, 0.75rem)">
+    {{csrfField}}
+    <button type="submit" class="btn btn-primary btn-small" onclick="return confirm('Restart the server now?')">Restart now</button>
+  </form>
+</div>
+{{/if}}
+
+{{#if error}}
+<div class="flash flash-error">
+  {{error}}
+</div>
+{{/if}}
+
+{{#if hasThemes}}
+<div class="themes-grid">
+  {{#each themes}}
+  <div class="theme-card {{#if active}}theme-card--active{{/if}}">
+    <div class="theme-screenshot">
+      {{#if screenshot}}
+      <img src="{{screenshot}}" alt="{{name}} screenshot" loading="lazy">
+      {{else}}
+      <div class="theme-screenshot-placeholder">
+        <span>No Preview</span>
+      </div>
+      {{/if}}
+    </div>
+
+    <div class="theme-info">
+      <h3 class="theme-name">
+        {{name}}
+        {{#if active}}
+        <span class="status-badge status-badge--published">Active</span>
+        {{/if}}
+      </h3>
+
+      {{#if description}}
+      <p class="theme-description">{{description}}</p>
+      {{/if}}
+
+      <div class="theme-meta">
+        {{#if version}}<span>v{{version}}</span>{{/if}}
+      </div>
+    </div>
+
+    <div class="theme-actions">
+      {{#if active}}
+      <a href="/admin/appearance/{{id}}/settings" class="btn btn-primary btn-small">Settings</a>
+      <button class="btn btn-small" disabled>Active</button>
+      {{else}}
+      <form method="POST" action="/admin/appearance/{{id}}/activate" class="inline-form">
+        {{csrfField}}
+        <button type="submit" class="btn btn-primary btn-small" onclick="return confirm('Activate this theme? It will become the active theme.')">Activate</button>
+      </form>
+      <a href="/admin/appearance/{{id}}/settings" class="btn btn-small">Settings</a>
+      {{/if}}
+    </div>
+  </div>
+  {{/each}}
+</div>
+{{else}}
+<div class="admin-panel">
+  <div class="admin-panel-body" style="text-align:center;padding:var(--gin-space-8, 2rem)">
+    <p class="text-muted">No themes found. Add a <code>theme.json</code> file to each theme directory in <code>/themes/</code>.</p>
+  </div>
+</div>
+{{/if}}
 
 <style>
 .themes-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
-  gap: 1.5rem;
-  margin-top: 1rem;
+  grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+  gap: var(--gin-space-4, 1rem);
 }
 
 .theme-card {
-  border: 1px solid #ddd;
-  border-radius: 8px;
+  border: 1px solid var(--gin-border-light, #e4e4e7);
+  border-radius: var(--gin-radius-lg, 12px);
   overflow: hidden;
-  background: white;
-  transition: box-shadow 0.2s;
+  background: var(--gin-surface, #fff);
+  transition: box-shadow var(--gin-transition, 150ms ease);
 }
 
 .theme-card:hover {
-  box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+  box-shadow: var(--gin-shadow-sm, 0 1px 3px rgba(0,0,0,0.1));
 }
 
-.theme-active {
-  border: 2px solid #28a745;
-  box-shadow: 0 2px 8px rgba(40,167,69,0.2);
+.theme-card--active {
+  border-color: var(--gin-success, #059669);
+  box-shadow: 0 0 0 1px var(--gin-success, #059669);
 }
 
 .theme-screenshot {
   width: 100%;
-  height: 200px;
+  height: 180px;
   overflow: hidden;
-  background: #f5f5f5;
+  background: var(--gin-surface-alt, #fafafa);
 }
 
 .theme-screenshot img {
@@ -185,83 +120,41 @@ function enableTheme(slug) {
   display: flex;
   align-items: center;
   justify-content: center;
-  color: #999;
-  font-size: 0.9rem;
+  color: var(--gin-text-muted, #a1a1aa);
+  font-size: var(--gin-font-size-sm, 13px);
 }
 
 .theme-info {
-  padding: 1rem;
+  padding: var(--gin-space-3, 0.75rem) var(--gin-space-4, 1rem);
 }
 
-.theme-info h3 {
-  margin: 0 0 0.5rem 0;
+.theme-name {
+  margin: 0 0 var(--gin-space-1, 0.25rem) 0;
+  font-size: var(--gin-font-size-md, 16px);
+  font-weight: var(--gin-weight-semibold, 600);
   display: flex;
   align-items: center;
-  gap: 0.5rem;
+  gap: var(--gin-space-2, 0.5rem);
   flex-wrap: wrap;
 }
 
 .theme-description {
-  color: #666;
-  font-size: 0.9rem;
-  margin: 0.5rem 0;
+  color: var(--gin-text-muted, #71717a);
+  font-size: var(--gin-font-size-sm, 13px);
+  margin: var(--gin-space-1, 0.25rem) 0;
+  line-height: 1.5;
 }
 
 .theme-meta {
-  display: flex;
-  gap: 1rem;
-  font-size: 0.85rem;
-  color: #888;
-  margin: 0.5rem 0;
-}
-
-.theme-schemes {
-  font-size: 0.85rem;
-  margin-top: 0.5rem;
-}
-
-.scheme-badge {
-  display: inline-block;
-  background: #e9ecef;
-  padding: 0.2rem 0.5rem;
-  border-radius: 4px;
-  margin-right: 0.25rem;
-  font-size: 0.8rem;
+  font-size: var(--gin-font-size-xs, 12px);
+  color: var(--gin-text-disabled, #a1a1aa);
+  margin-top: var(--gin-space-1, 0.25rem);
 }
 
 .theme-actions {
-  padding: 1rem;
-  border-top: 1px solid #eee;
+  padding: var(--gin-space-3, 0.75rem) var(--gin-space-4, 1rem);
+  border-top: 1px solid var(--gin-border-light, #e4e4e7);
   display: flex;
-  gap: 0.5rem;
-}
-
-.badge {
-  display: inline-block;
-  padding: 0.25rem 0.5rem;
-  border-radius: 4px;
-  font-size: 0.75rem;
-  font-weight: 600;
-}
-
-.badge-success {
-  background: #28a745;
-  color: white;
-}
-
-.badge-info {
-  background: #17a2b8;
-  color: white;
-}
-
-.empty-state {
-  text-align: center;
-  padding: 3rem;
-  color: #666;
-}
-
-.icon {
-  vertical-align: middle;
-  margin-right: 0.25rem;
+  gap: var(--gin-space-2, 0.5rem);
 }
 </style>

@@ -2,11 +2,13 @@
 
 Zero-dependency Node.js CMS with Drupal-inspired architecture.
 
+**Version:** 0.0.80 | **Services:** 106 | **Modules:** 29 | **CLI Commands:** 352+
+
 ## Quick Start
 
 ```bash
-./init.sh                        # Start server on http://localhost:3001
-node index.js help               # List 300+ CLI commands
+node index.js                    # Start server on http://localhost:3001
+node index.js help               # List all CLI commands
 node index.js modules:list       # Show enabled modules
 ```
 
@@ -23,52 +25,30 @@ node index.js modules:list       # Show enabled modules
 ```
 cms-core/
 ├── index.js              # Entry point (server + CLI)
-├── init.sh               # Dev environment setup
-├── core/                 # 91 core services
-├── modules/              # Feature modules
+├── core/                 # 106 core services
+├── modules/              # 29 feature modules
 ├── config/               # JSON configuration
 ├── content/              # Flat-file content storage
-├── themes/               # Theme engine
-└── public/               # Static assets
+├── themes/               # Theme engine (layouts + skins)
+├── specs/                # 20 feature specifications
+├── tests/                # Test suite (unit, integration, browser, fixtures)
+├── docs/                 # Technical documentation
+├── engines/              # Conversation engine (Python/FastAPI)
+├── public/               # Static assets
+└── .archive/             # Archived sessions and logs
 ```
 
 ## Core Features
 
 - Content types with 21 field types
-- Revision history
-- Workflow state machine
-- Media library
-- JSON:API and GraphQL
-- Theme engine (layouts + skins)
-- Taxonomy, Comments, Search
-- **Token system with fallback chains** (see below)
-- 300+ CLI commands
-
-### Token Fallback System
-
-Smart token replacement with OR-separated fallback chains for graceful handling of missing data:
-
-```javascript
-// Basic fallback: use field:title, or "Untitled" if empty
-{field:title|"Untitled"}
-
-// Multi-level fallback: try multiple sources
-{field:title|field:name|"No Title"}
-
-// URL generation with fallbacks
-<a href="/articles/{field:slug|field:title|"article"}">Read more</a>
-
-// SEO meta tags
-<title>{field:metaTitle|field:title|"Untitled"} | [site:name]</title>
-```
-
-**Features:**
-- Left-to-right evaluation (stops at first non-empty value)
-- Mixed with standard tokens: `{fallback|"default"}` and `[standard:token]`
-- Quoted literals: `"double"` or `'single'` with escape support
-- Performance: <5ms per token, early termination
-
-**See:** [docs/token-fallback.md](docs/token-fallback.md) for full documentation
+- Revision history and workflow state machine
+- Media library with WYSIWYG and responsive images
+- JSON:API, GraphQL, and REST APIs
+- Theme engine (layouts + skins separation)
+- Token system with fallback chains
+- AI provider system (Anthropic, OpenAI, Ollama)
+- Taxonomy, comments, search, i18n
+- 352+ CLI commands
 
 ## Key APIs
 
@@ -96,6 +76,16 @@ export const name = 'serviceName';
 export function init(context) { /* setup */ }
 export function register(context, state) { /* hooks */ }
 ```
+
+Boot sequence: INIT → DISCOVER → REGISTER → BOOT → READY
+
+## Documentation
+
+- [Token Fallback System](docs/token-fallback.md)
+- [CMS Specification](docs/CMS-SPECIFICATION.md)
+- [Design System](docs/DESIGN-SYSTEM.md)
+- [JSON:API](docs/JSONAPI.md)
+- [Media Library](docs/MEDIA-LIBRARY.md)
 
 ## License
 

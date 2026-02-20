@@ -1,0 +1,216 @@
+<div class="admin-content">
+  <h1>{{#if isNew}}Create Webform{{else}}Edit Webform: {{form.title}}{{/if}}</h1>
+
+  <form method="POST" action="{{formAction}}">
+    {{csrfField}}
+
+    <div class="form-group">
+      <label for="id">Machine Name</label>
+      <input type="text" id="id" name="id" value="{{form.id}}" {{#unless isNew}}readonly{{/unless}}
+             required pattern="[a-z0-9_-]+" placeholder="contact_us"
+             class="form-control" style="max-width:400px">
+      <small class="form-text">Lowercase letters, numbers, hyphens, underscores.</small>
+    </div>
+
+    <div class="form-group">
+      <label for="title">Title</label>
+      <input type="text" id="title" name="title" value="{{form.title}}" required
+             class="form-control" style="max-width:400px" placeholder="Contact Us">
+    </div>
+
+    <div class="form-group">
+      <label for="description">Description</label>
+      <input type="text" id="description" name="description" value="{{form.description}}"
+             class="form-control" style="max-width:600px" placeholder="Optional description shown above the form">
+    </div>
+
+    <div class="form-group">
+      <label for="status">Status</label>
+      <select id="status" name="status" class="form-control" style="max-width:200px">
+        <option value="open" {{#if (eq form.status "open")}}selected{{/if}}>Open</option>
+        <option value="closed" {{#if (eq form.status "closed")}}selected{{/if}}>Closed</option>
+      </select>
+    </div>
+
+    <!-- Elements Builder -->
+    <fieldset style="border:1px solid var(--border-color,#ddd);border-radius:4px;padding:1rem;margin:1rem 0">
+      <legend>Form Elements</legend>
+      <div id="elements-list">
+        {{#each form.elements}}
+        <div class="element-row" style="border:1px solid var(--border-color,#eee);border-radius:4px;padding:0.75rem;margin-bottom:0.5rem;background:var(--bg-secondary,#f9f9f9)">
+          <div style="display:flex;gap:0.5rem;align-items:center;margin-bottom:0.5rem">
+            <select name="elements[{{@index}}][type]" class="form-control" style="width:150px">
+              {{#each ../elementTypes}}
+              <option value="{{value}}" {{#if selected}}selected{{/if}}>{{label}}</option>
+              {{/each}}
+            </select>
+            <input type="text" name="elements[{{@index}}][key]" value="{{key}}" required
+                   class="form-control" style="width:150px" placeholder="field_key">
+            <input type="text" name="elements[{{@index}}][label]" value="{{label}}"
+                   class="form-control" style="flex:1" placeholder="Field Label">
+            <label style="white-space:nowrap"><input type="checkbox" name="elements[{{@index}}][required]" value="1" {{#if required}}checked{{/if}}> Req</label>
+            <button type="button" class="btn btn-sm btn-danger remove-row-btn">x</button>
+          </div>
+          <div style="display:flex;gap:0.5rem;align-items:center">
+            <input type="text" name="elements[{{@index}}][placeholder]" value="{{placeholder}}"
+                   class="form-control" style="flex:1" placeholder="Placeholder text">
+            <input type="text" name="elements[{{@index}}][options_raw]" value="{{optionsRaw}}"
+                   class="form-control" style="flex:1" placeholder="Options: val1|Label 1, val2|Label 2">
+            <input type="text" name="elements[{{@index}}][showIf_raw]" value="{{showIfRaw}}"
+                   class="form-control" style="flex:1" placeholder="showIf: field|operator|value">
+          </div>
+        </div>
+        {{/each}}
+      </div>
+      <button type="button" class="btn btn-sm btn-outline" id="add-element-btn">+ Add Element</button>
+    </fieldset>
+
+    <!-- Settings -->
+    <fieldset style="border:1px solid var(--border-color,#ddd);border-radius:4px;padding:1rem;margin:1rem 0">
+      <legend>Settings</legend>
+      <div class="form-group">
+        <label for="submitLabel">Submit Button Label</label>
+        <input type="text" id="submitLabel" name="settings[submitLabel]"
+               value="{{form.settings.submitLabel}}" class="form-control" style="max-width:200px">
+      </div>
+      <div class="form-group">
+        <label for="confirmationMessage">Confirmation Message</label>
+        <input type="text" id="confirmationMessage" name="settings[confirmationMessage]"
+               value="{{form.settings.confirmationMessage}}" class="form-control" style="max-width:600px">
+      </div>
+      <div class="form-group">
+        <label for="confirmationType">After Submission</label>
+        <select id="confirmationType" name="settings[confirmationType]" class="form-control" style="max-width:200px">
+          <option value="message" {{#if (eq form.settings.confirmationType "message")}}selected{{/if}}>Show message</option>
+          <option value="redirect" {{#if (eq form.settings.confirmationType "redirect")}}selected{{/if}}>Redirect</option>
+        </select>
+      </div>
+      <div class="form-group">
+        <label for="redirectUrl">Redirect URL (if redirect)</label>
+        <input type="text" id="redirectUrl" name="settings[redirectUrl]"
+               value="{{form.settings.redirectUrl}}" class="form-control" style="max-width:400px" placeholder="/thank-you">
+      </div>
+      <div class="form-group">
+        <label for="limitTotal">Max Total Submissions (0 = unlimited)</label>
+        <input type="number" id="limitTotal" name="settings[limitTotal]"
+               value="{{form.settings.limitTotal}}" class="form-control" style="max-width:150px" min="0">
+      </div>
+    </fieldset>
+
+    <!-- Handlers -->
+    <fieldset style="border:1px solid var(--border-color,#ddd);border-radius:4px;padding:1rem;margin:1rem 0">
+      <legend>Handlers (Email / Webhook)</legend>
+      <div id="handlers-list">
+        {{#each form.handlers}}
+        <div class="handler-row" style="border:1px solid var(--border-color,#eee);border-radius:4px;padding:0.75rem;margin-bottom:0.5rem;background:var(--bg-secondary,#f9f9f9)">
+          <div style="display:flex;gap:0.5rem;align-items:center">
+            <select name="handlers[{{@index}}][type]" class="form-control" style="width:120px">
+              <option value="email" {{#if (eq type "email")}}selected{{/if}}>Email</option>
+              <option value="webhook" {{#if (eq type "webhook")}}selected{{/if}}>Webhook</option>
+            </select>
+            <input type="text" name="handlers[{{@index}}][settings_raw]" value="{{settingsRaw}}"
+                   class="form-control" style="flex:1" placeholder='{"to":"admin@example.com","subject":"New submission"} or {"url":"https://..."}'>
+            <button type="button" class="btn btn-sm btn-danger remove-row-btn">x</button>
+          </div>
+        </div>
+        {{/each}}
+      </div>
+      <button type="button" class="btn btn-sm btn-outline" id="add-handler-btn">+ Add Handler</button>
+    </fieldset>
+
+    <div class="form-actions" style="margin-top:1.5rem">
+      <button type="submit" class="btn btn-primary">Save Webform</button>
+      <a href="/admin/webforms" class="btn btn-outline">Cancel</a>
+    </div>
+  </form>
+</div>
+
+<template id="element-template">
+  <div class="element-row" style="border:1px solid var(--border-color,#eee);border-radius:4px;padding:0.75rem;margin-bottom:0.5rem;background:var(--bg-secondary,#f9f9f9)">
+    <div style="display:flex;gap:0.5rem;align-items:center;margin-bottom:0.5rem">
+      <select class="form-control el-type" style="width:150px"></select>
+      <input type="text" class="form-control el-key" style="width:150px" placeholder="field_key" required>
+      <input type="text" class="form-control el-label" style="flex:1" placeholder="Field Label">
+      <label style="white-space:nowrap"><input type="checkbox" class="el-required" value="1"> Req</label>
+      <button type="button" class="btn btn-sm btn-danger remove-row-btn">x</button>
+    </div>
+    <div style="display:flex;gap:0.5rem;align-items:center">
+      <input type="text" class="form-control el-placeholder" style="flex:1" placeholder="Placeholder text">
+      <input type="text" class="form-control el-options" style="flex:1" placeholder="Options: val1|Label 1, val2|Label 2">
+      <input type="text" class="form-control el-showif" style="flex:1" placeholder="showIf: field|operator|value">
+    </div>
+  </div>
+</template>
+
+<template id="handler-template">
+  <div class="handler-row" style="border:1px solid var(--border-color,#eee);border-radius:4px;padding:0.75rem;margin-bottom:0.5rem;background:var(--bg-secondary,#f9f9f9)">
+    <div style="display:flex;gap:0.5rem;align-items:center">
+      <select class="form-control h-type" style="width:120px"></select>
+      <input type="text" class="form-control h-settings" style="flex:1" placeholder='{"to":"admin@example.com","subject":"New submission"} or {"url":"https://..."}'>
+      <button type="button" class="btn btn-sm btn-danger remove-row-btn">x</button>
+    </div>
+  </div>
+</template>
+
+<script>
+(function() {
+  var elIdx = {{form.elements.length}};
+  var hIdx = {{form.handlers.length}};
+
+  var elementTypes = JSON.parse(document.getElementById('webform-element-types').textContent);
+
+  function addElementRow() {
+    var tmpl = document.getElementById('element-template');
+    var row = tmpl.content.cloneNode(true).firstElementChild;
+
+    var typeSelect = row.querySelector('.el-type');
+    for (var i = 0; i < elementTypes.length; i++) {
+      var o = document.createElement('option');
+      o.value = elementTypes[i].value;
+      o.textContent = elementTypes[i].label;
+      typeSelect.appendChild(o);
+    }
+    typeSelect.name = 'elements[' + elIdx + '][type]';
+
+    row.querySelector('.el-key').name = 'elements[' + elIdx + '][key]';
+    row.querySelector('.el-label').name = 'elements[' + elIdx + '][label]';
+    row.querySelector('.el-required').name = 'elements[' + elIdx + '][required]';
+    row.querySelector('.el-placeholder').name = 'elements[' + elIdx + '][placeholder]';
+    row.querySelector('.el-options').name = 'elements[' + elIdx + '][options_raw]';
+    row.querySelector('.el-showif').name = 'elements[' + elIdx + '][showIf_raw]';
+
+    document.getElementById('elements-list').appendChild(row);
+    elIdx++;
+  }
+
+  function addHandlerRow() {
+    var tmpl = document.getElementById('handler-template');
+    var row = tmpl.content.cloneNode(true).firstElementChild;
+
+    var typeSelect = row.querySelector('.h-type');
+    var types = ['email', 'webhook'];
+    for (var i = 0; i < types.length; i++) {
+      var o = document.createElement('option');
+      o.value = types[i];
+      o.textContent = types[i].charAt(0).toUpperCase() + types[i].slice(1);
+      typeSelect.appendChild(o);
+    }
+    typeSelect.name = 'handlers[' + hIdx + '][type]';
+    row.querySelector('.h-settings').name = 'handlers[' + hIdx + '][settings_raw]';
+
+    document.getElementById('handlers-list').appendChild(row);
+    hIdx++;
+  }
+
+  document.getElementById('add-element-btn').addEventListener('click', addElementRow);
+  document.getElementById('add-handler-btn').addEventListener('click', addHandlerRow);
+
+  document.addEventListener('click', function(e) {
+    if (e.target.classList.contains('remove-row-btn')) {
+      e.target.closest('.element-row, .handler-row').remove();
+    }
+  });
+})();
+</script>
+
+<script type="application/json" id="webform-element-types">{{{elementTypesJson}}}</script>

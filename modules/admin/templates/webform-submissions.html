@@ -1,0 +1,62 @@
+<div class="admin-content">
+  <div class="admin-header">
+    <h1>Submissions: {{form.title}}</h1>
+    <div>
+      <a href="/admin/webforms/export/{{form.id}}" class="btn btn-outline">Export CSV</a>
+      <a href="/admin/webforms/edit/{{form.id}}" class="btn btn-outline">Edit Form</a>
+      <a href="/admin/webforms" class="btn btn-outline">Back to Forms</a>
+    </div>
+  </div>
+
+  <p class="description">{{submissions.total}} total submission(s) for this form.</p>
+
+  {{#if submissions.items.length}}
+  <table class="admin-table">
+    <thead>
+      <tr>
+        <th>ID</th>
+        <th>Date</th>
+        {{#each columns}}
+        <th>{{label}}</th>
+        {{/each}}
+        <th>Operations</th>
+      </tr>
+    </thead>
+    <tbody>
+      {{#each submissions.items}}
+      <tr>
+        <td><small>{{id}}</small></td>
+        <td><small>{{created}}</small></td>
+        {{#each ../columns}}
+        <td>{{lookup ../../this.data this.key}}</td>
+        {{/each}}
+        <td>
+          <a href="/admin/webforms/submission/{{../form.id}}/{{id}}" class="btn btn-sm">View</a>
+          <form method="POST" action="/admin/webforms/submission/{{../form.id}}/{{id}}/delete" style="display:inline"
+                onsubmit="return confirm('Delete this submission?')">
+            {{../../csrfField}}
+            <button type="submit" class="btn btn-sm btn-danger">Delete</button>
+          </form>
+        </td>
+      </tr>
+      {{/each}}
+    </tbody>
+  </table>
+
+  {{#if (gt submissions.total 50)}}
+  <div class="pagination" style="margin-top:1rem">
+    {{#if hasPrev}}
+    <a href="/admin/webforms/submissions/{{form.id}}?page={{prevPage}}" class="btn btn-sm btn-outline">Previous</a>
+    {{/if}}
+    {{#if hasNext}}
+    <a href="/admin/webforms/submissions/{{form.id}}?page={{nextPage}}" class="btn btn-sm btn-outline">Next</a>
+    {{/if}}
+  </div>
+  {{/if}}
+  {{else}}
+  <div class="empty-state">
+    <p>No submissions yet.</p>
+    <a href="/form/{{form.id}}" class="btn btn-outline" target="_blank">View Form</a>
+  </div>
+  {{/if}}
+</div>

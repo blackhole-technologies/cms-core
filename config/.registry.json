@@ -139,6 +139,27 @@
       "schema": null,
       "locked": false,
       "registeredAt": "2026-02-11T14:17:57.532Z"
+    },
+    "ai_providers": {
+      "name": "ai_providers",
+      "file": "ai_providers.json",
+      "schema": null,
+      "locked": false,
+      "registeredAt": "2026-02-13T07:07:02.643Z"
+    },
+    "theme": {
+      "name": "theme",
+      "file": "theme.json",
+      "schema": null,
+      "locked": false,
+      "registeredAt": "2026-02-18T07:02:21.080Z"
+    },
+    "theme-settings": {
+      "name": "theme-settings",
+      "file": "theme-settings.json",
+      "schema": null,
+      "locked": false,
+      "registeredAt": "2026-02-18T07:27:19.146Z"
     }
   },
   "environments": {

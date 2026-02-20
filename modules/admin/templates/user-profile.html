@@ -1,12 +1,4 @@
-<!DOCTYPE html>
-<html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>{{user.name}} - User Profile - {{site_name}}</title>
-</head>
-<body>
-    <div class="content">
+<div class="content">
         <div class="profile-container">
             <header class="profile-header">
                 <div class="profile-avatar">
@@ -49,7 +41,7 @@
 
                     {{#is_admin}}
                     <div class="admin-actions">
-                        <a href="/admin/users/edit/{{user.id}}" class="btn btn-secondary">Admin Edit</a>
+                        <a href="/admin/users/{{user.id}}/edit" class="btn btn-secondary">Admin Edit</a>
 
                         <div class="view-mode-toggle">
                             <label>View as:</label>
@@ -151,5 +143,3 @@
             </div>
         </div>
     </div>
-</body>
-</html>

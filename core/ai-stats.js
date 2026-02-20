@@ -36,7 +36,9 @@ import { join } from 'node:path';
  */
 let baseDir = null;
 let statsDir = null;
+let logsDir = null;
 let initialized = false;
+let fullLoggingEnabled = false;
 
 /**
  * In-memory buffer for batching writes
@@ -64,17 +66,24 @@ export function init(baseDirPath) {
 
   baseDir = baseDirPath;
   statsDir = join(baseDir, 'content', 'ai-stats');
+  logsDir = join(baseDir, 'content', '.ai-logs');
 
   // Create stats directory if it doesn't exist
   if (!existsSync(statsDir)) {
     mkdirSync(statsDir, { recursive: true });
   }
 
+  // Create full logs directory
+  if (!existsSync(logsDir)) {
+    mkdirSync(logsDir, { recursive: true });
+  }
+
   // Start flush timer
   startFlushTimer();
 
   initialized = true;
-  console.log('[ai-stats] Service initialized');
+  fullLoggingEnabled = true;
+  console.log('[ai-stats] Service initialized (full logging enabled)');
 }
 
 /**
@@ -498,6 +507,138 @@ export function shutdown() {
   }
   flushBuffer();
   console.log('[ai-stats] Service shut down');
+}
+
+// ============================================
+// FULL REQUEST/RESPONSE LOGGING
+// ============================================
+
+/**
+ * Log a full AI request/response payload for debugging and auditing.
+ * Stored as individual JSON files in content/.ai-logs/<date>/
+ *
+ * @param {Object} entry - Full log entry
+ * @param {string} entry.provider - Provider name
+ * @param {string} entry.operation - Operation type
+ * @param {*} entry.request - Full request payload (messages, params, etc.)
+ * @param {*} entry.response - Full response payload
+ * @param {number} [entry.responseTime] - Response time in ms
+ * @param {string} [entry.status='success'] - Status
+ * @param {string} [entry.error] - Error message if failed
+ * @returns {string|null} Log entry ID, or null if logging is disabled
+ */
+export function logFullRequest(entry) {
+  if (!initialized || !fullLoggingEnabled) return null;
+
+  const now = new Date();
+  const date = now.toISOString().split('T')[0];
+  const dayDir = join(logsDir, date);
+
+  if (!existsSync(dayDir)) {
+    mkdirSync(dayDir, { recursive: true });
+  }
+
+  const id = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+  const logEntry = {
+    id,
+    timestamp: now.toISOString(),
+    provider: entry.provider,
+    operation: entry.operation,
+    status: entry.status || 'success',
+    responseTime: entry.responseTime || 0,
+    error: entry.error || null,
+    request: entry.request,
+    response: entry.response,
+  };
+
+  try {
+    writeFileSync(join(dayDir, `${id}.json`), JSON.stringify(logEntry, null, 2), 'utf-8');
+  } catch (err) {
+    console.error(`[ai-stats] Error writing full log: ${err.message}`);
+    return null;
+  }
+
+  return id;
+}
+
+/**
+ * Get a specific full log entry by date and ID.
+ *
+ * @param {string} date - Date in YYYY-MM-DD format
+ * @param {string} id - Log entry ID
+ * @returns {Object|null} Full log entry or null
+ */
+export function getFullLog(date, id) {
+  if (!initialized) return null;
+
+  const filePath = join(logsDir, date, `${id}.json`);
+  if (!existsSync(filePath)) return null;
+
+  try {
+    return JSON.parse(readFileSync(filePath, 'utf-8'));
+  } catch (err) {
+    return null;
+  }
+}
+
+/**
+ * List full log entries for a specific date.
+ *
+ * @param {string} date - Date in YYYY-MM-DD format
+ * @param {number} [limit=50] - Max entries to return
+ * @returns {Array} Log entry summaries (without full payloads)
+ */
+export function listFullLogs(date, limit = 50) {
+  if (!initialized) return [];
+
+  const dayDir = join(logsDir, date);
+  if (!existsSync(dayDir)) return [];
+
+  try {
+    const files = readdirSync(dayDir)
+      .filter(f => f.endsWith('.json'))
+      .sort()
+      .reverse()
+      .slice(0, limit);
+
+    return files.map(f => {
+      try {
+        const data = JSON.parse(readFileSync(join(dayDir, f), 'utf-8'));
+        // Return summary without full payloads
+        return {
+          id: data.id,
+          timestamp: data.timestamp,
+          provider: data.provider,
+          operation: data.operation,
+          status: data.status,
+          responseTime: data.responseTime,
+          error: data.error,
+        };
+      } catch {
+        return null;
+      }
+    }).filter(Boolean);
+  } catch (err) {
+    return [];
+  }
+}
+
+/**
+ * Enable or disable full request/response logging.
+ *
+ * @param {boolean} enabled
+ */
+export function setFullLogging(enabled) {
+  fullLoggingEnabled = !!enabled;
+  console.log(`[ai-stats] Full logging ${fullLoggingEnabled ? 'enabled' : 'disabled'}`);
+}
+
+/**
+ * Check if full logging is enabled.
+ * @returns {boolean}
+ */
+export function isFullLoggingEnabled() {
+  return fullLoggingEnabled;
 }
 
 /**

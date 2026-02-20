@@ -1,217 +1,633 @@
-<!DOCTYPE html>
-<html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Manage Fields: {{contentType.label}} - Admin</title>
-</head>
-<body>
-    <div class="content-type-fields">
-        <header class="page-header">
-            <h1>Manage Fields: {{contentType.label}}</h1>
-            <div class="actions">
-                <a href="/admin/content-types/{{contentType.machineName}}/edit" class="btn btn-secondary">Edit Content Type</a>
-                <a href="/admin/content-types" class="btn btn-secondary">Back to List</a>
-            </div>
-        </header>
+<div class="admin-breadcrumb">
+  <a href="/admin">Dashboard</a> <span>&rsaquo;</span>
+  <a href="/admin/structure/types">Structure</a> <span>&rsaquo;</span>
+  <a href="/admin/structure/types">Content Types</a> <span>&rsaquo;</span>
+  <a href="/admin/structure/types/{{typeName}}">{{typeLabel}}</a> <span>&rsaquo;</span>
+  <span>Manage Fields</span>
+</div>
 
-        <!-- Fields List -->
-        <div class="fields-section">
-            <h2>Current Fields</h2>
+<div class="section-header-row">
+  <h1 class="admin-page-title">Manage Fields: {{typeLabel}}</h1>
+  <div style="display:flex;gap:var(--gin-space-2, 0.5rem)">
+    <button type="button" class="btn btn-primary" id="open-add-field">+ Create a new field</button>
+    <button type="button" class="btn btn-secondary" id="open-reuse-field">+ Re-use an existing field</button>
+  </div>
+</div>
 
-            {{#fields.length}}
-            <form method="POST" action="/admin/content-types/{{contentType.machineName}}/fields/reorder" id="reorder-form">
-                <input type="hidden" name="csrf_token" value="{{csrfToken}}">
-                <input type="hidden" name="field_order" id="field-order-input">
+<nav class="tabs-local-tasks">
+  <a href="/admin/structure/types/{{typeName}}" class="tab">Edit</a>
+  <a href="/admin/structure/types/{{typeName}}/fields" class="tab active">Manage fields</a>
+  <a href="/admin/structure/types/{{typeName}}/form-display" class="tab">Manage form display</a>
+  <a href="/admin/structure/types/{{typeName}}/display" class="tab">Manage display</a>
+  <a href="/admin/structure/types/{{typeName}}/permissions" class="tab">Manage permissions</a>
+</nav>
 
-                <div class="fields-list sortable" id="fields-list">
-                    {{#fields}}
-                    <div class="field-item" data-field-id="{{id}}" data-machine-name="{{machineName}}">
-                        <div class="field-handle">
-                            <span class="drag-icon">⋮⋮</span>
-                        </div>
-                        <div class="field-info">
-                            <div class="field-name">
-                                <strong>{{label}}</strong>
-                                <code>{{machineName}}</code>
-                            </div>
-                            <div class="field-meta">
-                                <span class="field-type badge">{{type}}</span>
-                                {{#required}}
-                                <span class="badge badge-required">Required</span>
-                                {{/required}}
-                                {{#cardinality}}
-                                <span class="badge badge-info">{{cardinalityLabel}}</span>
-                                {{/cardinality}}
-                            </div>
-                        </div>
-                        <div class="field-actions">
-                            <a href="/admin/content-types/{{../contentType.machineName}}/fields/{{machineName}}/edit"
-                               class="btn btn-sm btn-secondary">
-                                Settings
-                            </a>
-                            {{^isBase}}
-                            <button type="button"
-                                    class="btn btn-sm btn-danger"
-                                    data-remove-field="{{machineName}}">
-                                Remove
-                            </button>
-                            {{/isBase}}
-                            {{#isBase}}
-                            <span class="text-muted">Base Field</span>
-                            {{/isBase}}
-                        </div>
-                    </div>
-                    {{/fields}}
-                </div>
+{{#if hasFlash}}
+<div class="messages messages--{{flash.type}}" style="margin-bottom:var(--gin-space-4, 1rem)">
+  <span>{{flash.message}}</span>
+</div>
+{{/if}}
 
-                <div class="form-actions">
-                    <button type="submit" class="btn btn-primary" id="save-order-btn" disabled>Save Field Order</button>
-                </div>
-            </form>
-            {{/fields.length}}
+{{#if hasFields}}
+<div class="admin-panel">
+  <form method="POST" action="/admin/structure/types/{{typeName}}/fields/reorder" id="reorder-form">
+    <input type="hidden" name="csrf_token" value="{{csrfToken}}">
+    <input type="hidden" name="field_order" id="field-order-input">
 
-            {{^fields.length}}
-            <div class="empty-state">
-                <p>No fields configured yet.</p>
-            </div>
-            {{/fields.length}}
-        </div>
+    <table class="admin-table" id="fields-table">
+      <thead>
+        <tr>
+          <th style="width:2rem"></th>
+          <th>Field</th>
+          <th>Field Type</th>
+          <th>Operations</th>
+        </tr>
+      </thead>
+      <tbody id="fields-tbody">
+        {{#each fields}}
+        <tr class="field-row" draggable="true" data-machine-name="{{machineName}}">
+          <td class="field-handle" style="cursor:grab;text-align:center;color:var(--gin-color-text-light, #666)">⋮⋮</td>
+          <td>
+            <strong>{{label}}</strong>
+            <br>
+            <code style="font-size:0.85em;color:var(--gin-color-text-light, #888)">{{machineName}}</code>
+            {{#if required}}
+              <span class="badge" style="background:var(--gin-color-danger, #d72222);color:#fff;font-size:0.75em;padding:2px 6px;border-radius:3px;margin-left:4px">Required</span>
+            {{/if}}
+            {{#if cardinalityLabel}}
+              <span class="badge" style="background:var(--gin-color-primary, #003cc5);color:#fff;font-size:0.75em;padding:2px 6px;border-radius:3px;margin-left:4px">{{cardinalityLabel}}</span>
+            {{/if}}
+          </td>
+          <td>
+            <span>{{typeLabel}}</span>
+            {{#if settingsSummary}}
+              <br><span style="font-size:0.85em;color:var(--gin-color-text-light, #888)">{{settingsSummary}}</span>
+            {{/if}}
+          </td>
+          <td class="actions">
+            {{#if isBase}}
+              <a href="/admin/structure/types/{{../typeName}}/fields/{{machineName}}" class="btn btn-sm btn-secondary">Edit</a>
+              <span class="text-muted" style="font-size:0.85em;margin-left:8px">Base field</span>
+            {{else}}
+              <div class="dropbutton-wrapper">
+                <a href="/admin/structure/types/{{../typeName}}/fields/{{machineName}}" class="dropbutton-primary">Edit</a>
+                <button type="button" class="dropbutton-toggle" aria-label="More operations"></button>
+                <ul class="dropbutton-menu">
+                  <li class="danger"><button type="button" data-remove-field="{{machineName}}" data-remove-label="{{label}}">Delete</button></li>
+                </ul>
+              </div>
+            {{/if}}
+          </td>
+        </tr>
+        {{/each}}
+      </tbody>
+    </table>
 
-        <!-- Add Field Section -->
-        <div class="add-field-section">
-            <h2>Add Field</h2>
-
-            <!-- Add Existing Field -->
-            {{#existingFields.length}}
-            <div class="add-existing">
-                <h3>Add Existing Field</h3>
-                <form method="POST" action="/admin/content-types/{{contentType.machineName}}/fields/add-existing" class="inline-form">
-                    <input type="hidden" name="csrf_token" value="{{csrfToken}}">
-                    <div class="form-row">
-                        <select name="field_id" required>
-                            <option value="">Select a field</option>
-                            {{#existingFields}}
-                            <option value="{{id}}" data-type="{{type}}">{{label}} ({{machineName}}) - {{type}}</option>
-                            {{/existingFields}}
-                        </select>
-                        <button type="submit" class="btn btn-secondary">Add Field</button>
-                    </div>
-                </form>
-            </div>
-            {{/existingFields.length}}
-
-            <!-- Create New Field -->
-            <div class="add-new">
-                <h3>Create New Field</h3>
-                <a href="/admin/content-types/{{contentType.machineName}}/fields/create" class="btn btn-primary">
-                    Create New Field
-                </a>
-            </div>
-        </div>
-
-        <!-- Remove Field Confirmation Modal -->
-        <div id="remove-modal" class="modal" style="display: none;">
-            <div class="modal-content">
-                <h3>Confirm Remove Field</h3>
-                <p>Are you sure you want to remove the field <strong id="remove-field-name"></strong>?</p>
-                <p class="warning">All data in this field will be deleted for this content type.</p>
-                <form id="remove-form" method="POST" action="">
-                    <input type="hidden" name="csrf_token" value="{{csrfToken}}">
-                    <div class="modal-actions">
-                        <button type="button" class="btn btn-secondary" data-modal-cancel>Cancel</button>
-                        <button type="submit" class="btn btn-danger">Remove Field</button>
-                    </div>
-                </form>
-            </div>
-        </div>
+    <div style="padding:var(--gin-space-3, 0.75rem) var(--gin-space-4, 1rem);border-top:1px solid var(--gin-border-color, #d4d4d8)">
+      <button type="submit" class="btn btn-primary" id="save-order-btn" disabled>Save field order</button>
     </div>
+  </form>
+</div>
+{{else}}
+<div class="admin-panel">
+  <div class="admin-panel-body" style="text-align:center;padding:var(--gin-space-12, 3rem)">
+    <p class="text-muted">No fields have been added to this content type yet.</p>
+    <button type="button" class="btn btn-primary" id="open-add-field-empty">+ Create a new field</button>
+  </div>
+</div>
+{{/if}}
 
-    <script>
-        // Drag and drop sorting
-        const fieldsList = document.getElementById('fields-list');
-        const saveOrderBtn = document.getElementById('save-order-btn');
-        const fieldOrderInput = document.getElementById('field-order-input');
-        let draggedElement = null;
+<!-- ============================================================
+     Add Field Modal (Drupal-style two-step flow)
+     ============================================================ -->
+<div id="add-field-modal" class="field-modal-overlay" style="display:none">
+  <div class="field-modal">
+    <div class="field-modal-header">
+      <h3 id="add-field-title">Add field</h3>
+      <button type="button" class="field-modal-close" id="add-field-close">&times;</button>
+    </div>
+    <div class="field-modal-body">
+      <form id="add-field-form" method="POST" action="/admin/structure/types/{{typeName}}/fields/add">
+        <input type="hidden" name="csrf_token" value="{{csrfToken}}">
 
-        if (fieldsList) {
-            fieldsList.addEventListener('dragstart', (e) => {
-                if (e.target.classList.contains('field-item')) {
-                    draggedElement = e.target;
-                    e.target.classList.add('dragging');
-                }
-            });
+        <!-- Step 1: Choose field type (card grid) -->
+        <div id="add-field-step1">
+          <input type="hidden" id="add-field-type" name="type" value="">
+          <div class="gin-form-item">
+            <label style="display:block;font-weight:600;margin-bottom:var(--gin-space-3, 0.75rem)">Choose a type of field <span style="color:var(--gin-danger, #dc2626)">*</span></label>
+            <div class="field-type-picker" id="field-type-grid">
 
-            fieldsList.addEventListener('dragend', (e) => {
-                if (e.target.classList.contains('field-item')) {
-                    e.target.classList.remove('dragging');
-                    updateFieldOrder();
-                }
-            });
+              <div class="field-type-card" data-type="string">
+                <span class="field-type-icon">T</span>
+                <span class="field-type-name">Plain text</span>
+                <span class="field-type-desc">Text field that does not support markup.</span>
+              </div>
 
-            fieldsList.addEventListener('dragover', (e) => {
-                e.preventDefault();
-                const afterElement = getDragAfterElement(fieldsList, e.clientY);
-                if (afterElement == null) {
-                    fieldsList.appendChild(draggedElement);
-                } else {
-                    fieldsList.insertBefore(draggedElement, afterElement);
-                }
-            });
+              <div class="field-type-card" data-type="text">
+                <span class="field-type-icon">T<sub>e</sub></span>
+                <span class="field-type-name">Formatted text</span>
+                <span class="field-type-desc">Text field with markup support and optional editor.</span>
+              </div>
 
-            // Make field items draggable
-            document.querySelectorAll('.field-item').forEach(item => {
-                item.setAttribute('draggable', 'true');
-            });
-        }
+              <div class="field-type-card" data-type="number">
+                <span class="field-type-icon">123</span>
+                <span class="field-type-name">Number</span>
+                <span class="field-type-desc">Field to store number. I.e. id, price, or quantity.</span>
+              </div>
 
-        function getDragAfterElement(container, y) {
-            const draggableElements = [...container.querySelectorAll('.field-item:not(.dragging)')];
+              <div class="field-type-card" data-type="relation">
+                <span class="field-type-icon">&#8618;</span>
+                <span class="field-type-name">Reference</span>
+                <span class="field-type-desc">Field to reference other content.</span>
+              </div>
 
-            return draggableElements.reduce((closest, child) => {
-                const box = child.getBoundingClientRect();
-                const offset = y - box.top - box.height / 2;
+              <div class="field-type-card" data-type="file">
+                <span class="field-type-icon">&#128196;</span>
+                <span class="field-type-name">File upload</span>
+                <span class="field-type-desc">Field to upload any type of files.</span>
+              </div>
 
-                if (offset < 0 && offset > closest.offset) {
-                    return { offset: offset, element: child };
-                } else {
-                    return closest;
-                }
-            }, { offset: Number.NEGATIVE_INFINITY }).element;
-        }
+              <div class="field-type-card" data-type="array">
+                <span class="field-type-icon">&#9776;</span>
+                <span class="field-type-name">Selection list</span>
+                <span class="field-type-desc">Field to select from predefined options.</span>
+              </div>
 
-        function updateFieldOrder() {
-            const fieldItems = document.querySelectorAll('.field-item');
-            const order = Array.from(fieldItems).map(item => item.dataset.machineName);
-            fieldOrderInput.value = JSON.stringify(order);
-            saveOrderBtn.disabled = false;
-        }
+              <div class="field-type-card" data-type="date">
+                <span class="field-type-icon">&#128197;</span>
+                <span class="field-type-name">Date and time</span>
+                <span class="field-type-desc">Field to store date and time values.</span>
+              </div>
 
-        // Remove field modal
-        const removeModal = document.getElementById('remove-modal');
-        const removeForm = document.getElementById('remove-form');
-        const removeFieldName = document.getElementById('remove-field-name');
+              <div class="field-type-card" data-type="boolean">
+                <span class="field-type-icon">&#9724;</span>
+                <span class="field-type-name">Boolean</span>
+                <span class="field-type-desc">Field to store a true or false value.</span>
+              </div>
 
-        document.querySelectorAll('[data-remove-field]').forEach(btn => {
-            btn.addEventListener('click', (e) => {
-                const machineName = e.target.dataset.removeField;
-                removeFieldName.textContent = machineName;
-                removeForm.action = `/admin/content-types/{{contentType.machineName}}/fields/${machineName}/remove`;
-                removeModal.style.display = 'block';
-            });
-        });
+              <div class="field-type-card" data-type="email">
+                <span class="field-type-icon">@</span>
+                <span class="field-type-name">Email</span>
+                <span class="field-type-desc">Field to store an email address.</span>
+              </div>
 
-        document.querySelectorAll('[data-modal-cancel]').forEach(btn => {
-            btn.addEventListener('click', () => {
-                removeModal.style.display = 'none';
-            });
-        });
+              <div class="field-type-card" data-type="link">
+                <span class="field-type-icon">&#128279;</span>
+                <span class="field-type-name">Link</span>
+                <span class="field-type-desc">Stores a URL string, optional link text, and attributes.</span>
+              </div>
 
-        window.addEventListener('click', (e) => {
-            if (e.target === removeModal) {
-                removeModal.style.display = 'none';
-            }
-        });
-    </script>
-</body>
-</html>
+              <div class="field-type-card" data-type="image">
+                <span class="field-type-icon">&#128247;</span>
+                <span class="field-type-name">Image</span>
+                <span class="field-type-desc">Field to upload and display images.</span>
+              </div>
+
+            </div>
+          </div>
+        </div>
+
+        <!-- Step 2: Label + Field storage settings (shown after picking type) -->
+        <div id="add-field-step2" style="display:none">
+          <div class="gin-form-item" style="margin-bottom:var(--gin-space-5, 1.25rem)">
+            <label for="add-field-label" style="display:block;font-weight:600;margin-bottom:4px">Label <span style="color:var(--gin-danger, #dc2626)">*</span></label>
+            <input type="text" id="add-field-label" name="label" class="form-text" required placeholder="e.g. Article Title" style="width:100%;max-width:500px">
+          </div>
+
+          <div class="admin-panel" style="margin-bottom:var(--gin-space-4, 1rem)">
+            <div class="admin-panel-header" style="padding:var(--gin-space-3, 0.75rem) var(--gin-space-4, 1rem);border-bottom:1px solid var(--gin-border, #d4d4d8)">
+              <h4 style="margin:0">Field Storage</h4>
+            </div>
+            <div class="admin-panel-body" style="padding:var(--gin-space-4, 1rem)">
+              <p style="color:var(--gin-text-light, #545560);margin-top:0">These settings apply to the field everywhere it is used. Some also impact the way that data is stored and cannot be changed once data has been created.</p>
+
+              <div class="gin-form-item" style="margin-bottom:var(--gin-space-4, 1rem)" id="storage-max-length-group">
+                <label for="storage-max-length" style="display:block;font-weight:600;margin-bottom:4px">Maximum length <span style="color:var(--gin-danger, #dc2626)">*</span></label>
+                <input type="number" id="storage-max-length" name="settings[maxLength]" class="form-text" value="255" min="1" max="65535" style="width:120px">
+                <div style="font-size:0.85em;color:var(--gin-text-muted, #71727a);margin-top:2px">The maximum length of the field in characters.</div>
+              </div>
+
+              <div class="gin-form-item" style="margin-bottom:0">
+                <label for="storage-cardinality" style="display:block;font-weight:600;margin-bottom:4px">Allowed number of values</label>
+                <div style="display:flex;gap:var(--gin-space-2, 0.5rem);align-items:center">
+                  <select id="storage-cardinality" name="cardinality" class="form-select" style="width:auto">
+                    <option value="1">Limited</option>
+                    <option value="-1">Unlimited</option>
+                  </select>
+                  <input type="number" id="storage-cardinality-count" name="cardinalityCount" class="form-text" value="1" min="1" max="999" style="width:70px">
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div class="gin-form-item" style="margin-bottom:var(--gin-space-4, 1rem)">
+            <label for="storage-help-text" style="display:block;font-weight:600;margin-bottom:4px">Help text</label>
+            <textarea id="storage-help-text" name="helpText" class="form-textarea" rows="3" placeholder="Instructions to present to the user below this field on the editing form." style="width:100%"></textarea>
+          </div>
+
+          <div class="gin-form-item" style="margin-bottom:var(--gin-space-3, 0.75rem)">
+            <label style="display:flex;align-items:center;gap:8px;cursor:pointer">
+              <input type="checkbox" name="required" value="1" id="storage-required" style="width:18px;height:18px">
+              <span style="font-weight:600">Required field</span>
+            </label>
+          </div>
+
+          <input type="hidden" id="add-field-machine-name" name="machineName" value="">
+        </div>
+
+        <div class="field-modal-footer">
+          <button type="button" class="btn btn-secondary" id="add-field-change-type" style="display:none">Change field type</button>
+          <button type="button" class="btn btn-primary" id="add-field-continue" style="display:none">Continue</button>
+          <button type="submit" class="btn btn-primary" id="add-field-save" style="display:none">Save</button>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+
+<!-- ============================================================
+     Re-use Existing Field Modal
+     ============================================================ -->
+<div id="reuse-field-modal" class="field-modal-overlay" style="display:none">
+  <div class="field-modal">
+    <div class="field-modal-header">
+      <h3>Re-use an existing field</h3>
+      <button type="button" class="field-modal-close" id="reuse-field-close">&times;</button>
+    </div>
+    <div class="field-modal-body">
+      <p style="color:var(--gin-text-light, #545560);margin-top:0">You can re-use a field from other content types. Re-using a field creates another usage of the same field storage.</p>
+      <div class="gin-form-item" style="margin-bottom:var(--gin-space-4, 1rem)">
+        <label for="reuse-filter" style="display:block;font-weight:600;margin-bottom:4px">Filter by field or field type</label>
+        <input type="text" id="reuse-filter" class="form-text" placeholder="Filter by field or field type" style="width:100%;max-width:500px">
+      </div>
+
+      {{#if reuseFields}}
+      <div class="admin-panel" style="max-height:360px;overflow-y:auto">
+        <table class="admin-table" id="reuse-fields-table">
+          <thead>
+            <tr>
+              <th>Field</th>
+              <th>Field Type</th>
+              <th>Summary</th>
+              <th>Operations</th>
+            </tr>
+          </thead>
+          <tbody>
+            {{#each reuseFields}}
+            <tr class="reuse-row" data-search="{{machineName}} {{typeLabel}}">
+              <td><code>{{machineName}}</code></td>
+              <td>{{typeLabel}}</td>
+              <td style="color:var(--gin-text-light, #545560)">
+                {{cardinalityLabel}}
+                {{#if usedIn}}<br>Used in: {{usedIn}}{{/if}}
+              </td>
+              <td>
+                <a href="/admin/structure/types/{{../typeName}}/fields/add?reuse={{machineName}}" class="btn btn-sm btn-primary" style="border-radius:var(--gin-radius-full, 9999px)">Re-use</a>
+              </td>
+            </tr>
+            {{/each}}
+          </tbody>
+        </table>
+      </div>
+      {{else}}
+      <p class="text-muted">No fields available for re-use.</p>
+      {{/if}}
+    </div>
+  </div>
+</div>
+
+<!-- Delete field confirmation modal -->
+<div id="remove-modal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.5);z-index:9999;align-items:center;justify-content:center">
+  <div style="background:var(--gin-surface, #fff);border-radius:8px;padding:var(--gin-space-6, 1.5rem);max-width:480px;width:90%;margin:auto;position:relative;top:30%">
+    <h3 style="margin-top:0">Confirm field deletion</h3>
+    <p>Are you sure you want to delete the field <strong id="remove-field-name"></strong>?</p>
+    <p style="color:var(--gin-danger, #dc2626)">All data stored in this field will be permanently deleted.</p>
+    <form id="remove-form" method="POST" action="">
+      <input type="hidden" name="csrf_token" value="{{csrfToken}}">
+      <div style="display:flex;gap:var(--gin-space-2, 0.5rem);justify-content:flex-end">
+        <button type="button" class="btn btn-secondary" id="modal-cancel">Cancel</button>
+        <button type="submit" class="btn btn-danger">Delete field</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<style>
+/* Field modal overlay */
+.field-modal-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.5);
+  z-index: 9999;
+  display: flex;
+  align-items: flex-start;
+  justify-content: center;
+  padding-top: 40px;
+  overflow-y: auto;
+}
+
+.field-modal {
+  background: var(--gin-surface, #ffffff);
+  border-radius: var(--gin-radius-lg, 12px);
+  box-shadow: var(--gin-shadow-xl);
+  width: 800px;
+  max-width: 95vw;
+  max-height: 85vh;
+  display: flex;
+  flex-direction: column;
+  margin-bottom: 40px;
+}
+
+.field-modal-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: var(--gin-space-4, 1rem) var(--gin-space-6, 1.5rem);
+  border-bottom: 1px solid var(--gin-border, #d4d4d8);
+}
+
+.field-modal-header h3 {
+  margin: 0;
+  font-size: var(--gin-font-size-lg, 1.125rem);
+}
+
+.field-modal-close {
+  background: none;
+  border: none;
+  font-size: 24px;
+  cursor: pointer;
+  color: var(--gin-text-muted, #71727a);
+  padding: 0;
+  width: 32px;
+  height: 32px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: var(--gin-radius-sm, 6px);
+  transition: background var(--gin-transition);
+}
+
+.field-modal-close:hover {
+  background: var(--gin-surface-hover, #f0f0f2);
+  color: var(--gin-text, #222330);
+}
+
+.field-modal-body {
+  padding: var(--gin-space-5, 1.25rem) var(--gin-space-6, 1.5rem);
+  overflow-y: auto;
+  flex: 1;
+}
+
+.field-modal-footer {
+  display: flex;
+  gap: var(--gin-space-2, 0.5rem);
+  padding: var(--gin-space-4, 1rem) var(--gin-space-6, 1.5rem);
+  border-top: 1px solid var(--gin-border, #d4d4d8);
+}
+
+/* Card grid inside modal — overrides for icon-left layout like Drupal */
+.field-modal .field-type-picker {
+  grid-template-columns: repeat(3, 1fr);
+  gap: var(--gin-space-3, 0.75rem);
+}
+
+.field-modal .field-type-card {
+  flex-direction: row;
+  align-items: flex-start;
+  text-align: left;
+  gap: var(--gin-space-3, 0.75rem);
+  padding: var(--gin-space-3, 0.75rem) var(--gin-space-4, 1rem);
+}
+
+.field-modal .field-type-card .field-type-icon {
+  font-size: 1.5rem;
+  width: 36px;
+  height: 36px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  color: var(--gin-text, #222330);
+}
+
+.field-modal .field-type-card.selected .field-type-icon {
+  color: #fff;
+  background: var(--gin-primary, #2c59ee);
+  border-radius: var(--gin-radius-sm, 6px);
+}
+
+.field-modal .field-type-card .field-type-name {
+  color: var(--gin-primary, #2c59ee);
+}
+
+.field-modal .field-type-card .field-type-desc {
+  line-height: 1.35;
+}
+</style>
+
+<script>
+/* Dropbutton toggle behavior */
+(function() {
+  document.querySelectorAll('.dropbutton-toggle').forEach(function(btn) {
+    btn.addEventListener('click', function(e) {
+      e.stopPropagation();
+      var wrapper = btn.closest('.dropbutton-wrapper');
+      var isOpen = wrapper.classList.contains('open');
+      document.querySelectorAll('.dropbutton-wrapper.open').forEach(function(w) { w.classList.remove('open'); });
+      if (!isOpen) wrapper.classList.add('open');
+    });
+  });
+  document.addEventListener('click', function() {
+    document.querySelectorAll('.dropbutton-wrapper.open').forEach(function(w) { w.classList.remove('open'); });
+  });
+})();
+
+/* Drag and drop reordering */
+(function() {
+  var tbody = document.getElementById('fields-tbody');
+  var saveBtn = document.getElementById('save-order-btn');
+  var orderInput = document.getElementById('field-order-input');
+  var dragged = null;
+
+  if (!tbody) return;
+
+  tbody.addEventListener('dragstart', function(e) {
+    var row = e.target.closest('.field-row');
+    if (row) { dragged = row; row.style.opacity = '0.4'; }
+  });
+
+  tbody.addEventListener('dragend', function(e) {
+    if (dragged) { dragged.style.opacity = '1'; dragged = null; updateOrder(); }
+  });
+
+  tbody.addEventListener('dragover', function(e) {
+    e.preventDefault();
+    var target = e.target.closest('.field-row');
+    if (target && target !== dragged) {
+      var rect = target.getBoundingClientRect();
+      var mid = rect.top + rect.height / 2;
+      if (e.clientY < mid) {
+        tbody.insertBefore(dragged, target);
+      } else {
+        tbody.insertBefore(dragged, target.nextSibling);
+      }
+    }
+  });
+
+  function updateOrder() {
+    var rows = tbody.querySelectorAll('.field-row');
+    var order = Array.from(rows).map(function(r) { return r.dataset.machineName; });
+    orderInput.value = JSON.stringify(order);
+    saveBtn.disabled = false;
+  }
+})();
+
+/* Delete field modal */
+(function() {
+  var modal = document.getElementById('remove-modal');
+  var form = document.getElementById('remove-form');
+  var nameEl = document.getElementById('remove-field-name');
+  var cancelBtn = document.getElementById('modal-cancel');
+  var typeName = '{{typeName}}';
+
+  document.querySelectorAll('[data-remove-field]').forEach(function(btn) {
+    btn.addEventListener('click', function() {
+      var mn = btn.dataset.removeField;
+      var label = btn.dataset.removeLabel || mn;
+      nameEl.textContent = label + ' (' + mn + ')';
+      form.action = '/admin/structure/types/' + typeName + '/fields/' + mn + '/delete';
+      modal.style.display = 'flex';
+    });
+  });
+
+  if (cancelBtn) {
+    cancelBtn.addEventListener('click', function() { modal.style.display = 'none'; });
+  }
+
+  modal.addEventListener('click', function(e) {
+    if (e.target === modal) { modal.style.display = 'none'; }
+  });
+})();
+
+/* Add Field Modal — two-step flow: 1) card grid  2) label + settings */
+(function() {
+  var overlay = document.getElementById('add-field-modal');
+  var titleEl = document.getElementById('add-field-title');
+  var step1 = document.getElementById('add-field-step1');
+  var step2 = document.getElementById('add-field-step2');
+  var continueBtn = document.getElementById('add-field-continue');
+  var saveBtn = document.getElementById('add-field-save');
+  var changeTypeBtn = document.getElementById('add-field-change-type');
+  var closeBtn = document.getElementById('add-field-close');
+  var typeInput = document.getElementById('add-field-type');
+  var labelInput = document.getElementById('add-field-label');
+  var machineNameInput = document.getElementById('add-field-machine-name');
+  var maxLengthGroup = document.getElementById('storage-max-length-group');
+  var cardinalitySelect = document.getElementById('storage-cardinality');
+  var cardinalityCount = document.getElementById('storage-cardinality-count');
+  var selectedTypeName = '';
+
+  function openModal() {
+    overlay.style.display = 'flex';
+    showStep1();
+  }
+
+  function showStep1() {
+    step1.style.display = '';
+    step2.style.display = 'none';
+    continueBtn.style.display = 'none';
+    saveBtn.style.display = 'none';
+    changeTypeBtn.style.display = 'none';
+    titleEl.textContent = 'Add field';
+    /* Reset card selection */
+    document.querySelectorAll('#field-type-grid .field-type-card').forEach(function(c) { c.classList.remove('selected'); });
+    typeInput.value = '';
+  }
+
+  function showStep2() {
+    step1.style.display = 'none';
+    step2.style.display = '';
+    continueBtn.style.display = 'none';
+    saveBtn.style.display = '';
+    changeTypeBtn.style.display = '';
+    titleEl.textContent = selectedTypeName + ' settings for {{typeLabel}}';
+    labelInput.value = '';
+    labelInput.focus();
+    /* Show/hide max-length based on type */
+    maxLengthGroup.style.display = (typeInput.value === 'string') ? '' : 'none';
+  }
+
+  function closeModal() {
+    overlay.style.display = 'none';
+  }
+
+  document.getElementById('open-add-field').addEventListener('click', openModal);
+  var emptyBtn = document.getElementById('open-add-field-empty');
+  if (emptyBtn) emptyBtn.addEventListener('click', openModal);
+
+  closeBtn.addEventListener('click', closeModal);
+  overlay.addEventListener('click', function(e) {
+    if (e.target === overlay) closeModal();
+  });
+
+  /* Card grid click — select a type and immediately go to step 2 */
+  document.querySelectorAll('#field-type-grid .field-type-card').forEach(function(card) {
+    card.addEventListener('click', function() {
+      document.querySelectorAll('#field-type-grid .field-type-card').forEach(function(c) { c.classList.remove('selected'); });
+      card.classList.add('selected');
+      typeInput.value = card.dataset.type;
+      selectedTypeName = card.querySelector('.field-type-name').textContent;
+      showStep2();
+    });
+  });
+
+  /* Change field type: go back to card grid */
+  changeTypeBtn.addEventListener('click', function() {
+    showStep1();
+  });
+
+  /* Auto-generate machine name from label */
+  labelInput.addEventListener('input', function() {
+    var val = labelInput.value.trim();
+    var mn = 'field_' + val.toLowerCase().replace(/[^a-z0-9]+/g, '_').replace(/^_+|_+$/g, '');
+    machineNameInput.value = mn;
+  });
+
+  /* Cardinality toggle — show/hide count input */
+  cardinalitySelect.addEventListener('change', function() {
+    cardinalityCount.style.display = (cardinalitySelect.value === '1') ? '' : 'none';
+  });
+})();
+
+/* Re-use Field Modal */
+(function() {
+  var overlay = document.getElementById('reuse-field-modal');
+  var closeBtn = document.getElementById('reuse-field-close');
+  var filterInput = document.getElementById('reuse-filter');
+  var openBtn = document.getElementById('open-reuse-field');
+
+  openBtn.addEventListener('click', function() {
+    overlay.style.display = 'flex';
+    if (filterInput) filterInput.focus();
+  });
+
+  closeBtn.addEventListener('click', function() {
+    overlay.style.display = 'none';
+  });
+
+  overlay.addEventListener('click', function(e) {
+    if (e.target === overlay) overlay.style.display = 'none';
+  });
+
+  /* Filter rows by search text */
+  if (filterInput) {
+    filterInput.addEventListener('input', function() {
+      var q = filterInput.value.toLowerCase();
+      document.querySelectorAll('.reuse-row').forEach(function(row) {
+        var text = (row.dataset.search || '').toLowerCase();
+        row.style.display = (!q || text.indexOf(q) !== -1) ? '' : 'none';
+      });
+    });
+  }
+})();
+</script>

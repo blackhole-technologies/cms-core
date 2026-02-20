@@ -1,347 +1,257 @@
-<!-- Revision diff template -->
-<div class="admin-page">
-  <div class="page-header">
-    <h1>Compare Revisions</h1>
-    <div class="breadcrumb">
-      <a href="/admin/content">Content</a> &raquo;
-      <a href="/admin/content/{{type}}">{{type}}</a> &raquo;
-      <a href="/admin/content/{{type}}/{{id}}/edit">{{id}}</a> &raquo;
-      <a href="/admin/content/{{type}}/{{id}}/revisions">Revisions</a> &raquo;
-      Diff
-    </div>
-  </div>
+<!-- Revision diff template — side-by-side comparison with color highlighting -->
+<div class="admin-breadcrumb">
+  <a href="/admin">Home</a> <span>&rsaquo;</span>
+  <a href="/admin/content">Content</a> <span>&rsaquo;</span>
+  <a href="/admin/content/{{type}}">{{type}}</a> <span>&rsaquo;</span>
+  <a href="/admin/content/{{type}}/{{id}}/edit">{{id}}</a> <span>&rsaquo;</span>
+  <a href="/admin/content/{{type}}/{{id}}/revisions">Revisions</a> <span>&rsaquo;</span>
+  <span>Diff</span>
+</div>
 
-  {{#if hasFlash}}
-  <div class="flash flash-{{flash.type}}">
-    {{flash.message}}
-  </div>
-  {{/if}}
+<h1 class="admin-page-title">Compare Revisions</h1>
 
-  <div class="admin-section diff-header">
-    <div class="diff-versions">
-      <div class="version-box old">
-        <span class="version-label">Revision</span>
-        <span class="version-timestamp">{{timestampFormatted}}</span>
+{{#if hasFlash}}
+<div class="flash flash-{{flash.type}}">
+  {{flash.message}}
+</div>
+{{/if}}
+
+<div class="admin-panel">
+  <div class="admin-panel-header">
+    <h2>Version Comparison</h2>
+  </div>
+  <div class="admin-panel-body">
+    <div class="diff-header-row">
+      <div class="diff-version diff-version--old">
+        <span class="diff-version-label">Revision</span>
+        <span class="diff-version-time">{{timestampFormatted}}</span>
       </div>
-      <div class="arrow">&rarr;</div>
-      <div class="version-box current">
-        <span class="version-label">Current</span>
-        <span class="version-timestamp">{{currentTimestampFormatted}}</span>
+      <span class="diff-arrow">&rarr;</span>
+      <div class="diff-version diff-version--current">
+        <span class="diff-version-label">Current</span>
+        <span class="diff-version-time">{{currentTimestampFormatted}}</span>
       </div>
     </div>
     <p class="diff-summary">{{changeCount}} field(s) changed</p>
   </div>
+</div>
 
-  <div class="admin-section">
-    <h2>Changes</h2>
-
-    {{#if hasChanges}}
-    <div class="changes-list">
-      {{#each changes}}
-      <div class="change-item change-{{type}}">
-        <div class="change-header">
-          <span class="change-field">{{field}}</span>
+{{#if hasChanges}}
+<div class="admin-panel">
+  <div class="admin-panel-header"><h2>Changes</h2></div>
+  <div class="admin-panel-body" style="padding:0">
+    {{#each changes}}
+    <div class="diff-field">
+      <div class="diff-field-header">
+        <strong>{{field}}</strong>
+        {{#if isAdded}}<span class="status-badge status-badge--published">Added</span>{{/if}}
+        {{#if isRemoved}}<span class="status-badge status-badge--archived">Removed</span>{{/if}}
+        {{#if isModified}}<span class="status-badge status-badge--draft">Modified</span>{{/if}}
+      </div>
+      <div class="diff-side-by-side">
+        <div class="diff-pane diff-pane--old">
+          <div class="diff-pane-label">Before</div>
           {{#if isAdded}}
-          <span class="change-badge badge-added">Added</span>
-          {{/if}}
-          {{#if isRemoved}}
-          <span class="change-badge badge-removed">Removed</span>
-          {{/if}}
-          {{#if isModified}}
-          <span class="change-badge badge-modified">Modified</span>
+          <pre class="diff-content diff-content--empty">(empty)</pre>
+          {{else}}
+          <pre class="diff-content diff-content--removed">{{fromStr}}</pre>
           {{/if}}
         </div>
-
-        <div class="change-values">
-          {{#if isAdded}}
-          <div class="value-row new-value">
-            <span class="value-label">New:</span>
-            <pre class="value-content">{{toStr}}</pre>
-          </div>
-          {{/if}}
-
+        <div class="diff-pane diff-pane--new">
+          <div class="diff-pane-label">After</div>
           {{#if isRemoved}}
-          <div class="value-row old-value">
-            <span class="value-label">Removed:</span>
-            <pre class="value-content">{{fromStr}}</pre>
-          </div>
-          {{/if}}
-
-          {{#if isModified}}
-          <div class="value-row old-value">
-            <span class="value-label">Before:</span>
-            <pre class="value-content">{{fromStr}}</pre>
-          </div>
-          <div class="value-row new-value">
-            <span class="value-label">After:</span>
-            <pre class="value-content">{{toStr}}</pre>
-          </div>
+          <pre class="diff-content diff-content--empty">(empty)</pre>
+          {{else}}
+          <pre class="diff-content diff-content--added">{{toStr}}</pre>
           {{/if}}
         </div>
       </div>
-      {{/each}}
     </div>
-    {{else}}
-    <p class="text-muted">No differences found between these versions.</p>
-    {{/if}}
+    {{/each}}
   </div>
+</div>
+{{else}}
+<div class="admin-panel">
+  <div class="admin-panel-body">
+    <p class="text-muted">No differences found between these versions.</p>
+  </div>
+</div>
+{{/if}}
 
-  <div class="admin-section actions-section">
-    <h2>Actions</h2>
-    <p>You can revert to the older revision if needed. The current version will be saved first.</p>
-
-    <div class="action-buttons">
-      <form method="POST" action="/admin/content/{{type}}/{{id}}/revisions/{{timestamp}}/revert" style="display: inline;" onsubmit="return confirm('Revert to the older revision? Current version will be saved.');">
+<div class="admin-panel" style="background:var(--gin-primary-bg, #eff6ff)">
+  <div class="admin-panel-body">
+    <h3 style="margin:0 0 var(--gin-space-2) 0;font-size:var(--gin-font-size-md)">Actions</h3>
+    <p style="margin:0 0 var(--gin-space-3) 0;color:var(--gin-text-muted)">Reverting restores this revision as current. The current version is saved first so you can undo.</p>
+    <div style="display:flex;gap:var(--gin-space-2);flex-wrap:wrap">
+      <form method="POST" action="/admin/content/{{type}}/{{id}}/revisions/{{timestamp}}/revert" class="inline-form" onsubmit="return confirm('Revert to this revision? Current version will be saved.');">
         {{csrfField}}
         <button type="submit" class="btn btn-warning">Revert to Revision</button>
       </form>
-      <a href="/admin/content/{{type}}/{{id}}/revisions/{{timestamp}}" class="btn btn-secondary">View Full Revision</a>
+      <a href="/admin/content/{{type}}/{{id}}/revisions/{{timestamp}}" class="btn">View Full Revision</a>
     </div>
-  </div>
-
-  <div class="form-actions">
-    <a href="/admin/content/{{type}}/{{id}}/revisions" class="btn btn-secondary">Back to Revisions</a>
-    <a href="/admin/content/{{type}}/{{id}}/edit" class="btn btn-secondary">Back to Edit</a>
   </div>
 </div>
 
+<div style="display:flex;gap:var(--gin-space-2);margin-top:var(--gin-space-4)">
+  <a href="/admin/content/{{type}}/{{id}}/revisions" class="btn">Back to Revisions</a>
+  <a href="/admin/content/{{type}}/{{id}}/edit" class="btn">Back to Edit</a>
+</div>
+
 <style>
-.page-header {
-  margin-bottom: 1.5rem;
-}
-
-.page-header h1 {
-  margin-bottom: 0.5rem;
-}
-
-.breadcrumb {
-  font-size: 0.9rem;
-  color: #666;
-}
-
-.breadcrumb a {
-  color: #007bff;
-  text-decoration: none;
-}
-
-.breadcrumb a:hover {
-  text-decoration: underline;
-}
-
-.admin-section {
-  margin-bottom: 1.5rem;
-  padding: 1.5rem;
-  background: #fff;
-  border: 1px solid #dee2e6;
-  border-radius: 8px;
-}
-
-.admin-section h2 {
-  margin-top: 0;
-  font-size: 1.1rem;
-  color: #333;
-}
-
-.diff-header {
-  background: #f8f9fa;
-}
-
-.diff-versions {
+/* Diff header row: revision vs current boxes */
+.diff-header-row {
   display: flex;
   align-items: center;
   justify-content: center;
-  gap: 1.5rem;
+  gap: var(--gin-space-4, 1rem);
   flex-wrap: wrap;
 }
 
-.version-box {
+.diff-version {
   display: flex;
   flex-direction: column;
   align-items: center;
-  padding: 1rem 1.5rem;
-  border-radius: 8px;
-  min-width: 200px;
+  padding: var(--gin-space-3, 0.75rem) var(--gin-space-4, 1rem);
+  border-radius: var(--gin-radius, 8px);
+  min-width: 180px;
 }
 
-.version-box.old {
-  background: #fff3cd;
-  border: 1px solid #ffc107;
+.diff-version--old {
+  background: #fef3c7;
+  border: 1px solid #fbbf24;
 }
 
-.version-box.current {
-  background: #d4edda;
-  border: 1px solid #28a745;
+.diff-version--current {
+  background: #d1fae5;
+  border: 1px solid #34d399;
 }
 
-.version-label {
-  font-size: 0.85rem;
-  color: #666;
-  margin-bottom: 0.25rem;
+[data-theme="dark"] .diff-version--old {
+  background: #422006;
+  border-color: #92400e;
 }
 
-.version-timestamp {
-  font-family: monospace;
-  font-size: 0.9rem;
+[data-theme="dark"] .diff-version--current {
+  background: #064e3b;
+  border-color: #065f46;
+}
+
+.diff-version-label {
+  font-size: var(--gin-font-size-xs, 12px);
+  color: var(--gin-text-muted, #71717a);
+  margin-bottom: 2px;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.diff-version-time {
+  font-family: var(--gin-font-mono, monospace);
+  font-size: var(--gin-font-size-sm, 13px);
   font-weight: 600;
 }
 
-.arrow {
-  font-size: 2rem;
-  color: #666;
+.diff-arrow {
+  font-size: 1.5rem;
+  color: var(--gin-text-muted, #71717a);
 }
 
 .diff-summary {
   text-align: center;
-  margin: 1rem 0 0 0;
-  color: #666;
+  margin: var(--gin-space-3, 0.75rem) 0 0 0;
+  color: var(--gin-text-muted, #71717a);
+  font-size: var(--gin-font-size-sm, 13px);
 }
 
-.changes-list {
-  display: flex;
-  flex-direction: column;
-  gap: 1rem;
+/* Each field change block */
+.diff-field {
+  border-bottom: 1px solid var(--gin-border, #e4e4e7);
 }
 
-.change-item {
-  border: 1px solid #dee2e6;
-  border-radius: 6px;
-  overflow: hidden;
+.diff-field:last-child {
+  border-bottom: none;
 }
 
-.change-item.change-added {
-  border-color: #28a745;
-}
-
-.change-item.change-removed {
-  border-color: #dc3545;
-}
-
-.change-item.change-modified {
-  border-color: #ffc107;
-}
-
-.change-header {
+.diff-field-header {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  padding: 0.75rem 1rem;
-  background: #f8f9fa;
-  border-bottom: 1px solid #dee2e6;
+  padding: var(--gin-space-3, 0.75rem) var(--gin-space-4, 1rem);
+  background: var(--gin-surface-alt, #fafafa);
+  border-bottom: 1px solid var(--gin-border, #e4e4e7);
 }
 
-.change-field {
-  font-weight: 600;
-  font-size: 0.95rem;
+/* Side-by-side panes */
+.diff-side-by-side {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
 }
 
-.change-badge {
-  padding: 0.2rem 0.5rem;
-  border-radius: 4px;
-  font-size: 0.75rem;
-  font-weight: 600;
+.diff-pane {
+  padding: 0;
+  min-width: 0;
 }
 
-.badge-added {
-  background: #d4edda;
-  color: #155724;
+.diff-pane--old {
+  border-right: 1px solid var(--gin-border, #e4e4e7);
 }
 
-.badge-removed {
-  background: #f8d7da;
-  color: #721c24;
+.diff-pane-label {
+  padding: var(--gin-space-2, 0.5rem) var(--gin-space-3, 0.75rem);
+  font-size: var(--gin-font-size-xs, 12px);
+  color: var(--gin-text-muted, #71717a);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  border-bottom: 1px solid var(--gin-border, #e4e4e7);
+  background: var(--gin-surface-alt, #fafafa);
 }
 
-.badge-modified {
-  background: #fff3cd;
-  color: #856404;
-}
-
-.change-values {
-  padding: 1rem;
-}
-
-.value-row {
-  margin-bottom: 0.75rem;
-}
-
-.value-row:last-child {
-  margin-bottom: 0;
-}
-
-.value-label {
-  display: block;
-  font-size: 0.8rem;
-  color: #666;
-  margin-bottom: 0.25rem;
-}
-
-.value-content {
+.diff-content {
   margin: 0;
-  padding: 0.75rem;
-  border-radius: 4px;
-  font-size: 0.85rem;
+  padding: var(--gin-space-3, 0.75rem);
+  font-size: var(--gin-font-size-sm, 13px);
+  font-family: var(--gin-font-mono, monospace);
   white-space: pre-wrap;
   word-break: break-word;
-  max-height: 200px;
+  max-height: 300px;
   overflow-y: auto;
+  line-height: 1.6;
 }
 
-.old-value .value-content {
-  background: #ffebee;
-  border: 1px solid #f5c6cb;
+.diff-content--removed {
+  background: #fef2f2;
+  color: #991b1b;
 }
 
-.new-value .value-content {
-  background: #e8f5e9;
-  border: 1px solid #c3e6cb;
+.diff-content--added {
+  background: #f0fdf4;
+  color: #166534;
 }
 
-.actions-section {
-  background: #f0f7ff;
-  border-color: #b8daff;
+.diff-content--empty {
+  background: var(--gin-surface-alt, #fafafa);
+  color: var(--gin-text-muted, #71717a);
+  font-style: italic;
 }
 
-.action-buttons {
-  display: flex;
-  gap: 0.75rem;
-  margin-top: 1rem;
+[data-theme="dark"] .diff-content--removed {
+  background: #450a0a;
+  color: #fca5a5;
 }
 
-.btn-warning {
-  background: #ffc107;
-  color: #333;
-  border: none;
+[data-theme="dark"] .diff-content--added {
+  background: #052e16;
+  color: #86efac;
 }
 
-.btn-warning:hover {
-  background: #e0a800;
-}
+/* Responsive: stack on narrow screens */
+@media (max-width: 768px) {
+  .diff-side-by-side {
+    grid-template-columns: 1fr;
+  }
 
-.form-actions {
-  display: flex;
-  gap: 0.5rem;
-  margin-top: 1rem;
-}
-
-.text-muted {
-  color: #6c757d;
-}
-
-.flash {
-  padding: 1rem;
-  border-radius: 4px;
-  margin-bottom: 1rem;
-}
-
-.flash-success {
-  background: #d4edda;
-  border: 1px solid #c3e6cb;
-  color: #155724;
-}
-
-.flash-error {
-  background: #f8d7da;
-  border: 1px solid #f5c6cb;
-  color: #721c24;
+  .diff-pane--old {
+    border-right: none;
+    border-bottom: 1px solid var(--gin-border, #e4e4e7);
+  }
 }
 </style>

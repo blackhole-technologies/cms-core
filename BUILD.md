@@ -2,99 +2,85 @@
 
 ## Requirements
 
-- Node.js 18.x or higher (ES modules support)
+- Node.js 20+ (ES modules support)
 - No external dependencies (uses Node.js built-ins only)
 
 ## Quick Start
 
 ```bash
-# Navigate to project
-cd experiments/cms-core
-
-# Run the CMS
-node index.js
+node index.js        # Start CMS server
 # or
 npm start
 ```
+
+Server starts at http://localhost:3001
 
 ## Project Structure
 
 ```
 cms-core/
-├── core/               # Core system modules
-│   ├── boot.js         # Boot sequence orchestrator
+├── core/               # 106 core services
+│   ├── boot.js         # 5-phase boot sequence
 │   ├── config.js       # Configuration loader
 │   ├── discovery.js    # Module/theme discovery
 │   ├── hooks.js        # Event registry
 │   └── services.js     # Service container
-├── modules/            # Installable modules (empty by default)
-├── themes/             # Installable themes (empty by default)
-├── config/             # JSON configuration files
-│   ├── site.json       # Site metadata
+├── modules/            # 29 feature modules
+├── themes/             # Layouts + skins
+├── config/             # JSON configuration
+│   ├── site.json       # Site metadata & theme config
 │   └── modules.json    # Enabled modules list
-├── content/            # Content storage (empty by default)
-├── index.js            # Entry point
-└── package.json        # Package metadata
+├── content/            # Content storage (flat-file JSON)
+├── tests/              # Test suite
+│   ├── unit/           # Single-module tests
+│   ├── integration/    # Cross-module tests
+│   ├── browser/        # HTML test pages
+│   ├── fixtures/       # Test data
+│   └── scripts/        # Shell test scripts
+└── index.js            # Entry point
 ```
 
 ## Boot Sequence
 
-The CMS boots in five phases:
+1. **INIT** — Load configuration from `/config`
+2. **DISCOVER** — Scan `/modules` and `/themes`
+3. **REGISTER** — Register services and hooks
+4. **BOOT** — Initialize enabled modules
+5. **READY** — HTTP server starts
 
-1. **INIT** - Load configuration files from `/config`
-2. **DISCOVER** - Scan `/modules` and `/themes` for extensions
-3. **REGISTER** - Register services and module hooks
-4. **BOOT** - Initialize all enabled modules
-5. **READY** - System ready (HTTP server would start here)
+## Running Tests
 
-## Creating a Module
+```bash
+# Run a specific test
+node tests/unit/test-typed-data.js
+node tests/integration/test-fallback-chain.js
 
-1. Create a directory in `/modules` (e.g., `/modules/my-module`)
-2. Add a `manifest.json`:
-
-```json
-{
-  "name": "my-module",
-  "version": "1.0.0",
-  "description": "My custom module"
-}
+# Run all unit tests
+for f in tests/unit/*.js; do node "$f"; done
 ```
 
-3. Add the module to `/config/modules.json`:
+## Configuration
 
-```json
-{
-  "enabled": ["my-module"]
-}
+Edit `config/site.json`:
+- `port` — Server port (default: 3001)
+- `theme` — Legacy template theme
+- `themeEngine.layout` — Active layout (immersive, classic)
+- `themeEngine.skin` — Active skin (consciousness-dark, etc.)
+
+## Conversation Engine (Optional)
+
+```bash
+cd engines/conversation
+python -m venv .venv
+source .venv/bin/activate
+pip install -r requirements.txt
+uvicorn main:app
 ```
-
-4. Create an `index.js` with register/boot exports (coming in v0.0.2)
-
-## Environment Configuration
-
-Edit `/config/site.json` to change:
-
-- `name` - Site display name
-- `version` - Site version
-- `env` - Environment (`development`, `staging`, `production`)
-
-## Troubleshooting
-
-### "Config directory not found"
-Ensure you're running from the project root where `/config` exists.
-
-### "Config file not found"
-Check that the required JSON files exist in `/config`.
-
-### "Invalid JSON"
-Validate your JSON files (trailing commas are not allowed in JSON).
 
 ## Development
 
-No build step required - this is vanilla ES modules JavaScript.
+No build step — vanilla ES modules JavaScript. For watch mode:
 
-For development:
 ```bash
-# Watch mode (requires nodemon)
 npx nodemon index.js
 ```

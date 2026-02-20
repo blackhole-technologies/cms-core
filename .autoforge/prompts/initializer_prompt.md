@@ -10,7 +10,7 @@ This project already exists with ~90 core services and multiple modules.
 **DO NOT initialize git — it's already a git repo.**
 
 Instead:
-1. Read `CLAUDE.md` for the architecture guide
+1. CLAUDE.md is loaded automatically by the SDK (architecture guide)
 2. Read `app_spec.txt` for the features to create
 3. Create features using `feature_create_bulk`
 4. That's it. Skip tasks 2, 3, and 4 below.
@@ -19,7 +19,7 @@ Instead:
 
 ### FIRST: Read the Project Specification
 
-Start by reading `CLAUDE.md` first (architecture guide), then `app_spec.txt`.
+CLAUDE.md is loaded automatically by the SDK (architecture guide). Start by reading `app_spec.txt`.
 These files contain the complete specification for what you need to build.
 
 ---

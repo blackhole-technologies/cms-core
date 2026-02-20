@@ -1,0 +1,51 @@
+{
+  "name": "Admin",
+  "version": "1.0.0",
+  "description": "Professional admin theme inspired by Drupal's Gin, with dark mode and responsive sidebar",
+  "author": "CMS Core",
+  "screenshot": null,
+  "settings": {
+    "sticky_header": {
+      "type": "toggle",
+      "default": true,
+      "label": "Sticky Header",
+      "description": "Keep the top toolbar fixed when scrolling"
+    },
+    "show_breadcrumb": {
+      "type": "toggle",
+      "default": true,
+      "label": "Show Breadcrumb",
+      "description": "Display breadcrumb navigation below the toolbar"
+    },
+    "accent_color": {
+      "type": "color",
+      "default": "#2c59ee",
+      "label": "Accent Color",
+      "description": "Primary color used for links, buttons, and active states"
+    },
+    "sidebar_width": {
+      "type": "select",
+      "default": "260px",
+      "label": "Sidebar Width",
+      "description": "Width of the admin sidebar navigation",
+      "options": [
+        { "value": "220px", "label": "Narrow (220px)" },
+        { "value": "260px", "label": "Default (260px)" },
+        { "value": "300px", "label": "Wide (300px)" }
+      ]
+    }
+  },
+  "setting_groups": {
+    "layout": {
+      "label": "Layout",
+      "description": "Control the overall admin layout behavior",
+      "settings": ["sticky_header", "show_breadcrumb", "sidebar_width"]
+    },
+    "appearance": {
+      "label": "Appearance",
+      "description": "Customize the visual style",
+      "settings": ["accent_color"]
+    }
+  },
+  "color_schemes": {}
+}

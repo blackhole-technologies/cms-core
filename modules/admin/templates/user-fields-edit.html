@@ -1,22 +1,14 @@
-<!DOCTYPE html>
-<html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>{{#is_new}}Add{{/is_new}}{{^is_new}}Edit{{/is_new}} User Profile Field - {{site_name}}</title>
-</head>
-<body>
-    <div class="admin-content">
+<div class="admin-content">
         <header class="content-header">
             <h1>{{#is_new}}Add{{/is_new}}{{^is_new}}Edit{{/is_new}} User Profile Field</h1>
-            <a href="/admin/user-fields" class="btn btn-secondary">Back to List</a>
+            <a href="/admin/config/user-fields" class="btn btn-secondary">Back to List</a>
         </header>
 
         {{#error}}
         <div class="alert alert-error">{{error}}</div>
         {{/error}}
 
-        <form action="/admin/user-fields/save" method="POST" class="field-form">
+        <form action="/admin/config/user-fields/save" method="POST" class="field-form">
             {{^is_new}}
             <input type="hidden" name="field_id" value="{{field_id}}">
             {{/is_new}}
@@ -251,7 +243,7 @@
 
             <div class="form-actions">
                 <button type="submit" class="btn btn-primary">Save Field</button>
-                <a href="/admin/user-fields" class="btn btn-secondary">Cancel</a>
+                <a href="/admin/config/user-fields" class="btn btn-secondary">Cancel</a>
                 {{^is_new}}
                 {{^is_system}}
                 <button type="button" class="btn btn-danger delete-btn" data-field-id="{{field_id}}">
@@ -299,7 +291,7 @@
             if (deleteBtn) {
                 deleteBtn.addEventListener('click', function() {
                     if (confirm('Delete this field? User data will be permanently lost.')) {
-                        window.location.href = '/admin/user-fields/delete/' + this.dataset.fieldId;
+                        window.location.href = '/admin/config/user-fields/delete/' + this.dataset.fieldId;
                     }
                 });
             }
@@ -327,5 +319,3 @@
             }
         });
     </script>
-</body>
-</html>

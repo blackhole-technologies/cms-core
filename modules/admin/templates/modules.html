@@ -1,34 +1,38 @@
-<div class="admin-page">
+<div class="admin-breadcrumb">
+  <a href="/admin">Home</a> <span>&rsaquo;</span>
+  <a href="/admin/modules">Extend</a> <span>&rsaquo;</span>
+  <span>Module list</span>
+</div>
 
-  <div class="admin-header">
-    <h1>Modules</h1>
-    <nav class="admin-nav">
-      <a href="/admin">Dashboard</a>
-      <a href="/admin/content">Content</a>
-      <a href="/admin/modules" class="active">Modules</a>
-    </nav>
+<h1 class="admin-page-title">Modules</h1>
+<p class="admin-page-description">Enable or disable site modules. Changes take effect after a server restart.</p>
+
+{{#if hasFlash}}
+<div class="flash flash-{{flash.type}}">
+  {{flash.message}}
+  <form method="POST" action="/admin/restart" style="display:inline;margin-left:var(--gin-space-3, 0.75rem)">
+    {{csrfField}}
+    <button type="submit" class="btn btn-primary btn-small" onclick="return confirm('Restart the server now?')">Restart now</button>
+  </form>
+</div>
+{{/if}}
+
+<div class="admin-stats">
+  <div class="admin-stat-card">
+    <div class="admin-stat-value">{{enabledCount}}</div>
+    <div class="admin-stat-label">Enabled</div>
   </div>
-
-  {{#if hasFlash}}
-  <div class="flash flash-{{flash.type}}">
-    {{flash.message}}
+  <div class="admin-stat-card">
+    <div class="admin-stat-value">{{totalCount}}</div>
+    <div class="admin-stat-label">Discovered</div>
   </div>
-  {{/if}}
+</div>
 
-  <div class="stats-grid">
-    <div class="stat-card">
-      <div class="stat-value">{{enabledCount}}</div>
-      <div class="stat-label">Enabled</div>
-    </div>
-    <div class="stat-card">
-      <div class="stat-value">{{totalCount}}</div>
-      <div class="stat-label">Discovered</div>
-    </div>
-  </div>
-
-  <div class="admin-section">
+<div class="admin-panel">
+  <div class="admin-panel-header">
     <h2>Discovered Modules</h2>
-
+  </div>
+  <div class="admin-panel-body">
     {{#if hasModules}}
     <table class="admin-table">
       <thead>
@@ -37,31 +41,39 @@
           <th>Name</th>
           <th>Version</th>
           <th>Description</th>
+          <th>Operations</th>
         </tr>
       </thead>
       <tbody>
         {{#each modules}}
-        <tr class="{{#if enabled}}enabled{{else}}disabled{{/if}}">
+        <tr>
           <td>
             {{#if enabled}}
-            <span class="status-badge status-enabled">Enabled</span>
+            <span class="status-badge status-badge--published">Enabled</span>
             {{else}}
-            <span class="status-badge status-disabled">Disabled</span>
+            <span class="status-badge status-badge--draft">Disabled</span>
             {{/if}}
           </td>
           <td><strong>{{name}}</strong></td>
-          <td>{{version}}</td>
-          <td>{{description}}</td>
+          <td><code>{{version}}</code></td>
+          <td class="text-muted text-sm">{{description}}</td>
+          <td>
+            {{#if enabled}}
+            <form method="POST" action="/admin/modules/{{name}}/disable" style="display:inline">
+              {{csrfField}}
+              <button type="submit" class="btn btn-small btn-danger">Disable</button>
+            </form>
+            {{else}}
+            <form method="POST" action="/admin/modules/{{name}}/enable" style="display:inline">
+              {{csrfField}}
+              <button type="submit" class="btn btn-small btn-primary">Enable</button>
+            </form>
+            {{/if}}
+          </td>
         </tr>
         {{/each}}
       </tbody>
     </table>
-
-    <div class="help-text">
-      <p><strong>Note:</strong> To enable or disable modules, edit <code>config/modules.json</code> or use the CLI:</p>
-      <pre>node index.js modules:enable &lt;name&gt;
-node index.js modules:disable &lt;name&gt;</pre>
-    </div>
     {{else}}
     <p class="empty-message">No modules discovered. Create modules in the /modules directory.</p>
     {{/if}}

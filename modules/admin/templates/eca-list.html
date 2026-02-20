@@ -1,0 +1,94 @@
+<div class="admin-content">
+  <div class="admin-header">
+    <h1>ECA — Event-Condition-Action Rules</h1>
+    <a href="/admin/eca/add" class="btn btn-primary">+ Add Rule</a>
+  </div>
+
+  <p class="description">Automate site behavior: when an event fires and conditions pass, actions execute automatically.</p>
+
+  {{#if rules.length}}
+  <table class="admin-table">
+    <thead>
+      <tr>
+        <th>Rule</th>
+        <th>Event</th>
+        <th>Conditions</th>
+        <th>Actions</th>
+        <th>Status</th>
+        <th>Operations</th>
+      </tr>
+    </thead>
+    <tbody>
+      {{#each rules}}
+      <tr>
+        <td><strong>{{label}}</strong><br><small class="text-muted">{{id}}</small></td>
+        <td><code>{{event}}</code></td>
+        <td>{{conditionCount}}</td>
+        <td>{{actionCount}}</td>
+        <td>
+          {{#if enabled}}
+            <span class="badge badge-success">Enabled</span>
+          {{else}}
+            <span class="badge badge-secondary">Disabled</span>
+          {{/if}}
+        </td>
+        <td>
+          <a href="/admin/eca/edit/{{id}}" class="btn btn-sm">Edit</a>
+          <form method="POST" action="/admin/eca/toggle/{{id}}" style="display:inline">
+            {{csrfField}}
+            <button type="submit" class="btn btn-sm btn-outline">
+              {{#if enabled}}Disable{{else}}Enable{{/if}}
+            </button>
+          </form>
+          <form method="POST" action="/admin/eca/delete/{{id}}" style="display:inline"
+                onsubmit="return confirm('Delete this rule?')">
+            {{csrfField}}
+            <button type="submit" class="btn btn-sm btn-danger">Delete</button>
+          </form>
+        </td>
+      </tr>
+      {{/each}}
+    </tbody>
+  </table>
+  {{else}}
+  <div class="empty-state">
+    <p>No rules configured yet.</p>
+    <a href="/admin/eca/add" class="btn btn-primary">Create your first rule</a>
+  </div>
+  {{/if}}
+
+  <h2 style="margin-top:2rem">Recent Execution Log</h2>
+  {{#if log.length}}
+  <table class="admin-table">
+    <thead>
+      <tr><th>Time</th><th>Rule</th><th>Result</th></tr>
+    </thead>
+    <tbody>
+      {{#each log}}
+      <tr>
+        <td><small>{{timestamp}}</small></td>
+        <td><code>{{ruleId}}</code></td>
+        <td>
+          {{#if result.executed}}
+            <span class="badge badge-success">Executed ({{result.actions.length}} actions)</span>
+          {{else}}
+            <span class="badge badge-secondary">Skipped: {{result.reason}}</span>
+          {{/if}}
+        </td>
+      </tr>
+      {{/each}}
+    </tbody>
+  </table>
+  {{else}}
+  <p class="text-muted">No rule executions yet.</p>
+  {{/if}}
+
+  <h2 style="margin-top:2rem">Available Events</h2>
+  <div class="grid" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(250px,1fr));gap:0.5rem">
+    {{#each events}}
+    <div class="card" style="padding:0.75rem;border:1px solid var(--border-color,#ddd);border-radius:4px">
+      <code>{{id}}</code><br><small>{{label}}</small>
+    </div>
+    {{/each}}
+  </div>
+</div>

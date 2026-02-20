@@ -1,0 +1,76 @@
+.sdc-card {
+  background: var(--gin-surface, #fff);
+  border: 1px solid var(--gin-border-light, rgba(0,0,0,0.08));
+  border-radius: var(--gin-radius, 8px);
+  overflow: hidden;
+  transition: box-shadow 0.2s, transform 0.2s;
+}
+
+.sdc-card:hover {
+  box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+  transform: translateY(-2px);
+}
+
+.sdc-card__media img {
+  width: 100%;
+  height: 200px;
+  object-fit: cover;
+  display: block;
+}
+
+.sdc-card__content {
+  padding: 1rem;
+}
+
+.sdc-card__title {
+  margin: 0 0 0.5rem;
+  font-size: 1.125rem;
+  font-weight: 600;
+}
+
+.sdc-card__title a {
+  color: inherit;
+  text-decoration: none;
+}
+
+.sdc-card__title a:hover {
+  color: var(--gin-primary, #2c59ee);
+}
+
+.sdc-card__body {
+  margin: 0 0 0.75rem;
+  color: var(--gin-text-light, #545560);
+  font-size: 0.875rem;
+  line-height: 1.5;
+}
+
+.sdc-card__tags {
+  font-size: 0.75rem;
+  color: var(--gin-text-muted, #71727a);
+}
+
+/* Horizontal variant */
+.sdc-card--horizontal {
+  display: flex;
+}
+
+.sdc-card--horizontal .sdc-card__media {
+  flex: 0 0 200px;
+}
+
+.sdc-card--horizontal .sdc-card__media img {
+  height: 100%;
+}
+
+/* Compact variant */
+.sdc-card--compact .sdc-card__media img {
+  height: 120px;
+}
+
+.sdc-card--compact .sdc-card__content {
+  padding: 0.75rem;
+}
+
+.sdc-card--compact .sdc-card__title {
+  font-size: 0.9375rem;
+}

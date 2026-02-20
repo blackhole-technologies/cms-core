@@ -1,62 +1,4 @@
-<!DOCTYPE html>
-<html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>{{#isNew}}Create{{/isNew}}{{^isNew}}Edit{{/isNew}} Image Style - {{siteName}}</title>
-    <style>
-        .effects-list {
-            border: 1px solid #ddd;
-            border-radius: 4px;
-            margin: 1rem 0;
-        }
-        .effect-item {
-            padding: 1rem;
-            border-bottom: 1px solid #ddd;
-            background: #f9f9f9;
-            cursor: move;
-        }
-        .effect-item:last-child {
-            border-bottom: none;
-        }
-        .effect-item.dragging {
-            opacity: 0.5;
-        }
-        .effect-header {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            margin-bottom: 0.5rem;
-        }
-        .effect-config {
-            background: white;
-            padding: 1rem;
-            border-radius: 4px;
-            margin-top: 0.5rem;
-        }
-        .form-row {
-            display: flex;
-            gap: 1rem;
-            margin-bottom: 1rem;
-        }
-        .form-group {
-            flex: 1;
-        }
-        .preview-container {
-            margin-top: 2rem;
-            padding: 1rem;
-            border: 1px solid #ddd;
-            border-radius: 4px;
-            background: #f5f5f5;
-        }
-        .preview-image {
-            max-width: 100%;
-            height: auto;
-        }
-    </style>
-</head>
-<body>
-    <div class="admin-container">
+<div class="admin-container">
         <header class="admin-header">
             <h1>{{#isNew}}Create{{/isNew}}{{^isNew}}Edit{{/isNew}} Image Style</h1>
         </header>
@@ -334,5 +276,3 @@
         // Initialize drag and drop for existing effects
         document.querySelectorAll('.effect-item').forEach(setupDragAndDrop);
     </script>
-</body>
-</html>

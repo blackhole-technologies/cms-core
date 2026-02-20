@@ -1,0 +1,36 @@
+<link rel="stylesheet" href="/css/experience-builder.css">
+
+<div class="xb-container">
+  <!-- Sidebar: Component Browser -->
+  <div class="xb-sidebar">
+    <div class="xb-sidebar__header">
+      <h3>Components</h3>
+      <input type="text" id="xb-search" class="xb-sidebar__search" placeholder="Search components...">
+    </div>
+    <div class="xb-sidebar__list" id="xb-component-list">
+      <!-- Populated by JS -->
+    </div>
+  </div>
+
+  <!-- Canvas: Layout editing area -->
+  <div class="xb-canvas" id="xb-canvas">
+    <div class="xb-canvas__toolbar">
+      <h2>Layout: {{contentTitle}}</h2>
+      <div class="xb-canvas__actions">
+        <button id="xb-save-btn" class="btn btn-primary">Save Layout</button>
+        <a href="/admin/content" class="btn btn-outline">Back to Content</a>
+      </div>
+    </div>
+    <div id="xb-canvas-content">
+      <!-- Populated by JS -->
+    </div>
+  </div>
+</div>
+
+<script src="/js/experience-builder.js"></script>
+<script>
+  // Initialize the builder with content type and ID from server
+  document.addEventListener('DOMContentLoaded', function() {
+    XBInit('{{contentType}}', '{{contentId}}');
+  });
+</script>

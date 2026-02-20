@@ -1,447 +1,463 @@
-<div class="admin-page">
-
-  <div class="admin-header">
-    <h1>{{pageTitle}}</h1>
-    <nav class="admin-nav">
-      <a href="/admin">Dashboard</a>
-      <a href="/admin/content" class="active">Content</a>
-      <a href="/admin/modules">Modules</a>
-    </nav>
-  </div>
-
-  <div class="breadcrumb">
-    <a href="/admin">Dashboard</a> &rarr;
-    <a href="/admin/content">Content</a> &rarr;
-    <a href="/admin/content/{{type}}">{{type}}</a> &rarr;
-    {{#if isCreate}}
-    <span>New</span>
-    {{else}}
-    <span>Edit</span>
-    {{/if}}
-  </div>
-
-  {{#if hasFlash}}
-  <div class="flash flash-{{flash.type}}">
-    {{flash.message}}
-  </div>
+<div class="admin-breadcrumb">
+  <a href="/admin">Home</a> <span>&rsaquo;</span>
+  <a href="/admin/content">Content</a> <span>&rsaquo;</span>
+  <a href="/admin/content/{{type}}">{{type}}</a> <span>&rsaquo;</span>
+  {{#if isCreate}}
+  <span>New</span>
+  {{else}}
+  <span>Edit</span>
   {{/if}}
+</div>
 
-  {{#if isEdit}}
-  {{#if lockingEnabled}}
-  {{#if userHasLock}}
-  <div class="lock-banner lock-owned" id="lockBanner">
-    <span class="lock-icon">🔒</span>
-    <span class="lock-text">You are editing this {{type}}. Lock expires in <span id="lockCountdown">{{lockExpiresIn}}</span> seconds.</span>
-    <button type="button" class="btn btn-small" onclick="releaseLock()">Release Lock</button>
-  </div>
+<h1 class="admin-page-title">{{pageTitle}}</h1>
+
+{{#if hasFlash}}
+<div class="flash flash-{{flash.type}}">
+  {{flash.message}}
+</div>
+{{/if}}
+
+{{#if isEdit}}
+{{#if lockingEnabled}}
+{{#if userHasLock}}
+<div class="lock-banner lock-owned" id="lockBanner">
+  <span class="lock-icon">&#128274;</span>
+  <span class="lock-text">You are editing this {{type}}. Lock expires in <span id="lockCountdown">{{lockExpiresIn}}</span> seconds.</span>
+  <button type="button" class="btn btn-small" onclick="releaseLock()">Release Lock</button>
+</div>
+{{/if}}
+{{#if lockedByOther}}
+<div class="lock-banner lock-blocked">
+  <span class="lock-icon">&#128274;</span>
+  <span class="lock-text">Locked by <strong>{{lockedByUsername}}</strong>. You cannot edit until they release the lock or it expires.</span>
+  {{#if isAdmin}}
+  <form method="POST" action="/admin/locks/{{type}}/{{id}}/release" class="inline-form" onsubmit="return confirm('Force release this lock? The other user may lose unsaved changes.')">
+    <button type="submit" class="btn btn-small btn-warning">Take Over (Admin)</button>
+  </form>
   {{/if}}
-  {{#if lockedByOther}}
-  <div class="lock-banner lock-blocked">
-    <span class="lock-icon">🔒</span>
-    <span class="lock-text">Locked by <strong>{{lockedByUsername}}</strong>. You cannot edit until they release the lock or it expires.</span>
-    {{#if isAdmin}}
-    <form method="POST" action="/admin/locks/{{type}}/{{id}}/release" class="inline-form" onsubmit="return confirm('Force release this lock? The other user may lose unsaved changes.')">
-      <button type="submit" class="btn btn-small btn-warning">Take Over (Admin)</button>
-    </form>
-    {{/if}}
-  </div>
+</div>
+{{/if}}
+{{/if}}
+{{/if}}
+
+<div class="form-container">
+  <!-- Main Form Area -->
+  {{#if isCreate}}
+  <form method="POST" action="/admin/content/{{type}}" class="admin-form">
+  {{else}}
+  <form method="POST" action="/admin/content/{{type}}/{{id}}" class="admin-form">
   {{/if}}
-  {{/if}}
-  {{/if}}
+    {{csrfField}}
 
-  <div class="admin-section">
-    <div class="form-container">
-      {{#if isCreate}}
-      <form method="POST" action="/admin/content/{{type}}" class="admin-form">
-      {{else}}
-      <form method="POST" action="/admin/content/{{type}}/{{id}}" class="admin-form">
-      {{/if}}
-        {{csrfField}}
+    {{#each fields}}
+    <div class="form-group">
+      <label for="field-{{name}}">
+        {{name}}
+        {{#if required}}<span class="required">*</span>{{/if}}
+      </label>
 
-        {{#each fields}}
-        <div class="form-group">
-          <label for="field-{{name}}">
-            {{name}}
-            {{#if required}}<span class="required">*</span>{{/if}}
-          </label>
-
-          {{#if type}}
-          <input
-            type="text"
-            id="field-{{name}}"
-            name="{{name}}"
-            value="{{value}}"
-            {{#if required}}required{{/if}}
-            class="form-input"
-            placeholder="Enter {{name}}"
-          >
-          <small class="field-hint">Type: {{type}}</small>
-          {{/if}}
-        </div>
-        {{/each}}
-
-        {{#if workflowEnabled}}
-        <hr class="form-divider">
-        <h3>Publishing</h3>
-
-        <div class="form-group">
-          <label for="field-status">Status</label>
-          <select id="field-status" name="status" class="form-input">
-            <option value="draft" {{#if (eq currentStatus 'draft')}}selected{{/if}}>Draft</option>
-            <option value="pending" {{#if (eq currentStatus 'pending')}}selected{{/if}}>Pending Review</option>
-            <option value="published" {{#if (eq currentStatus 'published')}}selected{{/if}}>Published</option>
-            <option value="archived" {{#if (eq currentStatus 'archived')}}selected{{/if}}>Archived</option>
-          </select>
-          <small class="field-hint">Current: {{currentStatus}}</small>
-        </div>
-
-        {{#if publishedAt}}
-        <div class="form-group">
-          <label>Published At</label>
-          <p class="form-static">{{publishedAtFormatted}}</p>
-        </div>
-        {{/if}}
-
-        {{#if scheduledAt}}
-        <div class="form-group">
-          <label>Scheduled For</label>
-          <p class="form-static">{{scheduledAtFormatted}}</p>
-        </div>
-        {{/if}}
-        {{/if}}
-
-        <div class="form-actions">
-          {{#if isCreate}}
-          <button type="submit" class="btn btn-primary">Create {{type}}</button>
-          {{else}}
-          <button type="submit" class="btn btn-primary">Update {{type}}</button>
-          {{/if}}
-          <a href="/admin/content/{{type}}" class="btn">Cancel</a>
-        </div>
-      </form>
-
-      {{#if isEdit}}
-      <div class="content-meta">
-        <p><strong>ID:</strong> <code>{{id}}</code></p>
-        <p><strong>Created:</strong> {{createdFormatted}}</p>
-        <p><strong>Updated:</strong> {{updatedFormatted}}</p>
-        {{#if workflowEnabled}}
-        <p><strong>Status:</strong> <span class="status-badge status-{{currentStatus}}">{{currentStatus}}</span></p>
-        {{#if publishedAt}}
-        <p><strong>Published:</strong> {{publishedAtFormatted}}</p>
-        {{/if}}
-        {{#if scheduledAt}}
-        <p><strong>Scheduled:</strong> {{scheduledAtFormatted}}</p>
-        {{/if}}
-        {{/if}}
-      </div>
-
-      <div class="clone-section">
-        <h3>Clone</h3>
-        <button type="button" class="btn btn-secondary" onclick="toggleCloneModal()">Clone this {{type}}</button>
-      </div>
-
-      <div id="cloneModal" class="modal" style="display: none;">
-        <div class="modal-content">
-          <div class="modal-header">
-            <h3>Clone {{type}}</h3>
-            <button type="button" class="modal-close" onclick="toggleCloneModal()">&times;</button>
-          </div>
-          <form method="POST" action="/admin/content/{{type}}/{{id}}/clone">
-            {{csrfField}}
-            <div class="modal-body">
-              <div class="form-group">
-                <label for="clone-prefix">Title Prefix</label>
-                <input type="text" id="clone-prefix" name="prefix" value="Copy of " class="form-input" placeholder="Copy of ">
-                <small class="field-hint">Prepended to the title of the cloned item</small>
-              </div>
-              <div class="form-group">
-                <label class="checkbox-label">
-                  <input type="checkbox" name="deep" value="true">
-                  Deep clone (include referenced items)
-                </label>
-                <small class="field-hint">Also clone items referenced by relation fields</small>
-              </div>
-            </div>
-            <div class="modal-footer">
-              <button type="button" class="btn" onclick="toggleCloneModal()">Cancel</button>
-              <button type="submit" class="btn btn-primary">Clone</button>
-            </div>
-          </form>
-        </div>
-      </div>
-      <style>
-        .clone-section { margin-top: 1.5rem; padding: 1rem; background: #f8f9fa; border-radius: 4px; }
-        .clone-section h3 { margin: 0 0 0.75rem 0; font-size: 1rem; color: #495057; }
-        .modal { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); z-index: 1000; display: flex; align-items: center; justify-content: center; }
-        .modal-content { background: #fff; border-radius: 8px; max-width: 450px; width: 90%; box-shadow: 0 4px 20px rgba(0,0,0,0.2); }
-        .modal-header { display: flex; justify-content: space-between; align-items: center; padding: 1rem; border-bottom: 1px solid #dee2e6; }
-        .modal-header h3 { margin: 0; }
-        .modal-close { background: none; border: none; font-size: 1.5rem; cursor: pointer; color: #6c757d; }
-        .modal-body { padding: 1rem; }
-        .modal-footer { padding: 1rem; border-top: 1px solid #dee2e6; display: flex; justify-content: flex-end; gap: 0.5rem; }
-        .checkbox-label { display: flex; align-items: center; gap: 0.5rem; cursor: pointer; }
-        .checkbox-label input[type="checkbox"] { width: 1rem; height: 1rem; }
-      </style>
-      <script>
-        function toggleCloneModal() {
-          const modal = document.getElementById('cloneModal');
-          modal.style.display = modal.style.display === 'none' ? 'flex' : 'none';
-        }
-      </script>
-
-      {{#if hasSlugField}}
-      <div class="slug-section">
-        <h3>Permalink</h3>
-        <div class="slug-display">
-          <span class="slug-prefix">/{{type}}/</span>
-          <span class="slug-value">{{currentSlug}}</span>
-          <button type="button" class="btn btn-small" onclick="toggleSlugEdit()">Edit</button>
-        </div>
-        <div class="slug-edit" id="slugEdit" style="display: none;">
-          <form method="POST" action="/admin/content/{{type}}/{{id}}/slug" class="slug-form">
-            {{csrfField}}
-            <input type="text" name="slug" value="{{currentSlug}}" class="form-input slug-input" pattern="[a-z0-9-]+" title="Lowercase letters, numbers, and hyphens only">
-            <button type="submit" class="btn btn-small btn-primary">Save</button>
-            <button type="button" class="btn btn-small" onclick="toggleSlugEdit()">Cancel</button>
-          </form>
-        </div>
-        {{#if hasSlugHistory}}
-        <div class="slug-history">
-          <small>Previous slugs (will redirect): {{slugHistoryDisplay}}</small>
-        </div>
-        {{/if}}
-      </div>
-      <style>
-        .slug-section { margin-top: 1.5rem; padding: 1rem; background: #f8f9fa; border-radius: 4px; }
-        .slug-section h3 { margin: 0 0 0.75rem 0; font-size: 1rem; color: #495057; }
-        .slug-display { display: flex; align-items: center; gap: 0.5rem; }
-        .slug-prefix { color: #6c757d; font-family: monospace; }
-        .slug-value { font-family: monospace; font-weight: 500; color: #0d6efd; }
-        .slug-edit { margin-top: 0.75rem; }
-        .slug-form { display: flex; align-items: center; gap: 0.5rem; }
-        .slug-input { flex: 1; font-family: monospace; }
-        .slug-history { margin-top: 0.5rem; color: #6c757d; }
-      </style>
-      <script>
-        function toggleSlugEdit() {
-          const edit = document.getElementById('slugEdit');
-          edit.style.display = edit.style.display === 'none' ? 'block' : 'none';
-        }
-      </script>
-      {{/if}}
-
-      {{#if hasComputedFields}}
-      <div class="computed-fields">
-        <h3>Computed Fields</h3>
-        <p class="computed-note">These fields are calculated automatically and cannot be edited.</p>
-        {{#each computedFields}}
-        <div class="computed-field">
-          <label>{{name}}</label>
-          <span class="computed-value">{{value}}</span>
-          {{#if description}}
-          <small class="field-hint">{{description}}</small>
-          {{/if}}
-        </div>
-        {{/each}}
-      </div>
-      <style>
-        .computed-fields { margin-top: 1.5rem; padding: 1rem; background: #f8f9fa; border-radius: 4px; border: 1px dashed #dee2e6; }
-        .computed-fields h3 { margin: 0 0 0.5rem 0; font-size: 1rem; color: #6c757d; }
-        .computed-note { font-size: 0.85rem; color: #868e96; margin-bottom: 1rem; font-style: italic; }
-        .computed-field { margin-bottom: 0.75rem; }
-        .computed-field label { display: block; font-weight: 500; color: #6c757d; font-style: italic; }
-        .computed-value { display: block; padding: 0.5rem; background: #fff; border: 1px solid #e9ecef; border-radius: 3px; color: #495057; font-family: monospace; }
-      </style>
-      {{/if}}
-
-      {{#if workflowEnabled}}
-      <div class="workflow-actions">
-        <h3>Workflow Actions</h3>
-        <div class="action-buttons">
-          {{#if (eq currentStatus 'draft')}}
-          <form method="POST" action="/admin/content/{{type}}/{{id}}/publish" class="inline-form">
-            {{csrfField}}
-            <button type="submit" class="btn btn-success">Publish Now</button>
-          </form>
-          {{/if}}
-
-          {{#if (eq currentStatus 'published')}}
-          <form method="POST" action="/admin/content/{{type}}/{{id}}/unpublish" class="inline-form">
-            {{csrfField}}
-            <button type="submit" class="btn btn-warning">Unpublish</button>
-          </form>
-          {{/if}}
-
-          {{#unless (eq currentStatus 'archived')}}
-          <form method="POST" action="/admin/content/{{type}}/{{id}}/archive" class="inline-form">
-            {{csrfField}}
-            <button type="submit" class="btn btn-secondary">Archive</button>
-          </form>
-          {{/unless}}
-
-          {{#unless (eq currentStatus 'published')}}
-          <details class="schedule-form">
-            <summary class="btn btn-info">Schedule Publish</summary>
-            <form method="POST" action="/admin/content/{{type}}/{{id}}/schedule" class="schedule-form-content">
-              {{csrfField}}
-              <div class="form-group">
-                <label for="scheduledAt">Publish Date/Time</label>
-                <input type="datetime-local" id="scheduledAt" name="scheduledAt" class="form-input" required>
-              </div>
-              <button type="submit" class="btn btn-primary">Schedule</button>
-            </form>
-          </details>
-          {{/unless}}
-        </div>
-      </div>
-      {{/if}}
-
-      <div class="danger-zone">
-        <h3>Danger Zone</h3>
-        <form method="POST" action="/admin/content/{{type}}/{{id}}/delete" onsubmit="return confirm('Are you sure you want to delete this item? This cannot be undone.')">
-          {{csrfField}}
-          <button type="submit" class="btn btn-danger">Delete this {{type}}</button>
-        </form>
-      </div>
+      {{#if type}}
+      <input
+        type="text"
+        id="field-{{name}}"
+        name="{{name}}"
+        value="{{value}}"
+        {{#if required}}required{{/if}}
+        class="form-input"
+        placeholder="Enter {{name}}"
+      >
+      <small class="field-hint">Type: {{type}}</small>
       {{/if}}
     </div>
+    {{/each}}
+
+    {{#if workflowEnabled}}
+    <hr class="form-divider">
+    <h3>Publishing</h3>
+
+    <div class="form-group">
+      <label for="field-status">Status</label>
+      <select id="field-status" name="status" class="form-input">
+        <option value="draft" {{#if (eq currentStatus 'draft')}}selected{{/if}}>Draft</option>
+        <option value="pending" {{#if (eq currentStatus 'pending')}}selected{{/if}}>Pending Review</option>
+        <option value="published" {{#if (eq currentStatus 'published')}}selected{{/if}}>Published</option>
+        <option value="archived" {{#if (eq currentStatus 'archived')}}selected{{/if}}>Archived</option>
+      </select>
+      <small class="field-hint">Current: {{currentStatus}}</small>
+    </div>
+
+    {{#if publishedAt}}
+    <div class="form-group">
+      <label>Published At</label>
+      <p class="form-static">{{publishedAtFormatted}}</p>
+    </div>
+    {{/if}}
+
+    {{#if scheduledAt}}
+    <div class="form-group">
+      <label>Scheduled For</label>
+      <p class="form-static">{{scheduledAtFormatted}}</p>
+    </div>
+    {{/if}}
+    {{/if}}
+
+    <div class="form-actions">
+      {{#if isCreate}}
+      <button type="submit" class="btn btn-primary">Create {{type}}</button>
+      {{else}}
+      <button type="submit" class="btn btn-primary">Update {{type}}</button>
+      {{/if}}
+      <button type="button" class="btn" id="aiAutoFillBtn" onclick="aiAutoFill()" title="AI suggests title, summary, tags from your content">AI Auto-fill</button>
+      <a href="/admin/content/{{type}}" class="btn">Cancel</a>
+    </div>
+  </form>
+
+  {{#if isEdit}}
+  <!-- Sidebar: Metadata -->
+  <div class="content-meta">
+    <h3 style="margin:0 0 var(--gin-space-4);font-size:var(--gin-font-size-md);font-weight:var(--gin-weight-semibold)">Details</h3>
+
+    <p><strong>ID:</strong> <code>{{id}}</code></p>
+    <p><strong>Created:</strong> {{createdFormatted}}</p>
+    <p><strong>Updated:</strong> {{updatedFormatted}}</p>
+    {{#if workflowEnabled}}
+    <p><strong>Status:</strong> <span class="status-badge status-{{currentStatus}}">{{currentStatus}}</span></p>
+    {{#if publishedAt}}
+    <p><strong>Published:</strong> {{publishedAtFormatted}}</p>
+    {{/if}}
+    {{#if scheduledAt}}
+    <p><strong>Scheduled:</strong> {{scheduledAtFormatted}}</p>
+    {{/if}}
+    {{/if}}
+
+    {{#if hasSlugField}}
+    <hr style="border:none;border-top:1px solid var(--gin-border-light);margin:var(--gin-space-4) 0">
+    <h4 style="margin:0 0 var(--gin-space-2);font-size:var(--gin-font-size-sm)">Permalink</h4>
+    <div class="slug-display">
+      <span class="slug-prefix">/{{type}}/</span>
+      <span class="slug-value">{{currentSlug}}</span>
+      <button type="button" class="btn btn-small" onclick="toggleSlugEdit()">Edit</button>
+    </div>
+    <div class="slug-edit" id="slugEdit" style="display: none;">
+      <form method="POST" action="/admin/content/{{type}}/{{id}}/slug" class="slug-form">
+        {{csrfField}}
+        <input type="text" name="slug" value="{{currentSlug}}" class="form-input slug-input" pattern="[a-z0-9-]+" title="Lowercase letters, numbers, and hyphens only">
+        <button type="submit" class="btn btn-small btn-primary">Save</button>
+        <button type="button" class="btn btn-small" onclick="toggleSlugEdit()">Cancel</button>
+      </form>
+    </div>
+    {{#if hasSlugHistory}}
+    <div class="slug-history">
+      <small>Previous slugs (will redirect): {{slugHistoryDisplay}}</small>
+    </div>
+    {{/if}}
+    {{/if}}
+
+    <!-- SEO Metatag -->
+    <hr style="border:none;border-top:1px solid var(--gin-border-light);margin:var(--gin-space-4) 0">
+    <h4 style="margin:0 0 var(--gin-space-2);font-size:var(--gin-font-size-sm)">SEO</h4>
+    <div class="seo-sidebar">
+      <div class="form-group" style="margin-bottom:var(--gin-space-3)">
+        <label for="seo-meta-title" style="font-size:var(--gin-font-size-xs);color:var(--gin-text-muted)">
+          Meta Title <span class="seo-counter" id="metaTitleCount">0</span>/60
+        </label>
+        <input type="text" id="seo-meta-title" name="meta_title" value="{{metaTitle}}" class="form-input" maxlength="70" placeholder="Page title for search engines">
+      </div>
+      <div class="form-group" style="margin-bottom:var(--gin-space-3)">
+        <label for="seo-meta-desc" style="font-size:var(--gin-font-size-xs);color:var(--gin-text-muted)">
+          Meta Description <span class="seo-counter" id="metaDescCount">0</span>/160
+        </label>
+        <textarea id="seo-meta-desc" name="meta_description" class="form-input" rows="3" maxlength="170" placeholder="Brief description for search results" style="resize:vertical">{{metaDescription}}</textarea>
+      </div>
+      <div class="form-group" style="margin-bottom:var(--gin-space-3)">
+        <label for="seo-og-image" style="font-size:var(--gin-font-size-xs);color:var(--gin-text-muted)">OG Image URL</label>
+        <input type="text" id="seo-og-image" name="og_image" value="{{ogImage}}" class="form-input" placeholder="/uploads/image.jpg">
+      </div>
+      <div class="seo-preview" id="seoPreview" style="margin-top:var(--gin-space-3);padding:var(--gin-space-3);background:var(--gin-bg);border-radius:var(--gin-radius-sm);font-size:var(--gin-font-size-xs)">
+        <div style="color:#1a0dab;font-size:var(--gin-font-size-sm);margin-bottom:2px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" id="seoPreviewTitle">Page Title</div>
+        <div style="color:#006621;font-size:11px;margin-bottom:2px" id="seoPreviewUrl">{{siteUrl}}/{{type}}/{{currentSlug}}</div>
+        <div style="color:#545454;line-height:1.4;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden" id="seoPreviewDesc">Meta description preview will appear here...</div>
+      </div>
+    </div>
+
+    <!-- Clone -->
+    <hr style="border:none;border-top:1px solid var(--gin-border-light);margin:var(--gin-space-4) 0">
+    <button type="button" class="btn btn-small" onclick="toggleCloneModal()" style="width:100%">Clone this {{type}}</button>
+
+    {{#if workflowEnabled}}
+    <!-- Workflow Actions -->
+    <hr style="border:none;border-top:1px solid var(--gin-border-light);margin:var(--gin-space-4) 0">
+    <h4 style="margin:0 0 var(--gin-space-2);font-size:var(--gin-font-size-sm)">Workflow</h4>
+    <div class="action-buttons">
+      {{#if (eq currentStatus 'draft')}}
+      <form method="POST" action="/admin/content/{{type}}/{{id}}/publish" class="inline-form">
+        {{csrfField}}
+        <button type="submit" class="btn btn-small btn-success">Publish Now</button>
+      </form>
+      {{/if}}
+
+      {{#if (eq currentStatus 'published')}}
+      <form method="POST" action="/admin/content/{{type}}/{{id}}/unpublish" class="inline-form">
+        {{csrfField}}
+        <button type="submit" class="btn btn-small btn-warning">Unpublish</button>
+      </form>
+      {{/if}}
+
+      {{#unless (eq currentStatus 'archived')}}
+      <form method="POST" action="/admin/content/{{type}}/{{id}}/archive" class="inline-form">
+        {{csrfField}}
+        <button type="submit" class="btn btn-small btn-secondary">Archive</button>
+      </form>
+      {{/unless}}
+
+      {{#unless (eq currentStatus 'published')}}
+      <details class="schedule-form">
+        <summary class="btn btn-small btn-info">Schedule</summary>
+        <form method="POST" action="/admin/content/{{type}}/{{id}}/schedule" class="schedule-form-content">
+          {{csrfField}}
+          <div class="form-group" style="margin-bottom:var(--gin-space-2)">
+            <label for="scheduledAt">Publish Date/Time</label>
+            <input type="datetime-local" id="scheduledAt" name="scheduledAt" class="form-input" required>
+          </div>
+          <button type="submit" class="btn btn-small btn-primary">Schedule</button>
+        </form>
+      </details>
+      {{/unless}}
+    </div>
+    {{/if}}
+
+    <!-- Danger Zone -->
+    <hr style="border:none;border-top:1px solid var(--gin-border-light);margin:var(--gin-space-4) 0">
+    <form method="POST" action="/admin/content/{{type}}/{{id}}/delete" onsubmit="return confirm('Are you sure you want to delete this item? This cannot be undone.')">
+      {{csrfField}}
+      <button type="submit" class="btn btn-small btn-danger" style="width:100%">Delete this {{type}}</button>
+    </form>
   </div>
-
-  {{#if lockingEnabled}}
-  <style>
-    .lock-banner {
-      display: flex;
-      align-items: center;
-      gap: 0.75rem;
-      padding: 0.75rem 1rem;
-      border-radius: 4px;
-      margin-bottom: 1rem;
-    }
-    .lock-banner.lock-owned {
-      background: #d4edda;
-      border: 1px solid #c3e6cb;
-      color: #155724;
-    }
-    .lock-banner.lock-blocked {
-      background: #fff3cd;
-      border: 1px solid #ffeeba;
-      color: #856404;
-    }
-    .lock-banner.lock-warning {
-      background: #f8d7da;
-      border: 1px solid #f5c6cb;
-      color: #721c24;
-    }
-    .lock-icon {
-      font-size: 1.25rem;
-    }
-    .lock-text {
-      flex: 1;
-    }
-    .inline-form {
-      display: inline;
-    }
-    .form-disabled {
-      opacity: 0.6;
-      pointer-events: none;
-    }
-  </style>
-  {{#if userHasLock}}
-  <script>
-    (function() {
-      const type = '{{type}}';
-      const id = '{{id}}';
-      const timeout = {{lockTimeout}};
-      let expiresIn = {{lockExpiresIn}};
-      const countdownEl = document.getElementById('lockCountdown');
-      const bannerEl = document.getElementById('lockBanner');
-      const refreshInterval = 5 * 60 * 1000; // 5 minutes
-      const warningThreshold = 5 * 60; // 5 minutes
-
-      // Countdown timer
-      function updateCountdown() {
-        if (expiresIn <= 0) {
-          countdownEl.textContent = 'expired';
-          bannerEl.classList.remove('lock-owned');
-          bannerEl.classList.add('lock-warning');
-          bannerEl.querySelector('.lock-text').innerHTML = 'Your lock has expired! Save your work immediately or refresh to re-acquire the lock.';
-          return;
-        }
-
-        const mins = Math.floor(expiresIn / 60);
-        const secs = expiresIn % 60;
-        countdownEl.textContent = mins > 0 ? `${mins}m ${secs}s` : `${secs}s`;
-
-        // Warning when approaching expiration
-        if (expiresIn <= warningThreshold && !bannerEl.classList.contains('lock-warning')) {
-          bannerEl.classList.remove('lock-owned');
-          bannerEl.classList.add('lock-warning');
-        }
-
-        expiresIn--;
-        setTimeout(updateCountdown, 1000);
-      }
-
-      // Refresh lock periodically
-      function refreshLock() {
-        fetch(`/admin/content/${type}/${id}/lock/refresh`, {
-          method: 'POST',
-          credentials: 'same-origin',
-        })
-        .then(res => res.json())
-        .then(data => {
-          if (data.refreshed) {
-            expiresIn = data.expiresIn;
-            bannerEl.classList.remove('lock-warning');
-            bannerEl.classList.add('lock-owned');
-          }
-        })
-        .catch(err => console.error('Failed to refresh lock:', err));
-      }
-
-      // Release lock
-      window.releaseLock = function() {
-        fetch(`/admin/content/${type}/${id}/lock`, {
-          method: 'DELETE',
-          credentials: 'same-origin',
-        })
-        .then(res => res.json())
-        .then(data => {
-          if (data.released) {
-            bannerEl.style.display = 'none';
-          }
-        })
-        .catch(err => console.error('Failed to release lock:', err));
-      };
-
-      // Release lock on page unload
-      window.addEventListener('beforeunload', function() {
-        navigator.sendBeacon(`/admin/content/${type}/${id}/lock?_method=DELETE`);
-      });
-
-      // Start countdown
-      updateCountdown();
-
-      // Start periodic refresh
-      setInterval(refreshLock, refreshInterval);
-    })();
-  </script>
   {{/if}}
-  {{#if lockedByOther}}
-  <script>
-    // Disable form when locked by another user
-    document.addEventListener('DOMContentLoaded', function() {
-      const form = document.querySelector('.admin-form');
-      if (form) {
-        form.classList.add('form-disabled');
-        const inputs = form.querySelectorAll('input, select, textarea, button');
-        inputs.forEach(el => el.disabled = true);
-      }
-    });
-  </script>
-  {{/if}}
-  {{/if}}
-  <script src="/public/js/shortcuts.js"></script>
-  <script>Shortcuts.init({ context: 'content-edit' });</script>
 </div>
+
+{{#if isEdit}}
+{{#if hasComputedFields}}
+<div class="computed-fields">
+  <h3>Computed Fields</h3>
+  <p class="computed-note">These fields are calculated automatically and cannot be edited.</p>
+  {{#each computedFields}}
+  <div class="computed-field">
+    <label>{{name}}</label>
+    <span class="computed-value">{{value}}</span>
+    {{#if description}}
+    <small class="field-hint">{{description}}</small>
+    {{/if}}
+  </div>
+  {{/each}}
+</div>
+{{/if}}
+{{/if}}
+
+<!-- Clone Modal -->
+<div id="cloneModal" class="modal" style="display: none;">
+  <div class="modal-content">
+    <div class="modal-header">
+      <h3>Clone {{type}}</h3>
+      <button type="button" class="modal-close" onclick="toggleCloneModal()">&times;</button>
+    </div>
+    <form method="POST" action="/admin/content/{{type}}/{{id}}/clone">
+      {{csrfField}}
+      <div class="modal-body">
+        <div class="form-group">
+          <label for="clone-prefix">Title Prefix</label>
+          <input type="text" id="clone-prefix" name="prefix" value="Copy of " class="form-input" placeholder="Copy of ">
+          <small class="field-hint">Prepended to the title of the cloned item</small>
+        </div>
+        <div class="form-group">
+          <label class="checkbox-label">
+            <input type="checkbox" name="deep" value="true">
+            Deep clone (include referenced items)
+          </label>
+          <small class="field-hint">Also clone items referenced by relation fields</small>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn" onclick="toggleCloneModal()">Cancel</button>
+        <button type="submit" class="btn btn-primary">Clone</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<script>
+function toggleCloneModal() {
+  var modal = document.getElementById('cloneModal');
+  modal.style.display = modal.style.display === 'none' ? 'flex' : 'none';
+}
+
+function toggleSlugEdit() {
+  var edit = document.getElementById('slugEdit');
+  if (edit) edit.style.display = edit.style.display === 'none' ? 'block' : 'none';
+}
+</script>
+
+{{#if lockingEnabled}}
+{{#if userHasLock}}
+<script>
+(function() {
+  var type = '{{type}}';
+  var id = '{{id}}';
+  var expiresIn = {{lockExpiresIn}};
+  var countdownEl = document.getElementById('lockCountdown');
+  var bannerEl = document.getElementById('lockBanner');
+  var refreshInterval = 5 * 60 * 1000;
+  var warningThreshold = 5 * 60;
+
+  function updateCountdown() {
+    if (expiresIn <= 0) {
+      countdownEl.textContent = 'expired';
+      bannerEl.classList.remove('lock-owned');
+      bannerEl.classList.add('lock-warning');
+      bannerEl.querySelector('.lock-text').innerHTML = 'Your lock has expired! Save your work immediately or refresh to re-acquire the lock.';
+      return;
+    }
+
+    var mins = Math.floor(expiresIn / 60);
+    var secs = expiresIn % 60;
+    countdownEl.textContent = mins > 0 ? mins + 'm ' + secs + 's' : secs + 's';
+
+    if (expiresIn <= warningThreshold && !bannerEl.classList.contains('lock-warning')) {
+      bannerEl.classList.remove('lock-owned');
+      bannerEl.classList.add('lock-warning');
+    }
+
+    expiresIn--;
+    setTimeout(updateCountdown, 1000);
+  }
+
+  function refreshLock() {
+    fetch('/admin/content/' + type + '/' + id + '/lock/refresh', {
+      method: 'POST',
+      credentials: 'same-origin',
+    })
+    .then(function(res) { return res.json(); })
+    .then(function(data) {
+      if (data.refreshed) {
+        expiresIn = data.expiresIn;
+        bannerEl.classList.remove('lock-warning');
+        bannerEl.classList.add('lock-owned');
+      }
+    })
+    .catch(function(err) { console.error('Failed to refresh lock:', err); });
+  }
+
+  window.releaseLock = function() {
+    fetch('/admin/content/' + type + '/' + id + '/lock', {
+      method: 'DELETE',
+      credentials: 'same-origin',
+    })
+    .then(function(res) { return res.json(); })
+    .then(function(data) {
+      if (data.released) bannerEl.style.display = 'none';
+    })
+    .catch(function(err) { console.error('Failed to release lock:', err); });
+  };
+
+  window.addEventListener('beforeunload', function() {
+    navigator.sendBeacon('/admin/content/' + type + '/' + id + '/lock?_method=DELETE');
+  });
+
+  updateCountdown();
+  setInterval(refreshLock, refreshInterval);
+})();
+</script>
+{{/if}}
+{{#if lockedByOther}}
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+  var form = document.querySelector('.admin-form');
+  if (form) {
+    form.classList.add('form-disabled');
+    var inputs = form.querySelectorAll('input, select, textarea, button');
+    inputs.forEach(function(el) { el.disabled = true; });
+  }
+});
+</script>
+{{/if}}
+{{/if}}
+<script>
+/* SEO meta counter + preview */
+(function() {
+  var titleInput = document.getElementById('seo-meta-title');
+  var descInput = document.getElementById('seo-meta-desc');
+  var titleCount = document.getElementById('metaTitleCount');
+  var descCount = document.getElementById('metaDescCount');
+  var previewTitle = document.getElementById('seoPreviewTitle');
+  var previewDesc = document.getElementById('seoPreviewDesc');
+
+  function updateSeo() {
+    if (titleInput && titleCount) {
+      var tLen = titleInput.value.length;
+      titleCount.textContent = tLen;
+      titleCount.style.color = tLen > 60 ? '#dc3545' : tLen > 50 ? '#f59e0b' : '';
+      if (previewTitle) previewTitle.textContent = titleInput.value || 'Page Title';
+    }
+    if (descInput && descCount) {
+      var dLen = descInput.value.length;
+      descCount.textContent = dLen;
+      descCount.style.color = dLen > 160 ? '#dc3545' : dLen > 140 ? '#f59e0b' : '';
+      if (previewDesc) previewDesc.textContent = descInput.value || 'Meta description preview will appear here...';
+    }
+  }
+
+  if (titleInput) { titleInput.addEventListener('input', updateSeo); }
+  if (descInput) { descInput.addEventListener('input', updateSeo); }
+  updateSeo();
+})();
+</script>
+<script>
+/* AI Auto-fill: suggests title, summary, tags, slug from content body */
+function aiAutoFill() {
+  var btn = document.getElementById('aiAutoFillBtn');
+  // Find the main text content from any textarea (body, description, etc.)
+  var textareas = document.querySelectorAll('.admin-form textarea');
+  var text = '';
+  textareas.forEach(function(ta) { if (ta.value.length > text.length) text = ta.value; });
+  if (!text.trim()) { alert('Enter some content first so AI can analyze it.'); return; }
+
+  btn.disabled = true;
+  btn.textContent = 'Analyzing...';
+
+  var csrfToken = document.querySelector('meta[name="csrf-token"]');
+  var headers = { 'Content-Type': 'application/json' };
+  if (csrfToken) headers['X-CSRF-Token'] = csrfToken.content;
+
+  fetch('/api/ai/auto-fill', {
+    method: 'POST',
+    headers: headers,
+    body: JSON.stringify({ text: text })
+  })
+  .then(function(r) { return r.json(); })
+  .then(function(data) {
+    if (!data.suggestions) return;
+    var s = data.suggestions;
+    // Fill fields if they exist and are empty (don't overwrite user input)
+    function fillIfEmpty(name, value) {
+      var el = document.querySelector('[name="' + name + '"]');
+      if (el && !el.value.trim() && value) { el.value = value; el.dispatchEvent(new Event('input', { bubbles: true })); }
+    }
+    fillIfEmpty('title', s.title);
+    fillIfEmpty('summary', s.summary);
+    fillIfEmpty('description', s.summary);
+    fillIfEmpty('slug', s.slug);
+    // Fill SEO fields
+    fillIfEmpty('meta_title', s.title);
+    fillIfEmpty('meta_description', s.summary);
+    // Tags: if it's an array, join for a text input
+    if (s.tags && Array.isArray(s.tags)) {
+      var tagEl = document.querySelector('[name="tags"]');
+      if (tagEl && !tagEl.value.trim()) { tagEl.value = s.tags.join(', '); tagEl.dispatchEvent(new Event('input', { bubbles: true })); }
+    }
+  })
+  .catch(function(err) { console.error('[auto-fill]', err); })
+  .finally(function() { btn.disabled = false; btn.textContent = 'AI Auto-fill'; });
+}
+</script>
+<script src="/public/js/shortcuts.js"></script>
+<script>if(typeof Shortcuts!=='undefined')Shortcuts.init({ context: 'content-edit' });</script>

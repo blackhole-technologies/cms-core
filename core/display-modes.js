@@ -38,8 +38,12 @@ let templateModule = null;
 const viewModes = {
   full: { label: 'Full content', description: 'Complete content display' },
   teaser: { label: 'Teaser', description: 'Brief preview with link to full content' },
+  card: { label: 'Card', description: 'Compact card layout for grids and listings' },
   search_result: { label: 'Search result', description: 'Compact display for search results' },
-  rss: { label: 'RSS', description: 'Content formatted for RSS feeds' }
+  embedded: { label: 'Embedded', description: 'Inline display when referenced from other content' },
+  table_row: { label: 'Table row', description: 'Single-row display for tabular listings' },
+  rss: { label: 'RSS', description: 'Content formatted for RSS feeds' },
+  token: { label: 'Token', description: 'Minimal display for token replacement' },
 };
 
 /**
@@ -595,6 +599,18 @@ export async function buildDefaultDisplay(contentType, fields) {
 
   if (Object.keys(teaserFields).length > 0) {
     await setDisplay(contentType, 'teaser', teaserFields);
+  }
+
+  // Create card display — image + title only, trimmed tight
+  const cardFields = {};
+  let cardWeight = 0;
+  for (const name of ['image', 'title']) {
+    if (defaultFields[name]) {
+      cardFields[name] = { ...defaultFields[name], weight: cardWeight++, label: 'hidden' };
+    }
+  }
+  if (Object.keys(cardFields).length > 0) {
+    await setDisplay(contentType, 'card', cardFields);
   }
 }
 

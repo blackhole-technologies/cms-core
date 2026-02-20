@@ -4,7 +4,27 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>{{title}} - {{siteName}}</title>
+  {{#if metaDescription}}<meta name="description" content="{{metaDescription}}">{{/if}}
+  {{#if metaTitle}}<meta property="og:title" content="{{metaTitle}}">{{/if}}
+  {{#if metaDescription}}<meta property="og:description" content="{{metaDescription}}">{{/if}}
+  {{#if ogImage}}<meta property="og:image" content="{{ogImage}}">{{/if}}
   <link rel="stylesheet" href="/public/css/theme.css">
+  {{#if breadcrumbsJson}}
+  <script type="application/ld+json">{{{breadcrumbsJson}}}</script>
+  {{/if}}
+  {{#if gtmId}}
+  <!-- Google Tag Manager — gated by cookie consent (analytics category) -->
+  <script>
+  (function(){
+    var c = localStorage.getItem('cookie-consent');
+    if (c) { try { c = JSON.parse(c); } catch(e) { c = null; } }
+    if (c && c.analytics) {
+      (function(w,d,s,l,i){w[l]=w[l]||[];w[l].push({'gtm.start':new Date().getTime(),event:'gtm.js'});var f=d.getElementsByTagName(s)[0],j=d.createElement(s),dl=l!='dataLayer'?'&l='+l:'';j.async=true;j.src='https://www.googletagmanager.com/gtm.js?id='+i+dl;f.parentNode.insertBefore(j,f);})(window,document,'script','dataLayer','{{gtmId}}');
+    }
+  })();
+  </script>
+  {{/if}}
+  {{{headScripts}}}
 </head>
 <body>
   <header>
@@ -12,6 +32,18 @@
       <a href="/" class="site-title">{{siteName}}</a>
     </nav>
   </header>
+
+  {{#if breadcrumbs}}
+  <nav class="breadcrumbs" aria-label="Breadcrumb">
+    <ol>
+      {{#each breadcrumbs}}
+      <li>
+        {{#if url}}<a href="{{url}}">{{label}}</a>{{else}}<span aria-current="page">{{label}}</span>{{/if}}
+      </li>
+      {{/each}}
+    </ol>
+  </nav>
+  {{/if}}
 
   <main>
     {{{content}}}
