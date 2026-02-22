@@ -1,5 +1,5 @@
 /**
- * static.js - Static File Serving
+ * static.ts - Static File Serving
  *
  * WHY STATIC FILE SERVING:
  * ========================
@@ -58,8 +58,21 @@
  * - Build tools for bundling/minification
  */
 
-import { existsSync, readFileSync, statSync } from 'node:fs';
+import { existsSync, readFileSync, statSync, createReadStream } from 'node:fs';
 import { join, extname, resolve, normalize } from 'node:path';
+import type { IncomingMessage, ServerResponse } from 'node:http';
+import type { Stats } from 'node:fs';
+
+// ============================================================================
+// Types
+// ============================================================================
+
+/** MIME type mapping from file extension to content-type */
+type MimeTypeMap = Record<string, string>;
+
+// ============================================================================
+// Constants
+// ============================================================================
 
 /**
  * MIME type mapping
@@ -79,7 +92,7 @@ import { join, extname, resolve, normalize } from 'node:path';
  * - We only need common web types
  * - Easy to extend if needed
  */
-const MIME_TYPES = {
+const MIME_TYPES: MimeTypeMap = {
   // Text formats
   '.html': 'text/html; charset=utf-8',
   '.css': 'text/css; charset=utf-8',
@@ -121,7 +134,7 @@ const MIME_TYPES = {
 /**
  * Video extensions that support range requests
  */
-const VIDEO_EXTENSIONS = ['.mp4', '.webm', '.mov', '.avi', '.mkv', '.m4v'];
+const VIDEO_EXTENSIONS: string[] = ['.mp4', '.webm', '.mov', '.avi', '.mkv', '.m4v'];
 
 /**
  * Default MIME type for unknown extensions
@@ -131,20 +144,24 @@ const VIDEO_EXTENSIONS = ['.mp4', '.webm', '.mov', '.avi', '.mkv', '.m4v'];
  * - Safe fallback (won't execute as script)
  * - Browser will prompt to save file
  */
-const DEFAULT_MIME_TYPE = 'application/octet-stream';
+const DEFAULT_MIME_TYPE: string = 'application/octet-stream';
+
+// ============================================================================
+// Public API
+// ============================================================================
 
 /**
  * Get MIME type for a file path
  *
- * @param {string} filePath - Path to file (uses extension)
- * @returns {string} - MIME type string
+ * @param filePath - Path to file (uses extension)
+ * @returns MIME type string
  *
  * @example
  * getMimeType('/public/css/style.css')  // 'text/css; charset=utf-8'
  * getMimeType('/public/logo.png')       // 'image/png'
  * getMimeType('/public/data.xyz')       // 'application/octet-stream'
  */
-export function getMimeType(filePath) {
+export function getMimeType(filePath: string): string {
   const ext = extname(filePath).toLowerCase();
   return MIME_TYPES[ext] || DEFAULT_MIME_TYPE;
 }
@@ -152,9 +169,9 @@ export function getMimeType(filePath) {
 /**
  * Check if a path is safe (doesn't escape the public directory)
  *
- * @param {string} publicDir - Absolute path to /public directory
- * @param {string} requestedPath - The resolved absolute path
- * @returns {boolean} - true if path is within publicDir
+ * @param publicDir - Absolute path to /public directory
+ * @param requestedPath - The resolved absolute path
+ * @returns true if path is within publicDir
  *
  * SECURITY:
  * This is the critical security check. A path is safe only if
@@ -170,7 +187,7 @@ export function getMimeType(filePath) {
  * - startsWith() ensures we're still in /public
  * - Simple and hard to get wrong
  */
-function isPathSafe(publicDir, requestedPath) {
+function isPathSafe(publicDir: string, requestedPath: string): boolean {
   // Normalize both paths to handle any edge cases
   const normalizedPublic = normalize(publicDir);
   const normalizedRequest = normalize(requestedPath);
@@ -184,11 +201,12 @@ function isPathSafe(publicDir, requestedPath) {
 /**
  * Serve a static file
  *
- * @param {string} baseDir - Project root directory
- * @param {string} urlPath - URL path (e.g., '/public/css/style.css')
- * @param {http.ServerResponse} res - HTTP response object
- * @param {string} method - HTTP method (GET or HEAD)
- * @returns {boolean} - true if file was served, false if not found
+ * @param baseDir - Project root directory
+ * @param urlPath - URL path (e.g., '/public/css/style.css')
+ * @param res - HTTP response object
+ * @param method - HTTP method (GET or HEAD)
+ * @param req - HTTP request object (needed for range requests)
+ * @returns true if file was served, false if not found
  *
  * WHAT THIS DOES:
  * 1. Validates the URL path starts with /public/
@@ -215,7 +233,13 @@ function isPathSafe(publicDir, requestedPath) {
  *   // File not found, try routes
  * }
  */
-export function serve(baseDir, urlPath, res, method = 'GET', req = null) {
+export function serve(
+  baseDir: string,
+  urlPath: string,
+  res: ServerResponse,
+  method: string = 'GET',
+  req: IncomingMessage | null = null
+): boolean {
   // Only handle /public/ URLs
   // WHY CHECK HERE:
   // Defense in depth - don't assume caller validated
@@ -251,13 +275,13 @@ export function serve(baseDir, urlPath, res, method = 'GET', req = null) {
   // - Directories shouldn't be served
   // - Prevents accidental directory listing
   // - stat() would fail anyway on directory read
-  let stats;
+  let stats: Stats;
   try {
     stats = statSync(filePath);
     if (!stats.isFile()) {
       return false;
     }
-  } catch (error) {
+  } catch (_error: unknown) {
     // stat failed - file might have been deleted between exists and stat
     return false;
   }
@@ -284,7 +308,7 @@ export function serve(baseDir, urlPath, res, method = 'GET', req = null) {
   try {
     const content = readFileSync(filePath);
 
-    const headers = {
+    const headers: Record<string, string | number> = {
       'Content-Type': mimeType,
       'Content-Length': content.length,
     };
@@ -307,9 +331,10 @@ export function serve(baseDir, urlPath, res, method = 'GET', req = null) {
     }
 
     return true;
-  } catch (error) {
+  } catch (error: unknown) {
     // Read failed - permissions issue, file deleted, etc.
-    console.error(`[static] Failed to read file ${filePath}: ${error.message}`);
+    const message = error instanceof Error ? error.message : String(error);
+    console.error(`[static] Failed to read file ${filePath}: ${message}`);
     return false;
   }
 }
@@ -317,12 +342,12 @@ export function serve(baseDir, urlPath, res, method = 'GET', req = null) {
 /**
  * Serve a range request for video streaming
  *
- * @param {string} filePath - Absolute path to file
- * @param {number} fileSize - Total file size in bytes
- * @param {string} mimeType - MIME type
- * @param {http.IncomingMessage} req - HTTP request
- * @param {http.ServerResponse} res - HTTP response
- * @returns {boolean} - true if served
+ * @param filePath - Absolute path to file
+ * @param fileSize - Total file size in bytes
+ * @param mimeType - MIME type
+ * @param req - HTTP request
+ * @param res - HTTP response
+ * @returns true if served
  *
  * RANGE REQUEST FORMAT:
  * Request: "Range: bytes=0-1023" (first 1024 bytes)
@@ -336,13 +361,20 @@ export function serve(baseDir, urlPath, res, method = 'GET', req = null) {
  * - Server sends only that portion
  * - Video plays from that point without waiting
  */
-function serveRangeRequest(filePath, fileSize, mimeType, req, res) {
+function serveRangeRequest(
+  filePath: string,
+  fileSize: number,
+  mimeType: string,
+  req: IncomingMessage,
+  res: ServerResponse
+): boolean {
   const range = req.headers.range;
+  if (!range) return false;
 
   // Parse range header
   // Format: "bytes=start-end" or "bytes=start-"
   const parts = range.replace(/bytes=/, '').split('-');
-  const start = parseInt(parts[0], 10);
+  const start = parseInt(parts[0]!, 10);
   const end = parts[1] ? parseInt(parts[1], 10) : fileSize - 1;
 
   // Validate range
@@ -363,7 +395,6 @@ function serveRangeRequest(filePath, fileSize, mimeType, req, res) {
   // WHY NOT readFileSync:
   // - For large videos, reading entire file wastes memory
   // - We use createReadStream for efficiency
-  const { createReadStream } = require('node:fs');
   const stream = createReadStream(filePath, { start, end: clampedEnd });
 
   res.writeHead(206, {
@@ -380,14 +411,14 @@ function serveRangeRequest(filePath, fileSize, mimeType, req, res) {
 /**
  * Check if a URL path should be handled as static
  *
- * @param {string} urlPath - URL path to check
- * @returns {boolean} - true if path is for static files
+ * @param urlPath - URL path to check
+ * @returns true if path is for static files
  *
  * WHY SEPARATE FUNCTION:
  * Server.js can quickly check if a path is static
  * without going through the full serve() logic.
  */
-export function isStaticPath(urlPath) {
+export function isStaticPath(urlPath: string): boolean {
   return urlPath.startsWith('/public/') || urlPath === '/public';
 }
 

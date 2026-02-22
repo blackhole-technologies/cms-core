@@ -19,7 +19,7 @@
  * Uses only Node.js standard library for maximum portability.
  */
 
-import { trigger } from './hooks.js';
+import { trigger } from './hooks.ts';
 
 /**
  * Token type registry

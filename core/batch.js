@@ -24,7 +24,7 @@
 
 import * as fs from 'fs';
 import * as path from 'path';
-import * as hooks from './hooks.js';
+import * as hooks from './hooks.ts';
 
 // Configuration
 let baseDir = './content';

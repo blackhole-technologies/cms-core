@@ -42,7 +42,7 @@
  * @module contextual
  */
 
-import * as hooks from './hooks.js';
+import * as hooks from './hooks.ts';
 
 /**
  * Registered contextual link definitions

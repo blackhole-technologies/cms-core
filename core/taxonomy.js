@@ -45,7 +45,7 @@
 
 import { readFileSync, writeFileSync, existsSync, mkdirSync } from 'node:fs';
 import { join } from 'node:path';
-import * as hooks from './hooks.js';
+import * as hooks from './hooks.ts';
 import { slugify } from './slugify.js';
 
 /**

@@ -8,7 +8,7 @@
  * - Spam detection hooks
  */
 
-import * as hooks from './hooks.js';
+import * as hooks from './hooks.ts';
 
 // Configuration
 let enabled = true;

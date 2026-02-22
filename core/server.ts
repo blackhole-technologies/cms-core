@@ -1,5 +1,5 @@
 /**
- * server.js - HTTP Server with Middleware Support
+ * server.ts - HTTP Server with Middleware Support
  *
  * WHY THIS EXISTS:
  * A CMS needs to serve HTTP requests. This module provides:
@@ -21,23 +21,39 @@
  */
 
 import { createServer } from 'node:http';
-import * as router from './router.js';
-import * as static_ from './static.js';
+import type { Server, IncomingMessage, ServerResponse } from 'node:http';
+import type { AddressInfo } from 'node:net';
+import * as router from './router.ts';
+import * as static_ from './static.ts';
+import type { RequestContext } from './router.ts';
+
+// ============================================================================
+// Types
+// ============================================================================
+
+/** Extended IncomingMessage with start time for response timing */
+interface TimedRequest extends IncomingMessage {
+    startTime?: number;
+}
+
+// ============================================================================
+// State
+// ============================================================================
 
 /**
  * Server instance (so we can stop it later)
  */
-let server = null;
+let server: Server | null = null;
 
 /**
  * Boot context (so handlers can access config, services, etc.)
  */
-let bootContext = null;
+let bootContext: RequestContext | null = null;
 
 /**
  * Format current timestamp for logging
  */
-function timestamp() {
+function timestamp(): string {
   return new Date().toISOString();
 }
 
@@ -51,11 +67,8 @@ function timestamp() {
  * 4. Check for static files
  * 5. Match and call route handler
  * 6. 404 if no match
- *
- * @param {http.IncomingMessage} req
- * @param {http.ServerResponse} res
  */
-async function handleRequest(req, res) {
+async function handleRequest(req: TimedRequest, res: ServerResponse): Promise<void> {
   const method = req.method || 'GET';
   const url = req.url || '/';
   const startTime = Date.now();
@@ -64,13 +77,13 @@ async function handleRequest(req, res) {
   req.startTime = startTime;
 
   // Parse URL to get path without query string
-  const path = url.split('?')[0];
+  const path = url.split('?')[0]!;
 
   try {
     // RUN MIDDLEWARE PIPELINE
     // Global middleware runs first, then path-specific.
     // If middleware responds (sets res.writableEnded), we stop here.
-    const shouldContinue = await router.runMiddleware(req, res, bootContext, path);
+    const shouldContinue = await router.runMiddleware(req, res, bootContext!, path);
 
     if (!shouldContinue) {
       // Middleware handled the response
@@ -85,7 +98,7 @@ async function handleRequest(req, res) {
     // - GET serves the file content
     // - HEAD serves headers only (for content-type checks)
     if ((method === 'GET' || method === 'HEAD') && static_.isStaticPath(path)) {
-      const served = static_.serve(bootContext.baseDir, path, res, method);
+      const served = static_.serve(bootContext!.baseDir as string, path, res, method, req);
 
       if (served) {
         return;
@@ -105,14 +118,15 @@ async function handleRequest(req, res) {
 
     if (matched) {
       // Route found - call the handler
-      const { handler, params, route } = matched;
+      const { handler, params } = matched;
 
       try {
-        await handler(req, res, params, bootContext);
+        await handler(req, res, params, bootContext!);
 
-      } catch (handlerError) {
+      } catch (handlerError: unknown) {
         // Handler threw an error
-        console.error(`[server] Handler error for ${method} ${url}:`, handlerError.message);
+        const message = handlerError instanceof Error ? handlerError.message : String(handlerError);
+        console.error(`[server] Handler error for ${method} ${url}:`, message);
 
         if (!res.headersSent) {
           res.writeHead(500, { 'Content-Type': 'application/json' });
@@ -126,9 +140,10 @@ async function handleRequest(req, res) {
       res.end(JSON.stringify({ error: 'Not Found', path: url }));
     }
 
-  } catch (error) {
+  } catch (error: unknown) {
     // Something went very wrong
-    console.error(`[server] Critical error handling ${method} ${url}:`, error.message);
+    const message = error instanceof Error ? error.message : String(error);
+    console.error(`[server] Critical error handling ${method} ${url}:`, message);
 
     if (!res.headersSent) {
       res.writeHead(500, { 'Content-Type': 'text/plain' });
@@ -140,15 +155,15 @@ async function handleRequest(req, res) {
 /**
  * Start the HTTP server
  *
- * @param {number} port - Port to listen on
- * @param {Object} context - Boot context (config, services, modules, etc.)
- * @returns {Promise<void>}
+ * @param port - Port to listen on
+ * @param context - Boot context (config, services, modules, etc.)
+ * @returns Promise that resolves when the server is listening
  *
  * WHY ASYNC:
  * Server.listen() is callback-based. We wrap it in a promise
  * so callers can await it and know when the server is ready.
  */
-export function start(port, context) {
+export function start(port: number, context: RequestContext): Promise<void> {
   return new Promise((resolve, reject) => {
     // Store context for handlers
     bootContext = context;
@@ -157,7 +172,7 @@ export function start(port, context) {
     server = createServer(handleRequest);
 
     // Handle server errors
-    server.on('error', (error) => {
+    server.on('error', (error: NodeJS.ErrnoException) => {
       if (error.code === 'EADDRINUSE') {
         reject(new Error(`Port ${port} is already in use`));
       } else {
@@ -175,20 +190,20 @@ export function start(port, context) {
 /**
  * Stop the HTTP server
  *
- * @returns {Promise<void>}
+ * @returns Promise that resolves when the server is closed
  *
  * WHY GRACEFUL:
  * Closing the server stops accepting new connections.
  * Existing connections are allowed to finish.
  */
-export function stop() {
+export function stop(): Promise<void> {
   return new Promise((resolve, reject) => {
     if (!server) {
       resolve();
       return;
     }
 
-    server.close((error) => {
+    server.close((error?: Error) => {
       if (error) {
         reject(error);
       } else {
@@ -203,18 +218,19 @@ export function stop() {
 /**
  * Check if server is running
  */
-export function isRunning() {
+export function isRunning(): boolean {
   return server !== null && server.listening;
 }
 
 /**
  * Get server address (for logging)
  */
-export function getAddress() {
+export function getAddress(): string | null {
   if (!server) return null;
   const addr = server.address();
   if (typeof addr === 'string') return addr;
-  return `http://localhost:${addr.port}`;
+  if (addr === null) return null;
+  return `http://localhost:${(addr as AddressInfo).port}`;
 }
 
 /**
@@ -227,11 +243,11 @@ export function getAddress() {
 /**
  * Send a JSON response
  *
- * @param {http.ServerResponse} res
- * @param {*} data - Data to JSON.stringify
- * @param {number} status - HTTP status code (default 200)
+ * @param res - HTTP response object
+ * @param data - Data to JSON.stringify
+ * @param status - HTTP status code (default 200)
  */
-export function json(res, data, status = 200) {
+export function json(res: ServerResponse, data: unknown, status: number = 200): void {
   res.writeHead(status, { 'Content-Type': 'application/json' });
   res.end(JSON.stringify(data));
 }
@@ -239,23 +255,23 @@ export function json(res, data, status = 200) {
 /**
  * Send a plain text response
  *
- * @param {http.ServerResponse} res
- * @param {string} text - Text to send
- * @param {number} status - HTTP status code (default 200)
+ * @param res - HTTP response object
+ * @param textContent - Text to send
+ * @param status - HTTP status code (default 200)
  */
-export function text(res, text, status = 200) {
+export function text(res: ServerResponse, textContent: string, status: number = 200): void {
   res.writeHead(status, { 'Content-Type': 'text/plain' });
-  res.end(text);
+  res.end(textContent);
 }
 
 /**
  * Send an HTML response
  *
- * @param {http.ServerResponse} res
- * @param {string} html - HTML to send
- * @param {number} status - HTTP status code (default 200)
+ * @param res - HTTP response object
+ * @param htmlContent - HTML to send
+ * @param status - HTTP status code (default 200)
  */
-export function html(res, html, status = 200) {
+export function html(res: ServerResponse, htmlContent: string, status: number = 200): void {
   res.writeHead(status, { 'Content-Type': 'text/html' });
-  res.end(html);
+  res.end(htmlContent);
 }

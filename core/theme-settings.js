@@ -22,7 +22,7 @@
 
 import { readFileSync, writeFileSync, existsSync, mkdirSync, readdirSync } from 'node:fs';
 import { join, dirname } from 'node:path';
-import * as hooks from './hooks.js';
+import * as hooks from './hooks.ts';
 
 /**
  * Base directory (project root)
