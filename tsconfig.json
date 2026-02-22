@@ -1,0 +1,27 @@
+{
+  "compilerOptions": {
+    "target": "ES2022",
+    "module": "NodeNext",
+    "moduleResolution": "NodeNext",
+    "strict": true,
+    "noUncheckedIndexedAccess": true,
+    "noEmit": true,
+    "esModuleInterop": true,
+    "forceConsistentCasingInFileNames": true,
+    "resolveJsonModule": true,
+    "skipLibCheck": true
+  },
+  "include": [
+    "core/**/*.ts",
+    "modules/**/*.ts",
+    "index.ts",
+    "server.ts",
+    "build.ts"
+  ],
+  "exclude": [
+    "node_modules",
+    "public",
+    "themes",
+    "content"
+  ]
+}

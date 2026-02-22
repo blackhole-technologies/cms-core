@@ -1,14 +1,15 @@
 {
   "name": "cms-core",
   "version": "0.0.80",
-  "description": "Minimal JavaScript CMS core with modular architecture",
+  "description": "Minimal TypeScript CMS core with modular architecture",
   "type": "module",
-  "main": "index.js",
+  "main": "index.ts",
   "scripts": {
-    "start": "node server.js",
-    "start:raw": "node index.js",
-    "build": "node build.js",
-    "build:watch": "node build.js --watch"
+    "start": "node server.ts",
+    "start:raw": "node index.ts",
+    "build": "node build.ts",
+    "build:watch": "node build.ts --watch",
+    "typecheck": "tsc"
   },
   "keywords": [
     "cms",
@@ -18,21 +19,23 @@
   "license": "MIT",
   "dependencies": {
     "@tiptap/core": "^2.11.0",
-    "@tiptap/starter-kit": "^2.11.0",
-    "@tiptap/pm": "^2.11.0",
+    "@tiptap/extension-code-block-lowlight": "^2.11.0",
     "@tiptap/extension-image": "^2.11.0",
     "@tiptap/extension-link": "^2.11.0",
     "@tiptap/extension-placeholder": "^2.11.0",
     "@tiptap/extension-table": "^2.11.0",
-    "@tiptap/extension-table-row": "^2.11.0",
     "@tiptap/extension-table-cell": "^2.11.0",
     "@tiptap/extension-table-header": "^2.11.0",
-    "@tiptap/extension-underline": "^2.11.0",
+    "@tiptap/extension-table-row": "^2.11.0",
     "@tiptap/extension-text-align": "^2.11.0",
-    "@tiptap/extension-code-block-lowlight": "^2.11.0",
+    "@tiptap/extension-underline": "^2.11.0",
+    "@tiptap/pm": "^2.11.0",
+    "@tiptap/starter-kit": "^2.11.0",
     "sharp": "^0.33.0"
   },
   "devDependencies": {
-    "esbuild": "^0.24.0"
+    "@types/node": "^22.19.11",
+    "esbuild": "^0.24.0",
+    "typescript": "^5.9.3"
   }
 }
