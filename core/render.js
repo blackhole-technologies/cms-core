@@ -8,7 +8,7 @@
  * @version 1.0.0
  */
 
-import { escapeHtml } from './utils.js';
+import { escapeHtml } from './utils.ts';
 
 /**
  * Render context - tracks metadata during render process

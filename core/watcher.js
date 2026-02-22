@@ -26,7 +26,7 @@
 
 import { watch, existsSync, mkdirSync, appendFileSync, readFileSync } from 'node:fs';
 import { join, basename, dirname, relative } from 'node:path';
-import * as config from './config.js';
+import * as config from './config.ts';
 
 /**
  * Active watchers (so we can stop them later)
