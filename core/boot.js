@@ -26,11 +26,11 @@
  */
 
 import { join } from 'node:path';
-import * as config from './config.js';
+import * as config from './config.ts';
 import * as discovery from './discovery.js';
 import * as dependencies from './dependencies.js';
 import * as hooks from './hooks.js';
-import * as services from './services.js';
+import * as services from './services.ts';
 import * as watcher from './watcher.js';
 import * as cli from './cli.js';
 import * as router from './router.js';
@@ -207,6 +207,36 @@ export async function boot(baseDir, options = {}) {
 
     log(`[boot] Site: ${siteConfig.name} v${siteConfig.version}`);
     log(`[boot] Environment: ${siteConfig.env}`);
+
+    // Initialize PostgreSQL if enabled in config/database.json
+    // WHY DURING INIT:
+    // The database must be ready before content.init() in REGISTER phase.
+    // Migrations run here so all tables exist before services start.
+    let dbConfig = null;
+    try { dbConfig = config.load('database'); } catch { /* no database.json — flat-file mode */ }
+    if (dbConfig && dbConfig.enabled) {
+      try {
+        const { createPool } = await import('./pg-client.js');
+        const { runMigrations } = await import('./database/migrations.js');
+
+        log('[boot] PostgreSQL enabled — connecting...');
+        const pool = await createPool(dbConfig);
+        context.dbPool = pool;
+
+        const migrationCount = await runMigrations(pool);
+        if (migrationCount > 0) {
+          log(`[boot] Ran ${migrationCount} database migration(s)`);
+        }
+
+        log('[boot] ✓ PostgreSQL connected');
+        services.register('database', () => pool);
+      } catch (dbError) {
+        console.error(`[boot] PostgreSQL connection failed: ${dbError.message}`);
+        console.error('[boot] Falling back to flat-file storage');
+        context.dbPool = null;
+      }
+    }
+
     log(`[boot] ✓ ${PHASES.INIT} complete`);
 
     // Trigger hook for modules that need to run after config loads
@@ -392,6 +422,24 @@ export async function boot(baseDir, options = {}) {
     const workflowConfig = context.config.site.workflow || { enabled: false, defaultStatus: 'draft' };
     const contentConfig = context.config.site.content || { computedFields: true, cacheComputed: false };
     content.init(baseDir, cacheConfig, revisionsConfig, workflowConfig);
+
+    // Initialize storage provider based on database config
+    // WHY AFTER content.init():
+    // content.init() sets contentDir which the provider needs.
+    // WHY BEFORE content.initComputed():
+    // Computed fields may read content, so storage must be ready.
+    if (context.dbPool) {
+      const { PgProvider } = await import('./storage/pg-provider.js');
+      const pgProvider = new PgProvider(context.dbPool);
+      await content.initStorage(pgProvider);
+      log('[boot] Content storage: PostgreSQL');
+    } else {
+      const { FileProvider } = await import('./storage/file-provider.js');
+      const fileProvider = new FileProvider();
+      await content.initStorage(fileProvider);
+      log('[boot] Content storage: flat-file');
+    }
+
     content.initComputed(contentConfig);
     const slugsConfig = context.config.site.slugs || { enabled: true };
     content.initSlugs(slugsConfig);
@@ -427,6 +475,11 @@ export async function boot(baseDir, options = {}) {
     // Initialize locking system
     const locksConfig = context.config.site.locks || { enabled: true };
     content.initLocks(locksConfig);
+    if (context.dbPool) {
+      const locksModule = await import('./locks.js');
+      await locksModule.initDb(context.dbPool);
+      log('[boot] Content locks: PostgreSQL');
+    }
 
     if (locksConfig.enabled !== false) {
       log(`[boot] Content locking enabled (timeout: ${locksConfig.timeout || 1800}s, grace: ${locksConfig.gracePeriod || 60}s)`);
@@ -441,6 +494,10 @@ export async function boot(baseDir, options = {}) {
       contentDir: join(baseDir, 'content'),
       context,
     });
+    if (context.dbPool) {
+      await queue.initDb(context.dbPool);
+      log('[boot] Job queue: PostgreSQL');
+    }
     services.register('queue', () => queue);
 
     if (queueConfig.enabled !== false) {
@@ -500,6 +557,11 @@ export async function boot(baseDir, options = {}) {
     notifications.init(notificationsConfig, baseDir, email, null);
     services.register('notifications', () => notifications);
 
+    if (context.dbPool) {
+      await notifications.initDb(context.dbPool);
+      log('[boot] Notifications: PostgreSQL');
+    }
+
     if (notificationsConfig.enabled !== false) {
       log(`[boot] Notifications enabled (max per user: ${notificationsConfig.maxPerUser || 100})`);
     }
@@ -518,6 +580,12 @@ export async function boot(baseDir, options = {}) {
     const historyConfig = context.config.site.history || { enabled: true };
     history.init(historyConfig, baseDir);
     services.register('history', () => history);
+
+    if (context.dbPool) {
+      await history.initDb(context.dbPool);
+      log('[boot] Content history: PostgreSQL');
+    }
+
     log('[boot] Content history tracking enabled');
 
     // Initialize contact forms
@@ -543,7 +611,15 @@ export async function boot(baseDir, options = {}) {
     search.init(baseDir, searchConfig, content, hooks);
     services.register('search', () => search);
 
-    if (searchConfig.enabled) {
+    // Register and activate PostgreSQL search backend when database is enabled
+    if (context.dbPool && searchConfig.enabled !== false) {
+      const { createPgSearchBackend } = await import('./search/pg-backend.js');
+      search.registerBackend('postgres', {
+        create: () => createPgSearchBackend(context.dbPool),
+      });
+      await search.setBackend('postgres');
+      log('[boot] Search backend: PostgreSQL (tsvector)');
+    } else if (searchConfig.enabled) {
       log(`[boot] Search indexing enabled (fuzzy: ${searchConfig.fuzzy || false})`);
     }
 
@@ -567,6 +643,11 @@ export async function boot(baseDir, options = {}) {
     audit.init(baseDir, auditConfig);
     services.register('audit', () => audit);
 
+    if (context.dbPool) {
+      await audit.initDb(context.dbPool);
+      log('[boot] Audit log: PostgreSQL');
+    }
+
     if (auditConfig.enabled) {
       log(`[boot] Audit logging enabled (retention: ${auditConfig.retention || 90} days, level: ${auditConfig.logLevel || 'info'})`);
     }
@@ -583,6 +664,12 @@ export async function boot(baseDir, options = {}) {
     // Logs AI operations for monitoring, billing, and optimization.
     aiStats.init(baseDir);
     services.register('ai-stats', () => aiStats);
+
+    if (context.dbPool) {
+      await aiStats.initDb(context.dbPool);
+      log('[boot] AI stats: PostgreSQL');
+    }
+
     log('[boot] AI stats service initialized');
 
     // Initialize AI provider manager
@@ -670,6 +757,11 @@ export async function boot(baseDir, options = {}) {
     analytics.init(analyticsConfig, baseDir, scheduler, content, hooks);
     services.register('analytics', () => analytics);
 
+    if (context.dbPool) {
+      await analytics.initDb(context.dbPool);
+      log('[boot] Analytics: PostgreSQL');
+    }
+
     // Initialize blueprints
     const blueprintsConfig = context.config.site.blueprints || { enabled: true };
     blueprints.init(blueprintsConfig, baseDir, content);
@@ -682,6 +774,12 @@ export async function boot(baseDir, options = {}) {
     // Both are content-related features.
     favorites.init(baseDir, content);
     services.register('favorites', () => favorites);
+
+    if (context.dbPool) {
+      await favorites.initDb(context.dbPool);
+      log('[boot] Favorites: PostgreSQL');
+    }
+
     log('[boot] Favorites enabled');
 
     // Initialize compare/merge tools
@@ -697,6 +795,12 @@ export async function boot(baseDir, options = {}) {
     const activityConfig = context.config.site.activity || { enabled: true };
     activity.init(baseDir, content, activityConfig);
     services.register('activity', () => activity);
+
+    if (context.dbPool) {
+      await activity.initDb(context.dbPool);
+      log('[boot] Activity feed: PostgreSQL');
+    }
+
     log('[boot] Activity feed enabled');
 
     // Initialize archetypes (content type builder)
@@ -1063,6 +1167,10 @@ export async function boot(baseDir, options = {}) {
     // Auth is initialized with the session secret from config.
     const sessionSecret = context.config.site.sessionSecret || 'default-secret-change-me';
     auth.init(sessionSecret, baseDir);
+    if (context.dbPool) {
+      await auth.initDb(context.dbPool);
+      log('[boot] Auth sessions: PostgreSQL');
+    }
     services.register('auth', () => auth);
 
     // Initialize CSRF protection
