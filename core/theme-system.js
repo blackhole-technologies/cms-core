@@ -47,7 +47,7 @@
 
 import { readFileSync, existsSync, readdirSync, statSync } from 'node:fs';
 import { join, basename, extname, dirname } from 'node:path';
-import { renderString, escapeHtml } from './template.js';
+import { renderString, escapeHtml } from './template.ts';
 
 /**
  * Theme registry

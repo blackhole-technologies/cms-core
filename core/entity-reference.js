@@ -50,7 +50,7 @@
  * Uses only Node.js standard library and existing content/fields modules.
  */
 
-import * as hooks from './hooks.js';
+import * as hooks from './hooks.ts';
 
 // ============================================
 // MODULE STATE

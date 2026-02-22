@@ -35,7 +35,7 @@
  */
 
 import { randomUUID } from 'node:crypto';
-import * as hooks from './hooks.js';
+import * as hooks from './hooks.ts';
 
 /**
  * Entity type registry

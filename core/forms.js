@@ -28,7 +28,7 @@
 
 import * as fields from './fields.js';
 import * as validation from './validation.js';
-import * as template from './template.js';
+import * as template from './template.ts';
 
 // ============================================
 // FORM REGISTRY

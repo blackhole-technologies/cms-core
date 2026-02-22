@@ -29,7 +29,7 @@
 
 import { existsSync, readFileSync, writeFileSync, mkdirSync } from 'node:fs';
 import { join } from 'node:path';
-import * as hooks from './hooks.js';
+import * as hooks from './hooks.ts';
 
 /**
  * Configuration

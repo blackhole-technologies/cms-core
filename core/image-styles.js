@@ -51,7 +51,7 @@
 import { readFileSync, writeFileSync, existsSync, mkdirSync, unlinkSync, readdirSync, statSync } from 'node:fs';
 import { join, dirname, basename, extname } from 'node:path';
 import { execSync } from 'node:child_process';
-import * as hooks from './hooks.js';
+import * as hooks from './hooks.ts';
 
 // ===========================================
 // Configuration

@@ -21,7 +21,7 @@
 
 import * as fs from 'fs';
 import * as path from 'path';
-import * as hooks from './hooks.js';
+import * as hooks from './hooks.ts';
 
 // Configuration
 let enabled = true;
@@ -34,6 +34,13 @@ let contentDir = './content';
 // Queue storage
 let queueDir = null;
 let jobsFile = null;
+
+/**
+ * Database pool for PostgreSQL job persistence.
+ * When non-null, jobs are stored in `queue_jobs` table instead of jobs.json.
+ * @type {import('./pg-client.js').PgPool | null}
+ */
+let dbPool = null;
 
 // In-memory job storage
 // Map<jobId, job>
@@ -105,6 +112,15 @@ export function init(config = {}) {
 }
 
 /**
+ * Set database pool for PostgreSQL job persistence.
+ * @param {import('./pg-client.js').PgPool} pool
+ */
+export async function initDb(pool) {
+  dbPool = pool;
+  await loadJobsFromDb();
+}
+
+/**
  * Load jobs from persistence file
  */
 function loadJobs() {
@@ -125,9 +141,60 @@ function loadJobs() {
 }
 
 /**
- * Save jobs to persistence file
+ * Load jobs from PostgreSQL.
+ */
+async function loadJobsFromDb() {
+  if (!dbPool) return;
+
+  try {
+    const result = await dbPool.simpleQuery(
+      `SELECT id, type, status, priority, data, progress_total, progress_completed,
+              progress_failed, result, created_at, started_at, completed_at,
+              error, retries, max_retries, created_by
+       FROM queue_jobs
+       WHERE status IN ('pending', 'running', 'failed')
+       ORDER BY priority ASC, created_at ASC`
+    );
+
+    for (const row of result.rows) {
+      const r = row;
+      const job = {
+        id: r.id,
+        type: r.type,
+        status: r.status === 'running' ? 'failed' : r.status, // crashed jobs → failed
+        priority: r.priority,
+        data: r.data || {},
+        progress: {
+          total: r.progress_total || 0,
+          completed: r.progress_completed || 0,
+          failed: r.progress_failed || 0,
+        },
+        result: r.result,
+        createdAt: r.created_at ? new Date(r.created_at).toISOString() : null,
+        startedAt: r.started_at ? new Date(r.started_at).toISOString() : null,
+        completedAt: r.completed_at ? new Date(r.completed_at).toISOString() : null,
+        error: r.status === 'running' ? 'Job interrupted by system restart' : r.error,
+        retries: r.retries || 0,
+        maxRetries: r.max_retries ?? maxRetries,
+        createdBy: r.created_by || 'system',
+      };
+      jobs.set(job.id, job);
+    }
+
+    if (jobs.size > 0) {
+      console.log(`[queue] Restored ${jobs.size} job(s) from database`);
+    }
+  } catch (error) {
+    console.warn(`[queue] Failed to load jobs from database: ${error.message}`);
+  }
+}
+
+/**
+ * Save jobs to persistence file (flat-file mode only).
  */
 function saveJobs() {
+  if (dbPool) return; // DB mode: individual mutations handle persistence
+
   if (!jobsFile) return;
 
   try {
@@ -136,6 +203,46 @@ function saveJobs() {
   } catch (error) {
     console.error('[queue] Failed to save jobs:', error.message);
   }
+}
+
+/**
+ * Persist a single job to the database (upsert).
+ */
+function persistJobToDb(job) {
+  if (!dbPool) return;
+  dbPool.query(
+    `INSERT INTO queue_jobs (id, type, status, priority, data, progress_total, progress_completed,
+                             progress_failed, result, created_at, started_at, completed_at,
+                             error, retries, max_retries, created_by)
+     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16)
+     ON CONFLICT (id) DO UPDATE SET
+       status = EXCLUDED.status,
+       progress_total = EXCLUDED.progress_total,
+       progress_completed = EXCLUDED.progress_completed,
+       progress_failed = EXCLUDED.progress_failed,
+       result = EXCLUDED.result,
+       started_at = EXCLUDED.started_at,
+       completed_at = EXCLUDED.completed_at,
+       error = EXCLUDED.error,
+       retries = EXCLUDED.retries`,
+    [
+      job.id, job.type, job.status, job.priority,
+      JSON.stringify(job.data),
+      job.progress?.total || 0, job.progress?.completed || 0, job.progress?.failed || 0,
+      job.result ? JSON.stringify(job.result) : null,
+      job.createdAt, job.startedAt, job.completedAt,
+      job.error, job.retries, job.maxRetries ?? maxRetries, job.createdBy || 'system',
+    ]
+  ).catch(err => console.warn(`[queue] Failed to persist job to DB: ${err.message}`));
+}
+
+/**
+ * Delete a job from the database.
+ */
+function deleteJobFromDb(jobId) {
+  if (!dbPool) return;
+  dbPool.query(`DELETE FROM queue_jobs WHERE id = $1`, [jobId])
+    .catch(err => console.warn(`[queue] Failed to delete job from DB: ${err.message}`));
 }
 
 /**
@@ -232,6 +339,7 @@ export function addJob(type, data, options = {}) {
 
   jobs.set(job.id, job);
   saveJobs();
+  persistJobToDb(job);
 
   // Trigger hook
   hooks.trigger('queue:jobAdded', { job });
@@ -292,6 +400,7 @@ export function cancelJob(id) {
   job.status = 'cancelled';
   job.completedAt = new Date().toISOString();
   saveJobs();
+  persistJobToDb(job);
 
   hooks.trigger('queue:jobCancelled', { job });
 
@@ -323,6 +432,7 @@ export function retryJob(id) {
   job.retries++;
 
   saveJobs();
+  persistJobToDb(job);
 
   hooks.trigger('queue:jobRetried', { job });
 
@@ -336,16 +446,21 @@ export function retryJob(id) {
  */
 export function clearJobs(status = 'completed') {
   let cleared = 0;
+  const deletedIds = [];
 
   for (const [id, job] of jobs) {
     if (job.status === status) {
       jobs.delete(id);
+      deletedIds.push(id);
       cleared++;
     }
   }
 
   if (cleared > 0) {
     saveJobs();
+    for (const id of deletedIds) {
+      deleteJobFromDb(id);
+    }
   }
 
   return cleared;
@@ -363,6 +478,7 @@ export function updateProgress(id, progress) {
 
   job.progress = { ...job.progress, ...progress };
   saveJobs();
+  persistJobToDb(job);
 
   hooks.trigger('queue:jobProgress', { job });
 }
@@ -413,6 +529,7 @@ async function processJob(job) {
     job.error = `No handler registered for job type: ${job.type}`;
     job.completedAt = new Date().toISOString();
     saveJobs();
+    persistJobToDb(job);
     return job;
   }
 
@@ -421,6 +538,7 @@ async function processJob(job) {
   job.startedAt = new Date().toISOString();
   runningJobs.add(job.id);
   saveJobs();
+  persistJobToDb(job);
 
   hooks.trigger('queue:jobStarted', { job });
 
@@ -458,6 +576,7 @@ async function processJob(job) {
 
   runningJobs.delete(job.id);
   saveJobs();
+  persistJobToDb(job);
 
   return job;
 }

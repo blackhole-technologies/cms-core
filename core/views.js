@@ -39,8 +39,8 @@
 
 import { readFileSync, writeFileSync, existsSync, mkdirSync } from 'node:fs';
 import { join } from 'node:path';
-import * as hooks from './hooks.js';
-import * as cache from './cache.js';
+import * as hooks from './hooks.ts';
+import * as cache from './cache.ts';
 
 /**
  * Module state

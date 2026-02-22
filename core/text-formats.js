@@ -24,7 +24,7 @@
 import { readFile, writeFile, mkdir } from 'fs/promises';
 import { join } from 'path';
 import { existsSync } from 'fs';
-import * as hooks from './hooks.js';
+import * as hooks from './hooks.ts';
 
 // ===========================================
 // State

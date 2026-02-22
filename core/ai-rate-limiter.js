@@ -24,7 +24,7 @@
  *   }
  */
 
-import { checkLimit, createLimiter } from './ratelimit.js';
+import { checkLimit, createLimiter } from './ratelimit.ts';
 import { readFileSync, existsSync } from 'node:fs';
 import { join } from 'node:path';
 

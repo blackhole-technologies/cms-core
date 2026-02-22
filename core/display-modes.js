@@ -20,7 +20,7 @@
 
 import fs from 'fs/promises';
 import path from 'path';
-import * as hooks from './hooks.js';
+import * as hooks from './hooks.ts';
 
 /**
  * Runtime state
