@@ -10,15 +10,98 @@
 
 import * as hooks from './hooks.ts';
 
+// ============================================
+// TYPE DEFINITIONS
+// ============================================
+
+/** Comment data submitted by a user */
+interface CommentInput {
+  parentId?: string | null;
+  author?: string;
+  email?: string;
+  body: string;
+  [key: string]: unknown;
+}
+
+/** Options for creating a comment */
+interface CommentOptions {
+  user?: { id?: string; username?: string; name?: string; email?: string } | null;
+  ip?: string | null;
+  userAgent?: string | null;
+}
+
+/** A stored comment object */
+interface Comment {
+  id: string;
+  contentType: string;
+  contentId: string;
+  parentId: string | null;
+  author: string;
+  authorId: string | null;
+  email: string | null;
+  body: string;
+  status: string;
+  ip: string | null;
+  userAgent: string | null;
+  created: string;
+}
+
+/** A comment tree node with nested replies */
+interface CommentNode extends Comment {
+  replies: CommentNode[];
+}
+
+/** Comment listing result */
+interface CommentListResult {
+  comments: Comment[] | CommentNode[];
+  total: number;
+  offset: number;
+  limit: number;
+  threaded?: boolean;
+}
+
+/** Comment configuration */
+interface CommentsConfig {
+  enabled?: boolean;
+  defaultStatus?: string;
+  autoApproveUsers?: boolean;
+  maxDepth?: number;
+  requireEmail?: boolean;
+}
+
+/** Comment statistics */
+interface CommentStats {
+  total: number;
+  byStatus: Record<string, number>;
+  byContentType: Record<string, number>;
+  pending: number;
+}
+
+/** Bulk action result */
+interface BulkActionResult {
+  success: number;
+  failed: number;
+  errors: Array<{ id: string; error: string }>;
+}
+
+/** Content module interface — the subset of content API used by comments */
+interface ContentModuleRef {
+  read: (type: string, id: string) => Comment | null;
+  create: (type: string, data: Record<string, unknown>) => Promise<Comment>;
+  update: (type: string, id: string, data: Record<string, unknown>, opts?: Record<string, unknown>) => Promise<Comment>;
+  remove: (type: string, id: string, opts?: Record<string, unknown>) => Promise<boolean>;
+  list: (type: string) => { items: Comment[] } | null;
+}
+
 // Configuration
-let enabled = true;
-let defaultStatus = 'pending';
-let autoApproveUsers = true;
-let maxDepth = 3;
-let requireEmail = true;
+let enabled: boolean = true;
+let defaultStatus: string = 'pending';
+let autoApproveUsers: boolean = true;
+let maxDepth: number = 3;
+let requireEmail: boolean = true;
 
 // Reference to content module (set during init)
-let content = null;
+let content: ContentModuleRef | null = null;
 
 // Comment content type name
 const COMMENT_TYPE = 'comment';
@@ -28,7 +111,7 @@ const COMMENT_TYPE = 'comment';
  * @param {object} config - Configuration
  * @param {object} contentModule - Content module reference
  */
-export function init(config = {}, contentModule) {
+export function init(config: CommentsConfig = {}, contentModule: ContentModuleRef): void {
   if (config.enabled !== undefined) enabled = config.enabled;
   if (config.defaultStatus !== undefined) defaultStatus = config.defaultStatus;
   if (config.autoApproveUsers !== undefined) autoApproveUsers = config.autoApproveUsers;
@@ -44,7 +127,7 @@ export function init(config = {}, contentModule) {
  * Get comments configuration
  * @returns {object} Current config
  */
-export function getConfig() {
+export function getConfig(): CommentsConfig {
   return {
     enabled,
     defaultStatus,
@@ -59,7 +142,7 @@ export function getConfig() {
  * Called during boot to register the comment schema
  * @param {function} register - Content type register function
  */
-export function registerContentType(register) {
+export function registerContentType(register: (type: string, schema: Record<string, unknown>) => void): void {
   register(COMMENT_TYPE, {
     contentType: { type: 'string', required: true },
     contentId: { type: 'string', required: true },
@@ -82,7 +165,7 @@ export function registerContentType(register) {
  * @param {object} options - Options { user, ip, userAgent }
  * @returns {Promise<object>} Created comment
  */
-export async function addComment(type, id, commentData, options = {}) {
+export async function addComment(type: string, id: string, commentData: CommentInput, options: CommentOptions = {}): Promise<Comment> {
   if (!enabled) {
     throw new Error('Comments are disabled');
   }
@@ -162,13 +245,13 @@ export async function addComment(type, id, commentData, options = {}) {
  * @param {string} commentId - Comment ID
  * @returns {number} Depth level (0 = top level)
  */
-function getCommentDepth(commentId) {
+function getCommentDepth(commentId: string): number {
   let depth = 0;
-  let current = content.read(COMMENT_TYPE, commentId);
+  let current = content!.read(COMMENT_TYPE, commentId);
 
   while (current && current.parentId) {
     depth++;
-    current = content.read(COMMENT_TYPE, current.parentId);
+    current = content!.read(COMMENT_TYPE, current.parentId);
     if (depth > maxDepth + 1) break; // Safety limit
   }
 
@@ -182,7 +265,7 @@ function getCommentDepth(commentId) {
  * @param {object} options - Options
  * @returns {Array} Comments (flat or threaded)
  */
-export function getComments(type, id, options = {}) {
+export function getComments(type: string, id: string, options: { status?: string | null; threaded?: boolean; limit?: number; offset?: number; sortBy?: string; sortDir?: string } = {}): CommentListResult | never[] {
   if (!content) return [];
 
   const {
@@ -206,8 +289,8 @@ export function getComments(type, id, options = {}) {
 
   // Sort
   comments.sort((a, b) => {
-    const aVal = a[sortBy] || '';
-    const bVal = b[sortBy] || '';
+    const aVal = String((a as unknown as Record<string, unknown>)[sortBy] ?? '');
+    const bVal = String((b as unknown as Record<string, unknown>)[sortBy] ?? '');
     const cmp = aVal < bVal ? -1 : aVal > bVal ? 1 : 0;
     return sortDir === 'desc' ? -cmp : cmp;
   });
@@ -235,9 +318,9 @@ export function getComments(type, id, options = {}) {
  * @param {Array} comments - Flat comment list
  * @returns {Array} Nested comment tree
  */
-function buildCommentTree(comments) {
-  const map = new Map();
-  const roots = [];
+function buildCommentTree(comments: Comment[]): CommentNode[] {
+  const map = new Map<string, CommentNode>();
+  const roots: CommentNode[] = [];
 
   // Index all comments
   for (const comment of comments) {
@@ -246,9 +329,9 @@ function buildCommentTree(comments) {
 
   // Build tree
   for (const comment of comments) {
-    const node = map.get(comment.id);
+    const node = map.get(comment.id)!;
     if (comment.parentId && map.has(comment.parentId)) {
-      map.get(comment.parentId).replies.push(node);
+      map.get(comment.parentId)!.replies.push(node);
     } else {
       roots.push(node);
     }
@@ -262,7 +345,7 @@ function buildCommentTree(comments) {
  * @param {string} id - Comment ID
  * @returns {object|null} Comment
  */
-export function getComment(id) {
+export function getComment(id: string): Comment | null {
   if (!content) return null;
   return content.read(COMMENT_TYPE, id);
 }
@@ -272,7 +355,7 @@ export function getComment(id) {
  * @param {string} id - Comment ID
  * @returns {Promise<object>} Updated comment
  */
-export async function approveComment(id) {
+export async function approveComment(id: string): Promise<Comment> {
   return updateCommentStatus(id, 'approved');
 }
 
@@ -281,7 +364,7 @@ export async function approveComment(id) {
  * @param {string} id - Comment ID
  * @returns {Promise<object>} Updated comment
  */
-export async function spamComment(id) {
+export async function spamComment(id: string): Promise<Comment> {
   return updateCommentStatus(id, 'spam');
 }
 
@@ -290,7 +373,7 @@ export async function spamComment(id) {
  * @param {string} id - Comment ID
  * @returns {Promise<object>} Updated comment
  */
-export async function trashComment(id) {
+export async function trashComment(id: string): Promise<Comment> {
   return updateCommentStatus(id, 'trash');
 }
 
@@ -300,7 +383,7 @@ export async function trashComment(id) {
  * @param {string} status - New status
  * @returns {Promise<object>} Updated comment
  */
-async function updateCommentStatus(id, status) {
+async function updateCommentStatus(id: string, status: string): Promise<Comment> {
   if (!content) {
     throw new Error('Comments system not initialized');
   }
@@ -330,7 +413,7 @@ async function updateCommentStatus(id, status) {
  * @param {string} id - Comment ID
  * @returns {Promise<boolean>} Success
  */
-export async function deleteComment(id) {
+export async function deleteComment(id: string): Promise<boolean> {
   if (!content) {
     throw new Error('Comments system not initialized');
   }
@@ -351,7 +434,7 @@ export async function deleteComment(id) {
  * @param {string} status - Status filter (null = all)
  * @returns {number} Count
  */
-export function getCommentCount(type, id, status = null) {
+export function getCommentCount(type: string, id: string, status: string | null = null): number {
   if (!content) return 0;
 
   let comments = (content.list(COMMENT_TYPE)?.items || []).filter(c =>
@@ -370,7 +453,7 @@ export function getCommentCount(type, id, status = null) {
  * @param {object} options - Options
  * @returns {Array} Pending comments
  */
-export function getModerationQueue(options = {}) {
+export function getModerationQueue(options: { limit?: number; offset?: number; contentType?: string | null } = {}): CommentListResult | never[] {
   if (!content) return [];
 
   const {
@@ -403,8 +486,8 @@ export function getModerationQueue(options = {}) {
  * @param {object} options - Filter options
  * @returns {object} Comments and pagination
  */
-export function getAllComments(options = {}) {
-  if (!content) return { comments: [], total: 0 };
+export function getAllComments(options: { status?: string | null; contentType?: string | null; contentId?: string | null; author?: string | null; limit?: number; offset?: number; sortBy?: string; sortDir?: string } = {}): CommentListResult {
+  if (!content) return { comments: [], total: 0, offset: 0, limit: 50 };
 
   const {
     status = null,
@@ -437,8 +520,8 @@ export function getAllComments(options = {}) {
 
   // Sort
   comments.sort((a, b) => {
-    const aVal = a[sortBy] || '';
-    const bVal = b[sortBy] || '';
+    const aVal = String((a as unknown as Record<string, unknown>)[sortBy] ?? '');
+    const bVal = String((b as unknown as Record<string, unknown>)[sortBy] ?? '');
     const cmp = aVal < bVal ? -1 : aVal > bVal ? 1 : 0;
     return sortDir === 'desc' ? -cmp : cmp;
   });
@@ -457,15 +540,15 @@ export function getAllComments(options = {}) {
  * Get comment statistics
  * @returns {object} Statistics
  */
-export function getStats() {
+export function getStats(): CommentStats {
   if (!content) {
     return { total: 0, byStatus: {}, byContentType: {}, pending: 0 };
   }
 
   const comments = (content.list(COMMENT_TYPE)?.items || []) || [];
 
-  const byStatus = {};
-  const byContentType = {};
+  const byStatus: Record<string, number> = {};
+  const byContentType: Record<string, number> = {};
 
   for (const comment of comments) {
     // Count by status
@@ -489,8 +572,8 @@ export function getStats() {
  * @param {string} action - Action: approve, spam, trash, delete
  * @returns {Promise<object>} Results
  */
-export async function bulkAction(ids, action) {
-  const results = { success: 0, failed: 0, errors: [] };
+export async function bulkAction(ids: string[], action: string): Promise<BulkActionResult> {
+  const results: BulkActionResult = { success: 0, failed: 0, errors: [] };
 
   for (const id of ids) {
     try {
@@ -511,9 +594,9 @@ export async function bulkAction(ids, action) {
           throw new Error(`Unknown action: ${action}`);
       }
       results.success++;
-    } catch (error) {
+    } catch (error: unknown) {
       results.failed++;
-      results.errors.push({ id, error: error.message });
+      results.errors.push({ id, error: error instanceof Error ? error.message : String(error) });
     }
   }
 
@@ -525,7 +608,7 @@ export async function bulkAction(ids, action) {
  * @param {number} limit - Max comments
  * @returns {Array} Recent comments
  */
-export function getRecentComments(limit = 10) {
+export function getRecentComments(limit: number = 10): Comment[] {
   if (!content) return [];
 
   const comments = (content.list(COMMENT_TYPE)?.items || [])

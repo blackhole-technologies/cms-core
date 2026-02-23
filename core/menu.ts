@@ -31,10 +31,166 @@ import { existsSync, readFileSync, writeFileSync, mkdirSync } from 'node:fs';
 import { join } from 'node:path';
 import * as hooks from './hooks.ts';
 
+// ============================================
+// TYPES
+// ============================================
+
+/** Menu definition as stored */
+interface MenuDef {
+  id: string;
+  title: string;
+  description: string;
+  locked: boolean;
+  maxDepth: number;
+  created: string;
+  updated: string;
+  [key: string]: unknown;
+}
+
+/** Menu creation input */
+interface MenuInput {
+  id?: string;
+  title: string;
+  description?: string;
+  locked?: boolean;
+  maxDepth?: number;
+  [key: string]: unknown;
+}
+
+/** Menu item definition as stored */
+interface MenuItemDef {
+  id: string;
+  menuId: string;
+  title: string;
+  itemType: string;
+  link: string | null;
+  contentType?: string;
+  contentId?: string;
+  routeName?: string;
+  routeParams?: Record<string, unknown>;
+  parentId: string | null;
+  weight: number;
+  depth: number;
+  classes: string[];
+  attributes: Record<string, unknown>;
+  enabled: boolean;
+  expanded: boolean;
+  roles: string[];
+  permissions: string[];
+  created?: string;
+  updated?: string;
+  [key: string]: unknown;
+}
+
+/** Menu item creation input */
+interface MenuItemInput {
+  menuId: string;
+  title: string;
+  type?: string;
+  link?: string;
+  contentType?: string;
+  contentId?: string;
+  routeName?: string;
+  routeParams?: Record<string, unknown>;
+  parentId?: string | null;
+  weight?: number;
+  classes?: string[];
+  attributes?: Record<string, unknown>;
+  enabled?: boolean;
+  expanded?: boolean;
+  roles?: string[];
+  permissions?: string[];
+  [key: string]: unknown;
+}
+
+/** Menu item with children for tree rendering */
+interface MenuItemRendered extends MenuItemDef {
+  children: MenuItemRendered[];
+  url: string;
+  active: boolean;
+  activeTrail: boolean;
+}
+
+/** Menu content service interface */
+interface MenuContentService {
+  register(type: string, fields: Record<string, unknown>): void;
+  create(type: string, data: Record<string, unknown>): Promise<MenuDef | MenuItemDef>;
+  read(type: string, id: string): (MenuDef & MenuItemDef) | null;
+  update(type: string, id: string, data: Record<string, unknown>): Promise<MenuDef | MenuItemDef>;
+  delete(type: string, id: string): Promise<void>;
+  list(type: string, options: Record<string, unknown>): { items: MenuItemDef[]; total: number };
+}
+
+/** Router service interface */
+interface RouterService {
+  urlFor(name: string, params?: Record<string, unknown>): string | null;
+}
+
+/** Menu configuration */
+interface MenuConfig {
+  enabled: boolean;
+  cacheRendered: boolean;
+  cacheTTL: number;
+  autoSyncContent: boolean;
+  defaultMenus?: Array<string | MenuInput>;
+  [key: string]: unknown;
+}
+
+/** List menu items options */
+interface ListMenuItemsOptions {
+  menuId?: string;
+  parentId?: string | null;
+  enabled?: boolean;
+  sort?: string;
+  order?: string;
+  limit?: number;
+  includeDisabled?: boolean;
+}
+
+/** Render menu options */
+interface RenderMenuOptions {
+  currentPath?: string;
+  user?: MenuUser;
+  maxDepth?: number;
+  startLevel?: number;
+  includeDisabled?: boolean;
+}
+
+/** User for access checks */
+interface MenuUser {
+  roles?: string[];
+  permissions?: string[];
+  [key: string]: unknown;
+}
+
+/** Delete menu item options */
+interface DeleteMenuItemOptions {
+  deleteChildren?: boolean;
+  reassignTo?: string | null;
+}
+
+/** Import menu options */
+interface ImportMenuOptions {
+  overwrite?: boolean;
+}
+
+/** Exported menu structure */
+interface ExportedMenu {
+  menu: MenuDef;
+  items: MenuItemDef[];
+}
+
+/** Hook context for content events */
+interface ContentHookContext {
+  type: string;
+  id: string;
+  [key: string]: unknown;
+}
+
 /**
  * Configuration
  */
-let config = {
+let config: MenuConfig = {
   enabled: true,
   cacheRendered: false,
   cacheTTL: 300,
@@ -44,9 +200,9 @@ let config = {
 /**
  * Services and paths
  */
-let contentService = null;
-let routerService = null;
-let baseDir = null;
+let contentService: MenuContentService | null = null;
+let routerService: RouterService | null = null;
+let baseDir: string | null = null;
 
 /**
  * Default menus to create on init
@@ -88,7 +244,7 @@ const DEFAULT_MENUS = [
  * @param {Object} router - Router service reference (optional)
  * @param {string} baseDirPath - Base directory for content storage
  */
-export function init(menuConfig = {}, content = null, router = null, baseDirPath = null) {
+export function init(menuConfig: Partial<MenuConfig> = {}, content: MenuContentService | null = null, router: RouterService | null = null, baseDirPath: string | null = null): void {
   config = { ...config, ...menuConfig };
   contentService = content;
   routerService = router;
@@ -104,14 +260,14 @@ export function init(menuConfig = {}, content = null, router = null, baseDirPath
   // Create default menus if they don't exist
   // Config may provide strings (IDs) or full objects
   const configMenus = config.defaultMenus || null;
-  const defaultMenus = configMenus
-    ? configMenus.map(m => typeof m === 'string'
+  const defaultMenus: MenuInput[] = configMenus
+    ? configMenus.map((m: string | MenuInput) => typeof m === 'string'
       ? DEFAULT_MENUS.find(d => d.id === m) || { id: m, title: m.charAt(0).toUpperCase() + m.slice(1), description: '' }
       : m)
     : DEFAULT_MENUS;
 
   for (const menuInput of defaultMenus) {
-    const existing = contentService.read('menu', menuInput.id);
+    const existing = contentService!.read('menu', menuInput.id!);
     if (!existing) {
       createMenuSync(menuInput);
     }
@@ -132,9 +288,9 @@ export function init(menuConfig = {}, content = null, router = null, baseDirPath
  * - Gets automatic JSON file handling
  * - Can use content list/filter features
  */
-function registerMenuTypes() {
+function registerMenuTypes(): void {
   // Register menu type
-  contentService.register('menu', {
+  contentService!.register('menu', {
     title: { type: 'string', required: true },
     description: { type: 'string' },
     locked: { type: 'boolean', default: false },
@@ -144,7 +300,7 @@ function registerMenuTypes() {
   });
 
   // Register menu-item type
-  contentService.register('menu-item', {
+  contentService!.register('menu-item', {
     menuId: { type: 'string', required: true },
     title: { type: 'string', required: true },
     itemType: { type: 'string', default: 'internal' },
@@ -177,7 +333,7 @@ function registerMenuTypes() {
  * @param {Object} input - Menu data
  * @returns {Promise<Object>} Created menu
  */
-export async function createMenu(input) {
+export async function createMenu(input: MenuInput): Promise<MenuDef> {
   // Trigger before hook
   await hooks.trigger('menu:beforeCreate', { input });
 
@@ -192,9 +348,9 @@ export async function createMenu(input) {
 /**
  * Create menu synchronously (for init)
  */
-function createMenuSync(input) {
+function createMenuSync(input: MenuInput): MenuDef {
   const now = new Date().toISOString();
-  const menu = {
+  const menu: MenuDef = {
     id: input.id || generateMenuId(input.title),
     title: input.title,
     description: input.description || '',
@@ -205,7 +361,7 @@ function createMenuSync(input) {
   };
 
   // Direct write for sync init
-  const menuDir = join(baseDir, 'content', 'menu');
+  const menuDir = join(baseDir!, 'content', 'menu');
   if (!existsSync(menuDir)) {
     mkdirSync(menuDir, { recursive: true });
   }
@@ -224,8 +380,8 @@ function createMenuSync(input) {
  * @param {string} id - Menu ID
  * @returns {Object|null} Menu or null
  */
-export function getMenu(id) {
-  return contentService.read('menu', id);
+export function getMenu(id: string): MenuDef | null {
+  return contentService!.read('menu', id) as MenuDef | null;
 }
 
 /**
@@ -235,7 +391,7 @@ export function getMenu(id) {
  * @param {Object} input - Updated data
  * @returns {Promise<Object>} Updated menu
  */
-export async function updateMenu(id, input) {
+export async function updateMenu(id: string, input: Partial<MenuInput>): Promise<MenuDef> {
   const menu = getMenu(id);
   if (!menu) {
     throw new Error(`Menu "${id}" not found`);
@@ -253,7 +409,7 @@ export async function updateMenu(id, input) {
     updated: new Date().toISOString(),
   };
 
-  const updated = await contentService.update('menu', id, updates);
+  const updated = await contentService!.update('menu', id, updates) as MenuDef;
 
   // Trigger after hook
   await hooks.trigger('menu:afterUpdate', { menu: updated });
@@ -266,7 +422,7 @@ export async function updateMenu(id, input) {
  *
  * @param {string} id - Menu ID
  */
-export async function deleteMenu(id) {
+export async function deleteMenu(id: string): Promise<void> {
   const menu = getMenu(id);
   if (!menu) {
     throw new Error(`Menu "${id}" not found`);
@@ -282,11 +438,11 @@ export async function deleteMenu(id) {
   // Delete all menu items
   const items = listMenuItems({ menuId: id });
   for (const item of items.items) {
-    await contentService.delete('menu-item', item.id);
+    await contentService!.delete('menu-item', item.id);
   }
 
   // Delete menu
-  await contentService.delete('menu', id);
+  await contentService!.delete('menu', id);
 
   // Trigger after hook
   await hooks.trigger('menu:afterDelete', { menuId: id });
@@ -297,8 +453,8 @@ export async function deleteMenu(id) {
  *
  * @returns {Array<Object>} Array of menus
  */
-export function listMenus() {
-  const result = contentService.list('menu', { limit: 10000 });
+export function listMenus(): MenuItemDef[] {
+  const result = contentService!.list('menu', { limit: 10000 });
   return result.items;
 }
 
@@ -312,7 +468,7 @@ export function listMenus() {
  * @param {Object} input - Menu item data
  * @returns {Promise<Object>} Created menu item
  */
-export async function createMenuItem(input) {
+export async function createMenuItem(input: MenuItemInput): Promise<MenuItemDef> {
   // Validate menu exists
   const menu = getMenu(input.menuId);
   if (!menu) {
@@ -357,7 +513,7 @@ export async function createMenuItem(input) {
   };
 
   // Store as content - returns item with generated id matching filename
-  const item = await contentService.create('menu-item', itemData);
+  const item = await contentService!.create('menu-item', itemData) as MenuItemDef;
 
   // Trigger after hook
   await hooks.trigger('menu:afterCreateItem', { item, menu });
@@ -371,8 +527,8 @@ export async function createMenuItem(input) {
  * @param {string} id - Menu item ID
  * @returns {Object|null} Menu item or null
  */
-export function getMenuItem(id) {
-  return contentService.read('menu-item', id);
+export function getMenuItem(id: string): MenuItemDef | null {
+  return contentService!.read('menu-item', id) as MenuItemDef | null;
 }
 
 /**
@@ -382,7 +538,7 @@ export function getMenuItem(id) {
  * @param {Object} input - Updated data
  * @returns {Promise<Object>} Updated menu item
  */
-export async function updateMenuItem(id, input) {
+export async function updateMenuItem(id: string, input: Partial<MenuItemInput>): Promise<MenuItemDef> {
   const item = getMenuItem(id);
   if (!item) {
     throw new Error(`Menu item "${id}" not found`);
@@ -412,7 +568,7 @@ export async function updateMenuItem(id, input) {
     updated: new Date().toISOString(),
   };
 
-  const updated = await contentService.update('menu-item', id, updates);
+  const updated = await contentService!.update('menu-item', id, updates) as MenuItemDef;
 
   // Update depths of all descendants if parent changed
   if (input.parentId !== undefined && input.parentId !== item.parentId) {
@@ -431,7 +587,7 @@ export async function updateMenuItem(id, input) {
  * @param {string} id - Menu item ID
  * @param {Object} options - Deletion options
  */
-export async function deleteMenuItem(id, options = {}) {
+export async function deleteMenuItem(id: string, options: DeleteMenuItemOptions = {}): Promise<void> {
   const item = getMenuItem(id);
   if (!item) {
     throw new Error(`Menu item "${id}" not found`);
@@ -461,7 +617,7 @@ export async function deleteMenuItem(id, options = {}) {
   }
 
   // Delete item
-  await contentService.delete('menu-item', id);
+  await contentService!.delete('menu-item', id);
 
   // Trigger after hook
   await hooks.trigger('menu:afterDeleteItem', { itemId: id });
@@ -473,9 +629,9 @@ export async function deleteMenuItem(id, options = {}) {
  * @param {Object} options - Query options
  * @returns {Object} Paginated menu item list
  */
-export function listMenuItems(options = {}) {
+export function listMenuItems(options: ListMenuItemsOptions = {}): { items: MenuItemDef[]; total: number } {
   // Content service expects filters as object with field__operator keys
-  const filters = {};
+  const filters: Record<string, unknown> = {};
 
   if (options.menuId) {
     filters.menuId = options.menuId;
@@ -495,7 +651,7 @@ export function listMenuItems(options = {}) {
   // Use large limit instead of -1 to avoid slice(0, -1) bug in content service pagination
   const limit = options.limit && options.limit > 0 ? options.limit : 10000;
 
-  return contentService.list('menu-item', {
+  return contentService!.list('menu-item', {
     filters,
     sortBy,
     sortOrder,
@@ -511,7 +667,7 @@ export function listMenuItems(options = {}) {
  * @param {string} newMenuId - New menu ID (if moving between menus)
  * @returns {Promise<Object>} Updated menu item
  */
-export async function moveMenuItem(id, newParentId, newMenuId = null) {
+export async function moveMenuItem(id: string, newParentId: string | null, newMenuId: string | null = null): Promise<MenuItemDef> {
   const item = getMenuItem(id);
   if (!item) {
     throw new Error(`Menu item "${id}" not found`);
@@ -524,7 +680,7 @@ export async function moveMenuItem(id, newParentId, newMenuId = null) {
     }
   }
 
-  const updates = { parentId: newParentId };
+  const updates: Partial<MenuItemInput> = { parentId: newParentId };
 
   // If moving to different menu, validate and update
   if (newMenuId && newMenuId !== item.menuId) {
@@ -543,10 +699,10 @@ export async function moveMenuItem(id, newParentId, newMenuId = null) {
  *
  * @param {Array<string>} itemIds - Item IDs in desired order
  */
-export async function reorderMenuItems(itemIds) {
+export async function reorderMenuItems(itemIds: string[]): Promise<void> {
   // Update weight of each item based on position
   for (let i = 0; i < itemIds.length; i++) {
-    await updateMenuItem(itemIds[i], { weight: i });
+    await updateMenuItem(itemIds[i]!, { weight: i });
   }
 }
 
@@ -561,7 +717,7 @@ export async function reorderMenuItems(itemIds) {
  * @param {Object} options - Render options
  * @returns {Array<Object>} Menu tree ready for templating
  */
-export function renderMenu(menuId, options = {}) {
+export function renderMenu(menuId: string, options: RenderMenuOptions = {}): MenuItemRendered[] {
   const menu = getMenu(menuId);
   if (!menu) {
     return [];
@@ -576,18 +732,18 @@ export function renderMenu(menuId, options = {}) {
     enabled: options.includeDisabled ? undefined : true,
   });
 
-  let items = result.items;
+  let items: MenuItemDef[] = result.items;
 
   // Filter by access control
   if (options.user) {
-    items = items.filter(item => checkAccess(item, options.user));
+    items = items.filter((item: MenuItemDef) => checkAccess(item, options.user!));
   }
 
   // Build tree structure
   const tree = buildTree(items, null, options);
 
   // Resolve URLs and active states
-  const resolved = tree.map(item => resolveMenuItem(item, options));
+  const resolved = tree.map((item: MenuItemRendered) => resolveMenuItem(item, options));
 
   // Trigger after render hook
   hooks.trigger('menu:afterRender', { menuId, items: resolved });
@@ -608,16 +764,16 @@ export function renderMenu(menuId, options = {}) {
  * @param {Object} options - Render options
  * @returns {Array} Tree of menu items
  */
-function buildTree(items, parentId, options) {
+function buildTree(items: MenuItemDef[], parentId: string | null, options: RenderMenuOptions): MenuItemRendered[] {
   const maxDepth = options.maxDepth !== undefined ? options.maxDepth : -1;
   const startLevel = options.startLevel || 0;
 
   const children = items
-    .filter(item => item.parentId === parentId)
-    .sort((a, b) => a.weight - b.weight);
+    .filter((item: MenuItemDef) => item.parentId === parentId)
+    .sort((a: MenuItemDef, b: MenuItemDef) => a.weight - b.weight);
 
   return children
-    .map(item => {
+    .map((item: MenuItemDef) => {
       // Skip if beyond max depth
       if (maxDepth !== -1 && item.depth >= maxDepth) {
         return null;
@@ -634,9 +790,12 @@ function buildTree(items, parentId, options) {
       return {
         ...item,
         children: itemChildren,
-      };
+        url: '',
+        active: false,
+        activeTrail: false,
+      } as MenuItemRendered;
     })
-    .filter(item => item !== null);
+    .filter((item: MenuItemRendered | null): item is MenuItemRendered => item !== null);
 }
 
 /**
@@ -646,7 +805,7 @@ function buildTree(items, parentId, options) {
  * @param {Object} options - Render options
  * @returns {Object} Resolved menu item
  */
-function resolveMenuItem(item, options) {
+function resolveMenuItem(item: MenuItemRendered, options: RenderMenuOptions): MenuItemRendered {
   const url = resolveUrl(item);
   const currentPath = options.currentPath || '';
 
@@ -657,10 +816,10 @@ function resolveMenuItem(item, options) {
   const activeTrail = active || currentPath.startsWith(url + '/');
 
   // Resolve children recursively
-  const children = item.children.map(child => resolveMenuItem(child, options));
+  const children = item.children.map((child: MenuItemRendered) => resolveMenuItem(child, options));
 
   // Also consider in trail if any child is in trail
-  const childInTrail = children.some(child => child.activeTrail);
+  const childInTrail = children.some((child: MenuItemRendered) => child.activeTrail);
 
   return {
     ...item,
@@ -678,11 +837,11 @@ function resolveMenuItem(item, options) {
  * @param {string} currentPath - Current URL path
  * @returns {Array<string>} Array of menu item IDs from root to active
  */
-export function getActiveTrail(menuId, currentPath) {
+export function getActiveTrail(menuId: string, currentPath: string): string[] {
   const rendered = renderMenu(menuId, { currentPath });
-  const trail = [];
+  const trail: string[] = [];
 
-  function findTrail(items) {
+  function findTrail(items: MenuItemRendered[]): boolean {
     for (const item of items) {
       if (item.active || item.activeTrail) {
         trail.push(item.id);
@@ -706,11 +865,11 @@ export function getActiveTrail(menuId, currentPath) {
  * @param {string} currentPath - Current URL path
  * @returns {Array<Object>} Breadcrumb items from root to current
  */
-export function getBreadcrumbs(menuId, currentPath) {
+export function getBreadcrumbs(menuId: string, currentPath: string): Array<{ id: string; title: string; url: string; active: boolean }> {
   const rendered = renderMenu(menuId, { currentPath });
-  const breadcrumbs = [];
+  const breadcrumbs: Array<{ id: string; title: string; url: string; active: boolean }> = [];
 
-  function findBreadcrumbs(items) {
+  function findBreadcrumbs(items: MenuItemRendered[]): boolean {
     for (const item of items) {
       if (item.active || item.activeTrail) {
         breadcrumbs.push({
@@ -745,13 +904,14 @@ export function getBreadcrumbs(menuId, currentPath) {
  * @param {Object} options - Additional options
  * @returns {Promise<Object>} Created menu item
  */
-export async function linkContent(contentType, contentId, menuId, options = {}) {
-  const content = contentService.read(contentType, contentId);
+export async function linkContent(contentType: string, contentId: string, menuId: string, options: { title?: string; parentId?: string; weight?: number } = {}): Promise<MenuItemDef> {
+  const content = contentService!.read(contentType, contentId);
   if (!content) {
     throw new Error(`Content "${contentType}/${contentId}" not found`);
   }
 
-  const title = options.title || content.title || content.name || 'Untitled';
+  const contentObj = content as Record<string, unknown>;
+  const title = options.title || String(contentObj.title || contentObj.name || 'Untitled');
 
   return createMenuItem({
     menuId,
@@ -771,8 +931,8 @@ export async function linkContent(contentType, contentId, menuId, options = {}) 
  * @param {string} contentId - Content ID
  * @returns {Array<Object>} Menu items linking to this content
  */
-export function findItemsByContent(contentType, contentId) {
-  const result = contentService.list('menu-item', {
+export function findItemsByContent(contentType: string, contentId: string): MenuItemDef[] {
+  const result = contentService!.list('menu-item', {
     filters: [
       { field: 'contentType', op: 'eq', value: contentType },
       { field: 'contentId', op: 'eq', value: contentId },
@@ -790,7 +950,7 @@ export function findItemsByContent(contentType, contentId) {
  * @param {string} contentId - Content ID
  * @param {string} action - 'update' | 'delete'
  */
-export async function syncContentLinks(contentType, contentId, action) {
+export async function syncContentLinks(contentType: string, contentId: string, action: string): Promise<void> {
   const items = findItemsByContent(contentType, contentId);
 
   if (action === 'delete') {
@@ -800,9 +960,10 @@ export async function syncContentLinks(contentType, contentId, action) {
     }
   } else if (action === 'update') {
     // Update titles if content title changed
-    const content = contentService.read(contentType, contentId);
+    const content = contentService!.read(contentType, contentId);
     if (content) {
-      const newTitle = content.title || content.name;
+      const contentObj = content as Record<string, unknown>;
+      const newTitle = String(contentObj.title || contentObj.name || '');
       if (newTitle) {
         for (const item of items) {
           await updateMenuItem(item.id, { title: newTitle });
@@ -815,8 +976,8 @@ export async function syncContentLinks(contentType, contentId, action) {
 /**
  * Hook handler for content updates
  */
-async function handleContentUpdate(context) {
-  const { type, id } = context;
+async function handleContentUpdate(context: Record<string, unknown>): Promise<void> {
+  const { type, id } = context as ContentHookContext;
   if (type !== 'menu' && type !== 'menu-item') {
     await syncContentLinks(type, id, 'update');
   }
@@ -825,8 +986,8 @@ async function handleContentUpdate(context) {
 /**
  * Hook handler for content deletion
  */
-async function handleContentDelete(context) {
-  const { type, id } = context;
+async function handleContentDelete(context: Record<string, unknown>): Promise<void> {
+  const { type, id } = context as ContentHookContext;
   if (type !== 'menu' && type !== 'menu-item') {
     await syncContentLinks(type, id, 'delete');
   }
@@ -848,13 +1009,13 @@ async function handleContentDelete(context) {
  * @param {string} newParentId - Proposed parent ID
  * @returns {boolean} True if valid
  */
-export function validateHierarchy(itemId, newParentId) {
+export function validateHierarchy(itemId: string, newParentId: string | null): boolean {
   if (!newParentId) return true;
   if (itemId === newParentId) return false;
 
   // Walk up the tree from new parent
-  let current = newParentId;
-  const visited = new Set();
+  let current: string | null = newParentId;
+  const visited = new Set<string>();
 
   while (current) {
     if (current === itemId) {
@@ -882,9 +1043,9 @@ export function validateHierarchy(itemId, newParentId) {
  * @param {Object} item - Menu item
  * @returns {string} Resolved URL
  */
-export function resolveUrl(item) {
+export function resolveUrl(item: MenuItemDef): string {
   // Allow hooks to override URL resolution
-  const context = { item, url: null };
+  const context: { item: MenuItemDef; url: string | null } = { item, url: null };
   hooks.trigger('menu:resolveUrl', context);
   if (context.url) return context.url;
 
@@ -902,8 +1063,8 @@ export function resolveUrl(item) {
     case 'route':
       // Use router service if available
       if (routerService && item.routeName) {
-        const url = routerService.urlFor(item.routeName, item.routeParams);
-        if (url) return url;
+        const routeUrl = routerService.urlFor(item.routeName, item.routeParams);
+        if (routeUrl) return routeUrl;
       }
       return item.link || '#';
 
@@ -924,7 +1085,7 @@ export function resolveUrl(item) {
  * @param {Object} user - User with roles/permissions
  * @returns {boolean} True if accessible
  */
-export function checkAccess(item, user = {}) {
+export function checkAccess(item: MenuItemDef, user: MenuUser = {}): boolean {
   // Allow hooks to override access check
   const context = { item, user, allowed: true };
   hooks.trigger('menu:checkAccess', context);
@@ -933,14 +1094,14 @@ export function checkAccess(item, user = {}) {
   // Check roles
   if (item.roles && item.roles.length > 0) {
     const userRoles = user.roles || [];
-    const hasRole = item.roles.some(role => userRoles.includes(role));
+    const hasRole = item.roles.some((role: string) => userRoles.includes(role));
     if (!hasRole) return false;
   }
 
   // Check permissions
   if (item.permissions && item.permissions.length > 0) {
     const userPermissions = user.permissions || [];
-    const hasPermission = item.permissions.some(perm => userPermissions.includes(perm));
+    const hasPermission = item.permissions.some((perm: string) => userPermissions.includes(perm));
     if (!hasPermission) return false;
   }
 
@@ -953,7 +1114,7 @@ export function checkAccess(item, user = {}) {
  * @param {string} menuId - Menu ID
  * @returns {Object} Exportable menu structure
  */
-export function exportMenu(menuId) {
+export function exportMenu(menuId: string): ExportedMenu {
   const menu = getMenu(menuId);
   if (!menu) {
     throw new Error(`Menu "${menuId}" not found`);
@@ -962,7 +1123,7 @@ export function exportMenu(menuId) {
   const items = listMenuItems({ menuId, limit: 10000 });
 
   return {
-    menu,
+    menu: menu!,
     items: items.items,
   };
 }
@@ -974,11 +1135,11 @@ export function exportMenu(menuId) {
  * @param {Object} options - Import options
  * @returns {Promise<Object>} Imported menu
  */
-export async function importMenu(data, options = {}) {
+export async function importMenu(data: ExportedMenu, options: ImportMenuOptions = {}): Promise<MenuDef> {
   const { menu: menuData, items: itemsData } = data;
 
   // Check if menu exists
-  let menu = getMenu(menuData.id);
+  let menu: MenuDef | null = getMenu(menuData.id);
 
   if (menu && !options.overwrite) {
     throw new Error(`Menu "${menuData.id}" already exists`);
@@ -993,26 +1154,26 @@ export async function importMenu(data, options = {}) {
   }
 
   // Import items
-  const idMapping = {}; // Map old IDs to new IDs for parent references
+  const idMapping: Record<string, string> = {}; // Map old IDs to new IDs for parent references
 
   for (const itemData of itemsData) {
     const oldId = itemData.id;
-    delete itemData.id; // Generate new ID
+    const { id: _id, ...itemWithoutId } = itemData; // Generate new ID
 
     // Remap parent ID if needed
-    if (itemData.parentId && idMapping[itemData.parentId]) {
-      itemData.parentId = idMapping[itemData.parentId];
+    if (itemWithoutId.parentId && idMapping[itemWithoutId.parentId]) {
+      itemWithoutId.parentId = idMapping[itemWithoutId.parentId]!;
     }
 
     const item = await createMenuItem({
-      ...itemData,
-      menuId: menu.id,
+      ...(itemWithoutId as unknown as MenuItemInput),
+      menuId: menu!.id,
     });
 
     idMapping[oldId] = item.id;
   }
 
-  return menu;
+  return menu!;
 }
 
 /**
@@ -1021,7 +1182,7 @@ export async function importMenu(data, options = {}) {
  * @param {string|null} parentId - Parent item ID
  * @returns {number} Depth level (0 = root)
  */
-function calculateDepth(parentId) {
+function calculateDepth(parentId: string | null | undefined): number {
   if (!parentId) return 0;
 
   const parent = getMenuItem(parentId);
@@ -1035,12 +1196,12 @@ function calculateDepth(parentId) {
  *
  * @param {string} parentId - Parent item ID
  */
-async function updateDescendantDepths(parentId) {
+async function updateDescendantDepths(parentId: string): Promise<void> {
   const children = listMenuItems({ parentId });
 
   for (const child of children.items) {
     const newDepth = calculateDepth(parentId);
-    await contentService.update('menu-item', child.id, { depth: newDepth });
+    await contentService!.update('menu-item', child.id, { depth: newDepth });
 
     // Recursively update grandchildren
     await updateDescendantDepths(child.id);
@@ -1053,7 +1214,7 @@ async function updateDescendantDepths(parentId) {
  * @param {string} title - Menu title
  * @returns {string} Menu ID
  */
-function generateMenuId(title) {
+function generateMenuId(title: string): string {
   return title
     .toLowerCase()
     .replace(/[^a-z0-9]+/g, '-')
@@ -1065,7 +1226,7 @@ function generateMenuId(title) {
  *
  * @returns {string} Menu item ID
  */
-function generateMenuItemId() {
+function generateMenuItemId(): string {
   return `item-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
 }
 
@@ -1074,7 +1235,7 @@ function generateMenuItemId() {
  *
  * @returns {Object} Current configuration
  */
-export function getConfig() {
+export function getConfig(): MenuConfig {
   return { ...config };
 }
 
@@ -1083,6 +1244,6 @@ export function getConfig() {
  *
  * @returns {boolean}
  */
-export function isEnabled() {
+export function isEnabled(): boolean {
   return config.enabled;
 }

@@ -34,11 +34,68 @@
  * ```
  */
 
+// ============================================
+// TYPE DEFINITIONS
+// ============================================
+
+/** Supported schema data types */
+type SchemaType = 'string' | 'number' | 'boolean' | 'date' | 'array' | 'object';
+
+/** Custom validator function — returns true if valid, or an error message string */
+type CustomValidator = (value: unknown) => true | string;
+
+/** Schema property definition for nested object validation */
+export interface SchemaDefinition {
+  /** The expected data type */
+  type: SchemaType;
+  /** Human-readable schema name (added internally) */
+  name?: string;
+  /** Whether this field is required */
+  required?: boolean;
+  /** Property definitions for object types */
+  properties?: Record<string, SchemaDefinition>;
+  /** Item schema for array types */
+  items?: SchemaDefinition;
+  /** Default value when not provided */
+  default?: unknown;
+  /** Custom validation function */
+  validator?: CustomValidator;
+  /** Minimum value (numbers) or length (strings/arrays) */
+  min?: number | string;
+  /** Maximum value (numbers) or length (strings/arrays) */
+  max?: number | string;
+  /** Pattern to match (strings only) */
+  pattern?: RegExp;
+  /** Allowed values */
+  enum?: unknown[];
+}
+
+/** Result of a validation operation */
+export interface ValidationResult {
+  /** Whether the data passed validation */
+  valid: boolean;
+  /** List of validation error messages */
+  errors: string[];
+  /** The data after type coercion */
+  coerced: unknown;
+}
+
+/** The public typed data API surface */
+export interface TypedDataAPI {
+  defineSchema: typeof defineSchema;
+  getSchema: typeof getSchema;
+  validate: typeof validate;
+  resolveValue: typeof resolveValue;
+  hasSchema: typeof hasSchema;
+  listSchemas: typeof listSchemas;
+  clearSchemas: typeof clearSchemas;
+}
+
 /**
  * Schema registry
  * Structure: { schemaName: schemaDefinition }
  */
-const schemas = {};
+const schemas: Record<string, SchemaDefinition> = {};
 
 /**
  * Define a data schema
@@ -60,7 +117,7 @@ const schemas = {};
  * Different use cases need different constraints. Forms need min/max length,
  * APIs need enum values, database models need custom validators.
  */
-export function defineSchema(name, schema) {
+export function defineSchema(name: string, schema: SchemaDefinition): void {
   if (!name || typeof name !== 'string') {
     throw new Error('Schema name must be a non-empty string');
   }
@@ -85,8 +142,8 @@ export function defineSchema(name, schema) {
  * @param {string} name - Schema identifier
  * @returns {Object|null} - Schema definition or null
  */
-export function getSchema(name) {
-  return schemas[name] || null;
+export function getSchema(name: string): SchemaDefinition | null {
+  return schemas[name] ?? null;
 }
 
 /**
@@ -100,8 +157,8 @@ export function getSchema(name) {
  * Type coercion (e.g., "123" → 123) is common. Return the coerced value
  * so caller can use it without re-processing.
  */
-export function validate(data, schemaOrName) {
-  const result = {
+export function validate(data: unknown, schemaOrName: string | SchemaDefinition): ValidationResult {
+  const result: ValidationResult = {
     valid: true,
     errors: [],
     coerced: data,
@@ -116,7 +173,7 @@ export function validate(data, schemaOrName) {
       result.errors.push(`Unknown schema: ${schemaOrName}`);
       return result;
     }
-  } else if (typeof schemaOrName === 'object' && schemaOrName.type) {
+  } else if (typeof schemaOrName === 'object' && schemaOrName !== null && 'type' in schemaOrName && schemaOrName.type) {
     schema = schemaOrName;
   } else {
     result.valid = false;
@@ -146,8 +203,8 @@ export function validate(data, schemaOrName) {
  * Nested validation needs to show which property failed.
  * "name is required" vs "user.profile.name is required"
  */
-function validateValue(value, schema, path = '') {
-  const result = {
+function validateValue(value: unknown, schema: SchemaDefinition, path: string = ''): ValidationResult {
+  const result: ValidationResult = {
     valid: true,
     errors: [],
     coerced: value,
@@ -218,9 +275,10 @@ function validateValue(value, schema, path = '') {
         result.valid = false;
         result.errors.push(`${prefix}${customResult || 'Custom validation failed'}`);
       }
-    } catch (error) {
+    } catch (error: unknown) {
       result.valid = false;
-      result.errors.push(`${prefix}Validator error: ${error.message}`);
+      const message = error instanceof Error ? error.message : String(error);
+      result.errors.push(`${prefix}Validator error: ${message}`);
     }
   }
 
@@ -230,13 +288,13 @@ function validateValue(value, schema, path = '') {
 /**
  * Coercion utilities
  */
-function coerceString(value) {
+function coerceString(value: unknown): string {
   if (typeof value === 'string') return value;
   if (value === null || value === undefined) return '';
   return String(value);
 }
 
-function coerceNumber(value) {
+function coerceNumber(value: unknown): unknown {
   if (typeof value === 'number') return value;
   if (typeof value === 'string') {
     const parsed = Number(value);
@@ -245,7 +303,7 @@ function coerceNumber(value) {
   return value;
 }
 
-function coerceBoolean(value) {
+function coerceBoolean(value: unknown): boolean {
   if (typeof value === 'boolean') return value;
   if (typeof value === 'string') {
     const lower = value.toLowerCase();
@@ -256,7 +314,7 @@ function coerceBoolean(value) {
   return Boolean(value);
 }
 
-function coerceDate(value) {
+function coerceDate(value: unknown): unknown {
   if (value instanceof Date) return value;
   if (typeof value === 'string' || typeof value === 'number') {
     const date = new Date(value);
@@ -268,19 +326,19 @@ function coerceDate(value) {
 /**
  * Type-specific validators
  */
-function validateString(value, schema, prefix, result) {
+function validateString(value: unknown, schema: SchemaDefinition, prefix: string, result: ValidationResult): void {
   if (typeof value !== 'string') {
     result.valid = false;
     result.errors.push(`${prefix}Must be a string`);
     return;
   }
 
-  if (schema.min !== undefined && value.length < schema.min) {
+  if (schema.min !== undefined && value.length < Number(schema.min)) {
     result.valid = false;
     result.errors.push(`${prefix}Minimum length is ${schema.min}`);
   }
 
-  if (schema.max !== undefined && value.length > schema.max) {
+  if (schema.max !== undefined && value.length > Number(schema.max)) {
     result.valid = false;
     result.errors.push(`${prefix}Maximum length is ${schema.max}`);
   }
@@ -296,19 +354,19 @@ function validateString(value, schema, prefix, result) {
   }
 }
 
-function validateNumber(value, schema, prefix, result) {
+function validateNumber(value: unknown, schema: SchemaDefinition, prefix: string, result: ValidationResult): void {
   if (typeof value !== 'number' || isNaN(value)) {
     result.valid = false;
     result.errors.push(`${prefix}Must be a number`);
     return;
   }
 
-  if (schema.min !== undefined && value < schema.min) {
+  if (schema.min !== undefined && value < Number(schema.min)) {
     result.valid = false;
     result.errors.push(`${prefix}Minimum value is ${schema.min}`);
   }
 
-  if (schema.max !== undefined && value > schema.max) {
+  if (schema.max !== undefined && value > Number(schema.max)) {
     result.valid = false;
     result.errors.push(`${prefix}Maximum value is ${schema.max}`);
   }
@@ -319,14 +377,14 @@ function validateNumber(value, schema, prefix, result) {
   }
 }
 
-function validateBoolean(value, schema, prefix, result) {
+function validateBoolean(value: unknown, schema: SchemaDefinition, prefix: string, result: ValidationResult): void {
   if (typeof value !== 'boolean') {
     result.valid = false;
     result.errors.push(`${prefix}Must be a boolean`);
   }
 }
 
-function validateDate(value, schema, prefix, result) {
+function validateDate(value: unknown, schema: SchemaDefinition, prefix: string, result: ValidationResult): void {
   if (!(value instanceof Date) || isNaN(value.getTime())) {
     result.valid = false;
     result.errors.push(`${prefix}Must be a valid date`);
@@ -350,26 +408,26 @@ function validateDate(value, schema, prefix, result) {
   }
 }
 
-function validateArray(value, schema, path, result) {
+function validateArray(value: unknown, schema: SchemaDefinition, path: string, result: ValidationResult): void {
   if (!Array.isArray(value)) {
     result.valid = false;
     result.errors.push(`${path ? path + ': ' : ''}Must be an array`);
     return;
   }
 
-  if (schema.min !== undefined && value.length < schema.min) {
+  if (schema.min !== undefined && value.length < Number(schema.min)) {
     result.valid = false;
     result.errors.push(`${path ? path + ': ' : ''}Minimum length is ${schema.min}`);
   }
 
-  if (schema.max !== undefined && value.length > schema.max) {
+  if (schema.max !== undefined && value.length > Number(schema.max)) {
     result.valid = false;
     result.errors.push(`${path ? path + ': ' : ''}Maximum length is ${schema.max}`);
   }
 
   // Validate items if schema provided
   if (schema.items) {
-    const coercedItems = [];
+    const coercedItems: unknown[] = [];
     for (let i = 0; i < value.length; i++) {
       const itemPath = path ? `${path}[${i}]` : `[${i}]`;
       const itemResult = validateValue(value[i], schema.items, itemPath);
@@ -385,7 +443,7 @@ function validateArray(value, schema, path, result) {
   }
 }
 
-function validateObject(value, schema, path, result) {
+function validateObject(value: unknown, schema: SchemaDefinition, path: string, result: ValidationResult): void {
   if (typeof value !== 'object' || value === null || Array.isArray(value)) {
     result.valid = false;
     result.errors.push(`${path ? path + ': ' : ''}Must be an object`);
@@ -394,11 +452,12 @@ function validateObject(value, schema, path, result) {
 
   // Validate properties if schema provided
   if (schema.properties) {
-    const coercedObj = { ...value };
+    const obj = value as Record<string, unknown>;
+    const coercedObj: Record<string, unknown> = { ...obj };
 
     for (const [key, propSchema] of Object.entries(schema.properties)) {
       const propPath = path ? `${path}.${key}` : key;
-      const propResult = validateValue(value[key], propSchema, propPath);
+      const propResult = validateValue(obj[key], propSchema, propPath);
 
       if (!propResult.valid) {
         result.valid = false;
@@ -428,7 +487,7 @@ function validateObject(value, schema, path, result) {
  * resolveValue(data, 'user.profile.name'); // 'Alice'
  * resolveValue(data, 'user.email'); // undefined
  */
-export function resolveValue(data, path) {
+export function resolveValue(data: unknown, path: string): unknown {
   if (!path || typeof path !== 'string') {
     return undefined;
   }
@@ -438,7 +497,7 @@ export function resolveValue(data, path) {
   }
 
   const parts = path.split('.');
-  let current = data;
+  let current: unknown = data;
 
   for (const part of parts) {
     if (current === null || current === undefined) {
@@ -449,13 +508,15 @@ export function resolveValue(data, path) {
     const arrayMatch = part.match(/^(.+)\[(\d+)\]$/);
     if (arrayMatch) {
       const [, prop, index] = arrayMatch;
-      current = current[prop];
+      if (typeof current !== 'object') return undefined;
+      current = (current as Record<string, unknown>)[prop as string];
       if (!Array.isArray(current)) {
         return undefined;
       }
-      current = current[parseInt(index, 10)];
+      current = current[parseInt(index as string, 10)];
     } else {
-      current = current[part];
+      if (typeof current !== 'object') return undefined;
+      current = (current as Record<string, unknown>)[part];
     }
   }
 
@@ -468,7 +529,7 @@ export function resolveValue(data, path) {
  * @param {string} name - Schema identifier
  * @returns {boolean} - True if schema exists
  */
-export function hasSchema(name) {
+export function hasSchema(name: string): boolean {
   return name in schemas;
 }
 
@@ -477,7 +538,7 @@ export function hasSchema(name) {
  *
  * @returns {string[]} - Array of schema names
  */
-export function listSchemas() {
+export function listSchemas(): string[] {
   return Object.keys(schemas);
 }
 
@@ -486,7 +547,7 @@ export function listSchemas() {
  *
  * @returns {void}
  */
-export function clearSchemas() {
+export function clearSchemas(): void {
   for (const key of Object.keys(schemas)) {
     delete schemas[key];
   }
@@ -498,7 +559,7 @@ export function clearSchemas() {
  * @param {Object} context - Boot context
  * @returns {Object} - The typed data API
  */
-export function init(context) {
+export function init(_context: Record<string, unknown>): TypedDataAPI {
   return {
     defineSchema,
     getSchema,
@@ -516,7 +577,7 @@ export function init(context) {
  * @param {Object} services - Legacy services object
  * @param {Object} container - DI container
  */
-export function register(services, container) {
+export function register(services: Record<string, unknown> | null, container: Record<string, unknown> | null): void {
   const api = {
     defineSchema,
     getSchema,
@@ -529,15 +590,14 @@ export function register(services, container) {
 
   // Legacy pattern
   if (services && typeof services.register === 'function') {
-    services.register('typed_data', () => api);
+    (services.register as (name: string, factory: () => TypedDataAPI) => void)('typed_data', () => api);
   }
 
   // New container pattern
   if (container && typeof container.register === 'function') {
-    container.register('typed_data', () => api, {
-      tags: ['data', 'validation'],
-      singleton: true,
-    });
+    (container.register as (name: string, factory: () => TypedDataAPI, opts: Record<string, unknown>) => void)(
+      'typed_data', () => api, { tags: ['data', 'validation'], singleton: true }
+    );
   }
 }
 

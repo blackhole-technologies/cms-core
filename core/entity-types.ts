@@ -36,17 +36,99 @@ import { join } from 'node:path';
 import { readFileSync, writeFileSync, existsSync, mkdirSync } from 'node:fs';
 
 // ============================================
+// TYPE DEFINITIONS
+// ============================================
+
+/** Base field definition within an entity type */
+export interface BaseFieldDef {
+  type: string;
+  label: string;
+  required?: boolean;
+  default?: unknown;
+  computed?: boolean;
+  target?: string;
+}
+
+/** Entity key mappings (which fields serve as id, label, etc.) */
+export interface EntityKeys {
+  id: string;
+  uuid?: string;
+  bundle?: string;
+  label?: string;
+  status?: string;
+}
+
+/** Full entity type definition */
+export interface EntityTypeDefinition {
+  id: string;
+  label: string;
+  labelPlural: string;
+  entityKeys: EntityKeys;
+  revisionable: boolean;
+  translatable: boolean;
+  baseFields: Record<string, BaseFieldDef>;
+}
+
+/** Bundle (content type) definition */
+export interface BundleDefinition {
+  entityType: string;
+  name: string;
+  label: string;
+  description: string;
+}
+
+/** Field storage definition */
+export interface FieldStorageDefinition {
+  name: string;
+  type: string;
+  cardinality: number;
+  translatable: boolean;
+  settings: Record<string, unknown>;
+}
+
+/** Field instance definition (per-bundle) */
+export interface FieldInstanceDefinition {
+  id: string;
+  entityType: string;
+  bundle: string;
+  storage: string;
+  label: string;
+  description: string;
+  required: boolean;
+  defaultValue?: unknown;
+  weight: number;
+  settings: Record<string, unknown>;
+}
+
+/** Display mode definition */
+export interface DisplayModeDefinition {
+  id: string;
+  entityType: string;
+  bundle: string;
+  mode: string;
+  label: string;
+  enabled: boolean;
+  fields: Record<string, Record<string, unknown>>;
+}
+
+/** Content types service interface for integration */
+interface ContentTypesServiceRef {
+  registerFromBundle?: (name: string, config: Record<string, unknown>) => void;
+  [key: string]: unknown;
+}
+
+// ============================================
 // REGISTRIES
 // ============================================
 
-const entityTypes = {};
-const bundles = {};
-const fieldStorages = {};
-const fieldInstances = {};
-const displayModes = {};
+const entityTypes: Record<string, EntityTypeDefinition> = {};
+const bundles: Record<string, Record<string, BundleDefinition>> = {};
+const fieldStorages: Record<string, FieldStorageDefinition> = {};
+const fieldInstances: Record<string, FieldInstanceDefinition> = {};
+const displayModes: Record<string, DisplayModeDefinition> = {};
 
-let configDir = null;
-let contentTypesService = null;
+let configDir: string | null = null;
+let contentTypesService: ContentTypesServiceRef | null = null;
 
 // ============================================
 // INITIALIZATION
@@ -58,7 +140,7 @@ let contentTypesService = null;
  * @param {string} baseDir - Base directory
  * @param {Object} contentTypes - Content types service (for integration)
  */
-export function init(baseDir, contentTypes = null) {
+export function init(baseDir: string, contentTypes: ContentTypesServiceRef | null = null): void {
   configDir = join(baseDir, 'config', 'entity-types');
   contentTypesService = contentTypes;
   
@@ -72,11 +154,11 @@ export function init(baseDir, contentTypes = null) {
   console.log(`[entity-types] Initialized (${Object.keys(entityTypes).length} entity types, ${countBundles()} bundles)`);
 }
 
-function countBundles() {
-  return Object.values(bundles).reduce((sum, b) => sum + Object.keys(b).length, 0);
+function countBundles(): number {
+  return Object.values(bundles).reduce((sum: number, b) => sum + Object.keys(b).length, 0);
 }
 
-function registerBuiltinEntityTypes() {
+function registerBuiltinEntityTypes(): void {
   // Node (content)
   registerEntityType('node', {
     label: 'Content',
@@ -139,7 +221,7 @@ function registerBuiltinEntityTypes() {
   });
 }
 
-function loadStoredConfigs() {
+function loadStoredConfigs(): void {
   const files = [
     { path: 'field_storages.json', target: fieldStorages },
     { path: 'field_instances.json', target: fieldInstances },
@@ -148,7 +230,7 @@ function loadStoredConfigs() {
   ];
   
   for (const { path, target } of files) {
-    const fullPath = join(configDir, path);
+    const fullPath = join(configDir!, path);
     if (existsSync(fullPath)) {
       try {
         const stored = JSON.parse(readFileSync(fullPath, 'utf-8'));
@@ -160,14 +242,14 @@ function loadStoredConfigs() {
         } else {
           Object.assign(target, stored);
         }
-      } catch (e) {
-        console.error(`[entity-types] Failed to load ${path}:`, e.message);
+      } catch (e: unknown) {
+        console.error(`[entity-types] Failed to load ${path}:`, e instanceof Error ? e.message : String(e));
       }
     }
   }
 }
 
-function saveConfigs() {
+function saveConfigs(): void {
   if (!configDir) return;
   
   const files = [
@@ -180,8 +262,8 @@ function saveConfigs() {
   for (const { path, data } of files) {
     try {
       writeFileSync(join(configDir, path), JSON.stringify(data, null, 2));
-    } catch (e) {
-      console.error(`[entity-types] Failed to save ${path}:`, e.message);
+    } catch (e: unknown) {
+      console.error(`[entity-types] Failed to save ${path}:`, e instanceof Error ? e.message : String(e));
     }
   }
 }
@@ -190,7 +272,7 @@ function saveConfigs() {
 // ENTITY TYPE MANAGEMENT
 // ============================================
 
-export function registerEntityType(id, definition) {
+export function registerEntityType(id: string, definition: Partial<EntityTypeDefinition> & { baseFields?: Record<string, BaseFieldDef> }): void {
   entityTypes[id] = {
     id,
     label: definition.label || id,
@@ -204,15 +286,15 @@ export function registerEntityType(id, definition) {
   if (!bundles[id]) bundles[id] = {};
 }
 
-export function getEntityType(id) {
-  return entityTypes[id] || null;
+export function getEntityType(id: string): EntityTypeDefinition | null {
+  return entityTypes[id] ?? null;
 }
 
-export function listEntityTypes() {
+export function listEntityTypes(): EntityTypeDefinition[] {
   return Object.values(entityTypes);
 }
 
-export function hasEntityType(id) {
+export function hasEntityType(id: string): boolean {
   return id in entityTypes;
 }
 
@@ -220,7 +302,7 @@ export function hasEntityType(id) {
 // BUNDLE MANAGEMENT
 // ============================================
 
-export function registerBundle(entityTypeId, bundleName, definition = {}) {
+export function registerBundle(entityTypeId: string, bundleName: string, definition: Partial<BundleDefinition> = {}): BundleDefinition {
   if (!entityTypes[entityTypeId]) {
     throw new Error(`Entity type "${entityTypeId}" does not exist`);
   }
@@ -240,15 +322,15 @@ export function registerBundle(entityTypeId, bundleName, definition = {}) {
   return bundles[entityTypeId][bundleName];
 }
 
-export function getBundle(entityTypeId, bundleName) {
-  return bundles[entityTypeId]?.[bundleName] || null;
+export function getBundle(entityTypeId: string, bundleName: string): BundleDefinition | null {
+  return bundles[entityTypeId]?.[bundleName] ?? null;
 }
 
-export function listBundles(entityTypeId) {
+export function listBundles(entityTypeId: string): BundleDefinition[] {
   return bundles[entityTypeId] ? Object.values(bundles[entityTypeId]) : [];
 }
 
-export function deleteBundle(entityTypeId, bundleName) {
+export function deleteBundle(entityTypeId: string, bundleName: string): void {
   if (!bundles[entityTypeId]?.[bundleName]) {
     throw new Error(`Bundle "${bundleName}" does not exist`);
   }
@@ -270,7 +352,7 @@ export function deleteBundle(entityTypeId, bundleName) {
 // FIELD STORAGE MANAGEMENT
 // ============================================
 
-export function registerFieldStorage(fieldName, definition) {
+export function registerFieldStorage(fieldName: string, definition: Partial<FieldStorageDefinition> & { type: string }): FieldStorageDefinition {
   if (fieldStorages[fieldName]) {
     throw new Error(`Field storage "${fieldName}" already exists`);
   }
@@ -287,15 +369,15 @@ export function registerFieldStorage(fieldName, definition) {
   return fieldStorages[fieldName];
 }
 
-export function getFieldStorage(fieldName) {
-  return fieldStorages[fieldName] || null;
+export function getFieldStorage(fieldName: string): FieldStorageDefinition | null {
+  return fieldStorages[fieldName] ?? null;
 }
 
-export function listFieldStorages() {
+export function listFieldStorages(): FieldStorageDefinition[] {
   return Object.values(fieldStorages);
 }
 
-export function updateFieldStorage(fieldName, updates) {
+export function updateFieldStorage(fieldName: string, updates: Partial<FieldStorageDefinition>): FieldStorageDefinition {
   if (!fieldStorages[fieldName]) {
     throw new Error(`Field storage "${fieldName}" does not exist`);
   }
@@ -308,8 +390,8 @@ export function updateFieldStorage(fieldName, updates) {
   return storage;
 }
 
-export function deleteFieldStorage(fieldName) {
-  const inUse = Object.values(fieldInstances).some(i => i.storage === fieldName);
+export function deleteFieldStorage(fieldName: string): void {
+  const inUse = Object.values(fieldInstances).some((i: FieldInstanceDefinition) => i.storage === fieldName);
   if (inUse) {
     throw new Error(`Cannot delete field storage "${fieldName}" - in use`);
   }
@@ -322,7 +404,7 @@ export function deleteFieldStorage(fieldName) {
 // FIELD INSTANCE MANAGEMENT
 // ============================================
 
-export function createFieldInstance(entityTypeId, bundleName, fieldName, settings = {}) {
+export function createFieldInstance(entityTypeId: string, bundleName: string, fieldName: string, settings: Partial<FieldInstanceDefinition> = {}): FieldInstanceDefinition {
   const storage = fieldStorages[fieldName];
   if (!storage) {
     throw new Error(`Field storage "${fieldName}" does not exist`);
@@ -355,11 +437,11 @@ export function createFieldInstance(entityTypeId, bundleName, fieldName, setting
   return fieldInstances[instanceId];
 }
 
-export function getFieldInstance(entityTypeId, bundleName, fieldName) {
-  return fieldInstances[`${entityTypeId}.${bundleName}.${fieldName}`] || null;
+export function getFieldInstance(entityTypeId: string, bundleName: string, fieldName: string): FieldInstanceDefinition | null {
+  return fieldInstances[`${entityTypeId}.${bundleName}.${fieldName}`] ?? null;
 }
 
-export function listFieldInstances(entityTypeId, bundleName) {
+export function listFieldInstances(entityTypeId: string, bundleName: string): FieldInstanceDefinition[] {
   const prefix = `${entityTypeId}.${bundleName}.`;
   return Object.entries(fieldInstances)
     .filter(([key]) => key.startsWith(prefix))
@@ -367,7 +449,7 @@ export function listFieldInstances(entityTypeId, bundleName) {
     .sort((a, b) => (a.weight || 0) - (b.weight || 0));
 }
 
-export function updateFieldInstance(entityTypeId, bundleName, fieldName, updates) {
+export function updateFieldInstance(entityTypeId: string, bundleName: string, fieldName: string, updates: Partial<FieldInstanceDefinition>): FieldInstanceDefinition {
   const instanceId = `${entityTypeId}.${bundleName}.${fieldName}`;
   const instance = fieldInstances[instanceId];
   
@@ -386,7 +468,7 @@ export function updateFieldInstance(entityTypeId, bundleName, fieldName, updates
   return instance;
 }
 
-export function deleteFieldInstance(entityTypeId, bundleName, fieldName) {
+export function deleteFieldInstance(entityTypeId: string, bundleName: string, fieldName: string): void {
   const instanceId = `${entityTypeId}.${bundleName}.${fieldName}`;
   if (!fieldInstances[instanceId]) {
     throw new Error(`Field instance "${instanceId}" does not exist`);
@@ -402,7 +484,7 @@ export function deleteFieldInstance(entityTypeId, bundleName, fieldName) {
 
 const DEFAULT_MODES = ['full', 'teaser', 'card', 'search_result'];
 
-function createDefaultDisplayModes(entityTypeId, bundleName) {
+function createDefaultDisplayModes(entityTypeId: string, bundleName: string): void {
   for (const mode of DEFAULT_MODES) {
     const key = `${entityTypeId}.${bundleName}.${mode}`;
     if (!displayModes[key]) {
@@ -419,18 +501,18 @@ function createDefaultDisplayModes(entityTypeId, bundleName) {
   }
 }
 
-export function getDisplayMode(entityTypeId, bundleName, mode) {
-  return displayModes[`${entityTypeId}.${bundleName}.${mode}`] || null;
+export function getDisplayMode(entityTypeId: string, bundleName: string, mode: string): DisplayModeDefinition | null {
+  return displayModes[`${entityTypeId}.${bundleName}.${mode}`] ?? null;
 }
 
-export function listDisplayModes(entityTypeId, bundleName) {
+export function listDisplayModes(entityTypeId: string, bundleName: string): DisplayModeDefinition[] {
   const prefix = `${entityTypeId}.${bundleName}.`;
   return Object.entries(displayModes)
     .filter(([key]) => key.startsWith(prefix))
     .map(([, mode]) => mode);
 }
 
-export function updateDisplayMode(entityTypeId, bundleName, mode, updates) {
+export function updateDisplayMode(entityTypeId: string, bundleName: string, mode: string, updates: Partial<DisplayModeDefinition>): DisplayModeDefinition {
   const key = `${entityTypeId}.${bundleName}.${mode}`;
   
   if (!displayModes[key]) {
@@ -449,7 +531,7 @@ export function updateDisplayMode(entityTypeId, bundleName, mode, updates) {
   return dm;
 }
 
-export function setFieldDisplay(entityTypeId, bundleName, mode, fieldName, config) {
+export function setFieldDisplay(entityTypeId: string, bundleName: string, mode: string, fieldName: string, config: Record<string, unknown>): void {
   const key = `${entityTypeId}.${bundleName}.${mode}`;
   if (!displayModes[key]) {
     throw new Error(`Display mode "${mode}" does not exist`);
@@ -473,14 +555,14 @@ export function setFieldDisplay(entityTypeId, bundleName, mode, fieldName, confi
 /**
  * Get full schema for a bundle (base fields + field instances)
  */
-export function getBundleSchema(entityTypeId, bundleName) {
+export function getBundleSchema(entityTypeId: string, bundleName: string): Record<string, unknown> | null {
   const entityType = entityTypes[entityTypeId];
   if (!entityType) return null;
   
   const bundle = bundles[entityTypeId]?.[bundleName];
   if (!bundle) return null;
   
-  const schema = { ...entityType.baseFields };
+  const schema: Record<string, Record<string, unknown>> = { ...entityType.baseFields } as unknown as Record<string, Record<string, unknown>>;
   
   for (const instance of listFieldInstances(entityTypeId, bundleName)) {
     const storage = fieldStorages[instance.storage];
@@ -502,7 +584,7 @@ export function getBundleSchema(entityTypeId, bundleName) {
 /**
  * Get all fields for a bundle (for admin UI)
  */
-export function getBundleFields(entityTypeId, bundleName) {
+export function getBundleFields(entityTypeId: string, bundleName: string): Record<string, unknown>[] {
   const entityType = entityTypes[entityTypeId];
   if (!entityType) return [];
   
@@ -542,7 +624,7 @@ export function getBundleFields(entityTypeId, bundleName) {
  * Sync a bundle to content-types service
  * This registers the bundle as a content type for backward compatibility
  */
-export function syncBundleToContentTypes(entityTypeId, bundleName) {
+export function syncBundleToContentTypes(entityTypeId: string, bundleName: string): void {
   if (!contentTypesService) return;
   
   const schema = getBundleSchema(entityTypeId, bundleName);
@@ -552,18 +634,19 @@ export function syncBundleToContentTypes(entityTypeId, bundleName) {
   if (!bundle) return;
   
   // Convert to content-types format
-  const typeConfig = {
+  const typeConfig: { label: string; description: string; fields: Record<string, Record<string, unknown>> } = {
     label: bundle.label,
     description: bundle.description,
     fields: {},
   };
-  
+
   for (const [fieldName, fieldDef] of Object.entries(schema)) {
+    const def = fieldDef as Record<string, unknown>;
     typeConfig.fields[fieldName] = {
-      type: fieldDef.type,
-      label: fieldDef.label,
-      required: fieldDef.required || false,
-      default: fieldDef.default,
+      type: def.type,
+      label: def.label,
+      required: (def.required as boolean) || false,
+      default: def.default,
     };
   }
   

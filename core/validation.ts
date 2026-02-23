@@ -34,6 +34,126 @@
  */
 
 // ============================================
+// TYPES
+// ============================================
+
+/** Validator function: returns true if valid, or an error message string */
+type ValidatorFn = (value: unknown, options: unknown, context: ValidationContext) => true | string | Promise<true | string>;
+
+/** Cross-field validator function */
+type CrossFieldValidator = (data: Record<string, unknown>, context: ValidationContext) => true | string | CrossFieldResult | Promise<true | string | CrossFieldResult>;
+
+/** Cross-field validation result */
+interface CrossFieldResult {
+  field?: string;
+  rule?: string;
+  message?: string;
+}
+
+/** Registered validator entry */
+interface ValidatorEntry {
+  fn: ValidatorFn;
+  description: string;
+  async: boolean;
+  source: string;
+}
+
+/** Validation rule extracted from a field definition */
+interface ValidationRule {
+  name: string;
+  options?: unknown;
+  message?: string;
+  fn?: ValidatorFn;
+}
+
+/** Validation error */
+interface ValidationError {
+  field?: string;
+  rule: string;
+  message: string;
+}
+
+/** Validation result */
+interface ValidationResult {
+  valid: boolean;
+  errors: ValidationError[];
+}
+
+/** Validation context passed to validators */
+interface ValidationContext {
+  type: string;
+  id: string | null;
+  isUpdate: boolean;
+  data: Record<string, unknown>;
+  content: ContentServiceRef | null;
+  fieldName?: string;
+}
+
+/** Field definition (partial) */
+interface FieldDef {
+  type?: string;
+  required?: boolean;
+  minLength?: number;
+  maxLength?: number;
+  min?: number;
+  max?: number;
+  pattern?: string | RegExp;
+  patternMessage?: string;
+  validate?: Array<string | Record<string, unknown> | ValidatorFn>;
+  fields?: Record<string, FieldDef>;
+  [key: string]: unknown;
+}
+
+/** Content service reference */
+interface ContentServiceRef {
+  list: (type: string, options?: Record<string, unknown>) => { items: Array<Record<string, unknown>>; total: number };
+  listAll?: (type: string) => Array<Record<string, unknown>>;
+  get: (type: string, id: string) => Record<string, unknown> | null;
+}
+
+/** Validate options */
+interface ValidateOptions {
+  schema?: Record<string, FieldDef>;
+  id?: string;
+  isUpdate?: boolean;
+}
+
+/** Validate type result */
+interface ValidateTypeResult {
+  total: number;
+  valid: number;
+  invalid: number;
+  errors: Record<string, ValidationError[]>;
+}
+
+/** Validator info (for listing) */
+interface ValidatorInfo {
+  name: string;
+  description: string;
+  async: boolean;
+  source: string;
+}
+
+/** Register validator options */
+interface RegisterValidatorOptions {
+  description?: string;
+  async?: boolean;
+  source?: string;
+}
+
+/** Formatted error response */
+interface FormattedErrorResponse {
+  error: string;
+  errors: Array<{ field: string | undefined; rule: string; message: string }>;
+}
+
+/** Context creation options */
+interface ContextOptions {
+  id?: string;
+  isUpdate?: boolean;
+}
+
+// ============================================
 // VALIDATOR REGISTRY
 // ============================================
 
@@ -41,17 +161,17 @@
  * Registry of validators
  * Structure: { name: { fn, description, async } }
  */
-const validators = {};
+const validators: Record<string, ValidatorEntry> = {};
 
 /**
  * Content service reference (set during init)
  */
-let contentService = null;
+let contentService: ContentServiceRef | null = null;
 
 /**
  * Configuration
  */
-let config = {
+let config: { enabled: boolean; stopOnFirst: boolean } = {
   enabled: true,
   stopOnFirst: false  // Stop on first error per field
 };
@@ -62,7 +182,7 @@ let config = {
  * @param {Object} cfg - Configuration
  * @param {Object} content - Content service for async validators
  */
-export function init(cfg = {}, content = null) {
+export function init(cfg: Partial<typeof config> = {}, content: ContentServiceRef | null = null): void {
   config = { ...config, ...cfg };
   contentService = content;
 
@@ -84,7 +204,7 @@ export function init(cfg = {}, content = null) {
  * @param {Function} fn - Validator function (value, options, context) => true | string
  * @param {Object} options - { description, async }
  */
-export function registerValidator(name, fn, options = {}) {
+export function registerValidator(name: string, fn: ValidatorFn, options: RegisterValidatorOptions = {}): void {
   if (!name || typeof name !== 'string') {
     throw new Error('Validator name must be a non-empty string');
   }
@@ -106,7 +226,7 @@ export function registerValidator(name, fn, options = {}) {
  * @param {string} name - Validator name
  * @returns {Object|null} Validator config or null
  */
-export function getValidator(name) {
+export function getValidator(name: string): ValidatorEntry | null {
   return validators[name] || null;
 }
 
@@ -115,7 +235,7 @@ export function getValidator(name) {
  *
  * @returns {Array} Array of validator info
  */
-export function listValidators() {
+export function listValidators(): ValidatorInfo[] {
   return Object.entries(validators)
     .map(([name, v]) => ({
       name,
@@ -132,7 +252,7 @@ export function listValidators() {
  * @param {string} name - Validator name
  * @returns {boolean}
  */
-export function hasValidator(name) {
+export function hasValidator(name: string): boolean {
   return name in validators;
 }
 
@@ -148,14 +268,14 @@ export function hasValidator(name) {
  * @param {Object} options - { schema, id, isUpdate }
  * @returns {Promise<Object>} { valid: bool, errors: [...] }
  */
-export async function validate(type, data, options = {}) {
+export async function validate(type: string, data: Record<string, unknown>, options: ValidateOptions = {}): Promise<ValidationResult> {
   if (!config.enabled) {
     return { valid: true, errors: [] };
   }
 
-  const errors = [];
+  const errors: ValidationError[] = [];
   const schema = options.schema || {};
-  const context = {
+  const context: ValidationContext = {
     type,
     id: options.id || null,
     isUpdate: options.isUpdate || false,
@@ -164,14 +284,14 @@ export async function validate(type, data, options = {}) {
   };
 
   // Validate each field
-  for (const [fieldName, fieldDef] of Object.entries(schema)) {
+  for (const [fieldName, fieldDef] of Object.entries(schema) as Array<[string, FieldDef]>) {
     // Skip system fields and layout
     if (fieldName.startsWith('_')) continue;
 
     // Skip group type (handled separately)
     if (fieldDef.type === 'group') {
       // Recursively validate group fields
-      const groupErrors = await validateGroup(fieldName, fieldDef, data[fieldName] || {}, context);
+      const groupErrors = await validateGroup(fieldName, fieldDef, (data[fieldName] as Record<string, unknown>) || {}, context);
       errors.push(...groupErrors);
       continue;
     }
@@ -189,8 +309,8 @@ export async function validate(type, data, options = {}) {
   }
 
   // Run cross-field validators
-  if (schema._validate) {
-    const crossResult = await runCrossFieldValidation(schema._validate, data, context);
+  if ((schema as Record<string, unknown>)._validate) {
+    const crossResult = await runCrossFieldValidation((schema as Record<string, unknown>)._validate as CrossFieldValidator | CrossFieldValidator[], data, context);
     errors.push(...crossResult);
   }
 
@@ -209,10 +329,10 @@ export async function validate(type, data, options = {}) {
  * @param {Object} context - Validation context
  * @returns {Promise<Array>} Array of errors
  */
-async function validateGroup(groupName, groupDef, data, context) {
-  const errors = [];
+async function validateGroup(groupName: string, groupDef: FieldDef, data: Record<string, unknown>, context: ValidationContext): Promise<ValidationError[]> {
+  const errors: ValidationError[] = [];
 
-  for (const [fieldName, fieldDef] of Object.entries(groupDef.fields || {})) {
+  for (const [fieldName, fieldDef] of Object.entries(groupDef.fields || {}) as Array<[string, FieldDef]>) {
     const value = data[fieldName];
     const fieldErrors = await validateField(fieldDef, value, {
       ...context,
@@ -236,8 +356,8 @@ async function validateGroup(groupName, groupDef, data, context) {
  * @param {Object} context - Validation context
  * @returns {Promise<Array>} Array of errors
  */
-export async function validateField(fieldDef, value, context = {}) {
-  const errors = [];
+export async function validateField(fieldDef: FieldDef, value: unknown, context: Partial<ValidationContext> = {}): Promise<ValidationError[]> {
+  const errors: ValidationError[] = [];
 
   // Get validation rules
   const rules = getFieldRules(fieldDef);
@@ -266,8 +386,8 @@ export async function validateField(fieldDef, value, context = {}) {
  * @param {Object} fieldDef - Field definition
  * @returns {Array} Array of rule objects
  */
-function getFieldRules(fieldDef) {
-  const rules = [];
+function getFieldRules(fieldDef: FieldDef): ValidationRule[] {
+  const rules: ValidationRule[] = [];
 
   // Required
   if (fieldDef.required) {
@@ -312,23 +432,24 @@ function getFieldRules(fieldDef) {
       if (typeof v === 'string') {
         // Simple validator name
         rules.push({ name: v });
-      } else if (typeof v === 'object') {
+      } else if (typeof v === 'function') {
+        // Direct function
+        rules.push({ name: 'custom', fn: v as ValidatorFn });
+      } else if (typeof v === 'object' && v !== null) {
         // Validator with options
-        const entries = Object.entries(v);
+        const vObj = v as Record<string, unknown>;
+        const entries = Object.entries(vObj);
         if (entries.length > 0) {
-          const [name, options] = entries[0];
+          const [name, options] = entries[0]!;
           if (name === 'custom' && typeof options === 'function') {
-            rules.push({ name: 'custom', fn: options, message: v.message });
+            rules.push({ name: 'custom', fn: options as ValidatorFn, message: vObj.message as string | undefined });
           } else if (name === 'message') {
             // Skip message-only entries
             continue;
           } else {
-            rules.push({ name, options, message: v.message });
+            rules.push({ name, options, message: vObj.message as string | undefined });
           }
         }
-      } else if (typeof v === 'function') {
-        // Direct function
-        rules.push({ name: 'custom', fn: v });
       }
     }
   }
@@ -344,14 +465,14 @@ function getFieldRules(fieldDef) {
  * @param {Object} context - Validation context
  * @returns {Promise<true|string>} true if valid, error message if not
  */
-async function runValidator(rule, value, context) {
+async function runValidator(rule: ValidationRule, value: unknown, context: Partial<ValidationContext>): Promise<true | string> {
   // Custom inline function
   if (rule.fn) {
     try {
-      const result = await rule.fn(value, rule.options, context);
+      const result = await rule.fn(value, rule.options, context as ValidationContext);
       return result;
     } catch (e) {
-      return e.message || 'Validation error';
+      return (e instanceof Error ? e.message : String(e)) || 'Validation error';
     }
   }
 
@@ -363,11 +484,11 @@ async function runValidator(rule, value, context) {
   }
 
   try {
-    const result = await validator.fn(value, rule.options, context);
+    const result = await validator.fn(value, rule.options, context as ValidationContext);
     if (result === true) return true;
     return rule.message || result || `Validation failed: ${rule.name}`;
   } catch (e) {
-    return e.message || 'Validation error';
+    return (e instanceof Error ? e.message : String(e)) || 'Validation error';
   }
 }
 
@@ -379,15 +500,15 @@ async function runValidator(rule, value, context) {
  * @param {Object} context - Validation context
  * @returns {Promise<Array>} Array of errors
  */
-async function runCrossFieldValidation(validators, data, context) {
-  const errors = [];
-  const validatorList = Array.isArray(validators) ? validators : [validators];
+async function runCrossFieldValidation(crossValidators: CrossFieldValidator | CrossFieldValidator[], data: Record<string, unknown>, context: ValidationContext): Promise<ValidationError[]> {
+  const errors: ValidationError[] = [];
+  const validatorList = Array.isArray(crossValidators) ? crossValidators : [crossValidators];
 
-  for (const validator of validatorList) {
-    if (typeof validator !== 'function') continue;
+  for (const crossValidator of validatorList) {
+    if (typeof crossValidator !== 'function') continue;
 
     try {
-      const result = await validator(data, context);
+      const result = await crossValidator(data, context);
       if (result === true) continue;
 
       if (typeof result === 'string') {
@@ -400,7 +521,7 @@ async function runCrossFieldValidation(validators, data, context) {
         });
       }
     } catch (e) {
-      errors.push({ field: '_cross', rule: 'custom', message: e.message });
+      errors.push({ field: '_cross', rule: 'custom', message: e instanceof Error ? e.message : String(e) });
     }
   }
 
@@ -414,14 +535,14 @@ async function runCrossFieldValidation(validators, data, context) {
  * @param {Object} schema - Type schema
  * @returns {Promise<Object>} { total, valid, invalid, errors: { id: [...] } }
  */
-export async function validateType(type, schema) {
+export async function validateType(type: string, schema: Record<string, FieldDef>): Promise<ValidateTypeResult> {
   if (!contentService) {
     throw new Error('Content service not initialized');
   }
 
   // Use listAll to get all items as an array
   const items = contentService.listAll ? contentService.listAll(type) : (contentService.list(type)?.items || []);
-  const results = {
+  const results: ValidateTypeResult = {
     total: items.length,
     valid: 0,
     invalid: 0,
@@ -429,13 +550,14 @@ export async function validateType(type, schema) {
   };
 
   for (const item of items) {
-    const result = await validate(type, item, { schema, id: item.id });
+    const itemId = item.id as string;
+    const result = await validate(type, item, { schema, id: itemId });
 
     if (result.valid) {
       results.valid++;
     } else {
       results.invalid++;
-      results.errors[item.id] = result.errors;
+      results.errors[itemId] = result.errors;
     }
   }
 
@@ -450,12 +572,12 @@ export async function validateType(type, schema) {
  * @param {Object} schema - Type schema
  * @returns {Promise<Object>} { valid, errors }
  */
-export async function validateContent(type, id, schema) {
+export async function validateContent(type: string, id: string, schema: Record<string, FieldDef>): Promise<ValidationResult> {
   if (!contentService) {
     throw new Error('Content service not initialized');
   }
 
-  const item = contentService.get(type, id);
+  const item = contentService.get(type, id) as Record<string, unknown> | null;
   if (!item) {
     return {
       valid: false,
@@ -470,9 +592,9 @@ export async function validateContent(type, id, schema) {
 // BUILT-IN VALIDATORS
 // ============================================
 
-function registerBuiltinValidators() {
+function registerBuiltinValidators(): void {
   // Required - field must have a value
-  registerValidator('required', (value) => {
+  registerValidator('required', (value: unknown): true | string => {
     if (value === null || value === undefined || value === '') {
       return 'This field is required';
     }
@@ -483,51 +605,51 @@ function registerBuiltinValidators() {
   }, { description: 'Field must have a value', source: 'core' });
 
   // Min length - string minimum length
-  registerValidator('minLength', (value, min) => {
+  registerValidator('minLength', (value: unknown, min: unknown): true | string => {
     if (value === null || value === undefined || value === '') return true;
     if (typeof value !== 'string') return true;
-    if (value.length < min) {
+    if (value.length < Number(min)) {
       return `Must be at least ${min} characters`;
     }
     return true;
   }, { description: 'Minimum string length', source: 'core' });
 
   // Max length - string maximum length
-  registerValidator('maxLength', (value, max) => {
+  registerValidator('maxLength', (value: unknown, max: unknown): true | string => {
     if (value === null || value === undefined || value === '') return true;
     if (typeof value !== 'string') return true;
-    if (value.length > max) {
+    if (value.length > Number(max)) {
       return `Must be at most ${max} characters`;
     }
     return true;
   }, { description: 'Maximum string length', source: 'core' });
 
   // Min - number minimum
-  registerValidator('min', (value, min) => {
+  registerValidator('min', (value: unknown, min: unknown): true | string => {
     if (value === null || value === undefined || value === '') return true;
     const num = Number(value);
     if (isNaN(num)) return true;
-    if (num < min) {
+    if (num < Number(min)) {
       return `Must be at least ${min}`;
     }
     return true;
   }, { description: 'Minimum number value', source: 'core' });
 
   // Max - number maximum
-  registerValidator('max', (value, max) => {
+  registerValidator('max', (value: unknown, max: unknown): true | string => {
     if (value === null || value === undefined || value === '') return true;
     const num = Number(value);
     if (isNaN(num)) return true;
-    if (num > max) {
+    if (num > Number(max)) {
       return `Must be at most ${max}`;
     }
     return true;
   }, { description: 'Maximum number value', source: 'core' });
 
   // Pattern - regex match
-  registerValidator('pattern', (value, pattern) => {
+  registerValidator('pattern', (value: unknown, pattern: unknown): true | string => {
     if (value === null || value === undefined || value === '') return true;
-    const regex = pattern instanceof RegExp ? pattern : new RegExp(pattern);
+    const regex = pattern instanceof RegExp ? pattern : new RegExp(String(pattern));
     if (!regex.test(String(value))) {
       return 'Invalid format';
     }
@@ -535,20 +657,20 @@ function registerBuiltinValidators() {
   }, { description: 'Must match regex pattern', source: 'core' });
 
   // Email - valid email format
-  registerValidator('email', (value) => {
+  registerValidator('email', (value: unknown): true | string => {
     if (value === null || value === undefined || value === '') return true;
     const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-    if (!emailRegex.test(value)) {
+    if (!emailRegex.test(String(value))) {
       return 'Invalid email address';
     }
     return true;
   }, { description: 'Valid email format', source: 'core' });
 
   // URL - valid URL format
-  registerValidator('url', (value) => {
+  registerValidator('url', (value: unknown): true | string => {
     if (value === null || value === undefined || value === '') return true;
     try {
-      new URL(value);
+      new URL(String(value));
       return true;
     } catch {
       return 'Invalid URL';
@@ -556,16 +678,16 @@ function registerBuiltinValidators() {
   }, { description: 'Valid URL format', source: 'core' });
 
   // Slug - valid slug format
-  registerValidator('slug', (value) => {
+  registerValidator('slug', (value: unknown): true | string => {
     if (value === null || value === undefined || value === '') return true;
-    if (!/^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(value)) {
+    if (!/^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(String(value))) {
       return 'Slug must contain only lowercase letters, numbers, and hyphens';
     }
     return true;
   }, { description: 'Valid URL slug format', source: 'core' });
 
   // One of - value must be in list
-  registerValidator('oneOf', (value, options) => {
+  registerValidator('oneOf', (value: unknown, options: unknown): true | string => {
     if (value === null || value === undefined || value === '') return true;
     const list = Array.isArray(options) ? options : [options];
     if (!list.includes(value)) {
@@ -575,7 +697,7 @@ function registerBuiltinValidators() {
   }, { description: 'Value must be in list', source: 'core' });
 
   // Unique - value must be unique within type (async)
-  registerValidator('unique', async (value, options, context) => {
+  registerValidator('unique', async (value: unknown, _options: unknown, context: ValidationContext): Promise<true | string> => {
     if (value === null || value === undefined || value === '') return true;
     if (!context.content || !context.type || !context.fieldName) return true;
 
@@ -590,9 +712,9 @@ function registerBuiltinValidators() {
       if (context.id && item.id === context.id) continue;
 
       // Get nested field value
-      let itemValue = item;
+      let itemValue: unknown = item;
       for (const part of fieldPath) {
-        itemValue = itemValue?.[part];
+        itemValue = (itemValue as Record<string, unknown>)?.[part];
       }
 
       if (itemValue === value) {
@@ -603,14 +725,15 @@ function registerBuiltinValidators() {
   }, { description: 'Value must be unique within type', async: true, source: 'core' });
 
   // Exists - referenced item must exist (async)
-  registerValidator('exists', async (value, options, context) => {
+  registerValidator('exists', async (value: unknown, options: unknown, context: ValidationContext): Promise<true | string> => {
     if (value === null || value === undefined || value === '') return true;
     if (!context.content) return true;
 
-    const targetType = options?.type || options;
+    const optObj = options as Record<string, unknown> | string | null;
+    const targetType = (typeof optObj === 'object' && optObj !== null ? optObj.type : optObj) as string | undefined;
     if (!targetType) return true;
 
-    const item = context.content.get(targetType, value);
+    const item = context.content.get(targetType, String(value));
     if (!item) {
       return `Referenced ${targetType} does not exist`;
     }
@@ -618,9 +741,9 @@ function registerBuiltinValidators() {
   }, { description: 'Referenced item must exist', async: true, source: 'core' });
 
   // Match - must match another field
-  registerValidator('match', (value, fieldName, context) => {
+  registerValidator('match', (value: unknown, fieldName: unknown, context: ValidationContext): true | string => {
     if (value === null || value === undefined || value === '') return true;
-    const otherValue = context.data?.[fieldName];
+    const otherValue = context.data?.[String(fieldName)];
     if (value !== otherValue) {
       return `Must match ${fieldName}`;
     }
@@ -628,13 +751,13 @@ function registerBuiltinValidators() {
   }, { description: 'Must match another field', source: 'core' });
 
   // Before - date must be before another field
-  registerValidator('before', (value, fieldName, context) => {
+  registerValidator('before', (value: unknown, fieldName: unknown, context: ValidationContext): true | string => {
     if (value === null || value === undefined || value === '') return true;
-    const otherValue = context.data?.[fieldName];
+    const otherValue = context.data?.[String(fieldName)];
     if (!otherValue) return true;
 
-    const date = new Date(value);
-    const otherDate = new Date(otherValue);
+    const date = new Date(String(value));
+    const otherDate = new Date(String(otherValue));
 
     if (isNaN(date.getTime()) || isNaN(otherDate.getTime())) return true;
 
@@ -645,13 +768,13 @@ function registerBuiltinValidators() {
   }, { description: 'Date must be before another field', source: 'core' });
 
   // After - date must be after another field
-  registerValidator('after', (value, fieldName, context) => {
+  registerValidator('after', (value: unknown, fieldName: unknown, context: ValidationContext): true | string => {
     if (value === null || value === undefined || value === '') return true;
-    const otherValue = context.data?.[fieldName];
+    const otherValue = context.data?.[String(fieldName)];
     if (!otherValue) return true;
 
-    const date = new Date(value);
-    const otherDate = new Date(otherValue);
+    const date = new Date(String(value));
+    const otherDate = new Date(String(otherValue));
 
     if (isNaN(date.getTime()) || isNaN(otherDate.getTime())) return true;
 
@@ -662,56 +785,59 @@ function registerBuiltinValidators() {
   }, { description: 'Date must be after another field', source: 'core' });
 
   // File type - allowed extensions
-  registerValidator('fileType', (value, types) => {
+  registerValidator('fileType', (value: unknown, types: unknown): true | string => {
     if (value === null || value === undefined || value === '') return true;
 
-    const allowedTypes = Array.isArray(types) ? types : [types];
-    const filename = typeof value === 'object' ? value.filename || value.name : value;
+    const allowedTypes = Array.isArray(types) ? types as string[] : [String(types)];
+    const valObj = value as Record<string, unknown>;
+    const filename = typeof value === 'object' && value !== null ? String(valObj.filename || valObj.name || '') : String(value);
     if (!filename) return true;
 
     const ext = filename.split('.').pop()?.toLowerCase();
-    const normalizedTypes = allowedTypes.map(t => t.replace(/^\./, '').toLowerCase());
+    const normalizedTypes = allowedTypes.map((t: string) => t.replace(/^\./, '').toLowerCase());
 
-    if (!normalizedTypes.includes(ext)) {
+    if (!normalizedTypes.includes(ext!)) {
       return `File type must be: ${normalizedTypes.join(', ')}`;
     }
     return true;
   }, { description: 'Allowed file extensions', source: 'core' });
 
   // File size - max file size in bytes
-  registerValidator('fileSize', (value, maxSize) => {
+  registerValidator('fileSize', (value: unknown, maxSize: unknown): true | string => {
     if (value === null || value === undefined || value === '') return true;
 
-    const size = typeof value === 'object' ? value.size : null;
-    if (size === null) return true;
+    const valObj = value as Record<string, unknown>;
+    const size = typeof value === 'object' && value !== null ? valObj.size as number | null : null;
+    if (size === null || size === undefined) return true;
 
-    if (size > maxSize) {
-      const maxMB = (maxSize / (1024 * 1024)).toFixed(1);
+    const maxSizeNum = Number(maxSize);
+    if (size > maxSizeNum) {
+      const maxMB = (maxSizeNum / (1024 * 1024)).toFixed(1);
       return `File size must be under ${maxMB}MB`;
     }
     return true;
   }, { description: 'Maximum file size in bytes', source: 'core' });
 
   // Alphanumeric - only letters and numbers
-  registerValidator('alphanumeric', (value) => {
+  registerValidator('alphanumeric', (value: unknown): true | string => {
     if (value === null || value === undefined || value === '') return true;
-    if (!/^[a-zA-Z0-9]+$/.test(value)) {
+    if (!/^[a-zA-Z0-9]+$/.test(String(value))) {
       return 'Must contain only letters and numbers';
     }
     return true;
   }, { description: 'Only letters and numbers', source: 'core' });
 
   // Alpha - only letters
-  registerValidator('alpha', (value) => {
+  registerValidator('alpha', (value: unknown): true | string => {
     if (value === null || value === undefined || value === '') return true;
-    if (!/^[a-zA-Z]+$/.test(value)) {
+    if (!/^[a-zA-Z]+$/.test(String(value))) {
       return 'Must contain only letters';
     }
     return true;
   }, { description: 'Only letters', source: 'core' });
 
   // Numeric - only numbers
-  registerValidator('numeric', (value) => {
+  registerValidator('numeric', (value: unknown): true | string => {
     if (value === null || value === undefined || value === '') return true;
     if (!/^-?\d+(\.\d+)?$/.test(String(value))) {
       return 'Must be a number';
@@ -720,7 +846,7 @@ function registerBuiltinValidators() {
   }, { description: 'Must be numeric', source: 'core' });
 
   // Integer - whole numbers only
-  registerValidator('integer', (value) => {
+  registerValidator('integer', (value: unknown): true | string => {
     if (value === null || value === undefined || value === '') return true;
     if (!Number.isInteger(Number(value))) {
       return 'Must be a whole number';
@@ -729,7 +855,7 @@ function registerBuiltinValidators() {
   }, { description: 'Must be a whole number', source: 'core' });
 
   // Positive - positive numbers only
-  registerValidator('positive', (value) => {
+  registerValidator('positive', (value: unknown): true | string => {
     if (value === null || value === undefined || value === '') return true;
     if (Number(value) <= 0) {
       return 'Must be positive';
@@ -738,30 +864,30 @@ function registerBuiltinValidators() {
   }, { description: 'Must be positive', source: 'core' });
 
   // JSON - valid JSON format
-  registerValidator('json', (value) => {
+  registerValidator('json', (value: unknown): true | string => {
     if (value === null || value === undefined || value === '') return true;
     if (typeof value === 'object') return true;
     try {
-      JSON.parse(value);
+      JSON.parse(String(value));
       return true;
-    } catch (e) {
+    } catch (_e) {
       return 'Invalid JSON format';
     }
   }, { description: 'Valid JSON format', source: 'core' });
 
   // Color - valid hex color
-  registerValidator('color', (value) => {
+  registerValidator('color', (value: unknown): true | string => {
     if (value === null || value === undefined || value === '') return true;
-    if (!/^#([0-9a-fA-F]{3}|[0-9a-fA-F]{6})$/.test(value)) {
+    if (!/^#([0-9a-fA-F]{3}|[0-9a-fA-F]{6})$/.test(String(value))) {
       return 'Invalid color format (use #RGB or #RRGGBB)';
     }
     return true;
   }, { description: 'Valid hex color', source: 'core' });
 
   // Date - valid date format
-  registerValidator('date', (value) => {
+  registerValidator('date', (value: unknown): true | string => {
     if (value === null || value === undefined || value === '') return true;
-    const date = new Date(value);
+    const date = new Date(String(value));
     if (isNaN(date.getTime())) {
       return 'Invalid date';
     }
@@ -769,9 +895,9 @@ function registerBuiltinValidators() {
   }, { description: 'Valid date format', source: 'core' });
 
   // Future date - date must be in the future
-  registerValidator('future', (value) => {
+  registerValidator('future', (value: unknown): true | string => {
     if (value === null || value === undefined || value === '') return true;
-    const date = new Date(value);
+    const date = new Date(String(value));
     if (isNaN(date.getTime())) return true;
     if (date <= new Date()) {
       return 'Date must be in the future';
@@ -780,9 +906,9 @@ function registerBuiltinValidators() {
   }, { description: 'Date must be in the future', source: 'core' });
 
   // Past date - date must be in the past
-  registerValidator('past', (value) => {
+  registerValidator('past', (value: unknown): true | string => {
     if (value === null || value === undefined || value === '') return true;
-    const date = new Date(value);
+    const date = new Date(String(value));
     if (isNaN(date.getTime())) return true;
     if (date >= new Date()) {
       return 'Date must be in the past';
@@ -791,20 +917,20 @@ function registerBuiltinValidators() {
   }, { description: 'Date must be in the past', source: 'core' });
 
   // Array min items
-  registerValidator('minItems', (value, min) => {
+  registerValidator('minItems', (value: unknown, min: unknown): true | string => {
     if (value === null || value === undefined) return true;
     if (!Array.isArray(value)) return true;
-    if (value.length < min) {
+    if (value.length < Number(min)) {
       return `Must have at least ${min} item(s)`;
     }
     return true;
   }, { description: 'Minimum array items', source: 'core' });
 
   // Array max items
-  registerValidator('maxItems', (value, max) => {
+  registerValidator('maxItems', (value: unknown, max: unknown): true | string => {
     if (value === null || value === undefined) return true;
     if (!Array.isArray(value)) return true;
-    if (value.length > max) {
+    if (value.length > Number(max)) {
       return `Must have at most ${max} item(s)`;
     }
     return true;
@@ -823,7 +949,7 @@ function registerBuiltinValidators() {
  * @param {Object} options - Additional options
  * @returns {Object} Validation context
  */
-export function createContext(type, data, options = {}) {
+export function createContext(type: string, data: Record<string, unknown>, options: ContextOptions = {}): ValidationContext {
   return {
     type,
     id: options.id || null,
@@ -839,7 +965,7 @@ export function createContext(type, data, options = {}) {
  * @param {Array} errors - Array of error objects
  * @returns {Object} Formatted error response
  */
-export function formatErrors(errors) {
+export function formatErrors(errors: ValidationError[]): FormattedErrorResponse {
   return {
     error: 'Validation failed',
     errors: errors.map(e => ({
@@ -856,10 +982,10 @@ export function formatErrors(errors) {
  * @param {Object} schema - Content type schema
  * @returns {Object} { fieldName: [rules] }
  */
-export function getRulesSummary(schema) {
-  const summary = {};
+export function getRulesSummary(schema: Record<string, FieldDef>): Record<string, string[]> {
+  const summary: Record<string, string[]> = {};
 
-  for (const [name, field] of Object.entries(schema)) {
+  for (const [name, field] of Object.entries(schema) as Array<[string, FieldDef]>) {
     if (name.startsWith('_')) continue;
 
     const rules = getFieldRules(field);

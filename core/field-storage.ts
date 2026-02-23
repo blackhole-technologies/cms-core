@@ -33,11 +33,90 @@
 import { readFileSync, writeFileSync, existsSync, mkdirSync, readdirSync, unlinkSync } from 'node:fs';
 import { join } from 'node:path';
 
+// ============================================
+// TYPES
+// ============================================
+
+/** Column type mapping for field types */
+type ColumnType = 'string' | 'text' | 'int' | 'float' | 'decimal' | 'bool' | 'datetime' | 'json';
+
+/** Field type definition with columns and settings */
+interface FieldTypeDefinition {
+  columns: Record<string, ColumnType>;
+  settings: Record<string, unknown>;
+}
+
+/** Field storage definition (cross-bundle) */
+interface FieldStorageDef {
+  field_name: string;
+  entity_type: string;
+  type: string;
+  cardinality: number;
+  translatable: boolean;
+  settings: Record<string, unknown>;
+  created: string;
+}
+
+/** Field storage creation input */
+interface FieldStorageInput {
+  field_name: string;
+  entity_type: string;
+  type: string;
+  cardinality?: number;
+  translatable?: boolean;
+  settings?: Record<string, unknown>;
+}
+
+/** Field config definition (per-bundle) */
+interface FieldConfigDef {
+  field_name: string;
+  entity_type: string;
+  bundle: string;
+  label: string;
+  description: string;
+  required: boolean;
+  default_value: unknown[];
+  settings: Record<string, unknown>;
+  created: string;
+  updated?: string;
+}
+
+/** Field config creation input */
+interface FieldConfigInput {
+  field_name: string;
+  entity_type: string;
+  bundle: string;
+  label: string;
+  description?: string;
+  required?: boolean;
+  default_value?: unknown | unknown[];
+  settings?: Record<string, unknown>;
+}
+
+/** Field data row */
+interface FieldDataRow {
+  entity_id: number | string;
+  revision_id: number;
+  langcode: string;
+  delta: number;
+  [key: string]: unknown;
+}
+
+/** Field data file structure */
+interface FieldDataFile {
+  rows: FieldDataRow[];
+}
+
+/** Init options */
+interface FieldStorageInitOptions {
+  basePath?: string;
+}
+
 /**
  * Field type definitions
  * Each field type defines its storage columns
  */
-const FIELD_TYPES = {
+const FIELD_TYPES: Record<string, FieldTypeDefinition> = {
   'string': {
     columns: { value: 'string' },
     settings: { max_length: 255 }
@@ -133,13 +212,13 @@ const FIELD_TYPES = {
 };
 
 // Storage paths
-let storageBasePath = './storage';
-let fieldStorageDir = null;
-let fieldConfigDir = null;
+let storageBasePath: string = './storage';
+let fieldStorageDir: string | null = null;
+let fieldConfigDir: string | null = null;
 
 // In-memory caches
-const fieldStorageCache = new Map();
-const fieldConfigCache = new Map();
+const fieldStorageCache: Map<string, FieldStorageDef> = new Map();
+const fieldConfigCache: Map<string, FieldConfigDef> = new Map();
 
 /**
  * Initialize field storage system
@@ -147,7 +226,7 @@ const fieldConfigCache = new Map();
  * @param {Object} options - Configuration options
  * @param {string} options.basePath - Base path for storage files
  */
-export function init(options = {}) {
+export function init(options: FieldStorageInitOptions = {}): void {
   storageBasePath = options.basePath || './storage';
   fieldStorageDir = join(storageBasePath, 'field_storage');
   fieldConfigDir = join(storageBasePath, 'field_config');
@@ -174,7 +253,7 @@ export function init(options = {}) {
  * @param {string} fieldType - Field type name
  * @returns {Object} Column definitions
  */
-export function getFieldColumns(fieldType) {
+export function getFieldColumns(fieldType: string): Record<string, ColumnType> {
   const definition = FIELD_TYPES[fieldType];
   if (!definition) {
     throw new Error(`Unknown field type: ${fieldType}`);
@@ -189,7 +268,7 @@ export function getFieldColumns(fieldType) {
  * @param {string} fieldName - Field name (e.g., 'body', 'field_image')
  * @returns {string} Table name
  */
-export function getFieldTableName(entityType, fieldName) {
+export function getFieldTableName(entityType: string, fieldName: string): string {
   // Normalize field name (remove field_ prefix if present for the table name)
   const normalizedName = fieldName.startsWith('field_') ? fieldName : `field_${fieldName}`;
   return `${entityType}__${normalizedName}`;
@@ -202,9 +281,9 @@ export function getFieldTableName(entityType, fieldName) {
  * @param {string} fieldName - Field name
  * @returns {string} Path to field data file
  */
-export function ensureFieldTable(entityType, fieldName) {
+export function ensureFieldTable(entityType: string, fieldName: string): string {
   const tableName = getFieldTableName(entityType, fieldName);
-  const filePath = join(fieldStorageDir, `${tableName}.json`);
+  const filePath = join(fieldStorageDir!, `${tableName}.json`);
 
   if (!existsSync(filePath)) {
     // Initialize empty field data
@@ -233,7 +312,7 @@ export function ensureFieldTable(entityType, fieldName) {
  * @param {Object} definition.settings - Field type specific settings
  * @returns {Object} Created field storage
  */
-export function createFieldStorage(definition) {
+export function createFieldStorage(definition: FieldStorageInput): FieldStorageDef {
   const {
     field_name,
     entity_type,
@@ -267,11 +346,11 @@ export function createFieldStorage(definition) {
   }
 
   // Merge with default settings
-  const fieldTypeDefinition = FIELD_TYPES[type];
+  const fieldTypeDefinition = FIELD_TYPES[type]!;
   const mergedSettings = { ...fieldTypeDefinition.settings, ...settings };
 
   // Create storage definition
-  const storage = {
+  const storage: FieldStorageDef = {
     field_name,
     entity_type,
     type,
@@ -283,7 +362,7 @@ export function createFieldStorage(definition) {
 
   // Save to disk
   const fileName = `${entity_type}.${field_name}.json`;
-  const filePath = join(fieldStorageDir, fileName);
+  const filePath = join(fieldStorageDir!, fileName);
   writeFileSync(filePath, JSON.stringify(storage, null, 2), 'utf8');
 
   // Update cache
@@ -303,24 +382,24 @@ export function createFieldStorage(definition) {
  * @param {string} fieldName - Field name
  * @returns {Object|null} Field storage or null if not found
  */
-export function getFieldStorage(entityType, fieldName) {
+export function getFieldStorage(entityType: string, fieldName: string): FieldStorageDef | null {
   const cacheKey = `${entityType}.${fieldName}`;
 
   // Check cache first
   if (fieldStorageCache.has(cacheKey)) {
-    return fieldStorageCache.get(cacheKey);
+    return fieldStorageCache.get(cacheKey)!;
   }
 
   // Try to load from disk
   const fileName = `${entityType}.${fieldName}.json`;
-  const filePath = join(fieldStorageDir, fileName);
+  const filePath = join(fieldStorageDir!, fileName);
 
   if (!existsSync(filePath)) {
     return null;
   }
 
   try {
-    const storage = JSON.parse(readFileSync(filePath, 'utf8'));
+    const storage = JSON.parse(readFileSync(filePath, 'utf8')) as FieldStorageDef;
     fieldStorageCache.set(cacheKey, storage);
     return storage;
   } catch (error) {
@@ -335,14 +414,14 @@ export function getFieldStorage(entityType, fieldName) {
  * @param {string} entityType - Entity type
  * @returns {Array} Array of field storage definitions
  */
-export function loadFieldStorages(entityType) {
-  const storages = [];
+export function loadFieldStorages(entityType: string): FieldStorageDef[] {
+  const storages: FieldStorageDef[] = [];
 
-  if (!existsSync(fieldStorageDir)) {
+  if (!existsSync(fieldStorageDir!)) {
     return storages;
   }
 
-  const files = readdirSync(fieldStorageDir);
+  const files = readdirSync(fieldStorageDir!);
   const prefix = `${entityType}.`;
 
   for (const file of files) {
@@ -367,7 +446,7 @@ export function loadFieldStorages(entityType) {
  * @param {string} fieldName - Field name
  * @returns {boolean} True if deleted, false if not found
  */
-export function deleteFieldStorage(entityType, fieldName) {
+export function deleteFieldStorage(entityType: string, fieldName: string): boolean {
   const cacheKey = `${entityType}.${fieldName}`;
 
   // Check if exists
@@ -378,7 +457,7 @@ export function deleteFieldStorage(entityType, fieldName) {
 
   // Delete field storage definition
   const fileName = `${entityType}.${fieldName}.json`;
-  const filePath = join(fieldStorageDir, fileName);
+  const filePath = join(fieldStorageDir!, fileName);
 
   if (existsSync(filePath)) {
     unlinkSync(filePath);
@@ -386,7 +465,7 @@ export function deleteFieldStorage(entityType, fieldName) {
 
   // Delete field data table
   const tableName = getFieldTableName(entityType, fieldName);
-  const dataFilePath = join(fieldStorageDir, `${tableName}.json`);
+  const dataFilePath = join(fieldStorageDir!, `${tableName}.json`);
 
   if (existsSync(dataFilePath)) {
     unlinkSync(dataFilePath);
@@ -427,7 +506,7 @@ export function deleteFieldStorage(entityType, fieldName) {
  * @param {Object} config.settings - Bundle-specific settings
  * @returns {Object} Created field config
  */
-export function createFieldConfig(config) {
+export function createFieldConfig(config: FieldConfigInput): FieldConfigDef {
   const {
     field_name,
     entity_type,
@@ -466,7 +545,7 @@ export function createFieldConfig(config) {
   }
 
   // Create config
-  const fieldConfig = {
+  const fieldConfig: FieldConfigDef = {
     field_name,
     entity_type,
     bundle,
@@ -480,7 +559,7 @@ export function createFieldConfig(config) {
 
   // Save to disk
   const fileName = `${entity_type}.${bundle}.${field_name}.json`;
-  const filePath = join(fieldConfigDir, fileName);
+  const filePath = join(fieldConfigDir!, fileName);
   writeFileSync(filePath, JSON.stringify(fieldConfig, null, 2), 'utf8');
 
   // Update cache
@@ -496,7 +575,7 @@ export function createFieldConfig(config) {
  * @param {Object} config - Updated field configuration
  * @returns {Object} Updated field config
  */
-export function updateFieldConfig(config) {
+export function updateFieldConfig(config: FieldConfigInput): FieldConfigDef {
   const { field_name, entity_type, bundle } = config;
 
   // Verify config exists
@@ -512,16 +591,22 @@ export function updateFieldConfig(config) {
   }
 
   // Merge with existing (preserve created timestamp)
-  const updated = {
+  const updated: FieldConfigDef = {
     ...existing,
     ...config,
+    description: config.description ?? existing.description,
+    required: config.required ?? existing.required,
+    default_value: config.default_value !== undefined
+      ? (Array.isArray(config.default_value) ? config.default_value : [config.default_value])
+      : existing.default_value,
+    settings: config.settings ?? existing.settings,
     created: existing.created,
     updated: new Date().toISOString()
   };
 
   // Save to disk
   const fileName = `${entity_type}.${bundle}.${field_name}.json`;
-  const filePath = join(fieldConfigDir, fileName);
+  const filePath = join(fieldConfigDir!, fileName);
   writeFileSync(filePath, JSON.stringify(updated, null, 2), 'utf8');
 
   // Update cache
@@ -539,24 +624,24 @@ export function updateFieldConfig(config) {
  * @param {string} fieldName - Field name
  * @returns {Object|null} Field config or null if not found
  */
-export function getFieldConfig(entityType, bundle, fieldName) {
+export function getFieldConfig(entityType: string, bundle: string, fieldName: string): FieldConfigDef | null {
   const cacheKey = `${entityType}.${bundle}.${fieldName}`;
 
   // Check cache first
   if (fieldConfigCache.has(cacheKey)) {
-    return fieldConfigCache.get(cacheKey);
+    return fieldConfigCache.get(cacheKey)!;
   }
 
   // Try to load from disk
   const fileName = `${entityType}.${bundle}.${fieldName}.json`;
-  const filePath = join(fieldConfigDir, fileName);
+  const filePath = join(fieldConfigDir!, fileName);
 
   if (!existsSync(filePath)) {
     return null;
   }
 
   try {
-    const fieldConfig = JSON.parse(readFileSync(filePath, 'utf8'));
+    const fieldConfig = JSON.parse(readFileSync(filePath, 'utf8')) as FieldConfigDef;
     fieldConfigCache.set(cacheKey, fieldConfig);
     return fieldConfig;
   } catch (error) {
@@ -572,14 +657,14 @@ export function getFieldConfig(entityType, bundle, fieldName) {
  * @param {string|null} bundle - Optional bundle filter
  * @returns {Array} Array of field configurations
  */
-export function loadFieldConfigs(entityType, bundle = null) {
-  const configs = [];
+export function loadFieldConfigs(entityType: string, bundle: string | null = null): FieldConfigDef[] {
+  const configs: FieldConfigDef[] = [];
 
-  if (!existsSync(fieldConfigDir)) {
+  if (!existsSync(fieldConfigDir!)) {
     return configs;
   }
 
-  const files = readdirSync(fieldConfigDir);
+  const files = readdirSync(fieldConfigDir!);
   const prefix = bundle ? `${entityType}.${bundle}.` : `${entityType}.`;
 
   for (const file of files) {
@@ -587,9 +672,11 @@ export function loadFieldConfigs(entityType, bundle = null) {
       const parts = file.slice(0, -5).split('.');
       if (parts.length >= 3) {
         const [et, b, fn] = parts;
-        const config = getFieldConfig(et, b, fn);
-        if (config) {
-          configs.push(config);
+        if (et && b && fn) {
+          const config = getFieldConfig(et, b, fn);
+          if (config) {
+            configs.push(config);
+          }
         }
       }
     }
@@ -606,7 +693,7 @@ export function loadFieldConfigs(entityType, bundle = null) {
  * @param {string} fieldName - Field name
  * @returns {boolean} True if deleted, false if not found
  */
-export function deleteFieldConfig(entityType, bundle, fieldName) {
+export function deleteFieldConfig(entityType: string, bundle: string, fieldName: string): boolean {
   const cacheKey = `${entityType}.${bundle}.${fieldName}`;
 
   // Check if exists
@@ -617,7 +704,7 @@ export function deleteFieldConfig(entityType, bundle, fieldName) {
 
   // Delete file
   const fileName = `${entityType}.${bundle}.${fieldName}.json`;
-  const filePath = join(fieldConfigDir, fileName);
+  const filePath = join(fieldConfigDir!, fileName);
 
   if (existsSync(filePath)) {
     unlinkSync(filePath);
@@ -643,24 +730,24 @@ export function deleteFieldConfig(entityType, bundle, fieldName) {
  * @param {number|null} revisionId - Revision ID (null for current)
  * @returns {Array} Array of field values
  */
-export function loadFieldValues(entityType, entityId, fieldName, langcode = 'en', revisionId = null) {
+export function loadFieldValues(entityType: string, entityId: number | string, fieldName: string, langcode: string = 'en', revisionId: number | null = null): Record<string, unknown>[] {
   const storage = getFieldStorage(entityType, fieldName);
   if (!storage) {
     throw new Error(`Field storage not found: ${entityType}.${fieldName}`);
   }
 
   const tableName = getFieldTableName(entityType, fieldName);
-  const filePath = join(fieldStorageDir, `${tableName}.json`);
+  const filePath = join(fieldStorageDir!, `${tableName}.json`);
 
   if (!existsSync(filePath)) {
     return [];
   }
 
-  const data = JSON.parse(readFileSync(filePath, 'utf8'));
-  const rows = data.rows || [];
+  const data = JSON.parse(readFileSync(filePath, 'utf8')) as FieldDataFile;
+  const rows: FieldDataRow[] = data.rows || [];
 
   // Filter rows
-  const filtered = rows.filter(row => {
+  const filtered = rows.filter((row: FieldDataRow) => {
     if (row.entity_id !== entityId) return false;
     if (row.langcode !== langcode) return false;
     if (revisionId !== null && row.revision_id !== revisionId) return false;
@@ -668,11 +755,11 @@ export function loadFieldValues(entityType, entityId, fieldName, langcode = 'en'
   });
 
   // Sort by delta
-  filtered.sort((a, b) => a.delta - b.delta);
+  filtered.sort((a: FieldDataRow, b: FieldDataRow) => a.delta - b.delta);
 
   // Extract values (remove metadata)
-  return filtered.map(row => {
-    const { entity_id, revision_id, langcode, delta, ...values } = row;
+  return filtered.map((row: FieldDataRow) => {
+    const { entity_id, revision_id, langcode: _langcode, delta, ...values } = row;
     return values;
   });
 }
@@ -687,29 +774,32 @@ export function loadFieldValues(entityType, entityId, fieldName, langcode = 'en'
  * @param {string} langcode - Language code (default 'en')
  * @param {number|null} revisionId - Revision ID
  */
-export function saveFieldValues(entityType, entityId, fieldName, values, langcode = 'en', revisionId = null) {
+export function saveFieldValues(entityType: string, entityId: number | string, fieldName: string, values: Record<string, unknown>[] | Record<string, unknown>, langcode: string = 'en', revisionId: number | null = null): void {
   const storage = getFieldStorage(entityType, fieldName);
   if (!storage) {
     throw new Error(`Field storage not found: ${entityType}.${fieldName}`);
   }
 
-  // Validate cardinality
-  if (storage.cardinality !== -1 && values.length > storage.cardinality) {
-    throw new Error(
-      `Field ${fieldName} cardinality is ${storage.cardinality}, but ${values.length} values provided`
-    );
+  // Ensure values is an array
+  let valuesArray: Record<string, unknown>[];
+  if (!Array.isArray(values)) {
+    valuesArray = [values];
+  } else {
+    valuesArray = values;
   }
 
-  // Ensure values is an array
-  if (!Array.isArray(values)) {
-    values = [values];
+  // Validate cardinality
+  if (storage.cardinality !== -1 && valuesArray.length > storage.cardinality) {
+    throw new Error(
+      `Field ${fieldName} cardinality is ${storage.cardinality}, but ${valuesArray.length} values provided`
+    );
   }
 
   // Get field columns
   const columns = getFieldColumns(storage.type);
 
   // Validate each value has required columns
-  for (const value of values) {
+  for (const value of valuesArray) {
     for (const columnName of Object.keys(columns)) {
       if (value[columnName] === undefined) {
         throw new Error(`Missing required column '${columnName}' for field type ${storage.type}`);
@@ -718,16 +808,16 @@ export function saveFieldValues(entityType, entityId, fieldName, values, langcod
   }
 
   const tableName = getFieldTableName(entityType, fieldName);
-  const filePath = join(fieldStorageDir, `${tableName}.json`);
+  const filePath = join(fieldStorageDir!, `${tableName}.json`);
 
   // Load existing data
-  let data = { rows: [] };
+  let data: FieldDataFile = { rows: [] };
   if (existsSync(filePath)) {
-    data = JSON.parse(readFileSync(filePath, 'utf8'));
+    data = JSON.parse(readFileSync(filePath, 'utf8')) as FieldDataFile;
   }
 
   // Remove existing values for this entity/langcode/revision
-  data.rows = data.rows.filter(row => {
+  data.rows = data.rows.filter((row: FieldDataRow) => {
     if (row.entity_id !== entityId) return true;
     if (row.langcode !== langcode) return true;
     if (revisionId !== null && row.revision_id !== revisionId) return true;
@@ -735,7 +825,7 @@ export function saveFieldValues(entityType, entityId, fieldName, values, langcod
   });
 
   // Add new values
-  values.forEach((value, delta) => {
+  valuesArray.forEach((value: Record<string, unknown>, delta: number) => {
     data.rows.push({
       entity_id: entityId,
       revision_id: revisionId || 0,
@@ -758,23 +848,23 @@ export function saveFieldValues(entityType, entityId, fieldName, values, langcod
  * @param {string|null} langcode - Language code (null to delete all languages)
  * @param {number|null} revisionId - Revision ID (null to delete all revisions)
  */
-export function deleteFieldValues(entityType, entityId, fieldName, langcode = null, revisionId = null) {
+export function deleteFieldValues(entityType: string, entityId: number | string, fieldName: string, langcode: string | null = null, revisionId: number | null = null): void {
   const storage = getFieldStorage(entityType, fieldName);
   if (!storage) {
     return; // Silently ignore if storage doesn't exist
   }
 
   const tableName = getFieldTableName(entityType, fieldName);
-  const filePath = join(fieldStorageDir, `${tableName}.json`);
+  const filePath = join(fieldStorageDir!, `${tableName}.json`);
 
   if (!existsSync(filePath)) {
     return;
   }
 
-  const data = JSON.parse(readFileSync(filePath, 'utf8'));
+  const data = JSON.parse(readFileSync(filePath, 'utf8')) as FieldDataFile;
 
   // Filter out matching rows
-  data.rows = data.rows.filter(row => {
+  data.rows = data.rows.filter((row: FieldDataRow) => {
     if (row.entity_id !== entityId) return true;
     if (langcode !== null && row.langcode !== langcode) return true;
     if (revisionId !== null && row.revision_id !== revisionId) return true;
@@ -795,12 +885,22 @@ export function deleteFieldValues(entityType, entityId, fieldName, langcode = nu
  * Provides an OOP interface for working with field values.
  * Similar to Drupal's FieldItemList.
  */
+/** A single field item value object */
+interface FieldItem {
+  value?: unknown;
+  target_id?: unknown;
+  [key: string]: unknown;
+}
+
 export class FieldItemList {
+  items: FieldItem[];
+  storage: FieldStorageDef | null;
+
   /**
    * @param {Array} items - Field values
    * @param {Object} storage - Field storage definition
    */
-  constructor(items = [], storage = null) {
+  constructor(items: FieldItem[] = [], storage: FieldStorageDef | null = null) {
     this.items = items;
     this.storage = storage;
   }
@@ -808,14 +908,14 @@ export class FieldItemList {
   /**
    * Get item at delta
    */
-  get(delta) {
+  get(delta: number): FieldItem | null {
     return this.items[delta] || null;
   }
 
   /**
    * Set item at delta
    */
-  set(delta, value) {
+  set(delta: number, value: FieldItem): void {
     // Validate cardinality
     if (this.storage && this.storage.cardinality !== -1) {
       if (delta >= this.storage.cardinality) {
@@ -829,7 +929,7 @@ export class FieldItemList {
   /**
    * Add item to end
    */
-  add(value) {
+  add(value: FieldItem): number {
     // Validate cardinality
     if (this.storage && this.storage.cardinality !== -1) {
       if (this.items.length >= this.storage.cardinality) {
@@ -844,7 +944,7 @@ export class FieldItemList {
   /**
    * Remove item at delta
    */
-  remove(delta) {
+  remove(delta: number): boolean {
     if (delta >= 0 && delta < this.items.length) {
       this.items.splice(delta, 1);
       return true;
@@ -855,17 +955,17 @@ export class FieldItemList {
   /**
    * Check if list is empty
    */
-  isEmpty() {
+  isEmpty(): boolean {
     return this.items.length === 0;
   }
 
   /**
    * Get primary value (first item's value column)
    */
-  getValue() {
+  getValue(): unknown {
     if (this.items.length === 0) return null;
 
-    const firstItem = this.items[0];
+    const firstItem = this.items[0]!;
 
     // For most field types, return the 'value' column
     if (firstItem.value !== undefined) {
@@ -884,8 +984,8 @@ export class FieldItemList {
   /**
    * Get all values
    */
-  getValues() {
-    return this.items.map(item => {
+  getValues(): unknown[] {
+    return this.items.map((item: FieldItem) => {
       if (item.value !== undefined) return item.value;
       if (item.target_id !== undefined) return item.target_id;
       return item;
@@ -895,47 +995,50 @@ export class FieldItemList {
   /**
    * Set single value (replaces all items)
    */
-  setValue(value) {
+  setValue(value: FieldItem | FieldItem[]): void {
     // Convert single value to array
+    let valuesArray: FieldItem[];
     if (!Array.isArray(value)) {
-      value = [value];
+      valuesArray = [value];
+    } else {
+      valuesArray = value;
     }
 
     // Validate cardinality
     if (this.storage && this.storage.cardinality !== -1) {
-      if (value.length > this.storage.cardinality) {
-        throw new Error(`Cannot set ${value.length} values, cardinality is ${this.storage.cardinality}`);
+      if (valuesArray.length > this.storage.cardinality) {
+        throw new Error(`Cannot set ${valuesArray.length} values, cardinality is ${this.storage.cardinality}`);
       }
     }
 
-    this.items = value;
+    this.items = valuesArray;
   }
 
   /**
    * Get item count
    */
-  count() {
+  count(): number {
     return this.items.length;
   }
 
   /**
    * Iterator support
    */
-  [Symbol.iterator]() {
+  [Symbol.iterator](): Iterator<FieldItem> {
     return this.items[Symbol.iterator]();
   }
 
   /**
    * Convert to plain array
    */
-  toArray() {
+  toArray(): FieldItem[] {
     return [...this.items];
   }
 
   /**
    * Convert to JSON
    */
-  toJSON() {
+  toJSON(): FieldItem[] {
     return this.items;
   }
 }
@@ -947,17 +1050,17 @@ export class FieldItemList {
 /**
  * Load all field storages into cache
  */
-function _loadAllFieldStorages() {
-  if (!existsSync(fieldStorageDir)) {
+function _loadAllFieldStorages(): void {
+  if (!existsSync(fieldStorageDir!)) {
     return;
   }
 
-  const files = readdirSync(fieldStorageDir);
+  const files = readdirSync(fieldStorageDir!);
 
   for (const file of files) {
     if (file.endsWith('.json') && !file.includes('__field_')) {
       try {
-        const storage = JSON.parse(readFileSync(join(fieldStorageDir, file), 'utf8'));
+        const storage = JSON.parse(readFileSync(join(fieldStorageDir!, file), 'utf8')) as FieldStorageDef;
         const cacheKey = `${storage.entity_type}.${storage.field_name}`;
         fieldStorageCache.set(cacheKey, storage);
       } catch (error) {
@@ -970,17 +1073,17 @@ function _loadAllFieldStorages() {
 /**
  * Load all field configs into cache
  */
-function _loadAllFieldConfigs() {
-  if (!existsSync(fieldConfigDir)) {
+function _loadAllFieldConfigs(): void {
+  if (!existsSync(fieldConfigDir!)) {
     return;
   }
 
-  const files = readdirSync(fieldConfigDir);
+  const files = readdirSync(fieldConfigDir!);
 
   for (const file of files) {
     if (file.endsWith('.json')) {
       try {
-        const config = JSON.parse(readFileSync(join(fieldConfigDir, file), 'utf8'));
+        const config = JSON.parse(readFileSync(join(fieldConfigDir!, file), 'utf8')) as FieldConfigDef;
         const cacheKey = `${config.entity_type}.${config.bundle}.${config.field_name}`;
         fieldConfigCache.set(cacheKey, config);
       } catch (error) {
@@ -993,28 +1096,28 @@ function _loadAllFieldConfigs() {
 /**
  * Get all supported field types
  */
-export function getFieldTypes() {
+export function getFieldTypes(): string[] {
   return Object.keys(FIELD_TYPES);
 }
 
 /**
  * Get field type definition
  */
-export function getFieldTypeDefinition(fieldType) {
+export function getFieldTypeDefinition(fieldType: string): FieldTypeDefinition | null {
   return FIELD_TYPES[fieldType] || null;
 }
 
 /**
  * Validate field value against field type
  */
-export function validateFieldValue(fieldType, value) {
+export function validateFieldValue(fieldType: string, value: Record<string, unknown>): string[] {
   const definition = FIELD_TYPES[fieldType];
   if (!definition) {
     throw new Error(`Unknown field type: ${fieldType}`);
   }
 
   const columns = definition.columns;
-  const errors = [];
+  const errors: string[] = [];
 
   // Check all required columns exist
   for (const columnName of Object.keys(columns)) {
@@ -1024,7 +1127,7 @@ export function validateFieldValue(fieldType, value) {
   }
 
   // Basic type validation
-  for (const [columnName, columnType] of Object.entries(columns)) {
+  for (const [columnName, columnType] of Object.entries(columns) as Array<[string, ColumnType]>) {
     const val = value[columnName];
     if (val === undefined || val === null) continue;
 
