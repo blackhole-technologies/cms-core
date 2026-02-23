@@ -28,6 +28,69 @@ import { checkLimit, createLimiter } from './ratelimit.ts';
 import { readFileSync, existsSync } from 'node:fs';
 import { join } from 'node:path';
 
+// ============================================================================
+// Types
+// ============================================================================
+
+/** Rate limit configuration for a provider */
+interface RateLimitConfig {
+  points: number;
+  duration: number;
+}
+
+/** Options for checking provider limits */
+interface CheckOptions {
+  points?: number;
+  duration?: number;
+}
+
+/** Result from checking a provider's rate limit */
+interface ProviderLimitResult {
+  allowed: boolean;
+  remaining: number;
+  resetAt: number;
+  retryAfter?: number;
+  limit?: number;
+  blocked?: boolean;
+  error?: string;
+  provider?: string;
+}
+
+/** Status information for a provider's rate limit */
+interface ProviderStatus {
+  limit: number;
+  remaining: number;
+  resetAt: number;
+  blocked: boolean;
+  retryAfter: number;
+}
+
+/** HTTP request object (minimal interface) */
+interface HttpRequest {
+  headers?: Record<string, string | string[] | undefined>;
+  socket?: { remoteAddress?: string };
+}
+
+/** HTTP response object (minimal interface) */
+interface HttpResponse {
+  setHeader: (name: string, value: string | number) => void;
+  writeHead: (statusCode: number, headers?: Record<string, string>) => void;
+  end: (data?: string) => void;
+}
+
+/** Route context */
+interface RouteContext {
+  params?: Record<string, string>;
+  [key: string]: unknown;
+}
+
+/** Middleware next function */
+type NextFunction = () => Promise<void>;
+
+// ============================================================================
+// State
+// ============================================================================
+
 /**
  * Default rate limits per provider (requests per minute)
  *
@@ -36,18 +99,22 @@ import { join } from 'node:path';
  * - Can be overridden in config
  * - Based on typical free tier limits
  */
-const DEFAULT_LIMITS = {
+const DEFAULT_LIMITS: Record<string, RateLimitConfig> = {
   openai: { points: 60, duration: 60 }, // 60 requests/minute
   anthropic: { points: 50, duration: 60 }, // 50 requests/minute
   ollama: { points: 1000, duration: 60 }, // 1000 requests/minute (local, no limit)
 };
 
+// ============================================================================
+// Internal helpers
+// ============================================================================
+
 /**
  * Load rate limit config from ai_providers.json
  *
- * @returns {Object} - Rate limit configuration per provider
+ * @returns Rate limit configuration per provider
  */
-function loadRateLimitConfig() {
+function loadRateLimitConfig(): Record<string, RateLimitConfig> {
   const configPath = join(process.cwd(), 'config', 'ai_providers.json');
 
   if (!existsSync(configPath)) {
@@ -55,8 +122,10 @@ function loadRateLimitConfig() {
   }
 
   try {
-    const config = JSON.parse(readFileSync(configPath, 'utf-8'));
-    const rateLimits = {};
+    const config = JSON.parse(readFileSync(configPath, 'utf-8')) as {
+      providers?: Record<string, { rateLimit?: RateLimitConfig }>;
+    };
+    const rateLimits: Record<string, RateLimitConfig> = {};
 
     // Extract rate limits from provider config
     for (const [providerId, providerConfig] of Object.entries(config.providers || {})) {
@@ -66,19 +135,24 @@ function loadRateLimitConfig() {
     }
 
     return rateLimits;
-  } catch (error) {
-    console.error('[ai-rate-limiter] Failed to load config:', error.message);
+  } catch (error: unknown) {
+    const message = error instanceof Error ? error.message : String(error);
+    console.error('[ai-rate-limiter] Failed to load config:', message);
     return {};
   }
 }
 
+// ============================================================================
+// Public API
+// ============================================================================
+
 /**
  * Get rate limit configuration for a provider
  *
- * @param {string} providerId - Provider ID (openai, anthropic, ollama)
- * @returns {Object} - { points, duration } configuration
+ * @param providerId - Provider ID (openai, anthropic, ollama)
+ * @returns { points, duration } configuration
  */
-export function getProviderRateLimit(providerId) {
+export function getProviderRateLimit(providerId: string): RateLimitConfig {
   const configLimits = loadRateLimitConfig();
 
   // Priority: config > defaults > fallback
@@ -90,9 +164,9 @@ export function getProviderRateLimit(providerId) {
 /**
  * Check if a request to an AI provider is allowed under rate limits
  *
- * @param {string} providerId - Provider ID (openai, anthropic, ollama)
- * @param {Object} options - Optional overrides for points/duration
- * @returns {Object} - { allowed, remaining, resetAt, error?, retryAfter? }
+ * @param providerId - Provider ID (openai, anthropic, ollama)
+ * @param options - Optional overrides for points/duration
+ * @returns { allowed, remaining, resetAt, error?, retryAfter? }
  *
  * @example
  * const result = await checkProviderLimit('openai');
@@ -100,7 +174,7 @@ export function getProviderRateLimit(providerId) {
  *   throw new Error(result.error); // "Rate limit exceeded for openai. Try again in 45 seconds."
  * }
  */
-export function checkProviderLimit(providerId, options = {}) {
+export function checkProviderLimit(providerId: string, options: CheckOptions = {}): ProviderLimitResult {
   const limit = getProviderRateLimit(providerId);
 
   // Merge with any overrides
@@ -114,7 +188,7 @@ export function checkProviderLimit(providerId, options = {}) {
   const key = `ai-provider:${providerId}`;
 
   // Check the limit
-  const result = checkLimit(key, finalOptions);
+  const result = checkLimit(key, finalOptions) as ProviderLimitResult;
 
   // Add error message if blocked
   if (!result.allowed) {
@@ -128,14 +202,14 @@ export function checkProviderLimit(providerId, options = {}) {
 /**
  * Create a rate limiter for a specific provider
  *
- * @param {string} providerId - Provider ID
- * @returns {Object} - Limiter instance with check() method
+ * @param providerId - Provider ID
+ * @returns Limiter instance with check() method
  *
  * @example
  * const openaiLimiter = createProviderLimiter('openai');
  * const result = openaiLimiter.check();
  */
-export function createProviderLimiter(providerId) {
+export function createProviderLimiter(providerId: string): ReturnType<typeof createLimiter> {
   const limit = getProviderRateLimit(providerId);
 
   return createLimiter({
@@ -147,8 +221,8 @@ export function createProviderLimiter(providerId) {
 /**
  * Get current rate limit status for all providers
  *
- * @param {Array} providerIds - Array of provider IDs to check
- * @returns {Object} - Status per provider
+ * @param providerIds - Array of provider IDs to check
+ * @returns Status per provider
  *
  * @example
  * const status = getProviderRateLimitStatus(['openai', 'anthropic']);
@@ -157,15 +231,15 @@ export function createProviderLimiter(providerId) {
  * //   anthropic: { limit: 50, remaining: 50, resetAt: 1612345678000 }
  * // }
  */
-export function getProviderRateLimitStatus(providerIds) {
-  const status = {};
+export function getProviderRateLimitStatus(providerIds: string[]): Record<string, ProviderStatus> {
+  const status: Record<string, ProviderStatus> = {};
 
   for (const providerId of providerIds) {
     const limit = getProviderRateLimit(providerId);
     const key = `ai-provider:${providerId}`;
 
     // Check without consuming a request (just get status)
-    const result = checkLimit(key, { ...limit, reason: `ai-provider:${providerId}` });
+    const result = checkLimit(key, { ...limit, reason: `ai-provider:${providerId}` }) as ProviderLimitResult;
 
     status[providerId] = {
       limit: limit.points,
@@ -182,15 +256,15 @@ export function getProviderRateLimitStatus(providerIds) {
 /**
  * Middleware to check AI provider rate limits
  *
- * @param {string} providerIdParam - Name of ctx param that contains provider ID
- * @returns {Function} - Middleware function
+ * @param providerIdParam - Name of ctx param that contains provider ID
+ * @returns Middleware function
  *
  * @example
  * router.use(aiProviderRateLimit('providerId'), 'aiRateLimit', '/api/ai/:providerId/*');
  */
-export function aiProviderRateLimit(providerIdParam = 'providerId') {
-  return async function aiRateLimitMiddleware(req, res, ctx, next) {
-    const providerId = ctx.params?.[providerIdParam] || ctx[providerIdParam];
+export function aiProviderRateLimit(providerIdParam: string = 'providerId'): (req: HttpRequest, res: HttpResponse, ctx: RouteContext, next: NextFunction) => Promise<void> {
+  return async function aiRateLimitMiddleware(req: HttpRequest, res: HttpResponse, ctx: RouteContext, next: NextFunction): Promise<void> {
+    const providerId = ctx.params?.[providerIdParam] || (ctx[providerIdParam] as string | undefined);
 
     if (!providerId) {
       // No provider specified, skip rate limiting
@@ -206,7 +280,7 @@ export function aiProviderRateLimit(providerIdParam = 'providerId') {
     res.setHeader('X-RateLimit-Reset', Math.floor(result.resetAt / 1000));
 
     if (!result.allowed) {
-      res.setHeader('Retry-After', result.retryAfter);
+      res.setHeader('Retry-After', result.retryAfter || 0);
       res.writeHead(429, { 'Content-Type': 'application/json' });
       res.end(JSON.stringify({
         error: 'Rate Limit Exceeded',

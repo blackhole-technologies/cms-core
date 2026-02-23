@@ -23,11 +23,66 @@
 import { existsSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 
+// ============================================================================
+// Types
+// ============================================================================
+
+/** Valid AI module types */
+type AIModuleType = 'provider' | 'tool' | 'processor' | 'agent';
+
+/** Valid module status values */
+type AIModuleStatus = 'active' | 'inactive' | 'error';
+
+/** Metadata stored for each registered AI module */
+interface AIModuleMetadata {
+  name: string;
+  type: AIModuleType;
+  capabilities: Record<string, unknown>;
+  status: AIModuleStatus;
+  manifest: Record<string, unknown>;
+  path: string | null;
+  registeredAt: string;
+}
+
+/** Information passed when registering a module */
+export interface AIModuleInfo {
+  name: string;
+  type: AIModuleType;
+  capabilities?: Record<string, unknown>;
+  status?: AIModuleStatus;
+  manifest?: Record<string, unknown>;
+  path?: string;
+}
+
+/** Discovered module structure passed from core/discovery.js */
+interface DiscoveredModule {
+  name: string;
+  path: string;
+  manifest: Record<string, unknown> & {
+    ai?: boolean;
+    aiType?: AIModuleType;
+    aiCapabilities?: Record<string, unknown>;
+    capabilities?: Record<string, unknown>;
+    disabled?: boolean;
+  };
+}
+
+/** Registry statistics */
+interface RegistryStats {
+  total: number;
+  byType: Record<string, number>;
+  byStatus: Record<AIModuleStatus, number>;
+}
+
+// ============================================================================
+// State
+// ============================================================================
+
 /**
  * Service state
  */
-let baseDir = null;
-let initialized = false;
+let baseDir: string | null = null;
+let initialized: boolean = false;
 
 /**
  * AI module registry
@@ -38,20 +93,24 @@ let initialized = false;
  * - Better iteration performance
  * - No prototype pollution issues
  */
-const registry = new Map();
+const registry: Map<string, AIModuleMetadata> = new Map();
 
 /**
  * Type index for fast queries by AI module type
  * Structure: Map<aiType, Set<moduleName>>
  */
-const typeIndex = new Map();
+const typeIndex: Map<AIModuleType, Set<string>> = new Map();
+
+// ============================================================================
+// Public API
+// ============================================================================
 
 /**
  * Initialize AI registry service
  *
- * @param {string} baseDirPath - Base directory for modules
+ * @param baseDirPath - Base directory for modules
  */
-export function init(baseDirPath) {
+export function init(baseDirPath: string): void {
   if (!baseDirPath) {
     throw new Error('[ai-registry] Base directory is required');
   }
@@ -70,15 +129,10 @@ export function init(baseDirPath) {
  * - Decouples discovery from registration
  * - Enables dynamic registration (hot-reload, plugins)
  *
- * @param {Object} moduleInfo - Module information
- * @param {string} moduleInfo.name - Module name
- * @param {string} moduleInfo.type - AI type: provider|tool|processor|agent
- * @param {Object} moduleInfo.capabilities - Module capabilities
- * @param {string} moduleInfo.status - Status: active|inactive|error
- * @param {Object} moduleInfo.manifest - Full manifest.json content
- * @param {string} moduleInfo.path - Absolute path to module directory
+ * @param moduleInfo - Module information
+ * @returns True if registered successfully
  */
-export function register(moduleInfo) {
+export function register(moduleInfo: AIModuleInfo): boolean {
   if (!initialized) {
     throw new Error('[ai-registry] Service not initialized. Call init() first.');
   }
@@ -92,7 +146,7 @@ export function register(moduleInfo) {
   }
 
   // Validate AI type
-  const validTypes = ['provider', 'tool', 'processor', 'agent'];
+  const validTypes: AIModuleType[] = ['provider', 'tool', 'processor', 'agent'];
   if (!validTypes.includes(type)) {
     console.error(`[ai-registry] Invalid AI type "${type}". Must be one of: ${validTypes.join(', ')}`);
     return false;
@@ -113,7 +167,7 @@ export function register(moduleInfo) {
   if (!typeIndex.has(type)) {
     typeIndex.set(type, new Set());
   }
-  typeIndex.get(type).add(name);
+  typeIndex.get(type)!.add(name);
 
   console.log(`[ai-registry] Registered AI module: ${name} (${type})`);
   return true;
@@ -129,9 +183,10 @@ export function register(moduleInfo) {
  *
  * This scans modules/ for any module with ai: true or aiType in manifest.json
  *
- * @param {Array} modules - Array of discovered modules from core/discovery.js
+ * @param modules - Array of discovered modules from core/discovery.js
+ * @returns Number of modules discovered
  */
-export function discoverAIModules(modules) {
+export function discoverAIModules(modules: DiscoveredModule[]): number {
   if (!initialized) {
     throw new Error('[ai-registry] Service not initialized. Call init() first.');
   }
@@ -148,9 +203,9 @@ export function discoverAIModules(modules) {
     }
 
     // Extract AI metadata
-    const aiType = manifest.aiType || 'tool'; // Default to 'tool' if not specified
+    const aiType: AIModuleType = manifest.aiType || 'tool'; // Default to 'tool' if not specified
     const capabilities = manifest.aiCapabilities || manifest.capabilities || {};
-    const status = manifest.disabled ? 'inactive' : 'active';
+    const status: AIModuleStatus = manifest.disabled ? 'inactive' : 'active';
 
     // Register the AI module
     const registered = register({
@@ -174,44 +229,46 @@ export function discoverAIModules(modules) {
 /**
  * Get all registered AI modules
  *
- * @returns {Array} - Array of AI module metadata
+ * @returns Array of AI module metadata
  */
-export function listAll() {
+export function listAll(): AIModuleMetadata[] {
   return Array.from(registry.values());
 }
 
 /**
  * Get AI modules by type
  *
- * @param {string} type - AI type: provider|tool|processor|agent
- * @returns {Array} - Array of matching AI modules
+ * @param type - AI type: provider|tool|processor|agent
+ * @returns Array of matching AI modules
  */
-export function getByType(type) {
+export function getByType(type: AIModuleType): AIModuleMetadata[] {
   const moduleNames = typeIndex.get(type);
   if (!moduleNames) {
     return [];
   }
 
-  return Array.from(moduleNames).map(name => registry.get(name));
+  return Array.from(moduleNames)
+    .map(name => registry.get(name))
+    .filter((m): m is AIModuleMetadata => m !== undefined);
 }
 
 /**
  * Get a specific AI module by name
  *
- * @param {string} name - Module name
- * @returns {Object|null} - Module metadata or null if not found
+ * @param name - Module name
+ * @returns Module metadata or null if not found
  */
-export function getModule(name) {
+export function getModule(name: string): AIModuleMetadata | null {
   return registry.get(name) || null;
 }
 
 /**
  * Get registry statistics
  *
- * @returns {Object} - Stats about registered AI modules
+ * @returns Stats about registered AI modules
  */
-export function getStats() {
-  const stats = {
+export function getStats(): RegistryStats {
+  const stats: RegistryStats = {
     total: registry.size,
     byType: {},
     byStatus: { active: 0, inactive: 0, error: 0 },
@@ -235,18 +292,18 @@ export function getStats() {
 /**
  * Update the status of a registered AI module
  *
- * @param {string} name - Module name
- * @param {string} status - New status: active|inactive|error
- * @returns {boolean} - True if updated, false if module not found or invalid status
+ * @param name - Module name
+ * @param status - New status: active|inactive|error
+ * @returns True if updated, false if module not found or invalid status
  */
-export function updateStatus(name, status) {
+export function updateStatus(name: string, status: AIModuleStatus): boolean {
   const module = registry.get(name);
   if (!module) {
     console.error(`[ai-registry] Cannot update status: module "${name}" not found`);
     return false;
   }
 
-  const validStatuses = ['active', 'inactive', 'error'];
+  const validStatuses: AIModuleStatus[] = ['active', 'inactive', 'error'];
   if (!validStatuses.includes(status)) {
     console.error(`[ai-registry] Invalid status "${status}". Must be one of: ${validStatuses.join(', ')}`);
     return false;
@@ -260,17 +317,17 @@ export function updateStatus(name, status) {
 /**
  * Check if a module is registered
  *
- * @param {string} name - Module name
- * @returns {boolean}
+ * @param name - Module name
+ * @returns True if module exists
  */
-export function has(name) {
+export function has(name: string): boolean {
   return registry.has(name);
 }
 
 /**
  * Clear the registry (mainly for testing)
  */
-export function clear() {
+export function clear(): void {
   registry.clear();
   typeIndex.clear();
   console.log('[ai-registry] Registry cleared');
@@ -279,4 +336,4 @@ export function clear() {
 /**
  * Service name for registration
  */
-export const name = 'ai-registry';
+export const name: string = 'ai-registry';
