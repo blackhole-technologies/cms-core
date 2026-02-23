@@ -20,13 +20,72 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
 // Default storage path
-const STORAGE_PATH = path.join(__dirname, '..', 'content', '_tables');
+const STORAGE_PATH: string = path.join(__dirname, '..', 'content', '_tables');
+
+// ============================================================================
+// Types
+// ============================================================================
+
+/** A single row in a table — string-keyed record with arbitrary values */
+export type Row = Record<string, unknown>;
+
+/** Specification for a select field entry */
+interface SelectFieldEntry {
+  alias: string;
+  field: string;
+  fieldAlias?: string | null;
+}
+
+/** A single condition used in WHERE / HAVING clauses */
+interface Condition {
+  field: string;
+  value: unknown;
+  operator: string;
+}
+
+/** Specification for a JOIN */
+interface JoinSpec {
+  table: string;
+  alias: string;
+  condition: string;
+  type: 'INNER' | 'LEFT' | 'RIGHT';
+}
+
+/** Specification for ORDER BY */
+interface OrderBySpec {
+  field: string | null;
+  direction: string;
+}
+
+/** Schema field specification — describes column metadata */
+export interface FieldSpec {
+  default?: unknown;
+  [key: string]: unknown;
+}
+
+/** Table schema specification — describes the full table structure */
+export interface TableSpec {
+  [key: string]: unknown;
+}
+
+/** Node.js filesystem error with a `code` property */
+interface NodeError extends Error {
+  code?: string;
+}
+
+// ============================================================================
+// Database
+// ============================================================================
 
 /**
  * Database class - main entry point
  */
 export class Database {
-  constructor(storagePath = STORAGE_PATH) {
+  storagePath: string;
+  transactionStack: Record<string, unknown>[];
+  inTransaction: boolean;
+
+  constructor(storagePath: string = STORAGE_PATH) {
     this.storagePath = storagePath;
     this.transactionStack = [];
     this.inTransaction = false;
@@ -35,10 +94,11 @@ export class Database {
   /**
    * Initialize database (create storage directory)
    */
-  async initialize() {
+  async initialize(): Promise<void> {
     try {
       await fs.mkdir(this.storagePath, { recursive: true });
-    } catch (error) {
+    } catch (err: unknown) {
+      const error = err as NodeError;
       throw new DatabaseError(`Failed to initialize database: ${error.message}`);
     }
   }
@@ -46,42 +106,42 @@ export class Database {
   /**
    * Create SELECT query
    */
-  select(table, alias = null) {
+  select(table: string, alias: string | null = null): SelectQuery {
     return new SelectQuery(this, table, alias);
   }
 
   /**
    * Create INSERT query
    */
-  insert(table) {
+  insert(table: string): InsertQuery {
     return new InsertQuery(this, table);
   }
 
   /**
    * Create UPDATE query
    */
-  update(table) {
+  update(table: string): UpdateQuery {
     return new UpdateQuery(this, table);
   }
 
   /**
    * Create DELETE query
    */
-  delete(table) {
+  delete(table: string): DeleteQuery {
     return new DeleteQuery(this, table);
   }
 
   /**
    * Get schema manager
    */
-  schema() {
+  schema(): Schema {
     return new Schema(this);
   }
 
   /**
    * Start transaction
    */
-  async transaction() {
+  async transaction(): Promise<void> {
     this.inTransaction = true;
     this.transactionStack.push({});
   }
@@ -89,7 +149,7 @@ export class Database {
   /**
    * Commit transaction
    */
-  async commit() {
+  async commit(): Promise<void> {
     if (!this.inTransaction) {
       throw new DatabaseError('No transaction in progress');
     }
@@ -102,7 +162,7 @@ export class Database {
   /**
    * Rollback transaction
    */
-  async rollback() {
+  async rollback(): Promise<void> {
     if (!this.inTransaction) {
       throw new DatabaseError('No transaction in progress');
     }
@@ -116,19 +176,20 @@ export class Database {
   /**
    * Get table file path
    */
-  getTablePath(table) {
+  getTablePath(table: string): string {
     return path.join(this.storagePath, `${table}.json`);
   }
 
   /**
    * Load table data
    */
-  async loadTable(table) {
+  async loadTable(table: string): Promise<Row[]> {
     const tablePath = this.getTablePath(table);
     try {
       const data = await fs.readFile(tablePath, 'utf-8');
-      return JSON.parse(data);
-    } catch (error) {
+      return JSON.parse(data) as Row[];
+    } catch (err: unknown) {
+      const error = err as NodeError;
       if (error.code === 'ENOENT') {
         return [];
       }
@@ -139,11 +200,12 @@ export class Database {
   /**
    * Save table data
    */
-  async saveTable(table, data) {
+  async saveTable(table: string, data: Row[]): Promise<void> {
     const tablePath = this.getTablePath(table);
     try {
       await fs.writeFile(tablePath, JSON.stringify(data, null, 2), 'utf-8');
-    } catch (error) {
+    } catch (err: unknown) {
+      const error = err as NodeError;
       throw new DatabaseError(`Failed to save table ${table}: ${error.message}`);
     }
   }
@@ -151,21 +213,41 @@ export class Database {
   /**
    * Get next auto-increment ID for table
    */
-  async getNextId(table, idField = 'id') {
+  async getNextId(table: string, idField: string = 'id'): Promise<number> {
     const data = await this.loadTable(table);
     if (data.length === 0) {
       return 1;
     }
-    const maxId = Math.max(...data.map(row => row[idField] || 0));
+    const maxId = Math.max(...data.map(row => {
+      const val = row[idField];
+      return typeof val === 'number' ? val : 0;
+    }));
     return maxId + 1;
   }
 }
+
+// ============================================================================
+// SelectQuery
+// ============================================================================
 
 /**
  * SELECT query builder
  */
 export class SelectQuery {
-  constructor(db, table, alias = null) {
+  private db: Database;
+  private table: string;
+  private tableAlias: string;
+  private selectFields: SelectFieldEntry[];
+  conditionGroups: ConditionGroup[];
+  private orderByFields: OrderBySpec[];
+  private rangeStart: number | null;
+  private rangeLength: number | null;
+  joins: JoinSpec[];
+  private groupByFields: string[];
+  private havingConditions: Condition[];
+  private isDistinct: boolean;
+
+  constructor(db: Database, table: string, alias: string | null = null) {
     this.db = db;
     this.table = table;
     this.tableAlias = alias || table;
@@ -183,7 +265,7 @@ export class SelectQuery {
   /**
    * Add fields to select
    */
-  fields(alias, fields = null) {
+  fields(alias: string, fields: string[] | Record<string, string> | null = null): this {
     if (fields === null) {
       // Select all fields from alias
       this.selectFields.push({ alias, field: '*' });
@@ -203,7 +285,7 @@ export class SelectQuery {
   /**
    * Add single field
    */
-  addField(alias, field, fieldAlias = null) {
+  addField(alias: string, field: string, fieldAlias: string | null = null): this {
     this.selectFields.push({ alias, field, fieldAlias });
     return this;
   }
@@ -211,7 +293,7 @@ export class SelectQuery {
   /**
    * Add condition
    */
-  condition(field, value, operator = '=') {
+  condition(field: string, value: unknown, operator: string = '='): this {
     this.getCurrentConditionGroup().condition(field, value, operator);
     return this;
   }
@@ -219,14 +301,14 @@ export class SelectQuery {
   /**
    * Get current condition group
    */
-  getCurrentConditionGroup() {
-    return this.conditionGroups[this.conditionGroups.length - 1];
+  getCurrentConditionGroup(): ConditionGroup {
+    return this.conditionGroups[this.conditionGroups.length - 1]!;
   }
 
   /**
    * Add WHERE condition group
    */
-  where(conditionGroup) {
+  where(conditionGroup: ConditionGroup): this {
     this.conditionGroups[0] = conditionGroup;
     return this;
   }
@@ -234,7 +316,7 @@ export class SelectQuery {
   /**
    * Create OR condition group
    */
-  orConditionGroup() {
+  orConditionGroup(): ConditionGroup {
     const group = new ConditionGroup('OR');
     this.getCurrentConditionGroup().addGroup(group);
     return group;
@@ -243,7 +325,7 @@ export class SelectQuery {
   /**
    * Create AND condition group
    */
-  andConditionGroup() {
+  andConditionGroup(): ConditionGroup {
     const group = new ConditionGroup('AND');
     this.getCurrentConditionGroup().addGroup(group);
     return group;
@@ -252,7 +334,7 @@ export class SelectQuery {
   /**
    * Add IS NULL condition
    */
-  isNull(field) {
+  isNull(field: string): this {
     this.getCurrentConditionGroup().isNull(field);
     return this;
   }
@@ -260,7 +342,7 @@ export class SelectQuery {
   /**
    * Add IS NOT NULL condition
    */
-  isNotNull(field) {
+  isNotNull(field: string): this {
     this.getCurrentConditionGroup().isNotNull(field);
     return this;
   }
@@ -268,7 +350,7 @@ export class SelectQuery {
   /**
    * Add ORDER BY
    */
-  orderBy(field, direction = 'ASC') {
+  orderBy(field: string, direction: string = 'ASC'): this {
     this.orderByFields.push({ field, direction: direction.toUpperCase() });
     return this;
   }
@@ -276,7 +358,7 @@ export class SelectQuery {
   /**
    * Order randomly
    */
-  orderRandom() {
+  orderRandom(): this {
     this.orderByFields.push({ field: null, direction: 'RANDOM' });
     return this;
   }
@@ -284,7 +366,7 @@ export class SelectQuery {
   /**
    * Set range (LIMIT/OFFSET)
    */
-  range(start, length) {
+  range(start: number, length: number): this {
     this.rangeStart = start;
     this.rangeLength = length;
     return this;
@@ -293,7 +375,7 @@ export class SelectQuery {
   /**
    * Add JOIN
    */
-  join(table, alias, condition, type = 'INNER') {
+  join(table: string, alias: string, condition: string, type: 'INNER' | 'LEFT' | 'RIGHT' = 'INNER'): this {
     this.joins.push({ table, alias, condition, type });
     return this;
   }
@@ -301,28 +383,28 @@ export class SelectQuery {
   /**
    * Add LEFT JOIN
    */
-  leftJoin(table, alias, condition) {
+  leftJoin(table: string, alias: string, condition: string): this {
     return this.join(table, alias, condition, 'LEFT');
   }
 
   /**
    * Add RIGHT JOIN
    */
-  rightJoin(table, alias, condition) {
+  rightJoin(table: string, alias: string, condition: string): this {
     return this.join(table, alias, condition, 'RIGHT');
   }
 
   /**
    * Add INNER JOIN
    */
-  innerJoin(table, alias, condition) {
+  innerJoin(table: string, alias: string, condition: string): this {
     return this.join(table, alias, condition, 'INNER');
   }
 
   /**
    * Add GROUP BY
    */
-  groupBy(field) {
+  groupBy(field: string): this {
     this.groupByFields.push(field);
     return this;
   }
@@ -330,7 +412,7 @@ export class SelectQuery {
   /**
    * Add HAVING condition
    */
-  havingCondition(field, value, operator = '=') {
+  havingCondition(field: string, value: unknown, operator: string = '='): this {
     this.havingConditions.push({ field, value, operator });
     return this;
   }
@@ -338,7 +420,7 @@ export class SelectQuery {
   /**
    * Set DISTINCT
    */
-  distinct() {
+  distinct(): this {
     this.isDistinct = true;
     return this;
   }
@@ -346,7 +428,7 @@ export class SelectQuery {
   /**
    * Create count query
    */
-  countQuery() {
+  countQuery(): SelectQuery {
     const countQuery = new SelectQuery(this.db, this.table, this.tableAlias);
     countQuery.conditionGroups = this.conditionGroups;
     countQuery.joins = this.joins;
@@ -357,9 +439,9 @@ export class SelectQuery {
   /**
    * Execute query
    */
-  async execute() {
+  async execute(): Promise<ResultSet> {
     // Load main table
-    let rows = await this.db.loadTable(this.table);
+    let rows: Row[] = await this.db.loadTable(this.table);
 
     // Apply joins
     if (this.joins.length > 0) {
@@ -405,10 +487,10 @@ export class SelectQuery {
   /**
    * Apply joins to rows
    */
-  async applyJoins(rows) {
+  private async applyJoins(rows: Row[]): Promise<Row[]> {
     for (const join of this.joins) {
-      const joinTable = await this.db.loadTable(join.table);
-      const newRows = [];
+      const joinTable: Row[] = await this.db.loadTable(join.table);
+      const newRows: Row[] = [];
 
       for (const row of rows) {
         const matchingRows = joinTable.filter(joinRow => {
@@ -434,17 +516,17 @@ export class SelectQuery {
   /**
    * Evaluate join condition
    */
-  evaluateJoinCondition(leftRow, rightRow, condition) {
+  private evaluateJoinCondition(leftRow: Row, rightRow: Row, condition: string): boolean {
     // Parse condition like "n.uid = u.uid"
     const match = condition.match(/^(\w+)\.(\w+)\s*=\s*(\w+)\.(\w+)$/);
     if (!match) {
       throw new DatabaseError(`Invalid join condition: ${condition}`);
     }
 
-    const [, leftAlias, leftField, rightAlias, rightField] = match;
+    const [, leftAlias, leftField, , rightField] = match;
 
-    const leftValue = this.getFieldValue(leftRow, leftAlias, leftField);
-    const rightValue = this.getFieldValue(rightRow, rightAlias, rightField);
+    const leftValue = this.getFieldValue(leftRow, leftAlias!, leftField!);
+    const rightValue = this.getFieldValue(rightRow, match[3]!, rightField!);
 
     return leftValue === rightValue;
   }
@@ -452,7 +534,7 @@ export class SelectQuery {
   /**
    * Get field value from row with alias support
    */
-  getFieldValue(row, alias, field) {
+  private getFieldValue(row: Row, alias: string, field: string): unknown {
     if (alias === this.tableAlias) {
       return row[field];
     }
@@ -460,7 +542,8 @@ export class SelectQuery {
     // Check if it's a joined table
     const join = this.joins.find(j => j.alias === alias);
     if (join && row[alias]) {
-      return row[alias][field];
+      const joinedRow = row[alias] as Row;
+      return joinedRow[field];
     }
 
     return row[field];
@@ -469,17 +552,17 @@ export class SelectQuery {
   /**
    * Apply conditions to rows
    */
-  applyConditions(rows) {
+  private applyConditions(rows: Row[]): Row[] {
     return rows.filter(row => {
-      return this.conditionGroups[0].evaluate(row, this.tableAlias);
+      return this.conditionGroups[0]!.evaluate(row, this.tableAlias);
     });
   }
 
   /**
    * Apply GROUP BY
    */
-  applyGroupBy(rows) {
-    const groups = {};
+  private applyGroupBy(rows: Row[]): Row[] {
+    const groups: Record<string, Row[]> = {};
 
     rows.forEach(row => {
       const key = this.groupByFields.map(field => {
@@ -490,21 +573,21 @@ export class SelectQuery {
       if (!groups[key]) {
         groups[key] = [];
       }
-      groups[key].push(row);
+      groups[key]!.push(row);
     });
 
     // Return first row from each group (simplified - real implementation would handle aggregates)
-    return Object.values(groups).map(group => group[0]);
+    return Object.values(groups).map(group => group[0]!);
   }
 
   /**
    * Apply HAVING conditions
    */
-  applyHaving(rows) {
+  private applyHaving(rows: Row[]): Row[] {
     return rows.filter(row => {
       return this.havingConditions.every(condition => {
         const fieldName = condition.field.replace(`${this.tableAlias}.`, '');
-        return this.evaluateOperator(row[fieldName], condition.value, condition.operator);
+        return evaluateOperator(row[fieldName], condition.value, condition.operator);
       });
     });
   }
@@ -512,20 +595,20 @@ export class SelectQuery {
   /**
    * Apply ORDER BY
    */
-  applyOrderBy(rows) {
+  private applyOrderBy(rows: Row[]): Row[] {
     if (this.orderByFields.some(f => f.direction === 'RANDOM')) {
       return rows.sort(() => Math.random() - 0.5);
     }
 
     return rows.sort((a, b) => {
       for (const orderField of this.orderByFields) {
-        const fieldName = orderField.field.replace(`${this.tableAlias}.`, '');
+        const fieldName = (orderField.field ?? '').replace(`${this.tableAlias}.`, '');
         const aVal = a[fieldName];
         const bVal = b[fieldName];
 
         let comparison = 0;
-        if (aVal < bVal) comparison = -1;
-        if (aVal > bVal) comparison = 1;
+        if (aVal as number < (bVal as number)) comparison = -1;
+        if (aVal as number > (bVal as number)) comparison = 1;
 
         if (comparison !== 0) {
           return orderField.direction === 'DESC' ? -comparison : comparison;
@@ -538,8 +621,8 @@ export class SelectQuery {
   /**
    * Apply DISTINCT
    */
-  applyDistinct(rows) {
-    const seen = new Set();
+  private applyDistinct(rows: Row[]): Row[] {
+    const seen = new Set<string>();
     return rows.filter(row => {
       const key = JSON.stringify(row);
       if (seen.has(key)) {
@@ -553,13 +636,13 @@ export class SelectQuery {
   /**
    * Select specific fields from rows
    */
-  selectFieldsFromRows(rows) {
+  private selectFieldsFromRows(rows: Row[]): Row[] {
     if (this.selectFields.length === 0) {
       return rows;
     }
 
     return rows.map(row => {
-      const newRow = {};
+      const newRow: Row = {};
 
       this.selectFields.forEach(({ alias, field, fieldAlias }) => {
         if (field === '*') {
@@ -569,7 +652,7 @@ export class SelectQuery {
           } else {
             const join = this.joins.find(j => j.alias === alias);
             if (join && row[alias]) {
-              Object.assign(newRow, row[alias]);
+              Object.assign(newRow, row[alias] as Row);
             }
           }
         } else if (field.startsWith('COUNT(')) {
@@ -588,41 +671,24 @@ export class SelectQuery {
   /**
    * Evaluate operator
    */
-  evaluateOperator(fieldValue, value, operator) {
-    switch (operator.toUpperCase()) {
-      case '=':
-        return fieldValue === value;
-      case '<>':
-      case '!=':
-        return fieldValue !== value;
-      case '<':
-        return fieldValue < value;
-      case '<=':
-        return fieldValue <= value;
-      case '>':
-        return fieldValue > value;
-      case '>=':
-        return fieldValue >= value;
-      case 'IN':
-        return Array.isArray(value) && value.includes(fieldValue);
-      case 'NOT IN':
-        return Array.isArray(value) && !value.includes(fieldValue);
-      case 'LIKE':
-        const pattern = value.replace(/%/g, '.*').replace(/_/g, '.');
-        return new RegExp(`^${pattern}$`, 'i').test(String(fieldValue));
-      case 'BETWEEN':
-        return Array.isArray(value) && fieldValue >= value[0] && fieldValue <= value[1];
-      default:
-        throw new DatabaseError(`Unsupported operator: ${operator}`);
-    }
+  evaluateOperator(fieldValue: unknown, value: unknown, operator: string): boolean {
+    return evaluateOperator(fieldValue, value, operator);
   }
 }
+
+// ============================================================================
+// InsertQuery
+// ============================================================================
 
 /**
  * INSERT query builder
  */
 export class InsertQuery {
-  constructor(db, table) {
+  private db: Database;
+  private table: string;
+  private insertFields: Row;
+
+  constructor(db: Database, table: string) {
     this.db = db;
     this.table = table;
     this.insertFields = {};
@@ -631,7 +697,7 @@ export class InsertQuery {
   /**
    * Set fields to insert
    */
-  fields(fields) {
+  fields(fields: Row): this {
     this.insertFields = fields;
     return this;
   }
@@ -639,22 +705,22 @@ export class InsertQuery {
   /**
    * Execute insert
    */
-  async execute() {
+  async execute(): Promise<unknown> {
     const rows = await this.db.loadTable(this.table);
 
     // Auto-generate ID if not provided
-    if (!this.insertFields.id && !this.insertFields.nid && !this.insertFields.uid) {
+    if (!this.insertFields['id'] && !this.insertFields['nid'] && !this.insertFields['uid']) {
       const idField = this.table === 'node' ? 'nid' : this.table === 'users' ? 'uid' : 'id';
       this.insertFields[idField] = await this.db.getNextId(this.table, idField);
     }
 
     // Add timestamps
     const now = Math.floor(Date.now() / 1000);
-    if (!this.insertFields.created) {
-      this.insertFields.created = now;
+    if (!this.insertFields['created']) {
+      this.insertFields['created'] = now;
     }
-    if (!this.insertFields.changed) {
-      this.insertFields.changed = now;
+    if (!this.insertFields['changed']) {
+      this.insertFields['changed'] = now;
     }
 
     rows.push(this.insertFields);
@@ -665,11 +731,20 @@ export class InsertQuery {
   }
 }
 
+// ============================================================================
+// UpdateQuery
+// ============================================================================
+
 /**
  * UPDATE query builder
  */
 export class UpdateQuery {
-  constructor(db, table) {
+  private db: Database;
+  private table: string;
+  private updateFields: Row;
+  private conditionGroup: ConditionGroup;
+
+  constructor(db: Database, table: string) {
     this.db = db;
     this.table = table;
     this.updateFields = {};
@@ -679,7 +754,7 @@ export class UpdateQuery {
   /**
    * Set fields to update
    */
-  fields(fields) {
+  fields(fields: Row): this {
     this.updateFields = fields;
     return this;
   }
@@ -687,7 +762,7 @@ export class UpdateQuery {
   /**
    * Add condition
    */
-  condition(field, value, operator = '=') {
+  condition(field: string, value: unknown, operator: string = '='): this {
     this.conditionGroup.condition(field, value, operator);
     return this;
   }
@@ -695,13 +770,13 @@ export class UpdateQuery {
   /**
    * Execute update
    */
-  async execute() {
+  async execute(): Promise<number> {
     const rows = await this.db.loadTable(this.table);
 
     // Update changed timestamp
     const now = Math.floor(Date.now() / 1000);
-    if (!this.updateFields.changed) {
-      this.updateFields.changed = now;
+    if (!this.updateFields['changed']) {
+      this.updateFields['changed'] = now;
     }
 
     let updatedCount = 0;
@@ -719,11 +794,19 @@ export class UpdateQuery {
   }
 }
 
+// ============================================================================
+// DeleteQuery
+// ============================================================================
+
 /**
  * DELETE query builder
  */
 export class DeleteQuery {
-  constructor(db, table) {
+  private db: Database;
+  private table: string;
+  private conditionGroup: ConditionGroup;
+
+  constructor(db: Database, table: string) {
     this.db = db;
     this.table = table;
     this.conditionGroup = new ConditionGroup();
@@ -732,7 +815,7 @@ export class DeleteQuery {
   /**
    * Add condition
    */
-  condition(field, value, operator = '=') {
+  condition(field: string, value: unknown, operator: string = '='): this {
     this.conditionGroup.condition(field, value, operator);
     return this;
   }
@@ -740,7 +823,7 @@ export class DeleteQuery {
   /**
    * Execute delete
    */
-  async execute() {
+  async execute(): Promise<number> {
     const rows = await this.db.loadTable(this.table);
 
     const newRows = rows.filter(row => {
@@ -753,11 +836,19 @@ export class DeleteQuery {
   }
 }
 
+// ============================================================================
+// ConditionGroup
+// ============================================================================
+
 /**
  * Condition group for complex WHERE clauses
  */
 export class ConditionGroup {
-  constructor(type = 'AND') {
+  private type: 'AND' | 'OR';
+  private conditions: Condition[];
+  private groups: ConditionGroup[];
+
+  constructor(type: 'AND' | 'OR' = 'AND') {
     this.type = type; // AND or OR
     this.conditions = [];
     this.groups = [];
@@ -766,7 +857,7 @@ export class ConditionGroup {
   /**
    * Add condition
    */
-  condition(field, value, operator = '=') {
+  condition(field: string, value: unknown, operator: string = '='): this {
     this.conditions.push({ field, value, operator });
     return this;
   }
@@ -774,7 +865,7 @@ export class ConditionGroup {
   /**
    * Add IS NULL condition
    */
-  isNull(field) {
+  isNull(field: string): this {
     this.conditions.push({ field, value: null, operator: 'IS NULL' });
     return this;
   }
@@ -782,7 +873,7 @@ export class ConditionGroup {
   /**
    * Add IS NOT NULL condition
    */
-  isNotNull(field) {
+  isNotNull(field: string): this {
     this.conditions.push({ field, value: null, operator: 'IS NOT NULL' });
     return this;
   }
@@ -790,7 +881,7 @@ export class ConditionGroup {
   /**
    * Add nested condition group
    */
-  addGroup(group) {
+  addGroup(group: ConditionGroup): this {
     this.groups.push(group);
     return this;
   }
@@ -798,7 +889,7 @@ export class ConditionGroup {
   /**
    * Evaluate conditions against row
    */
-  evaluate(row, alias = null) {
+  evaluate(row: Row, alias: string | null = null): boolean {
     const conditionResults = this.conditions.map(condition => {
       let fieldName = condition.field;
 
@@ -816,7 +907,7 @@ export class ConditionGroup {
         return fieldValue !== null && fieldValue !== undefined;
       }
 
-      return this.evaluateOperator(fieldValue, condition.value, condition.operator);
+      return evaluateOperator(fieldValue, condition.value, condition.operator);
     });
 
     const groupResults = this.groups.map(group => group.evaluate(row, alias));
@@ -829,45 +920,59 @@ export class ConditionGroup {
       return allResults.some(result => result);
     }
   }
+}
 
-  /**
-   * Evaluate operator (same as SelectQuery)
-   */
-  evaluateOperator(fieldValue, value, operator) {
-    switch (operator.toUpperCase()) {
-      case '=':
-        return fieldValue === value;
-      case '<>':
-      case '!=':
-        return fieldValue !== value;
-      case '<':
-        return fieldValue < value;
-      case '<=':
-        return fieldValue <= value;
-      case '>':
-        return fieldValue > value;
-      case '>=':
-        return fieldValue >= value;
-      case 'IN':
-        return Array.isArray(value) && value.includes(fieldValue);
-      case 'NOT IN':
-        return Array.isArray(value) && !value.includes(fieldValue);
-      case 'LIKE':
-        const pattern = value.replace(/%/g, '.*').replace(/_/g, '.');
-        return new RegExp(`^${pattern}$`, 'i').test(String(fieldValue));
-      case 'BETWEEN':
-        return Array.isArray(value) && fieldValue >= value[0] && fieldValue <= value[1];
-      default:
-        throw new DatabaseError(`Unsupported operator: ${operator}`);
+// ============================================================================
+// Shared operator evaluation
+// ============================================================================
+
+/**
+ * Evaluate operator — shared between SelectQuery, ConditionGroup, and HAVING
+ */
+function evaluateOperator(fieldValue: unknown, value: unknown, operator: string): boolean {
+  switch (operator.toUpperCase()) {
+    case '=':
+      return fieldValue === value;
+    case '<>':
+    case '!=':
+      return fieldValue !== value;
+    case '<':
+      return (fieldValue as number) < (value as number);
+    case '<=':
+      return (fieldValue as number) <= (value as number);
+    case '>':
+      return (fieldValue as number) > (value as number);
+    case '>=':
+      return (fieldValue as number) >= (value as number);
+    case 'IN':
+      return Array.isArray(value) && value.includes(fieldValue);
+    case 'NOT IN':
+      return Array.isArray(value) && !value.includes(fieldValue);
+    case 'LIKE': {
+      const pattern = String(value).replace(/%/g, '.*').replace(/_/g, '.');
+      return new RegExp(`^${pattern}$`, 'i').test(String(fieldValue));
     }
+    case 'BETWEEN':
+      return Array.isArray(value) &&
+        (fieldValue as number) >= (value[0] as number) &&
+        (fieldValue as number) <= (value[1] as number);
+    default:
+      throw new DatabaseError(`Unsupported operator: ${operator}`);
   }
 }
+
+// ============================================================================
+// ResultSet
+// ============================================================================
 
 /**
  * Result set
  */
 export class ResultSet {
-  constructor(rows) {
+  private rows: Row[];
+  private currentIndex: number;
+
+  constructor(rows: Row[]) {
     this.rows = rows;
     this.currentIndex = 0;
   }
@@ -875,24 +980,24 @@ export class ResultSet {
   /**
    * Fetch all rows
    */
-  fetchAll() {
+  fetchAll(): Row[] {
     return this.rows;
   }
 
   /**
    * Fetch single row as associative array
    */
-  fetchAssoc() {
+  fetchAssoc(): Row | null {
     if (this.currentIndex >= this.rows.length) {
       return null;
     }
-    return this.rows[this.currentIndex++];
+    return this.rows[this.currentIndex++]!;
   }
 
   /**
    * Fetch column values
    */
-  fetchCol(column = 0) {
+  fetchCol(column: number | string = 0): unknown[] {
     if (typeof column === 'number') {
       return this.rows.map(row => Object.values(row)[column]);
     }
@@ -902,51 +1007,58 @@ export class ResultSet {
   /**
    * Fetch single field value
    */
-  fetchField() {
+  fetchField(): unknown {
     if (this.rows.length === 0) {
       return null;
     }
-    const firstRow = this.rows[0];
+    const firstRow = this.rows[0]!;
     return Object.values(firstRow)[0];
   }
 
   /**
    * Fetch row as object
    */
-  fetchObject() {
+  fetchObject(): Row | null {
     if (this.currentIndex >= this.rows.length) {
       return null;
     }
-    return this.rows[this.currentIndex++];
+    return this.rows[this.currentIndex++]!;
   }
 
   /**
    * Get row count
    */
-  rowCount() {
+  rowCount(): number {
     return this.rows.length;
   }
 }
+
+// ============================================================================
+// Schema
+// ============================================================================
 
 /**
  * Schema management
  */
 export class Schema {
-  constructor(db) {
+  private db: Database;
+
+  constructor(db: Database) {
     this.db = db;
   }
 
   /**
    * Create table
    */
-  async createTable(name, spec) {
+  async createTable(name: string, spec: TableSpec): Promise<void> {
     const tablePath = this.db.getTablePath(name);
 
     // Check if table exists
     try {
       await fs.access(tablePath);
       throw new DatabaseError(`Table ${name} already exists`);
-    } catch (error) {
+    } catch (err: unknown) {
+      const error = err as NodeError;
       if (error.code !== 'ENOENT') {
         throw error;
       }
@@ -955,7 +1067,7 @@ export class Schema {
     // Create empty table with schema metadata
     const tableData = {
       _schema: spec,
-      _rows: []
+      _rows: [] as Row[]
     };
 
     await fs.writeFile(tablePath, JSON.stringify(tableData, null, 2), 'utf-8');
@@ -964,12 +1076,13 @@ export class Schema {
   /**
    * Drop table
    */
-  async dropTable(name) {
+  async dropTable(name: string): Promise<void> {
     const tablePath = this.db.getTablePath(name);
 
     try {
       await fs.unlink(tablePath);
-    } catch (error) {
+    } catch (err: unknown) {
+      const error = err as NodeError;
       if (error.code === 'ENOENT') {
         throw new DatabaseError(`Table ${name} does not exist`);
       }
@@ -980,7 +1093,7 @@ export class Schema {
   /**
    * Check if table exists
    */
-  async tableExists(name) {
+  async tableExists(name: string): Promise<boolean> {
     const tablePath = this.db.getTablePath(name);
 
     try {
@@ -994,7 +1107,7 @@ export class Schema {
   /**
    * Add field to table
    */
-  async addField(table, field, spec) {
+  async addField(table: string, field: string, spec: FieldSpec): Promise<void> {
     const rows = await this.db.loadTable(table);
 
     // Add field to all existing rows with default value
@@ -1010,11 +1123,11 @@ export class Schema {
   /**
    * Drop field from table
    */
-  async dropField(table, field) {
+  async dropField(table: string, field: string): Promise<void> {
     const rows = await this.db.loadTable(table);
 
     const newRows = rows.map(row => {
-      const { [field]: removed, ...rest } = row;
+      const { [field]: _removed, ...rest } = row;
       return rest;
     });
 
@@ -1024,20 +1137,20 @@ export class Schema {
   /**
    * Check if field exists
    */
-  async fieldExists(table, field) {
+  async fieldExists(table: string, field: string): Promise<boolean> {
     const rows = await this.db.loadTable(table);
 
     if (rows.length === 0) {
       return false;
     }
 
-    return field in rows[0];
+    return field in rows[0]!;
   }
 
   /**
    * Add index (metadata only in JSON implementation)
    */
-  async addIndex(table, name, fields) {
+  async addIndex(_table: string, _name: string, _fields: string[]): Promise<boolean> {
     // In JSON implementation, indexes are just metadata
     // Real implementation would create index structures
     return true;
@@ -1046,21 +1159,21 @@ export class Schema {
   /**
    * Drop index
    */
-  async dropIndex(table, name) {
+  async dropIndex(_table: string, _name: string): Promise<boolean> {
     return true;
   }
 
   /**
    * Check if index exists
    */
-  async indexExists(table, name) {
+  async indexExists(_table: string, _name: string): Promise<boolean> {
     return false;
   }
 
   /**
    * Add primary key
    */
-  async addPrimaryKey(table, fields) {
+  async addPrimaryKey(_table: string, _fields: string[]): Promise<boolean> {
     // Metadata only
     return true;
   }
@@ -1068,34 +1181,34 @@ export class Schema {
   /**
    * Drop primary key
    */
-  async dropPrimaryKey(table) {
+  async dropPrimaryKey(_table: string): Promise<boolean> {
     return true;
   }
 
   /**
    * Add unique key
    */
-  async addUniqueKey(table, name, fields) {
+  async addUniqueKey(_table: string, _name: string, _fields: string[]): Promise<boolean> {
     return true;
   }
 
   /**
    * Drop unique key
    */
-  async dropUniqueKey(table, name) {
+  async dropUniqueKey(_table: string, _name: string): Promise<boolean> {
     return true;
   }
 
   /**
    * Change field (rename and/or modify spec)
    */
-  async changeField(table, field, newName, spec) {
+  async changeField(table: string, field: string, newName: string, _spec: FieldSpec): Promise<void> {
     const rows = await this.db.loadTable(table);
 
     const newRows = rows.map(row => {
       if (field !== newName) {
         const value = row[field];
-        const { [field]: removed, ...rest } = row;
+        const { [field]: _removed, ...rest } = row;
         return { ...rest, [newName]: value };
       }
       return row;
@@ -1105,20 +1218,29 @@ export class Schema {
   }
 }
 
+// ============================================================================
+// DatabaseError
+// ============================================================================
+
 /**
  * Database error class
  */
 export class DatabaseError extends Error {
-  constructor(message) {
+  override name = 'DatabaseError';
+
+  constructor(message: string) {
     super(message);
-    this.name = 'DatabaseError';
   }
 }
+
+// ============================================================================
+// Factory
+// ============================================================================
 
 /**
  * Create default database instance
  */
-export function createDatabase(storagePath = STORAGE_PATH) {
+export function createDatabase(storagePath: string = STORAGE_PATH): Database {
   return new Database(storagePath);
 }
 
