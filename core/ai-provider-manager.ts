@@ -20,27 +20,89 @@
  *   const response = await providerManager.routeToProvider('chat', [messages], 'openai/gpt-4');
  */
 
+// @ts-expect-error -- lib/Plugin is plain JS without declaration files
 import { PluginManager } from './lib/Plugin/index.js';
-import { checkProviderLimit } from './ai-rate-limiter.js';
+import { checkProviderLimit } from './ai-rate-limiter.ts';
+
+// ============================================================================
+// Types
+// ============================================================================
+
+/** Provider plugin definition */
+interface ProviderDefinition {
+  id: string;
+  label?: string;
+  description?: string;
+  models?: string[];
+  operations?: string[];
+  _module?: string;
+  [key: string]: unknown;
+}
+
+/** AI provider instance interface */
+interface AIProviderInstance {
+  getModels: () => Promise<string[]> | string[];
+  isUsable: () => Promise<boolean> | boolean;
+  getSupportedOperations: () => Promise<string[]> | string[];
+  [key: string]: unknown;
+}
+
+/** Service container interface */
+interface ServiceContainer {
+  get: (name: string) => unknown;
+  [key: string]: unknown;
+}
+
+/** Hook manager interface */
+interface HookManager {
+  trigger: (name: string, data: Record<string, unknown>) => Promise<void>;
+  register: (name: string, handler: (ctx: Record<string, unknown>) => void | Promise<void>) => void;
+}
+
+/** Boot context for initialization */
+interface BootContext {
+  services: ServiceContainer;
+  hooks: HookManager;
+  modulePaths: string[];
+}
+
+/** Usable provider entry */
+interface UsableProvider {
+  id: string;
+  provider: AIProviderInstance;
+}
+
+/** Rate limit error with extra fields */
+interface RateLimitError extends Error {
+  code?: string;
+  provider?: string;
+  retryAfter?: number;
+  resetAt?: number;
+}
+
+// ============================================================================
+// State
+// ============================================================================
 
 /**
  * Service state
  */
-let pluginManager = null;
-let providerCache = new Map();
-let services = null;
-let hooks = null;
-let initialized = false;
+let pluginManager: InstanceType<typeof PluginManager> | null = null;
+let providerCache: Map<string, AIProviderInstance> = new Map();
+let services: ServiceContainer | null = null;
+let hooks: HookManager | null = null;
+let initialized: boolean = false;
+
+// ============================================================================
+// Public API
+// ============================================================================
 
 /**
  * Initialize the AI Provider Manager
  *
- * @param {Object} ctx - Service context
- * @param {Object} ctx.services - DI container
- * @param {Object} ctx.hooks - Hook manager
- * @param {Array} ctx.modulePaths - Discovered module paths
+ * @param ctx - Service context
  */
-export function init(ctx) {
+export function init(ctx: BootContext): void {
   if (!ctx || !ctx.services || !ctx.hooks || !ctx.modulePaths) {
     throw new Error('[ai-provider-manager] Invalid context: services, hooks, and modulePaths required');
   }
@@ -72,39 +134,25 @@ export function init(ctx) {
  * WHY: Scans all modules for provider plugins and returns their metadata.
  * Used by admin UI to show available providers and their capabilities.
  *
- * @returns {Promise<Array<Object>>} Array of provider definitions
- *   Each definition includes:
- *   - id: Provider plugin ID
- *   - label: Human-readable name
- *   - description: Provider description
- *   - models: Array of supported models
- *   - operations: Array of supported operations
- *   - _module: Source module name
- *
- * @example
- *   const providers = await discoverProviders();
- *   // [
- *   //   { id: 'openai', label: 'OpenAI', models: [...], operations: ['chat', 'embeddings'] },
- *   //   { id: 'anthropic', label: 'Anthropic', models: [...], operations: ['chat'] }
- *   // ]
+ * @returns Array of provider definitions
  */
-export async function discoverProviders() {
-  if (!initialized) {
+export async function discoverProviders(): Promise<ProviderDefinition[]> {
+  if (!initialized || !pluginManager) {
     throw new Error('[ai-provider-manager] Service not initialized');
   }
 
   const definitions = await pluginManager.getDefinitions();
-  return Array.from(definitions.values());
+  return Array.from(definitions.values()) as ProviderDefinition[];
 }
 
 /**
  * Check if a provider plugin exists
  *
- * @param {string} providerId - Provider plugin ID (e.g., 'openai', 'anthropic')
- * @returns {Promise<boolean>} True if provider exists
+ * @param providerId - Provider plugin ID (e.g., 'openai', 'anthropic')
+ * @returns True if provider exists
  */
-export async function hasProvider(providerId) {
-  if (!initialized) {
+export async function hasProvider(providerId: string): Promise<boolean> {
+  if (!initialized || !pluginManager) {
     throw new Error('[ai-provider-manager] Service not initialized');
   }
 
@@ -114,15 +162,15 @@ export async function hasProvider(providerId) {
 /**
  * Get provider definition without instantiating
  *
- * @param {string} providerId - Provider plugin ID
- * @returns {Promise<Object|null>} Provider definition or null
+ * @param providerId - Provider plugin ID
+ * @returns Provider definition or null
  */
-export async function getProviderDefinition(providerId) {
-  if (!initialized) {
+export async function getProviderDefinition(providerId: string): Promise<ProviderDefinition | null> {
+  if (!initialized || !pluginManager) {
     throw new Error('[ai-provider-manager] Service not initialized');
   }
 
-  return pluginManager.getDefinition(providerId);
+  return pluginManager.getDefinition(providerId) as ProviderDefinition | null;
 }
 
 /**
@@ -132,43 +180,36 @@ export async function getProviderDefinition(providerId) {
  * Caches instances to avoid recreating on every request.
  * Returns an object implementing the AIProvider interface.
  *
- * @param {string} providerId - Provider plugin ID (e.g., 'openai')
- * @param {Object} configuration - Optional runtime configuration
- * @returns {Promise<Object>} Provider instance
- * @throws {Error} If provider not found or invalid
- *
- * @example
- *   const provider = await loadProvider('openai', {
- *     apiKey: 'sk-...',
- *     organization: 'org-...'
- *   });
- *   const models = await provider.getModels();
+ * @param providerId - Provider plugin ID (e.g., 'openai')
+ * @param configuration - Optional runtime configuration
+ * @returns Provider instance
+ * @throws If provider not found or invalid
  */
-export async function loadProvider(providerId, configuration = {}) {
-  if (!initialized) {
+export async function loadProvider(providerId: string, configuration: Record<string, unknown> = {}): Promise<AIProviderInstance> {
+  if (!initialized || !pluginManager) {
     throw new Error('[ai-provider-manager] Service not initialized');
   }
 
   // WHY: Check cache first to reuse instances
   const cacheKey = `${providerId}:${JSON.stringify(configuration)}`;
   if (providerCache.has(cacheKey)) {
-    return providerCache.get(cacheKey);
+    return providerCache.get(cacheKey)!;
   }
 
   // WHY: Get provider configuration from config service if not passed
   if (!configuration.apiKey && services) {
-    const configService = services.get('config');
-    if (configService) {
+    const configService = services.get('config') as { get?: (key: string) => Record<string, unknown> | undefined } | null;
+    if (configService && typeof configService.get === 'function') {
       const providerConfig = configService.get(`ai.providers.${providerId}`) || {};
       configuration = { ...providerConfig, ...configuration };
     }
   }
 
   // WHY: Use PluginManager to create instance
-  const provider = await pluginManager.createInstance(providerId, configuration);
+  const provider = await pluginManager.createInstance(providerId, configuration) as AIProviderInstance;
 
   // WHY: Validate that provider implements required methods
-  const requiredMethods = ['getModels', 'isUsable', 'getSupportedOperations'];
+  const requiredMethods = ['getModels', 'isUsable', 'getSupportedOperations'] as const;
   for (const method of requiredMethods) {
     if (typeof provider[method] !== 'function') {
       throw new Error(
@@ -190,29 +231,25 @@ export async function loadProvider(providerId, configuration = {}) {
  * WHY: Filters providers by their isUsable() check.
  * Only returns providers that have valid configuration (API keys, etc.)
  *
- * @returns {Promise<Array<{id: string, provider: Object}>>}
- *   Array of usable providers with their IDs
- *
- * @example
- *   const usable = await getUsableProviders();
- *   // [{ id: 'openai', provider: OpenAIProvider }, ...]
+ * @returns Array of usable providers with their IDs
  */
-export async function getUsableProviders() {
-  if (!initialized) {
+export async function getUsableProviders(): Promise<UsableProvider[]> {
+  if (!initialized || !pluginManager) {
     throw new Error('[ai-provider-manager] Service not initialized');
   }
 
   const definitions = await pluginManager.getDefinitions();
-  const usable = [];
+  const usable: UsableProvider[] = [];
 
-  for (const [id, def] of definitions.entries()) {
+  for (const [id] of definitions.entries()) {
     try {
-      const provider = await loadProvider(id);
+      const provider = await loadProvider(id as string);
       if (await provider.isUsable()) {
-        usable.push({ id, provider });
+        usable.push({ id: id as string, provider });
       }
-    } catch (error) {
-      console.error(`[ai-provider-manager] Error checking provider "${id}":`, error.message);
+    } catch (error: unknown) {
+      const message = error instanceof Error ? error.message : String(error);
+      console.error(`[ai-provider-manager] Error checking provider "${id}":`, message);
     }
   }
 
@@ -226,31 +263,25 @@ export async function getUsableProviders() {
  * Automatically routes to the correct provider based on model prefix.
  * Falls back to first usable provider if no prefix specified.
  *
- * @param {string} operation - Operation name ('chat', 'embed', etc.)
- * @param {Array} args - Operation arguments
- * @param {string} modelSpec - Model specification (e.g., 'openai/gpt-4' or 'gpt-4')
- * @returns {Promise<*>} Operation result
- *
- * @example
- *   // With provider prefix
- *   const response = await routeToProvider('chat', [[...messages]], 'openai/gpt-4');
- *
- * @example
- *   // Without prefix (uses first usable provider)
- *   const embeddings = await routeToProvider('embed', ['Hello world'], 'text-embedding-ada-002');
+ * @param operation - Operation name ('chat', 'embed', etc.)
+ * @param args - Operation arguments
+ * @param modelSpec - Model specification (e.g., 'openai/gpt-4' or 'gpt-4')
+ * @returns Operation result
  */
-export async function routeToProvider(operation, args, modelSpec) {
+export async function routeToProvider(operation: string, args: unknown[], modelSpec: string | null): Promise<unknown> {
   if (!initialized) {
     throw new Error('[ai-provider-manager] Service not initialized');
   }
 
   // WHY: Parse model spec to extract provider prefix
   // Format: "provider/model" or just "model"
-  let providerId = null;
-  let model = modelSpec;
+  let providerId: string | null = null;
+  let model: string | null = modelSpec;
 
   if (modelSpec && modelSpec.includes('/')) {
-    [providerId, model] = modelSpec.split('/', 2);
+    const parts = modelSpec.split('/', 2);
+    providerId = parts[0] ?? null;
+    model = parts[1] ?? null;
   }
 
   // WHY: If no provider specified, find first usable provider supporting this operation
@@ -286,7 +317,7 @@ export async function routeToProvider(operation, args, modelSpec) {
   // Prevents exceeding provider API limits and manages costs
   const rateLimit = checkProviderLimit(providerId);
   if (!rateLimit.allowed) {
-    const error = new Error(rateLimit.error);
+    const error: RateLimitError = new Error(rateLimit.error);
     error.code = 'RATE_LIMIT_EXCEEDED';
     error.provider = providerId;
     error.retryAfter = rateLimit.retryAfter;
@@ -295,13 +326,14 @@ export async function routeToProvider(operation, args, modelSpec) {
   }
 
   // WHY: Execute the operation with provided arguments
-  if (typeof provider[operation] !== 'function') {
+  const operationFn = provider[operation];
+  if (typeof operationFn !== 'function') {
     throw new Error(
       `[ai-provider-manager] Provider "${providerId}" missing method for operation "${operation}"`
     );
   }
 
-  return provider[operation](...args, model);
+  return (operationFn as (...a: unknown[]) => unknown)(...args, model);
 }
 
 /**
@@ -310,7 +342,7 @@ export async function routeToProvider(operation, args, modelSpec) {
  * WHY: Call after configuration changes or during development
  * to force reload of provider instances.
  */
-export function clearCache() {
+export function clearCache(): void {
   providerCache.clear();
   console.log('[ai-provider-manager] Provider cache cleared');
 }
@@ -321,7 +353,7 @@ export function clearCache() {
  * WHY: Call after installing/uninstalling provider modules
  * to force rediscovery of available providers.
  */
-export function clearDefinitions() {
+export function clearDefinitions(): void {
   if (pluginManager) {
     pluginManager.clearCachedDefinitions();
   }
@@ -332,4 +364,4 @@ export function clearDefinitions() {
 /**
  * Service name for registration
  */
-export const name = 'ai-provider-manager';
+export const name: string = 'ai-provider-manager';
