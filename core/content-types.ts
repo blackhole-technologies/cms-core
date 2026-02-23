@@ -47,23 +47,115 @@ import { join, dirname } from 'path';
 import { fileURLToPath } from 'url';
 
 // ============================================
+// TYPES
+// ============================================
+
+/** Field definition within a content type */
+interface FieldDef {
+  type: string;
+  required?: boolean;
+  maxLength?: number;
+  weight?: number;
+  label?: string;
+  readonly?: boolean;
+  default?: unknown;
+  options?: string[];
+  [key: string]: unknown;
+}
+
+/** Content type definition */
+interface ContentTypeDef {
+  id: string;
+  label: string;
+  description: string;
+  bundle: string;
+  locked: boolean;
+  fields: Record<string, FieldDef>;
+  settings: ContentTypeSettings;
+}
+
+/** Content type settings */
+interface ContentTypeSettings {
+  publishable: boolean;
+  revisions: boolean;
+  preview: boolean;
+  [key: string]: unknown;
+}
+
+/** Content type configuration (from config file or user input) */
+interface ContentTypeConfig {
+  id?: string;
+  label?: string;
+  description?: string;
+  bundle?: string;
+  locked?: boolean;
+  fields?: Record<string, FieldDef>;
+  settings?: Partial<ContentTypeSettings>;
+  exportedAt?: string;
+  version?: string;
+}
+
+/** Hook handler function */
+type HookHandler = (context: Record<string, unknown>) => void | Promise<void>;
+
+/** Fields module reference */
+interface FieldsModuleRef {
+  hasFieldType: (type: string) => boolean;
+}
+
+/** Validation module reference */
+interface ValidationModuleRef {
+  validate: (typeId: string, data: Record<string, unknown>, options: Record<string, unknown>) => Promise<{ valid: boolean; errors: Array<{ field: string; rule: string; message: string }> }>;
+}
+
+/** Bundle info */
+interface BundleInfo {
+  bundle: string;
+  label: string;
+  types: string[];
+}
+
+/** Content types stats */
+interface ContentTypesStats {
+  totalTypes: number;
+  byBundle: Record<string, number>;
+  lockedTypes: number;
+  totalFields: number;
+}
+
+/** Content types config */
+interface ContentTypesConfig {
+  enabled: boolean;
+  configFile: string;
+  defaultBundle: string;
+  defaultFields: Record<string, FieldDef>;
+}
+
+/** Export type result */
+interface ExportedType extends ContentTypeConfig {
+  id: string;
+  exportedAt: string;
+  version: string;
+}
+
+// ============================================
 // MODULE STATE
 // ============================================
 
-let baseDirectory = null;
-let fieldsModule = null;
-let validationModule = null;
+let baseDirectory: string | null = null;
+let fieldsModule: FieldsModuleRef | null = null;
+let validationModule: ValidationModuleRef | null = null;
 
 /**
  * Content types registry
  * Structure: { typeId: { label, description, fields, settings, ... } }
  */
-const contentTypes = {};
+const contentTypes: Record<string, ContentTypeDef> = {};
 
 /**
  * Configuration
  */
-let config = {
+let config: ContentTypesConfig = {
   enabled: true,
   configFile: 'config/content-types.json',
   defaultBundle: 'content',
@@ -79,7 +171,7 @@ let config = {
  * Hooks registry
  * Structure: { eventName: [handlers] }
  */
-const hooks = {
+const hooks: Record<string, HookHandler[]> = {
   'contentType:create': [],
   'contentType:update': [],
   'contentType:delete': [],
@@ -103,7 +195,7 @@ const hooks = {
  * @param {Object} validation - Validation module instance
  * @param {Object} cfg - Configuration overrides
  */
-export async function init(baseDir, fields = null, validation = null, cfg = {}) {
+export async function init(baseDir: string, fields: FieldsModuleRef | null = null, validation: ValidationModuleRef | null = null, cfg: Partial<ContentTypesConfig> = {}): Promise<void> {
   baseDirectory = baseDir;
   fieldsModule = fields;
   validationModule = validation;
@@ -119,22 +211,22 @@ export async function init(baseDir, fields = null, validation = null, cfg = {}) 
 /**
  * Load content types from config file
  */
-async function loadContentTypes() {
-  const configPath = join(baseDirectory, config.configFile);
+async function loadContentTypes(): Promise<void> {
+  const configPath = join(baseDirectory!, config.configFile);
 
   try {
     const data = await fs.readFile(configPath, 'utf-8');
     const types = JSON.parse(data);
 
-    for (const [id, typeDef] of Object.entries(types)) {
+    for (const [id, typeDef] of Object.entries(types) as Array<[string, ContentTypeConfig]>) {
       contentTypes[id] = normalizeType(id, typeDef);
     }
   } catch (err) {
-    if (err.code === 'ENOENT') {
+    if ((err as NodeJS.ErrnoException).code === 'ENOENT') {
       // Config file doesn't exist yet, that's ok
       console.log('[content-types] No config file found, starting fresh');
     } else {
-      console.error('[content-types] Failed to load config:', err.message);
+      console.error('[content-types] Failed to load config:', (err as Error).message);
       throw err;
     }
   }
@@ -143,15 +235,15 @@ async function loadContentTypes() {
 /**
  * Save content types to config file
  */
-async function saveContentTypes() {
-  const configPath = join(baseDirectory, config.configFile);
+async function saveContentTypes(): Promise<void> {
+  const configPath = join(baseDirectory!, config.configFile);
 
   // Ensure directory exists
   await fs.mkdir(dirname(configPath), { recursive: true });
 
   // Serialize types (remove readonly computed fields)
-  const serializable = {};
-  for (const [id, type] of Object.entries(contentTypes)) {
+  const serializable: Record<string, ContentTypeConfig> = {};
+  for (const [id, type] of Object.entries(contentTypes) as Array<[string, ContentTypeDef]>) {
     serializable[id] = {
       label: type.label,
       description: type.description,
@@ -176,8 +268,8 @@ async function saveContentTypes() {
  * @param {Object} typeDef - Type definition
  * @returns {Object} Normalized type
  */
-function normalizeType(id, typeDef) {
-  const normalized = {
+function normalizeType(id: string, typeDef: ContentTypeConfig): ContentTypeDef {
+  const normalized: ContentTypeDef = {
     id,
     label: typeDef.label || id.charAt(0).toUpperCase() + id.slice(1),
     description: typeDef.description || '',
@@ -223,7 +315,7 @@ function normalizeType(id, typeDef) {
  * @param {Object} typeConfig - Type configuration
  * @returns {Promise<Object>} Created type
  */
-export async function createType(id, typeConfig) {
+export async function createType(id: string, typeConfig: ContentTypeConfig): Promise<ContentTypeDef> {
   // Validate ID
   if (!id || typeof id !== 'string') {
     throw new Error('Type ID must be a non-empty string');
@@ -258,7 +350,7 @@ export async function createType(id, typeConfig) {
  * @param {Object} updates - Updates to apply
  * @returns {Promise<Object>} Updated type
  */
-export async function updateType(id, updates) {
+export async function updateType(id: string, updates: Partial<ContentTypeConfig>): Promise<ContentTypeDef> {
   const type = contentTypes[id];
   if (!type) {
     throw new Error(`Content type "${id}" not found`);
@@ -305,7 +397,7 @@ export async function updateType(id, updates) {
  * @param {Object} options - { force: boolean }
  * @returns {Promise<void>}
  */
-export async function deleteType(id, options = {}) {
+export async function deleteType(id: string, options: { force?: boolean } = {}): Promise<void> {
   const type = contentTypes[id];
   if (!type) {
     throw new Error(`Content type "${id}" not found`);
@@ -334,7 +426,7 @@ export async function deleteType(id, options = {}) {
  * @param {string} id - Type ID
  * @returns {Object|null} Type definition or null
  */
-export function getType(id) {
+export function getType(id: string): ContentTypeDef | null {
   return contentTypes[id] || null;
 }
 
@@ -344,7 +436,7 @@ export function getType(id) {
  * @param {Object} options - { bundle: string }
  * @returns {Array} Array of type definitions
  */
-export function listTypes(options = {}) {
+export function listTypes(options: { bundle?: string } = {}): ContentTypeDef[] {
   let types = Object.values(contentTypes);
 
   // Filter by bundle
@@ -364,7 +456,7 @@ export function listTypes(options = {}) {
  * @param {string} id - Type ID
  * @returns {boolean}
  */
-export function hasType(id) {
+export function hasType(id: string): boolean {
   return id in contentTypes;
 }
 
@@ -380,7 +472,7 @@ export function hasType(id) {
  * @param {Object} fieldConfig - Field configuration
  * @returns {Promise<Object>} Updated type
  */
-export async function addField(typeId, fieldName, fieldConfig) {
+export async function addField(typeId: string, fieldName: string, fieldConfig: FieldDef): Promise<ContentTypeDef> {
   const type = contentTypes[typeId];
   if (!type) {
     throw new Error(`Content type "${typeId}" not found`);
@@ -429,7 +521,7 @@ export async function addField(typeId, fieldName, fieldConfig) {
  * @param {Object} updates - Field updates
  * @returns {Promise<Object>} Updated type
  */
-export async function updateField(typeId, fieldName, updates) {
+export async function updateField(typeId: string, fieldName: string, updates: Partial<FieldDef>): Promise<ContentTypeDef> {
   const type = contentTypes[typeId];
   if (!type) {
     throw new Error(`Content type "${typeId}" not found`);
@@ -473,7 +565,7 @@ export async function updateField(typeId, fieldName, updates) {
  * @param {Object} options - { force: boolean }
  * @returns {Promise<Object>} Updated type
  */
-export async function removeField(typeId, fieldName, options = {}) {
+export async function removeField(typeId: string, fieldName: string, options: { force?: boolean } = {}): Promise<ContentTypeDef> {
   const type = contentTypes[typeId];
   if (!type) {
     throw new Error(`Content type "${typeId}" not found`);
@@ -511,7 +603,7 @@ export async function removeField(typeId, fieldName, options = {}) {
  * @param {Object} weights - { fieldName: weight }
  * @returns {Promise<Object>} Updated type
  */
-export async function reorderFields(typeId, weights) {
+export async function reorderFields(typeId: string, weights: Record<string, number>): Promise<ContentTypeDef> {
   const type = contentTypes[typeId];
   if (!type) {
     throw new Error(`Content type "${typeId}" not found`);
@@ -543,7 +635,7 @@ export async function reorderFields(typeId, weights) {
  * @param {string} typeId - Content type ID
  * @returns {Object} Fields object
  */
-export function getTypeFields(typeId) {
+export function getTypeFields(typeId: string): Record<string, FieldDef> | null {
   const type = contentTypes[typeId];
   if (!type) {
     return null;
@@ -563,7 +655,7 @@ export function getTypeFields(typeId) {
  * @param {Object} options - Validation options
  * @returns {Promise<Object>} { valid: boolean, errors: [...] }
  */
-export async function validateContent(typeId, data, options = {}) {
+export async function validateContent(typeId: string, data: Record<string, unknown>, options: Record<string, unknown> = {}): Promise<{ valid: boolean; errors: Array<{ field: string; rule: string; message: string }> }> {
   const type = contentTypes[typeId];
   if (!type) {
     throw new Error(`Content type "${typeId}" not found`);
@@ -578,7 +670,7 @@ export async function validateContent(typeId, data, options = {}) {
   }
 
   // Basic built-in validation
-  const errors = [];
+  const errors: Array<{ field: string; rule: string; message: string }> = [];
 
   for (const [fieldName, fieldDef] of Object.entries(type.fields)) {
     const value = data[fieldName];
@@ -609,7 +701,7 @@ export async function validateContent(typeId, data, options = {}) {
  * @param {string} typeId - Content type ID
  * @returns {Object} Exportable type definition
  */
-export function exportType(typeId) {
+export function exportType(typeId: string): ExportedType {
   const type = contentTypes[typeId];
   if (!type) {
     throw new Error(`Content type "${typeId}" not found`);
@@ -634,8 +726,8 @@ export function exportType(typeId) {
  * @param {Object} options - { overwrite: boolean }
  * @returns {Promise<Object>} Imported type
  */
-export async function importType(typeConfig, options = {}) {
-  const id = typeConfig.id;
+export async function importType(typeConfig: ContentTypeConfig, options: { overwrite?: boolean; force?: boolean } = {}): Promise<ContentTypeDef> {
+  const id = typeConfig.id!;
 
   if (!id) {
     throw new Error('Type configuration must include an id');
@@ -666,7 +758,7 @@ export async function importType(typeConfig, options = {}) {
   await saveContentTypes();
 
   console.log(`[content-types] Imported type: ${id}`);
-  return contentTypes[id];
+  return contentTypes[id]!;
 }
 
 // ============================================
@@ -679,7 +771,7 @@ export async function importType(typeConfig, options = {}) {
  * @param {string} event - Hook event name
  * @param {Function} handler - Handler function
  */
-export function registerHook(event, handler) {
+export function registerHook(event: string, handler: HookHandler): void {
   if (!hooks[event]) {
     hooks[event] = [];
   }
@@ -692,13 +784,13 @@ export function registerHook(event, handler) {
  * @param {string} event - Hook event name
  * @param {Object} context - Event context
  */
-async function runHooks(event, context) {
+async function runHooks(event: string, context: Record<string, unknown>): Promise<void> {
   const handlers = hooks[event] || [];
   for (const handler of handlers) {
     try {
       await handler(context);
     } catch (err) {
-      console.error(`[content-types] Hook error (${event}):`, err.message);
+      console.error(`[content-types] Hook error (${event}):`, (err as Error).message);
       // Continue running other hooks
     }
   }
@@ -713,8 +805,8 @@ async function runHooks(event, context) {
  *
  * @returns {Array} Array of { bundle, label, types: [...] }
  */
-export function listBundles() {
-  const bundlesMap = {};
+export function listBundles(): BundleInfo[] {
+  const bundlesMap: Record<string, BundleInfo> = {};
 
   for (const type of Object.values(contentTypes)) {
     const bundle = type.bundle || config.defaultBundle;
@@ -737,7 +829,7 @@ export function listBundles() {
  * @param {string} bundle - Bundle name
  * @returns {Array} Array of type IDs
  */
-export function getTypesInBundle(bundle) {
+export function getTypesInBundle(bundle: string): string[] {
   return Object.values(contentTypes)
     .filter(t => t.bundle === bundle)
     .map(t => t.id);
@@ -753,7 +845,7 @@ export function getTypesInBundle(bundle) {
  * @param {string} typeId - Type ID
  * @returns {Promise<Object>} Updated type
  */
-export async function lockType(typeId) {
+export async function lockType(typeId: string): Promise<ContentTypeDef> {
   const type = contentTypes[typeId];
   if (!type) {
     throw new Error(`Content type "${typeId}" not found`);
@@ -772,7 +864,7 @@ export async function lockType(typeId) {
  * @param {string} typeId - Type ID
  * @returns {Promise<Object>} Updated type
  */
-export async function unlockType(typeId) {
+export async function unlockType(typeId: string): Promise<ContentTypeDef> {
   const type = contentTypes[typeId];
   if (!type) {
     throw new Error(`Content type "${typeId}" not found`);
@@ -790,7 +882,7 @@ export async function unlockType(typeId) {
  *
  * @returns {Object} Configuration
  */
-export function getConfig() {
+export function getConfig(): ContentTypesConfig {
   return { ...config };
 }
 
@@ -799,8 +891,8 @@ export function getConfig() {
  *
  * @returns {Object} Statistics
  */
-export function getStats() {
-  const stats = {
+export function getStats(): ContentTypesStats {
+  const stats: ContentTypesStats = {
     totalTypes: Object.keys(contentTypes).length,
     byBundle: {},
     lockedTypes: 0,
@@ -826,7 +918,7 @@ export function getStats() {
  *
  * @returns {Promise<void>}
  */
-export async function clearTypes() {
+export async function clearTypes(): Promise<void> {
   for (const id of Object.keys(contentTypes)) {
     delete contentTypes[id];
   }

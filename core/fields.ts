@@ -76,6 +76,94 @@
  */
 
 // ============================================
+// TYPES
+// ============================================
+
+/** Field definition from content type schema */
+interface FieldDef {
+  type: string;
+  name?: string;
+  id?: string;
+  label?: string;
+  required?: boolean;
+  hint?: string;
+  description?: string;
+  default?: unknown;
+  defaultValue?: unknown;
+  min?: number;
+  max?: number;
+  minLength?: number;
+  maxLength?: number;
+  step?: number;
+  pattern?: string;
+  placeholder?: string;
+  rows?: number;
+  options?: Array<string | { value: string; label: string }>;
+  target?: string;
+  targetType?: string;
+  multiple?: boolean;
+  accept?: string;
+  maxSize?: number;
+  showIf?: { field: string; value: unknown };
+  hideIf?: { field: string; value: unknown };
+  collapsible?: boolean;
+  collapsed?: boolean;
+  fields?: Record<string, FieldDef>;
+  source?: string;
+  oembedUrl?: string;
+  validate?: (value: unknown) => boolean | string;
+  parse?: (value: unknown) => unknown;
+  format?: (value: unknown) => unknown;
+  render?: (field: FieldDef, value: unknown, options: RenderOptions) => string;
+  widget?: string;
+  [key: string]: unknown;
+}
+
+/** Field type configuration as stored in the registry */
+interface FieldTypeConfig {
+  name: string;
+  label: string;
+  widget: string;
+  defaultValue: unknown;
+  validate: (value: unknown, field?: unknown) => boolean | string | { valid: boolean; error?: string };
+  parse: (value: unknown, field?: unknown) => unknown;
+  format: (value: unknown) => unknown;
+  render: ((field: FieldDef, value: unknown, options: RenderOptions) => string) | null;
+  options: Record<string, unknown>;
+  source: string;
+  description: string;
+}
+
+/** Render options passed to widget renderers */
+interface RenderOptions {
+  [key: string]: unknown;
+}
+
+/** Tab definition for form layout */
+interface FormTab {
+  name: string;
+  fields: string[];
+}
+
+/** Widget renderer function */
+type WidgetRenderer = (field: FieldDef, value: unknown, options: RenderOptions, fieldType?: FieldTypeConfig) => string;
+
+/** Validation error */
+interface FieldValidationError {
+  field: string;
+  message: string;
+  value?: unknown;
+}
+
+/** Site configuration for init */
+interface FieldsConfig {
+  fields?: {
+    customTypes?: Record<string, Partial<FieldTypeConfig>>;
+  };
+  [key: string]: unknown;
+}
+
+// ============================================
 // FIELD TYPE REGISTRY
 // ============================================
 
@@ -83,7 +171,7 @@
  * Registry of field types
  * Structure: { typeName: { config } }
  */
-const fieldTypes = {};
+const fieldTypes: Record<string, FieldTypeConfig> = {};
 
 /**
  * Initialize field system with built-in types
@@ -94,13 +182,13 @@ const fieldTypes = {};
  *
  * @param {Object} config - Site configuration
  */
-export function init(config = {}) {
+export function init(config: FieldsConfig = {}): void {
   // Register all built-in field types
   registerBuiltinTypes();
 
   // Register custom types from config
   const customTypes = config.fields?.customTypes || {};
-  for (const [name, typeConfig] of Object.entries(customTypes)) {
+  for (const [name, typeConfig] of Object.entries(customTypes) as Array<[string, Partial<FieldTypeConfig>]>) {
     registerFieldType(name, { ...typeConfig, source: 'config' });
   }
 
@@ -119,7 +207,7 @@ export function init(config = {}) {
  * @param {string} name - Unique type name
  * @param {Object} config - Field type configuration
  */
-export function registerFieldType(name, config) {
+export function registerFieldType(name: string, config: Partial<FieldTypeConfig>): void {
   // WHY VALIDATE NAME:
   // Prevents conflicts and ensures consistent naming
   if (!name || typeof name !== 'string') {
@@ -134,8 +222,8 @@ export function registerFieldType(name, config) {
     widget: config.widget || 'text',
     defaultValue: config.defaultValue ?? null,
     validate: config.validate || (() => true),
-    parse: config.parse || (v => v),
-    format: config.format || (v => v),
+    parse: config.parse || ((v: unknown) => v),
+    format: config.format || ((v: unknown) => v),
     render: config.render || null,
     options: config.options || {},
     source: config.source || 'custom',
@@ -149,7 +237,7 @@ export function registerFieldType(name, config) {
  * @param {string} name - Field type name
  * @returns {Object|null} Field type config or null
  */
-export function getFieldType(name) {
+export function getFieldType(name: string): FieldTypeConfig | null {
   return fieldTypes[name] || null;
 }
 
@@ -158,8 +246,8 @@ export function getFieldType(name) {
  *
  * @returns {Array} Array of field type configs
  */
-export function listFieldTypes() {
-  return Object.values(fieldTypes).sort((a, b) => a.name.localeCompare(b.name));
+export function listFieldTypes(): FieldTypeConfig[] {
+  return Object.values(fieldTypes).sort((a: FieldTypeConfig, b: FieldTypeConfig) => a.name.localeCompare(b.name));
 }
 
 /**
@@ -168,7 +256,7 @@ export function listFieldTypes() {
  * @param {string} name - Field type name
  * @returns {boolean}
  */
-export function hasFieldType(name) {
+export function hasFieldType(name: string): boolean {
   return name in fieldTypes;
 }
 
@@ -189,7 +277,7 @@ export function hasFieldType(name) {
  * @param {Object} options - Render options
  * @returns {string} HTML string
  */
-export function renderField(field, value, options = {}) {
+export function renderField(field: FieldDef, value: unknown, options: RenderOptions = {}): string {
   const fieldType = getFieldType(field.type);
   if (!fieldType) {
     // Fallback to string type for unknown types
@@ -203,7 +291,7 @@ export function renderField(field, value, options = {}) {
 
   // Use widget-based rendering
   const widget = fieldType.widget;
-  const renderer = widgetRenderers[widget];
+  const renderer = widgetRenderers[widget as keyof typeof widgetRenderers];
   if (renderer) {
     return renderer(field, value, options, fieldType);
   }
@@ -221,7 +309,7 @@ export function renderField(field, value, options = {}) {
  * @param {Object} options - Render options
  * @returns {string} HTML string
  */
-export function renderFormField(name, field, value, options = {}) {
+export function renderFormField(name: string, field: FieldDef, value: unknown, options: RenderOptions = {}): string {
   const fieldType = getFieldType(field.type) || getFieldType('string');
   const id = `field-${name}`;
   const required = field.required ? '<span class="required">*</span>' : '';
@@ -256,13 +344,13 @@ export function renderFormField(name, field, value, options = {}) {
  * @param {Object} options - Render options
  * @returns {string} HTML string
  */
-export function renderFieldGroup(name, group, values, options = {}) {
+export function renderFieldGroup(name: string, group: FieldDef, values: Record<string, unknown>, options: RenderOptions = {}): string {
   const label = group.label || name;
   const collapsible = group.collapsible ? 'collapsible' : '';
   const collapsed = group.collapsed ? 'collapsed' : '';
 
   let fieldsHtml = '';
-  for (const [fieldName, fieldDef] of Object.entries(group.fields || {})) {
+  for (const [fieldName, fieldDef] of Object.entries(group.fields || {}) as Array<[string, FieldDef]>) {
     const fieldValue = values?.[fieldName] ?? fieldDef.default ?? null;
     fieldsHtml += renderFormField(fieldName, fieldDef, fieldValue, options);
   }
@@ -289,7 +377,7 @@ export function renderFieldGroup(name, group, values, options = {}) {
  * @param {Object} options - Render options
  * @returns {string} HTML string
  */
-export function renderFormTabs(tabs, schema, values, options = {}) {
+export function renderFormTabs(tabs: FormTab[], schema: Record<string, FieldDef>, values: Record<string, unknown>, options: RenderOptions = {}): string {
   if (!tabs || tabs.length === 0) return '';
 
   // Tab navigation
@@ -311,7 +399,7 @@ export function renderFormTabs(tabs, schema, values, options = {}) {
       if (!fieldDef) continue;
 
       if (fieldDef.type === 'group') {
-        contentHtml += renderFieldGroup(fieldName, fieldDef, values?.[fieldName], options);
+        contentHtml += renderFieldGroup(fieldName, fieldDef, (values?.[fieldName] || {}) as Record<string, unknown>, options);
       } else {
         const fieldValue = values?.[fieldName] ?? fieldDef.default ?? null;
         contentHtml += renderFormField(fieldName, fieldDef, fieldValue, options);
@@ -336,7 +424,7 @@ export function renderFormTabs(tabs, schema, values, options = {}) {
  * @param {*} value - Value to validate
  * @returns {Object} { valid: boolean, error?: string }
  */
-export function validateField(field, value) {
+export function validateField(field: FieldDef, value: unknown): { valid: boolean; error?: string } {
   const fieldType = getFieldType(field.type);
 
   // Required check
@@ -365,7 +453,7 @@ export function validateField(field, value) {
 
   // Custom validator
   if (field.validate && typeof field.validate === 'function') {
-    const result = field.validate(value, field);
+    const result = (field.validate as (value: unknown, field?: unknown) => boolean | string)(value, field);
     if (result === false) {
       return { valid: false, error: `Validation failed for ${field.name || 'field'}` };
     }
@@ -385,7 +473,7 @@ export function validateField(field, value) {
     if (field.pattern) {
       const regex = new RegExp(field.pattern);
       if (!regex.test(value)) {
-        return { valid: false, error: field.patternMessage || 'Invalid format' };
+        return { valid: false, error: (field.patternMessage as string) || 'Invalid format' };
       }
     }
   }
@@ -410,17 +498,17 @@ export function validateField(field, value) {
  * @param {Object} values - Values to validate
  * @returns {Object} { valid: boolean, errors: { fieldName: error } }
  */
-export function validateFields(schema, values) {
-  const errors = {};
+export function validateFields(schema: Record<string, FieldDef>, values: Record<string, unknown>): { valid: boolean; errors: Record<string, string | undefined> } {
+  const errors: Record<string, string | undefined> = {};
   let valid = true;
 
-  for (const [name, field] of Object.entries(schema)) {
+  for (const [name, field] of Object.entries(schema) as Array<[string, FieldDef]>) {
     // Skip system fields and layout
     if (name.startsWith('_')) continue;
 
     // Handle groups
     if (field.type === 'group') {
-      const groupResult = validateFields(field.fields || {}, values?.[name] || {});
+      const groupResult = validateFields(field.fields || {}, (values?.[name] || {}) as Record<string, unknown>);
       if (!groupResult.valid) {
         valid = false;
         for (const [subName, error] of Object.entries(groupResult.errors)) {
@@ -455,7 +543,7 @@ export function validateFields(schema, values) {
  * @param {*} rawValue - Raw form value
  * @returns {*} Parsed value
  */
-export function parseField(field, rawValue) {
+export function parseField(field: FieldDef, rawValue: unknown): unknown {
   const fieldType = getFieldType(field.type);
 
   // Use type-specific parser if available
@@ -476,7 +564,7 @@ export function parseField(field, rawValue) {
     case 'date':
     case 'datetime':
       if (!rawValue) return null;
-      const date = new Date(rawValue);
+      const date = new Date(rawValue as string | number);
       return isNaN(date.getTime()) ? null : date.toISOString();
 
     case 'multiselect':
@@ -509,16 +597,16 @@ export function parseField(field, rawValue) {
  * @param {Object} formData - Raw form data
  * @returns {Object} Parsed values
  */
-export function parseFields(schema, formData) {
-  const values = {};
+export function parseFields(schema: Record<string, FieldDef>, formData: Record<string, unknown>): Record<string, unknown> {
+  const values: Record<string, unknown> = {};
 
-  for (const [name, field] of Object.entries(schema)) {
+  for (const [name, field] of Object.entries(schema) as Array<[string, FieldDef]>) {
     // Skip system fields and layout
     if (name.startsWith('_')) continue;
 
     // Handle groups
     if (field.type === 'group') {
-      values[name] = parseFields(field.fields || {}, formData[name] || {});
+      values[name] = parseFields(field.fields || {}, (formData[name] || {}) as Record<string, unknown>);
       continue;
     }
 
@@ -534,7 +622,7 @@ export function parseFields(schema, formData) {
 // WIDGET RENDERERS
 // ============================================
 
-const widgetRenderers = {
+const widgetRenderers: Record<string, WidgetRenderer> = {
   text: renderStringField,
   textarea: renderTextareaField,
   number: renderNumberField,
@@ -557,12 +645,12 @@ const widgetRenderers = {
   embed: renderEmbedField
 };
 
-function renderStringField(field, value, options) {
+function renderStringField(field: FieldDef, value: unknown, options: RenderOptions): string {
   const attrs = buildInputAttrs(field, value, 'text');
   return `<input ${attrs}>`;
 }
 
-function renderTextareaField(field, value, options) {
+function renderTextareaField(field: FieldDef, value: unknown, options: RenderOptions): string {
   const id = field.id || `field-${field.name}`;
   const name = field.name;
   const required = field.required ? 'required' : '';
@@ -573,7 +661,7 @@ function renderTextareaField(field, value, options) {
   return `<textarea id="${id}" name="${name}" class="form-input form-textarea" rows="${rows}" placeholder="${placeholder}" ${required}>${safeValue}</textarea>`;
 }
 
-function renderNumberField(field, value, options) {
+function renderNumberField(field: FieldDef, value: unknown, options: RenderOptions): string {
   const attrs = buildInputAttrs(field, value, 'number');
   const min = field.min !== undefined ? `min="${field.min}"` : '';
   const max = field.max !== undefined ? `max="${field.max}"` : '';
@@ -581,7 +669,7 @@ function renderNumberField(field, value, options) {
   return `<input ${attrs} ${min} ${max} ${step}>`;
 }
 
-function renderCheckboxField(field, value, options) {
+function renderCheckboxField(field: FieldDef, value: unknown, options: RenderOptions): string {
   const id = field.id || `field-${field.name}`;
   const name = field.name;
   const checked = value ? 'checked' : '';
@@ -594,16 +682,16 @@ function renderCheckboxField(field, value, options) {
   `;
 }
 
-function renderDateField(field, value, options) {
-  const attrs = buildInputAttrs(field, value ? value.split('T')[0] : '', 'date');
+function renderDateField(field: FieldDef, value: unknown, options: RenderOptions): string {
+  const attrs = buildInputAttrs(field, value ? String(value).split('T')[0] : '', 'date');
   return `<input ${attrs}>`;
 }
 
-function renderDatetimeField(field, value, options) {
+function renderDatetimeField(field: FieldDef, value: unknown, options: RenderOptions): string {
   // Convert ISO string to datetime-local format
   let localValue = '';
   if (value) {
-    const date = new Date(value);
+    const date = new Date(value as string | number);
     if (!isNaN(date.getTime())) {
       localValue = date.toISOString().slice(0, 16);
     }
@@ -612,12 +700,12 @@ function renderDatetimeField(field, value, options) {
   return `<input ${attrs}>`;
 }
 
-function renderSelectField(field, value, options) {
+function renderSelectField(field: FieldDef, value: unknown, options: RenderOptions): string {
   const id = field.id || `field-${field.name}`;
   const name = field.name;
   const required = field.required ? 'required' : '';
 
-  let optionsHtml = field.placeholder !== false
+  let optionsHtml = (field.placeholder as unknown) !== false
     ? `<option value="">${escapeHtml(field.placeholder || '-- Select --')}</option>`
     : '';
 
@@ -632,7 +720,7 @@ function renderSelectField(field, value, options) {
   return `<select id="${id}" name="${name}" class="form-input form-select" ${required}>${optionsHtml}</select>`;
 }
 
-function renderMultiselectField(field, value, options) {
+function renderMultiselectField(field: FieldDef, value: unknown, options: RenderOptions): string {
   const id = field.id || `field-${field.name}`;
   const name = field.name;
   const values = Array.isArray(value) ? value : [];
@@ -654,7 +742,7 @@ function renderMultiselectField(field, value, options) {
   return `<div id="${id}" class="form-multiselect">${optionsHtml}</div>`;
 }
 
-function renderReferenceField(field, value, options) {
+function renderReferenceField(field: FieldDef, value: unknown, options: RenderOptions): string {
   const id = field.id || `field-${field.name}`;
   const name = field.name;
   const target = field.target || 'content';
@@ -670,7 +758,7 @@ function renderReferenceField(field, value, options) {
   `;
 }
 
-function renderReferencesField(field, value, options) {
+function renderReferencesField(field: FieldDef, value: unknown, options: RenderOptions): string {
   const id = field.id || `field-${field.name}`;
   const name = field.name;
   const target = field.target || 'content';
@@ -687,7 +775,7 @@ function renderReferencesField(field, value, options) {
   `;
 }
 
-function renderColorField(field, value, options) {
+function renderColorField(field: FieldDef, value: unknown, options: RenderOptions): string {
   const id = field.id || `field-${field.name}`;
   const name = field.name;
   const safeValue = value || field.default || '#000000';
@@ -700,17 +788,17 @@ function renderColorField(field, value, options) {
   `;
 }
 
-function renderUrlField(field, value, options) {
+function renderUrlField(field: FieldDef, value: unknown, options: RenderOptions): string {
   const attrs = buildInputAttrs(field, value, 'url');
   return `<input ${attrs} pattern="https?://.+">`;
 }
 
-function renderEmailField(field, value, options) {
+function renderEmailField(field: FieldDef, value: unknown, options: RenderOptions): string {
   const attrs = buildInputAttrs(field, value, 'email');
   return `<input ${attrs}>`;
 }
 
-function renderFileField(field, value, options) {
+function renderFileField(field: FieldDef, value: unknown, options: RenderOptions): string {
   const id = field.id || `field-${field.name}`;
   const name = field.name;
   const accept = field.accept || '*/*';
@@ -718,7 +806,7 @@ function renderFileField(field, value, options) {
 
   let preview = '';
   if (value) {
-    preview = `<div class="file-preview"><a href="${escapeHtml(value)}" target="_blank">${escapeHtml(value.split('/').pop())}</a></div>`;
+    preview = `<div class="file-preview"><a href="${escapeHtml(value)}" target="_blank">${escapeHtml(String(value).split('/').pop())}</a></div>`;
   }
 
   return `
@@ -730,7 +818,7 @@ function renderFileField(field, value, options) {
   `;
 }
 
-function renderImageField(field, value, options) {
+function renderImageField(field: FieldDef, value: unknown, options: RenderOptions): string {
   const id = field.id || `field-${field.name}`;
   const name = field.name;
   const accept = field.accept || 'image/*';
@@ -775,7 +863,7 @@ function renderImageField(field, value, options) {
   `;
 }
 
-function renderJsonField(field, value, options) {
+function renderJsonField(field: FieldDef, value: unknown, options: RenderOptions): string {
   const id = field.id || `field-${field.name}`;
   const name = field.name;
   const rows = field.rows || 10;
@@ -789,7 +877,7 @@ function renderJsonField(field, value, options) {
   `;
 }
 
-function renderMarkdownField(field, value, options) {
+function renderMarkdownField(field: FieldDef, value: unknown, options: RenderOptions): string {
   const id = field.id || `field-${field.name}`;
   const name = field.name;
   const rows = field.rows || 15;
@@ -810,7 +898,7 @@ function renderMarkdownField(field, value, options) {
   `;
 }
 
-function renderHtmlField(field, value, options) {
+function renderHtmlField(field: FieldDef, value: unknown, options: RenderOptions): string {
   const id = field.id || `field-${field.name}`;
   const name = field.name;
   const rows = field.rows || 10;
@@ -823,7 +911,7 @@ function renderHtmlField(field, value, options) {
   `;
 }
 
-function renderSlugField(field, value, options) {
+function renderSlugField(field: FieldDef, value: unknown, options: RenderOptions): string {
   const id = field.id || `field-${field.name}`;
   const name = field.name;
   const source = field.source || 'title';
@@ -837,15 +925,17 @@ function renderSlugField(field, value, options) {
   `;
 }
 
-function renderEmbedField(field, value, options) {
+function renderEmbedField(field: FieldDef, value: unknown, options: RenderOptions): string {
   const id = field.id || `field-${field.name}`;
   const name = field.name;
-  const embedValue = value?.url || value || '';
+  const valueObj = value as Record<string, unknown> | null;
+  const embedValue = (valueObj && typeof valueObj === 'object' ? valueObj.url : value) || '';
   const required = field.required ? 'required' : '';
 
   let preview = '';
-  if (value?.oembed?.html) {
-    preview = `<div class="embed-preview">${value.oembed.html}</div>`;
+  const oembed = valueObj && typeof valueObj === 'object' ? valueObj.oembed as Record<string, unknown> | undefined : undefined;
+  if (oembed?.html) {
+    preview = `<div class="embed-preview">${oembed.html}</div>`;
   }
 
   return `
@@ -862,7 +952,7 @@ function renderEmbedField(field, value, options) {
 // HELPER FUNCTIONS
 // ============================================
 
-function buildInputAttrs(field, value, type = 'text') {
+function buildInputAttrs(field: FieldDef, value: unknown, type: string = 'text'): string {
   const id = field.id || `field-${field.name}`;
   const name = field.name;
   const required = field.required ? 'required' : '';
@@ -874,7 +964,7 @@ function buildInputAttrs(field, value, type = 'text') {
   return `type="${type}" id="${id}" name="${name}" value="${safeValue}" class="form-input" placeholder="${placeholder}" ${required} ${maxLength} ${minLength}`;
 }
 
-function buildConditionalAttrs(field) {
+function buildConditionalAttrs(field: FieldDef): string {
   const attrs = [];
 
   if (field.showIf) {
@@ -890,7 +980,7 @@ function buildConditionalAttrs(field) {
   return attrs.length ? ' ' + attrs.join(' ') : '';
 }
 
-function escapeHtml(str) {
+function escapeHtml(str: unknown): string {
   if (str === null || str === undefined) return '';
   return String(str)
     .replace(/&/g, '&amp;')
@@ -904,7 +994,7 @@ function escapeHtml(str) {
 // BUILT-IN FIELD TYPES
 // ============================================
 
-function registerBuiltinTypes() {
+function registerBuiltinTypes(): void {
   // String - single line text
   registerFieldType('string', {
     label: 'Text',
@@ -961,7 +1051,7 @@ function registerBuiltinTypes() {
     description: 'Date picker',
     validate: (value) => {
       if (!value) return true;
-      const date = new Date(value);
+      const date = new Date(value as string | number);
       return !isNaN(date.getTime()) || 'Invalid date';
     },
     source: 'core'
@@ -975,7 +1065,7 @@ function registerBuiltinTypes() {
     description: 'Date and time picker',
     validate: (value) => {
       if (!value) return true;
-      const date = new Date(value);
+      const date = new Date(value as string | number);
       return !isNaN(date.getTime()) || 'Invalid date/time';
     },
     source: 'core'
@@ -1035,10 +1125,10 @@ function registerBuiltinTypes() {
     description: 'Embeddable URL (YouTube, Vimeo, etc.)',
     validate: (value) => {
       if (!value) return true;
-      const url = typeof value === 'object' ? value.url : value;
+      const url = typeof value === 'object' && value !== null ? (value as Record<string, unknown>).url : value;
       if (!url) return true;
       try {
-        new URL(url);
+        new URL(url as string);
         return true;
       } catch {
         return 'Invalid URL';
@@ -1055,9 +1145,9 @@ function registerBuiltinTypes() {
     description: 'Color picker',
     validate: (value) => {
       if (!value) return true;
-      return /^#[0-9a-f]{6}$/i.test(value) || 'Invalid color format (use #RRGGBB)';
+      return /^#[0-9a-f]{6}$/i.test(String(value)) || 'Invalid color format (use #RRGGBB)';
     },
-    parse: (value) => value ? value.toLowerCase() : null,
+    parse: (value) => value ? String(value).toLowerCase() : null,
     source: 'core'
   });
 
@@ -1070,7 +1160,7 @@ function registerBuiltinTypes() {
     validate: (value) => {
       if (!value) return true;
       try {
-        new URL(value);
+        new URL(String(value));
         return true;
       } catch {
         return 'Invalid URL';
@@ -1087,7 +1177,7 @@ function registerBuiltinTypes() {
     description: 'Email input with validation',
     validate: (value) => {
       if (!value) return true;
-      return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value) || 'Invalid email address';
+      return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(String(value)) || 'Invalid email address';
     },
     source: 'core'
   });
@@ -1120,10 +1210,10 @@ function registerBuiltinTypes() {
       if (!value) return true;
       if (typeof value === 'object') return true;
       try {
-        JSON.parse(value);
+        JSON.parse(String(value));
         return true;
       } catch (e) {
-        return 'Invalid JSON: ' + e.message;
+        return 'Invalid JSON: ' + (e instanceof Error ? e.message : String(e));
       }
     },
     parse: (value) => {
@@ -1166,9 +1256,9 @@ function registerBuiltinTypes() {
     description: 'URL-friendly slug',
     validate: (value) => {
       if (!value) return true;
-      return /^[a-z0-9-]+$/.test(value) || 'Slug must contain only lowercase letters, numbers, and hyphens';
+      return /^[a-z0-9-]+$/.test(String(value)) || 'Slug must contain only lowercase letters, numbers, and hyphens';
     },
-    parse: (value) => value ? value.toLowerCase().replace(/[^a-z0-9-]/g, '-') : '',
+    parse: (value) => value ? String(value).toLowerCase().replace(/[^a-z0-9-]/g, '-') : '',
     source: 'core'
   });
 
@@ -1191,7 +1281,7 @@ function registerBuiltinTypes() {
  *
  * @returns {string} JavaScript code
  */
-export function getFormScript() {
+export function getFormScript(): string {
   return `
 <script>
 // Conditional field visibility
@@ -1508,7 +1598,7 @@ document.addEventListener('DOMContentLoaded', initConditionalFields);
  *
  * @returns {string} CSS code
  */
-export function getFormStyles() {
+export function getFormStyles(): string {
   return `
 <style>
 /* Field Groups */

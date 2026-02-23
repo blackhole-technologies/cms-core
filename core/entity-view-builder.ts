@@ -40,23 +40,94 @@
  * ```
  */
 
+// ============================================
+// TYPE DEFINITIONS
+// ============================================
+
+/** Configuration for a single field within a display mode */
+export interface FieldDisplayConfig {
+  /** Whether the field is visible in this display mode */
+  visible?: boolean;
+  /** Sort order — lower values appear first */
+  weight?: number;
+  /** Name of the formatter to use */
+  formatter?: string;
+  /** Formatter-specific settings */
+  settings?: Record<string, unknown>;
+}
+
+/** Configuration for an entire display mode */
+export interface DisplayModeConfig {
+  /** Field display configurations keyed by field name */
+  fields: Record<string, FieldDisplayConfig>;
+}
+
+/** A formatted field in a view structure */
+export interface ViewField {
+  /** Field machine name */
+  name: string;
+  /** Raw field value */
+  value: unknown;
+  /** Formatted (rendered) value */
+  formatted: string;
+  /** Sort weight */
+  weight: number;
+  /** Formatter type used */
+  formatter: string;
+  /** Formatter settings applied */
+  settings: Record<string, unknown>;
+}
+
+/** A built view structure ready for rendering */
+export interface EntityView {
+  /** The source entity */
+  entity: Record<string, unknown>;
+  /** Entity type (e.g., 'content', 'user') */
+  entityType: string;
+  /** Bundle/subtype (e.g., 'article', 'page') */
+  bundle: string;
+  /** Display mode name */
+  displayMode: string;
+  /** Ordered, formatted fields */
+  fields: ViewField[];
+}
+
+/** Field formatter function signature */
+type FieldFormatter = (value: unknown, settings: Record<string, unknown>) => string;
+
+/** Preprocessor function signature — mutates view in-place before render */
+type ViewPreprocessor = (view: EntityView, entity: Record<string, unknown>, displayMode: string) => void;
+
+/** The public entity view builder API surface */
+export interface EntityViewBuilderAPI {
+  defineDisplayMode: typeof defineDisplayMode;
+  getDisplayMode: typeof getDisplayMode;
+  registerFormatter: typeof registerFormatter;
+  getFormatter: typeof getFormatter;
+  listFormatters: typeof listFormatters;
+  formatField: typeof formatField;
+  registerPreprocessor: typeof registerPreprocessor;
+  buildView: typeof buildView;
+  renderView: typeof renderView;
+}
+
 /**
  * Display mode registry
  * Structure: { entityType: { bundle: { displayMode: config } } }
  */
-const displayModes = {};
+const displayModes: Record<string, Record<string, Record<string, DisplayModeConfig>>> = {};
 
 /**
  * Field formatter registry
  * Structure: { formatterType: formatterFunction }
  */
-const fieldFormatters = {};
+const fieldFormatters: Record<string, FieldFormatter> = {};
 
 /**
  * Preprocessing hooks
  * Structure: { entityType: [preprocessFunctions] }
  */
-const preprocessHooks = {};
+const preprocessHooks: Record<string, ViewPreprocessor[]> = {};
 
 /**
  * Define a display mode for an entity bundle
@@ -75,7 +146,7 @@ const preprocessHooks = {};
  * Different contexts need different representations. Full article view shows
  * everything; teaser shows title + summary; search results show snippet + link.
  */
-export function defineDisplayMode(entityType, bundle, displayMode, config) {
+export function defineDisplayMode(entityType: string, bundle: string, displayMode: string, config: DisplayModeConfig): void {
   if (!entityType || typeof entityType !== 'string') {
     throw new Error('Entity type must be a non-empty string');
   }
@@ -116,8 +187,8 @@ export function defineDisplayMode(entityType, bundle, displayMode, config) {
  * @param {string} displayMode - Display mode name
  * @returns {Object|null} Display mode config or null if not found
  */
-export function getDisplayMode(entityType, bundle, displayMode) {
-  return displayModes[entityType]?.[bundle]?.[displayMode] || null;
+export function getDisplayMode(entityType: string, bundle: string, displayMode: string): DisplayModeConfig | null {
+  return displayModes[entityType]?.[bundle]?.[displayMode] ?? null;
 }
 
 /**
@@ -130,7 +201,7 @@ export function getDisplayMode(entityType, bundle, displayMode) {
  * Formatters are simple transformations. Function-based API is cleaner
  * than class-based for this use case.
  */
-export function registerFormatter(formatterType, formatter) {
+export function registerFormatter(formatterType: string, formatter: FieldFormatter): void {
   if (!formatterType || typeof formatterType !== 'string') {
     throw new Error('Formatter type must be a non-empty string');
   }
@@ -148,8 +219,8 @@ export function registerFormatter(formatterType, formatter) {
  * @param {string} formatterType - Formatter type
  * @returns {Function|null} Formatter function or null
  */
-export function getFormatter(formatterType) {
-  return fieldFormatters[formatterType] || null;
+export function getFormatter(formatterType: string): FieldFormatter | null {
+  return fieldFormatters[formatterType] ?? null;
 }
 
 /**
@@ -157,7 +228,7 @@ export function getFormatter(formatterType) {
  *
  * @returns {string[]} Array of formatter type names
  */
-export function listFormatters() {
+export function listFormatters(): string[] {
   return Object.keys(fieldFormatters);
 }
 
@@ -169,7 +240,7 @@ export function listFormatters() {
  * @param {Object} [settings={}] - Formatter-specific settings
  * @returns {*} Formatted value
  */
-export function formatField(fieldValue, formatterType, settings = {}) {
+export function formatField(fieldValue: unknown, formatterType: string, settings: Record<string, unknown> = {}): string {
   const formatter = fieldFormatters[formatterType];
 
   if (!formatter) {
@@ -191,7 +262,7 @@ export function formatField(fieldValue, formatterType, settings = {}) {
  * Modules may want to alter views before rendering (add fields, change
  * formatters, inject metadata). Preprocessing hooks enable customization.
  */
-export function registerPreprocessor(entityType, preprocessor) {
+export function registerPreprocessor(entityType: string, preprocessor: ViewPreprocessor): void {
   if (!entityType || typeof entityType !== 'string') {
     throw new Error('Entity type must be a non-empty string');
   }
@@ -230,13 +301,13 @@ export function registerPreprocessor(entityType, preprocessor) {
  *   ]
  * }
  */
-export function buildView(entity, displayMode = 'full') {
+export function buildView(entity: Record<string, unknown>, displayMode: string = 'full'): EntityView {
   if (!entity || typeof entity !== 'object') {
     throw new Error('Entity must be an object');
   }
 
-  const entityType = entity.entityType || 'content';
-  const bundle = entity.bundle || entity.type || 'default';
+  const entityType = (entity.entityType as string) || 'content';
+  const bundle = (entity.bundle as string) || (entity.type as string) || 'default';
 
   // Get display mode configuration
   const config = getDisplayMode(entityType, bundle, displayMode);
@@ -248,12 +319,12 @@ export function buildView(entity, displayMode = 'full') {
   }
 
   // Build field list based on configuration
-  const fields = [];
+  const fields: ViewField[] = [];
 
   // WHY CHECK entity.fields THEN entity:
   // Some entities wrap fields in entity.fields, others have fields directly.
   // Try entity.fields first (structured format), fall back to entity itself.
-  const entityFields = entity.fields || entity;
+  const entityFields = (entity.fields as Record<string, unknown>) || entity;
 
   for (const [fieldName, fieldConfig] of Object.entries(config.fields)) {
     // Skip hidden fields
@@ -282,7 +353,7 @@ export function buildView(entity, displayMode = 'full') {
   fields.sort((a, b) => a.weight - b.weight);
 
   // Build view structure
-  const view = {
+  const view: EntityView = {
     entity,
     entityType,
     bundle,
@@ -291,7 +362,7 @@ export function buildView(entity, displayMode = 'full') {
   };
 
   // Run preprocessing hooks
-  const hooks = preprocessHooks[entityType] || [];
+  const hooks = preprocessHooks[entityType] ?? [];
   for (const preprocessor of hooks) {
     preprocessor(view, entity, displayMode);
   }
@@ -308,13 +379,13 @@ export function buildView(entity, displayMode = 'full') {
  * @param {string} displayMode - Display mode name
  * @returns {Object} View structure
  */
-function buildDefaultView(entity, entityType, bundle, displayMode) {
-  const fields = [];
+function buildDefaultView(entity: Record<string, unknown>, entityType: string, bundle: string, displayMode: string): EntityView {
+  const fields: ViewField[] = [];
 
   // WHY CHECK entity.fields THEN entity:
   // Some entities wrap fields in entity.fields, others have fields directly.
   // Try entity.fields first (structured format), fall back to entity itself.
-  const entityFields = entity.fields || entity;
+  const entityFields = (entity.fields as Record<string, unknown>) || entity;
 
   // Build field list with all fields visible
   // WHY FILTER METADATA FIELDS:
@@ -361,7 +432,7 @@ function buildDefaultView(entity, entityType, bundle, displayMode) {
  * This is utility output for testing and debugging. Production rendering
  * should use the template system with proper theming.
  */
-export function renderView(view) {
+export function renderView(view: EntityView): string {
   if (!view || typeof view !== 'object') {
     throw new Error('View must be an object');
   }
@@ -372,7 +443,7 @@ export function renderView(view) {
   let html = `<div class="entity entity--${entityType} entity--${bundle} entity--${displayMode}">\n`;
 
   // Render entity label if available
-  const label = entity.label || entity.title || entity.name;
+  const label = (entity.label || entity.title || entity.name) as string | undefined;
   if (label) {
     html += `  <h2 class="entity__label">${escapeHtml(String(label))}</h2>\n`;
   }
@@ -396,7 +467,7 @@ export function renderView(view) {
  * @param {string} text - Text to escape
  * @returns {string} Escaped text
  */
-function escapeHtml(text) {
+function escapeHtml(text: string): string {
   return text
     .replace(/&/g, '&amp;')
     .replace(/</g, '&lt;')
@@ -427,9 +498,9 @@ registerFormatter('html', (value) => {
 /**
  * Truncate formatter - limits text to N characters
  */
-registerFormatter('truncate', (value, settings = {}) => {
-  const maxLength = settings.maxLength || 100;
-  const suffix = settings.suffix || '...';
+registerFormatter('truncate', (value: unknown, settings: Record<string, unknown> = {}): string => {
+  const maxLength = (settings.maxLength as number) || 100;
+  const suffix = (settings.suffix as string) || '...';
   const text = String(value || '');
 
   if (text.length <= maxLength) {
@@ -442,28 +513,28 @@ registerFormatter('truncate', (value, settings = {}) => {
 /**
  * Date formatter - formats date values
  */
-registerFormatter('date', (value, settings = {}) => {
-  const format = settings.format || 'medium';
+registerFormatter('date', (value: unknown, settings: Record<string, unknown> = {}): string => {
+  const format = (settings.format as string) || 'medium';
 
   if (!value) {
     return '';
   }
 
-  const date = value instanceof Date ? value : new Date(value);
+  const date = value instanceof Date ? value : new Date(value as string | number);
 
   if (isNaN(date.getTime())) {
     return String(value);
   }
 
   // Format options
-  const formats = {
+  const formats: Record<string, Intl.DateTimeFormatOptions> = {
     short: { dateStyle: 'short' },
     medium: { dateStyle: 'medium' },
     long: { dateStyle: 'long' },
     full: { dateStyle: 'full', timeStyle: 'short' },
   };
 
-  const options = formats[format] || formats.medium;
+  const options = formats[format] ?? formats['medium'] as Intl.DateTimeFormatOptions;
 
   return date.toLocaleString('en-US', options);
 });
@@ -471,9 +542,9 @@ registerFormatter('date', (value, settings = {}) => {
 /**
  * Link formatter - renders as an HTML link
  */
-registerFormatter('link', (value, settings = {}) => {
-  const url = settings.url || value;
-  const text = settings.text || value;
+registerFormatter('link', (value: unknown, settings: Record<string, unknown> = {}): string => {
+  const url = (settings.url as string) || String(value);
+  const text = (settings.text as string) || String(value);
 
   if (!url) {
     return '';
@@ -489,7 +560,7 @@ registerFormatter('link', (value, settings = {}) => {
 /**
  * Define default display modes for common entity types
  */
-function initializeDefaultDisplayModes() {
+function initializeDefaultDisplayModes(): void {
   // Content: Full mode - show all fields
   defineDisplayMode('content', 'default', 'full', {
     fields: {
@@ -537,7 +608,7 @@ function initializeDefaultDisplayModes() {
  * @param {Object} services - Legacy services registry
  * @param {Object} container - DI container
  */
-export function register(services, container) {
+export function register(services: Record<string, unknown> | null, container: Record<string, unknown> | null): void {
   // Initialize default display modes
   initializeDefaultDisplayModes();
 
@@ -555,14 +626,13 @@ export function register(services, container) {
 
   // Legacy pattern
   if (services && typeof services.register === 'function') {
-    services.register('entity_view_builder', () => api);
+    (services.register as (name: string, factory: () => EntityViewBuilderAPI) => void)('entity_view_builder', () => api);
   }
 
   // New container pattern
   if (container && typeof container.register === 'function') {
-    container.register('entity_view_builder', () => api, {
-      tags: ['service', 'entity', 'rendering'],
-      singleton: true,
-    });
+    (container.register as (name: string, factory: () => EntityViewBuilderAPI, opts: Record<string, unknown>) => void)(
+      'entity_view_builder', () => api, { tags: ['service', 'entity', 'rendering'], singleton: true }
+    );
   }
 }

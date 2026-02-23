@@ -48,14 +48,128 @@ import { join } from 'node:path';
 import * as hooks from './hooks.ts';
 import { slugify } from './slugify.js';
 
+// ============================================
+// TYPES
+// ============================================
+
+/** Vocabulary definition */
+interface VocabularyDef {
+  id: string;
+  name: string;
+  description: string;
+  hierarchical: boolean;
+  maxDepth: number;
+  multipleSelection: boolean;
+  allowCreate: boolean;
+  weight: number;
+  created: string;
+  updated: string;
+}
+
+/** Vocabulary creation input */
+interface VocabularyInput {
+  id?: string;
+  name: string;
+  description?: string;
+  hierarchical?: boolean;
+  maxDepth?: number;
+  multipleSelection?: boolean;
+  allowCreate?: boolean;
+  weight?: number;
+}
+
+/** Term data as stored */
+interface TermDef {
+  id: string;
+  vocabularyId: string;
+  name: string;
+  slug: string;
+  description: string;
+  parentId: string | null;
+  weight: number;
+  depth: number;
+  path: string[];
+  [key: string]: unknown;
+}
+
+/** Term creation input */
+interface TermInput {
+  vocabularyId: string;
+  name: string;
+  slug?: string;
+  description?: string;
+  parentId?: string | null;
+  weight?: number;
+  [key: string]: unknown;
+}
+
+/** Term with children for tree building */
+interface TermWithChildren extends TermDef {
+  children: TermWithChildren[];
+  contentCount: number;
+}
+
+/** Content service interface for taxonomy operations */
+interface TaxonomyContentService {
+  register(type: string, fields: Record<string, unknown>, group?: string): void;
+  create(type: string, data: Record<string, unknown>): Promise<TermDef>;
+  read(type: string, id: string): TermDef | null;
+  update(type: string, id: string, data: Record<string, unknown>): Promise<TermDef>;
+  delete(type: string, id: string): Promise<void>;
+  list(type: string, options: Record<string, unknown>): { items: TermDef[]; total: number };
+}
+
+/** List terms query options */
+interface ListTermsOptions {
+  vocabularyId?: string;
+  parentId?: string | null;
+  sort?: string;
+  order?: string;
+  offset?: number;
+  limit?: number;
+}
+
+/** Delete vocabulary options */
+interface DeleteVocabularyOptions {
+  deleteTerms?: boolean;
+}
+
+/** Delete term options */
+interface DeleteTermOptions {
+  deleteChildren?: boolean;
+  reassignTo?: string;
+}
+
+/** Find content by terms options */
+interface FindContentByTermsOptions {
+  termIds?: string[];
+  vocabularyId?: string;
+  contentType?: string;
+  limit?: number;
+  offset?: number;
+}
+
+/** Taxonomy configuration */
+interface TaxonomyConfig {
+  enabled: boolean;
+  defaults: {
+    hierarchical: boolean;
+    maxDepth: number;
+    multipleSelection: boolean;
+    allowCreate: boolean;
+  };
+  cacheHierarchy: boolean;
+  cacheTTL: number;
+}
+
 /**
  * Module state
  */
-let baseDir = null;
-let contentService = null;
-let vocabulariesPath = null;
-let vocabularies = {};
-let config = {
+let baseDir: string | null = null;
+let contentService: TaxonomyContentService | null = null;
+let vocabulariesPath: string | null = null;
+let vocabularies: Record<string, VocabularyDef> = {};
+let config: TaxonomyConfig = {
   enabled: true,
   defaults: {
     hierarchical: false,
@@ -72,8 +186,8 @@ let config = {
  * Structure: { vocabularyId: { termId: TermWithHierarchy } }
  * WHY CACHE: Computing tree structure is O(n²), cache improves read performance
  */
-let hierarchyCache = {};
-let cacheTimestamps = {};
+let hierarchyCache: Record<string, Record<string, TermWithChildren>> = {};
+let cacheTimestamps: Record<string, number> = {};
 
 // ============================================
 // INITIALIZATION
@@ -86,7 +200,7 @@ let cacheTimestamps = {};
  * @param {Object} content - Content service
  * @param {Object} taxonomyConfig - Configuration
  */
-export function init(dir, content, taxonomyConfig = {}) {
+export function init(dir: string, content: TaxonomyContentService, taxonomyConfig: Partial<TaxonomyConfig> = {}): void {
   baseDir = dir;
   contentService = content;
   config = { ...config, ...taxonomyConfig };
@@ -124,13 +238,13 @@ export function init(dir, content, taxonomyConfig = {}) {
  * Load vocabularies from disk
  * WHY PRIVATE: Internal state management, not part of public API
  */
-function loadVocabularies() {
-  if (existsSync(vocabulariesPath)) {
+function loadVocabularies(): void {
+  if (existsSync(vocabulariesPath!)) {
     try {
-      const data = JSON.parse(readFileSync(vocabulariesPath, 'utf-8'));
+      const data = JSON.parse(readFileSync(vocabulariesPath!, 'utf-8')) as Record<string, VocabularyDef>;
       vocabularies = data;
     } catch (e) {
-      console.error('[taxonomy] Failed to load vocabularies:', e.message);
+      console.error('[taxonomy] Failed to load vocabularies:', e instanceof Error ? e.message : String(e));
       vocabularies = {};
     }
   }
@@ -140,11 +254,11 @@ function loadVocabularies() {
  * Save vocabularies to disk
  * WHY ATOMIC: Write to temp file then rename to prevent corruption
  */
-function saveVocabularies() {
+function saveVocabularies(): void {
   try {
-    writeFileSync(vocabulariesPath, JSON.stringify(vocabularies, null, 2) + '\n');
+    writeFileSync(vocabulariesPath!, JSON.stringify(vocabularies, null, 2) + '\n');
   } catch (e) {
-    console.error('[taxonomy] Failed to save vocabularies:', e.message);
+    console.error('[taxonomy] Failed to save vocabularies:', e instanceof Error ? e.message : String(e));
     throw new Error('Failed to save vocabulary configuration');
   }
 }
@@ -155,7 +269,7 @@ function saveVocabularies() {
  * @param {Object} input - Vocabulary data
  * @returns {Promise<Object>} Created vocabulary
  */
-export async function createVocabulary(input) {
+export async function createVocabulary(input: VocabularyInput): Promise<VocabularyDef> {
   // Validate required fields
   if (!input.name) {
     throw new Error('Vocabulary name is required');
@@ -172,7 +286,7 @@ export async function createVocabulary(input) {
 
   // Build vocabulary object
   const now = new Date().toISOString();
-  const vocabulary = {
+  const vocabulary: VocabularyDef = {
     id,
     name: input.name,
     description: input.description || '',
@@ -205,7 +319,7 @@ export async function createVocabulary(input) {
  * @param {string} id - Vocabulary ID
  * @returns {Object|null} Vocabulary or null
  */
-export function getVocabulary(id) {
+export function getVocabulary(id: string): VocabularyDef | null {
   return vocabularies[id] || null;
 }
 
@@ -216,7 +330,7 @@ export function getVocabulary(id) {
  * @param {Object} updates - Fields to update
  * @returns {Promise<Object>} Updated vocabulary
  */
-export async function updateVocabulary(id, updates) {
+export async function updateVocabulary(id: string, updates: Partial<VocabularyInput>): Promise<VocabularyDef> {
   const vocabulary = vocabularies[id];
   if (!vocabulary) {
     throw new Error(`Vocabulary "${id}" not found`);
@@ -226,7 +340,7 @@ export async function updateVocabulary(id, updates) {
   await hooks.trigger('taxonomy:beforeUpdateVocabulary', { vocabulary, updates });
 
   // Apply updates (preserve created timestamp)
-  const updated = {
+  const updated: VocabularyDef = {
     ...vocabulary,
     ...updates,
     id: vocabulary.id, // ID cannot be changed
@@ -257,7 +371,7 @@ export async function updateVocabulary(id, updates) {
  * @param {Object} options - Delete options
  * @returns {Promise<void>}
  */
-export async function deleteVocabulary(id, options = {}) {
+export async function deleteVocabulary(id: string, options: DeleteVocabularyOptions = {}): Promise<void> {
   const vocabulary = vocabularies[id];
   if (!vocabulary) {
     throw new Error(`Vocabulary "${id}" not found`);
@@ -271,7 +385,7 @@ export async function deleteVocabulary(id, options = {}) {
     // Delete all terms in vocabulary
     const terms = listTerms({ vocabularyId: id });
     for (const term of terms.items) {
-      await contentService.delete('term', term.id);
+      await contentService!.delete('term', term.id);
     }
   } else {
     // Check if vocabulary has terms
@@ -300,8 +414,8 @@ export async function deleteVocabulary(id, options = {}) {
  *
  * @returns {Array} Array of vocabularies sorted by weight
  */
-export function listVocabularies() {
-  return Object.values(vocabularies).sort((a, b) => a.weight - b.weight);
+export function listVocabularies(): VocabularyDef[] {
+  return Object.values(vocabularies).sort((a: VocabularyDef, b: VocabularyDef) => a.weight - b.weight);
 }
 
 // ============================================
@@ -315,7 +429,7 @@ export function listVocabularies() {
  * @param {Object} input - Term data
  * @throws {Error} If validation fails
  */
-function validateTermInput(input) {
+function validateTermInput(input: TermInput): VocabularyDef {
   if (!input.vocabularyId) {
     throw new Error('Term vocabularyId is required');
   }
@@ -340,12 +454,12 @@ function validateTermInput(input) {
  * @param {string|null} parentId - Parent term ID
  * @returns {Object} { depth, path }
  */
-function computeHierarchyInfo(vocabularyId, parentId) {
+function computeHierarchyInfo(vocabularyId: string, parentId: string | null): { depth: number; path: string[] } {
   if (!parentId) {
     return { depth: 0, path: [] };
   }
 
-  const parent = contentService.read('term', parentId);
+  const parent = contentService!.read('term', parentId);
   if (!parent) {
     throw new Error(`Parent term "${parentId}" not found`);
   }
@@ -354,8 +468,8 @@ function computeHierarchyInfo(vocabularyId, parentId) {
     throw new Error('Parent term must be in the same vocabulary');
   }
 
-  const depth = parent.depth + 1;
-  const path = [...parent.path, parentId];
+  const depth = (parent.depth as number) + 1;
+  const path = [...(parent.path as string[]), parentId];
 
   return { depth, path };
 }
@@ -368,7 +482,7 @@ function computeHierarchyInfo(vocabularyId, parentId) {
  * @returns {boolean} True if valid
  * @throws {Error} If circular reference detected
  */
-export function validateHierarchy(termId, newParentId) {
+export function validateHierarchy(termId: string, newParentId: string | null): boolean {
   if (!newParentId) {
     return true; // Root level is always valid
   }
@@ -379,14 +493,14 @@ export function validateHierarchy(termId, newParentId) {
 
   // Check if newParentId is a descendant of termId
   // WHY: This would create a cycle
-  const parent = contentService.read('term', newParentId);
+  const parent = contentService!.read('term', newParentId);
   if (!parent) {
     throw new Error(`Parent term "${newParentId}" not found`);
   }
 
   // Walk up parent chain looking for termId
-  let current = parent;
-  const visited = new Set();
+  let current: TermDef | null = parent;
+  const visited = new Set<string>();
   while (current && current.parentId) {
     if (visited.has(current.id)) {
       throw new Error('Circular reference detected in term hierarchy');
@@ -397,7 +511,7 @@ export function validateHierarchy(termId, newParentId) {
       throw new Error('Cannot set parent - would create circular reference');
     }
 
-    current = contentService.read('term', current.parentId);
+    current = contentService!.read('term', current.parentId);
   }
 
   return true;
@@ -411,7 +525,7 @@ export function validateHierarchy(termId, newParentId) {
  * @param {string|null} excludeId - Term ID to exclude (for updates)
  * @returns {string} Unique slug
  */
-export function generateSlug(name, vocabularyId, excludeId = null) {
+export function generateSlug(name: string, vocabularyId: string, excludeId: string | null = null): string {
   const baseSlug = slugify(name);
   let slug = baseSlug;
   let counter = 1;
@@ -436,7 +550,7 @@ export function generateSlug(name, vocabularyId, excludeId = null) {
  * @param {Object} input - Term data
  * @returns {Promise<Object>} Created term
  */
-export async function createTerm(input) {
+export async function createTerm(input: TermInput): Promise<TermDef> {
   // Validate input
   const vocabulary = validateTermInput(input);
 
@@ -474,7 +588,7 @@ export async function createTerm(input) {
 
   // Create term via content service
   // WHY: Leverages content service for ID generation, validation, storage
-  const term = await contentService.create('term', termData);
+  const term = await contentService!.create('term', termData);
 
   // Invalidate hierarchy cache
   if (config.cacheHierarchy) {
@@ -494,8 +608,8 @@ export async function createTerm(input) {
  * @param {string} id - Term ID
  * @returns {Object|null} Term or null
  */
-export function getTerm(id) {
-  return contentService.read('term', id);
+export function getTerm(id: string): TermDef | null {
+  return contentService!.read('term', id);
 }
 
 /**
@@ -505,8 +619,8 @@ export function getTerm(id) {
  * @param {string} slug - Term slug
  * @returns {Object|null} Term or null
  */
-export function getTermBySlug(vocabularyId, slug) {
-  const result = contentService.list('term', {
+export function getTermBySlug(vocabularyId: string, slug: string): TermDef | null {
+  const result = contentService!.list('term', {
     filters: [
       { field: 'vocabularyId', op: 'eq', value: vocabularyId },
       { field: 'slug', op: 'eq', value: slug },
@@ -524,7 +638,7 @@ export function getTermBySlug(vocabularyId, slug) {
  * @param {Object} updates - Fields to update
  * @returns {Promise<Object>} Updated term
  */
-export async function updateTerm(id, updates) {
+export async function updateTerm(id: string, updates: Partial<TermInput>): Promise<TermDef> {
   const term = getTerm(id);
   if (!term) {
     throw new Error(`Term "${id}" not found`);
@@ -538,7 +652,7 @@ export async function updateTerm(id, updates) {
   // Handle parent change
   let hierarchyChanged = false;
   if ('parentId' in updates && updates.parentId !== term.parentId) {
-    validateHierarchy(id, updates.parentId);
+    validateHierarchy(id, updates.parentId ?? null);
     hierarchyChanged = true;
   }
 
@@ -553,7 +667,7 @@ export async function updateTerm(id, updates) {
 
   // Recompute hierarchy if parent changed
   if (hierarchyChanged) {
-    const { depth, path } = computeHierarchyInfo(term.vocabularyId, updates.parentId);
+    const { depth, path } = computeHierarchyInfo(term.vocabularyId, updates.parentId ?? null);
 
     // Validate maxDepth
     if (vocabulary.maxDepth >= 0 && depth > vocabulary.maxDepth) {
@@ -568,7 +682,7 @@ export async function updateTerm(id, updates) {
   await hooks.trigger('taxonomy:beforeUpdateTerm', { term, updates, vocabulary });
 
   // Update term via content service
-  const updatedTerm = await contentService.update('term', id, updates);
+  const updatedTerm = await contentService!.update('term', id, updates as Record<string, unknown>);
 
   // If parent changed, update all descendants
   // WHY: Children's depth and path need recalculation
@@ -595,13 +709,13 @@ export async function updateTerm(id, updates) {
  * @param {string} parentId - Parent term ID
  * @param {string} vocabularyId - Vocabulary ID
  */
-async function updateDescendantHierarchy(parentId, vocabularyId) {
+async function updateDescendantHierarchy(parentId: string, vocabularyId: string): Promise<void> {
   const children = getTermChildren(vocabularyId, parentId);
 
   for (const child of children) {
     const { depth, path } = computeHierarchyInfo(vocabularyId, parentId);
 
-    await contentService.update('term', child.id, {
+    await contentService!.update('term', child.id, {
       depth,
       path,
     });
@@ -618,7 +732,7 @@ async function updateDescendantHierarchy(parentId, vocabularyId) {
  * @param {Object} options - Delete options
  * @returns {Promise<void>}
  */
-export async function deleteTerm(id, options = {}) {
+export async function deleteTerm(id: string, options: DeleteTermOptions = {}): Promise<void> {
   const term = getTerm(id);
   if (!term) {
     throw new Error(`Term "${id}" not found`);
@@ -652,7 +766,7 @@ export async function deleteTerm(id, options = {}) {
   }
 
   // Delete term via content service
-  await contentService.delete('term', id);
+  await contentService!.delete('term', id);
 
   // Invalidate hierarchy cache
   if (config.cacheHierarchy) {
@@ -670,8 +784,8 @@ export async function deleteTerm(id, options = {}) {
  * @param {Object} options - Query options
  * @returns {Object} { items, total, offset, limit }
  */
-export function listTerms(options = {}) {
-  const filters = [];
+export function listTerms(options: ListTermsOptions = {}): { items: TermDef[]; total: number } {
+  const filters: Array<{ field: string; op: string; value?: unknown }> = [];
 
   // Filter by vocabulary
   if (options.vocabularyId) {
@@ -691,7 +805,7 @@ export function listTerms(options = {}) {
   const sort = options.sort || 'weight';
   const order = options.order || 'asc';
 
-  const result = contentService.list('term', {
+  const result = contentService!.list('term', {
     filters,
     sort,
     order,
@@ -708,7 +822,7 @@ export function listTerms(options = {}) {
  * @param {string} vocabularyId - Vocabulary ID
  * @returns {Array} Root terms with nested children
  */
-export function getTermTree(vocabularyId) {
+export function getTermTree(vocabularyId: string): TermWithChildren[] {
   // Check cache
   if (config.cacheHierarchy) {
     const cached = hierarchyCache[vocabularyId];
@@ -717,7 +831,7 @@ export function getTermTree(vocabularyId) {
     if (cached && timestamp) {
       const age = Date.now() - timestamp;
       if (age < config.cacheTTL * 1000) {
-        return Object.values(cached).filter(t => !t.parentId);
+        return Object.values(cached).filter((t: TermWithChildren) => !t.parentId);
       }
     }
   }
@@ -730,8 +844,8 @@ export function getTermTree(vocabularyId) {
 
   // Build tree structure
   // WHY ITERATIVE: More efficient than recursive for large trees
-  const termsById = {};
-  const rootTerms = [];
+  const termsById: Record<string, TermWithChildren> = {};
+  const rootTerms: TermWithChildren[] = [];
 
   // First pass: index all terms
   for (const term of result.items) {
@@ -744,7 +858,7 @@ export function getTermTree(vocabularyId) {
 
   // Second pass: build parent-child relationships
   for (const term of result.items) {
-    const termWithChildren = termsById[term.id];
+    const termWithChildren = termsById[term.id]!;
 
     if (!term.parentId) {
       rootTerms.push(termWithChildren);
@@ -763,8 +877,8 @@ export function getTermTree(vocabularyId) {
 
   // Sort children by weight
   // WHY RECURSIVE: Each level needs sorting
-  function sortChildren(terms) {
-    terms.sort((a, b) => a.weight - b.weight);
+  function sortChildren(terms: TermWithChildren[]): void {
+    terms.sort((a: TermWithChildren, b: TermWithChildren) => a.weight - b.weight);
     for (const term of terms) {
       sortChildren(term.children);
     }
@@ -788,7 +902,7 @@ export function getTermTree(vocabularyId) {
  * @param {string|null} newParentId - New parent ID (null for root)
  * @returns {Promise<Object>} Updated term
  */
-export async function moveTerm(id, newParentId) {
+export async function moveTerm(id: string, newParentId: string | null): Promise<TermDef> {
   return updateTerm(id, { parentId: newParentId });
 }
 
@@ -798,11 +912,11 @@ export async function moveTerm(id, newParentId) {
  * @param {string[]} termIds - Term IDs in desired order
  * @returns {Promise<void>}
  */
-export async function reorderTerms(termIds) {
+export async function reorderTerms(termIds: string[]): Promise<void> {
   // Update weight based on position in array
   // WHY: Weight determines sort order
   for (let i = 0; i < termIds.length; i++) {
-    await updateTerm(termIds[i], { weight: i });
+    await updateTerm(termIds[i]!, { weight: i });
   }
 }
 
@@ -817,16 +931,16 @@ export async function reorderTerms(termIds) {
  * @param {string} id - Term ID
  * @returns {Array} Array of terms from root to current
  */
-export function getTermPath(vocabularyId, id) {
+export function getTermPath(vocabularyId: string, id: string): TermDef[] {
   const term = getTerm(id);
   if (!term) {
     return [];
   }
 
-  const pathTerms = [];
+  const pathTerms: TermDef[] = [];
 
   // Get all ancestors
-  for (const ancestorId of term.path) {
+  for (const ancestorId of (term.path as string[])) {
     const ancestor = getTerm(ancestorId);
     if (ancestor) {
       pathTerms.push(ancestor);
@@ -846,7 +960,7 @@ export function getTermPath(vocabularyId, id) {
  * @param {string|null} parentId - Parent term ID (null for root terms)
  * @returns {Array} Child terms
  */
-export function getTermChildren(vocabularyId, parentId = null) {
+export function getTermChildren(vocabularyId: string, parentId: string | null = null): TermDef[] {
   const result = listTerms({
     vocabularyId,
     parentId,
@@ -862,7 +976,7 @@ export function getTermChildren(vocabularyId, parentId = null) {
  * @param {string} vocabularyId - Vocabulary ID
  * @returns {number} Term count
  */
-export function getTermCount(vocabularyId) {
+export function getTermCount(vocabularyId: string): number {
   const result = listTerms({
     vocabularyId,
     limit: 1,
@@ -878,7 +992,7 @@ export function getTermCount(vocabularyId) {
  * @param {string} query - Search query
  * @returns {Array} Matching terms
  */
-export function searchTerms(vocabularyId, query) {
+export function searchTerms(vocabularyId: string, query: string): TermDef[] {
   const result = listTerms({
     vocabularyId,
     limit: 10000,
@@ -900,7 +1014,7 @@ export function searchTerms(vocabularyId, query) {
  * @param {boolean} includeChildren - Include content from child terms
  * @returns {number} Content count
  */
-export function getTermContentCount(termId, includeChildren = false) {
+export function getTermContentCount(termId: string, includeChildren: boolean = false): number {
   // This requires integration with content items
   // For now, return 0 - will be implemented when content references are added
   // WHY STUB: Prevents breaking changes, allows incremental implementation
@@ -911,13 +1025,13 @@ export function getTermContentCount(termId, includeChildren = false) {
  * Rebuild hierarchy cache
  * WHY: Manual cache invalidation for administrative tasks
  */
-export function rebuildHierarchyCache() {
+export function rebuildHierarchyCache(): void {
   hierarchyCache = {};
   cacheTimestamps = {};
 
   // Preload all vocabulary trees
-  for (const vocabulary of Object.values(vocabularies)) {
-    getTermTree(vocabulary.id);
+  for (const vocab of Object.values(vocabularies)) {
+    getTermTree(vocab.id);
   }
 }
 
@@ -929,7 +1043,7 @@ export function rebuildHierarchyCache() {
  * @param {string} vocabularyId - Optional vocabulary filter
  * @returns {Array} Assigned terms
  */
-export function getContentTerms(contentType, contentId, vocabularyId = null) {
+export function getContentTerms(contentType: string, contentId: string, vocabularyId: string | null = null): TermDef[] {
   // Stub - requires content field integration
   // WHY: Allows API design to evolve before implementation
   return [];
@@ -943,7 +1057,7 @@ export function getContentTerms(contentType, contentId, vocabularyId = null) {
  * @param {string[]} termIds - Term IDs to assign
  * @returns {Promise<void>}
  */
-export async function assignTerms(contentType, contentId, termIds) {
+export async function assignTerms(contentType: string, contentId: string, termIds: string[]): Promise<void> {
   // Stub - requires content field integration
   // This will update a term reference field on the content item
 
@@ -963,7 +1077,7 @@ export async function assignTerms(contentType, contentId, termIds) {
  * @param {string[]} termIds - Term IDs to remove (all if omitted)
  * @returns {Promise<void>}
  */
-export async function removeTerms(contentType, contentId, termIds = null) {
+export async function removeTerms(contentType: string, contentId: string, termIds: string[] | null = null): Promise<void> {
   // Stub - requires content field integration
 }
 
@@ -973,7 +1087,7 @@ export async function removeTerms(contentType, contentId, termIds = null) {
  * @param {Object} options - Query options
  * @returns {Promise<Object>} { items, total }
  */
-export async function findContentByTerms(options) {
+export async function findContentByTerms(options: FindContentByTermsOptions): Promise<{ items: unknown[]; total: number }> {
   // Stub - requires content field integration
   return { items: [], total: 0 };
 }
@@ -983,6 +1097,6 @@ export async function findContentByTerms(options) {
  *
  * @returns {Object} Current configuration
  */
-export function getConfig() {
+export function getConfig(): TaxonomyConfig {
   return { ...config };
 }

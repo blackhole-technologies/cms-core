@@ -88,10 +88,279 @@
 
 import { readFileSync, writeFileSync, existsSync, mkdirSync, readdirSync, unlinkSync, statSync } from 'node:fs';
 import { join } from 'node:path';
-import * as hooks from './hooks.js';
-import * as cache from './cache.js';
+import * as hooks from './hooks.ts';
+import * as cache from './cache.ts';
 import * as locks from './locks.js';
 import { slugify, generateUniqueSlug, validateSlug, looksLikeId } from './slugify.js';
+
+// ============================================
+// TYPES
+// ============================================
+
+/** A content item stored as JSON — has system fields plus user data */
+interface ContentItem {
+  id: string;
+  type: string;
+  created: string;
+  updated: string;
+  status?: string;
+  publishedAt?: string;
+  scheduledAt?: string | null;
+  slug?: string;
+  _slugHistory?: string[];
+  _trashedAt?: string;
+  _trashedBy?: string | null;
+  _originalPath?: string;
+  _computed?: Record<string, boolean>;
+  _cloneSource?: { type: string; id: string };
+  _clonedReferences?: Array<{ type: string; original: string; clone: string }>;
+  [key: string]: unknown;
+}
+
+/** Schema field definition for a content type */
+interface SchemaFieldDef {
+  type: string;
+  required?: boolean;
+  target?: string;
+  relation?: string;
+  unique?: boolean;
+  from?: string;
+  trackHistory?: boolean;
+  compute?: (item: ContentItem, context?: unknown) => unknown;
+  async?: boolean;
+  _workflow?: {
+    allowedTransitions?: Record<string, string[]>;
+  };
+  [key: string]: unknown;
+}
+
+/** Schema is a record of field names to field definitions */
+type ContentSchema = Record<string, SchemaFieldDef>;
+
+/** Content type registry entry */
+interface ContentTypeEntry {
+  schema: ContentSchema;
+  source: string;
+}
+
+/** Computed field definition */
+interface ComputedFieldDef {
+  compute: (item: ContentItem, context?: unknown) => unknown;
+  async: boolean;
+  source: string;
+}
+
+/** Cache configuration passed to init() */
+interface CacheConfig {
+  enabled?: boolean;
+  ttl?: number;
+}
+
+/** Revisions configuration passed to init() */
+interface RevisionsConfig {
+  enabled?: boolean;
+  maxPerItem?: number;
+}
+
+/** Workflow configuration passed to init() */
+interface WorkflowConfig {
+  enabled?: boolean;
+  defaultStatus?: string;
+  scheduleCheckInterval?: number;
+}
+
+/** Options for content.read() */
+interface ReadOptions {
+  populate?: string[] | null;
+  computed?: boolean;
+  computedFields?: string[] | null;
+  context?: unknown;
+  includeAll?: boolean;
+  status?: string | null;
+  [key: string]: unknown;
+}
+
+/** Options for content.list() */
+interface ListOptions {
+  page?: number;
+  limit?: number;
+  search?: string | null;
+  sortBy?: string;
+  sortOrder?: string;
+  filters?: Record<string, unknown> | null;
+  populate?: string[] | null;
+  computed?: boolean;
+  computedFields?: string[] | null;
+  includeAll?: boolean;
+  status?: string | null;
+  [key: string]: unknown;
+}
+
+/** Result from content.list() */
+interface ListResult {
+  items: ContentItem[];
+  total: number;
+  page: number;
+  limit: number;
+  pages: number;
+  filters: Record<string, unknown>;
+}
+
+/** Options for content.update() */
+interface UpdateOptions {
+  force?: boolean;
+  userId?: string | null;
+  user?: { id: string; [key: string]: unknown } | null;
+  skipHooks?: boolean;
+  [key: string]: unknown;
+}
+
+/** Options for content.remove() */
+interface RemoveOptions {
+  permanent?: boolean;
+  trashedBy?: string | null;
+  [key: string]: unknown;
+}
+
+/** Revision metadata */
+interface RevisionMeta {
+  timestamp: string;
+  size: number;
+}
+
+/** Diff change entry */
+interface DiffChange {
+  field: string;
+  from: unknown;
+  to: unknown;
+  type: string;
+}
+
+/** Diff result from comparing revisions */
+interface DiffResult {
+  ts1: string;
+  ts2: string;
+  changes: DiffChange[];
+}
+
+/** Search result entry */
+interface SearchResult {
+  type: string;
+  item: ContentItem;
+}
+
+/** Filter operator info */
+interface FilterOperatorInfo {
+  op: string;
+  label: string;
+  description: string;
+  types: string[];
+}
+
+/** Status change options */
+interface StatusChangeOptions {
+  scheduledAt?: Date | string;
+  [key: string]: unknown;
+}
+
+/** Slug configuration */
+interface SlugConfig {
+  enabled?: boolean;
+  separator?: string;
+  maxLength?: number;
+  redirectOld?: boolean;
+  historyLimit?: number;
+}
+
+/** Trash configuration */
+interface TrashConfig {
+  enabled?: boolean;
+  retention?: number;
+  autoPurge?: boolean;
+}
+
+/** Clone options */
+interface CloneOptions {
+  prefix?: string;
+  suffix?: string;
+  fields?: Record<string, unknown>;
+  deep?: boolean;
+  includeTranslations?: boolean;
+  _clonedIds?: Set<string>;
+}
+
+/** Computed fields configuration */
+interface ComputedConfig {
+  computedFields?: boolean;
+  cacheComputed?: boolean;
+}
+
+/** Resolve computed options */
+interface ResolveComputedOptions {
+  fields?: string[] | null;
+  context?: unknown;
+  markComputed?: boolean;
+}
+
+/** Bulk operation result */
+interface BulkResult {
+  success: number;
+  failed: number;
+  errors: Array<{ id: string; error: string }>;
+  items?: ContentItem[];
+  skipped?: boolean;
+}
+
+/** Permalink resolution result */
+type PermalinkResult =
+  | { found: true; item: ContentItem; redirect?: undefined }
+  | { found: true; redirect: true; currentSlug: string; item?: undefined }
+  | { found: false; item?: undefined; redirect?: undefined; currentSlug?: undefined };
+
+/** Trash list options */
+interface TrashListOptions {
+  limit?: number;
+  olderThanDays?: number;
+}
+
+/** Lock configuration */
+interface LockConfig {
+  enabled?: boolean;
+  timeout?: number;
+  gracePeriod?: number;
+  contentDir?: string;
+}
+
+/** Clone configuration */
+interface CloneConfig {
+  clonePrefix?: string;
+  cloneDeep?: boolean;
+}
+
+/** Reference info */
+interface ReferenceInfo {
+  type: string;
+  id: string;
+  field: string;
+}
+
+/** Relation field info */
+interface RelationFieldInfo {
+  field: string;
+  target: string;
+  relation: string;
+}
+
+/** Cloneable reference info */
+interface CloneableRef {
+  field: string;
+  type: string;
+  ids: string[];
+}
+
+// ============================================
+// MODULE STATE
+// ============================================
 
 /**
  * Content type registry
@@ -102,13 +371,13 @@ import { slugify, generateUniqueSlug, validateSlug, looksLikeId } from './slugif
  * - Useful for debugging and documentation
  * - Enables per-module content type management
  */
-const contentTypes = {};
+const contentTypes: Record<string, ContentTypeEntry> = {};
 
 /**
  * Base directory for content storage
  * Set during init()
  */
-let contentDir = null;
+let contentDir: string | null = null;
 
 /**
  * Cache configuration
@@ -253,7 +522,7 @@ let scheduleCheckInterval = 60;
  * Computed fields registry
  * Structure: { type: { fieldName: { compute, async } } }
  */
-const computedFields = {};
+const computedFields: Record<string, Record<string, ComputedFieldDef>> = {};
 
 /**
  * Computed fields configuration
@@ -297,13 +566,13 @@ let slugHistoryLimit = 10;
  * - Scanning all files for each lookup is expensive
  * - Index is rebuilt on startup and updated on write
  */
-const slugIndex = {};
+const slugIndex: Record<string, Record<string, string>> = {};
 
 /**
  * Slug history index for redirects
  * Structure: { type: { oldSlug: currentSlug, ... } }
  */
-const slugHistoryIndex = {};
+const slugHistoryIndex: Record<string, Record<string, string>> = {};
 
 /**
  * TRASH SYSTEM:
@@ -351,7 +620,7 @@ let trashAutoPurge = true;
  * - Makes testing easier (point to test fixtures)
  * - Explicit is better than implicit
  */
-export function init(baseDir, cacheConfig = {}, revisionsConfig = {}, workflowConfig = {}) {
+export function init(baseDir: string, cacheConfig: CacheConfig = {}, revisionsConfig: RevisionsConfig = {}, workflowConfig: WorkflowConfig = {}): void {
   contentDir = join(baseDir, 'content');
 
   // Configure caching
@@ -398,7 +667,7 @@ export function init(baseDir, cacheConfig = {}, revisionsConfig = {}, workflowCo
  *
  * @returns {string} - Unique ID like "1705123456789-x7k9m"
  */
-function generateId() {
+function generateId(): string {
   const timestamp = Date.now();
   const random = Math.random().toString(36).substring(2, 7);
   return `${timestamp}-${random}`;
@@ -413,8 +682,8 @@ function generateId() {
  * - Types can be registered but unused
  * - First content creation ensures directory exists
  */
-function ensureTypeDir(type) {
-  const typeDir = join(contentDir, type);
+function ensureTypeDir(type: string): string {
+  const typeDir = join(contentDir!, type);
   if (!existsSync(typeDir)) {
     mkdirSync(typeDir, { recursive: true });
   }
@@ -428,8 +697,8 @@ function ensureTypeDir(type) {
  * @param {string} id - Content ID
  * @returns {string} - Full path to the JSON file
  */
-function getContentPath(type, id) {
-  return join(contentDir, type, `${id}.json`);
+function getContentPath(type: string, id: string): string {
+  return join(contentDir!, type, `${id}.json`);
 }
 
 /**
@@ -447,8 +716,8 @@ function getContentPath(type, id) {
  * - Easy to delete all revisions when item is deleted
  * - Clear ownership of revision files
  */
-function getRevisionsDir(type, id) {
-  return join(contentDir, type, '.revisions', id);
+function getRevisionsDir(type: string, id: string): string {
+  return join(contentDir!, type, '.revisions', id);
 }
 
 /**
@@ -459,7 +728,7 @@ function getRevisionsDir(type, id) {
  * @param {string} timestamp - ISO timestamp of the revision
  * @returns {string} - Full path to the revision JSON file
  */
-function getRevisionPath(type, id, timestamp) {
+function getRevisionPath(type: string, id: string, timestamp: string): string {
   // Sanitize timestamp for filesystem (replace colons which aren't valid on Windows)
   const safeTimestamp = timestamp.replace(/:/g, '-');
   return join(getRevisionsDir(type, id), `${safeTimestamp}.json`);
@@ -472,7 +741,7 @@ function getRevisionPath(type, id, timestamp) {
  * @param {string} id - Content ID
  * @returns {string} - Path to the revisions directory
  */
-function ensureRevisionsDir(type, id) {
+function ensureRevisionsDir(type: string, id: string): string {
   const revisionsDir = getRevisionsDir(type, id);
   if (!existsSync(revisionsDir)) {
     mkdirSync(revisionsDir, { recursive: true });
@@ -498,7 +767,7 @@ function ensureRevisionsDir(type, id) {
  *
  * @private
  */
-function saveRevision(type, id, content) {
+function saveRevision(type: string, id: string, content: ContentItem): void {
   if (!revisionsEnabled) return;
 
   ensureRevisionsDir(type, id);
@@ -528,7 +797,7 @@ function saveRevision(type, id, content) {
  * @returns {number} - Number of revisions deleted
  * @private
  */
-function pruneRevisionsInternal(type, id, keep) {
+function pruneRevisionsInternal(type: string, id: string, keep: number): number {
   const revisionsDir = getRevisionsDir(type, id);
 
   if (!existsSync(revisionsDir)) {
@@ -550,7 +819,7 @@ function pruneRevisionsInternal(type, id, keep) {
       unlinkSync(join(revisionsDir, file));
       deleted++;
     } catch (error) {
-      console.error(`[content] Failed to delete revision ${file}: ${error.message}`);
+      console.error(`[content] Failed to delete revision ${file}: ${error instanceof Error ? error.message : String(error)}`);
     }
   }
 
@@ -594,8 +863,9 @@ function pruneRevisionsInternal(type, id, keep) {
  * @throws {Error} - If relation is invalid
  * @private
  */
-function validateRelation(value, fieldDef, fieldName, type) {
-  const { target, relation } = fieldDef;
+function validateRelation(value: unknown, fieldDef: SchemaFieldDef, fieldName: string, type: string): void {
+  const target = fieldDef.target as string;
+  const relation = fieldDef.relation as string;
 
   // Verify target content type exists
   if (!contentTypes[target]) {
@@ -652,7 +922,7 @@ function validateRelation(value, fieldDef, fieldName, type) {
  * @throws {Error} - If referenced content doesn't exist
  * @private
  */
-function validateReferentialIntegrity(data, schema, type, options = {}) {
+function validateReferentialIntegrity(data: Record<string, unknown>, schema: ContentSchema, type: string, options: { checkExists?: boolean } = {}): void {
   const { checkExists = true } = options;
 
   if (!checkExists) return;
@@ -663,11 +933,12 @@ function validateReferentialIntegrity(data, schema, type, options = {}) {
     const value = data[fieldName];
     if (value === undefined || value === null) continue;
 
-    const { target, relation } = fieldDef;
+    const target = fieldDef.target as string;
+    const relation = fieldDef.relation as string;
 
     if (relation === 'belongsTo') {
       // Check single reference exists
-      const targetPath = getContentPath(target, value);
+      const targetPath = getContentPath(target, value as string);
       if (!existsSync(targetPath)) {
         throw new Error(
           `Relation field "${fieldName}" references non-existent ${target} with ID "${value}"`
@@ -675,7 +946,7 @@ function validateReferentialIntegrity(data, schema, type, options = {}) {
       }
     } else if (relation === 'belongsToMany') {
       // Check all references exist
-      for (const id of value) {
+      for (const id of value as string[]) {
         const targetPath = getContentPath(target, id);
         if (!existsSync(targetPath)) {
           throw new Error(
@@ -708,7 +979,7 @@ function validateReferentialIntegrity(data, schema, type, options = {}) {
  * - Schema evolution is easier
  * - Strict mode could be added later as opt-in
  */
-function validateData(data, schema, type, options = {}) {
+function validateData(data: Record<string, unknown>, schema: ContentSchema, type: string, options: { checkReferentialIntegrity?: boolean } = {}): void {
   const { checkReferentialIntegrity = true } = options;
 
   for (const [fieldName, fieldDef] of Object.entries(schema)) {
@@ -772,7 +1043,7 @@ function validateData(data, schema, type, options = {}) {
  *   message: { type: 'string', required: true }
  * }, 'hello');
  */
-export function register(type, schema, source = 'core') {
+export function register(type: string, schema: ContentSchema, source: string = 'core'): void {
   if (contentTypes[type]) {
     throw new Error(`Content type "${type}" is already registered by ${contentTypes[type].source}`);
   }
@@ -791,8 +1062,8 @@ export function register(type, schema, source = 'core') {
  * @param {string} moduleName - The module registering content types
  * @returns {Function} - register(type, schema)
  */
-export function createModuleRegister(moduleName) {
-  return function registerForModule(type, schema) {
+export function createModuleRegister(moduleName: string): (type: string, schema: ContentSchema) => void {
+  return function registerForModule(type: string, schema: ContentSchema): void {
     register(type, schema, moduleName);
   };
 }
@@ -823,7 +1094,7 @@ export function createModuleRegister(moduleName) {
  * });
  * // Returns: { id: '...', type: 'greeting', created: '...', updated: '...', name: 'Ernie', message: 'Welcome!' }
  */
-export async function create(type, data) {
+export async function create(type: string, data: Record<string, unknown>): Promise<ContentItem> {
   // Verify content type is registered
   if (!contentTypes[type]) {
     throw new Error(`Unknown content type: "${type}". Register it first with content.register()`);
@@ -850,7 +1121,7 @@ export async function create(type, data) {
   // WHY SPREAD data LAST:
   // - User data can't override system fields
   // - System fields are always present and correct
-  const content = {
+  const content: ContentItem = {
     id,
     type,
     created: now,
@@ -943,7 +1214,7 @@ export async function create(type, data) {
  * - Often only IDs are needed
  * - Explicit is better than implicit
  */
-function populateRelations(item, schema, populateFields) {
+function populateRelations(item: ContentItem, schema: ContentSchema, populateFields: string[]): ContentItem {
   if (!item || !schema || !populateFields || populateFields.length === 0) {
     return item;
   }
@@ -953,7 +1224,7 @@ function populateRelations(item, schema, populateFields) {
 
   // Determine which fields to populate
   const fieldsToPopulate = populateFields[0] === '*'
-    ? Object.keys(schema).filter(f => schema[f].type === 'relation')
+    ? Object.keys(schema).filter(f => schema[f]?.type === 'relation')
     : populateFields;
 
   for (const fieldName of fieldsToPopulate) {
@@ -969,17 +1240,18 @@ function populateRelations(item, schema, populateFields) {
       continue;
     }
 
-    const { target, relation } = fieldDef;
+    const target = fieldDef.target as string;
+    const relation = fieldDef.relation as string;
 
     if (relation === 'belongsTo') {
       // Populate single reference
       // NOTE: We call the internal read without populate to avoid infinite loops
-      const related = readRaw(target, value);
+      const related = readRaw(target, value as string);
       populated[fieldName] = related; // null if not found
     } else if (relation === 'belongsToMany') {
       // Populate array of references
-      const relatedItems = [];
-      for (const id of value) {
+      const relatedItems: ContentItem[] = [];
+      for (const id of value as string[]) {
         const related = readRaw(target, id);
         if (related) {
           relatedItems.push(related);
@@ -1002,12 +1274,12 @@ function populateRelations(item, schema, populateFields) {
  * @returns {Object|null} - Content object or null
  * @private
  */
-function readRaw(type, id) {
+function readRaw(type: string, id: string): ContentItem | null {
   // Check cache first if enabled
   if (cacheEnabled) {
     const cacheKey = cache.itemKey(type, id);
-    const cached = cache.get(cacheKey);
-    if (cached !== null) {
+    const cached = cache.get(cacheKey) as ContentItem | undefined;
+    if (cached !== undefined) {
       return cached;
     }
   }
@@ -1030,7 +1302,7 @@ function readRaw(type, id) {
 
     return item;
   } catch (error) {
-    console.error(`[content] Failed to read ${type}/${id}: ${error.message}`);
+    console.error(`[content] Failed to read ${type}/${id}: ${error instanceof Error ? error.message : String(error)}`);
     return null;
   }
 }
@@ -1087,7 +1359,7 @@ function readRaw(type, id) {
  * // Exclude computed fields
  * const articleRaw = read('article', 'abc123', { computed: false });
  */
-export function read(type, id, options = {}) {
+export function read(type: string, id: string, options: ReadOptions = {}): ContentItem | null {
   const {
     populate = null,
     computed = true,
@@ -1126,11 +1398,11 @@ export function read(type, id, options = {}) {
         : Object.keys(allComputed);
 
       for (const fieldName of fieldsToCompute) {
-        const fieldDef = allComputed[fieldName];
+        const fieldDef = allComputed[fieldName]!;
         try {
           resolved[fieldName] = fieldDef.compute(item, context);
         } catch (error) {
-          console.error(`[content] Error computing "${fieldName}": ${error.message}`);
+          console.error(`[content] Error computing "${fieldName}": ${error instanceof Error ? error.message : String(error)}`);
           resolved[fieldName] = null;
         }
       }
@@ -1156,7 +1428,7 @@ export function read(type, id, options = {}) {
  * - Keeping read() sync maintains backwards compatibility
  * - Explicit async version makes the cost clear to callers
  */
-export async function readAsync(type, id, options = {}) {
+export async function readAsync(type: string, id: string, options: ReadOptions = {}): Promise<ContentItem | null> {
   const {
     populate = null,
     computed = true,
@@ -1215,7 +1487,7 @@ export async function readAsync(type, id, options = {}) {
  * @example
  * await update('greeting', '1705123456789-x7k9m', { message: 'Updated message!' });
  */
-export async function update(type, id, data, options = {}) {
+export async function update(type: string, id: string, data: Record<string, unknown>, options: UpdateOptions = {}): Promise<ContentItem | null> {
   // Read existing content
   const existing = read(type, id);
 
@@ -1230,10 +1502,10 @@ export async function update(type, id, data, options = {}) {
 
   // Check lock status (unless force flag is set)
   if (!options.force) {
-    const userId = options.userId || options.user?.id || null;
+    const userId = (options.userId || options.user?.id || '') as string;
     const lockError = locks.checkUpdateAllowed(type, id, userId);
     if (lockError) {
-      const error = new Error(lockError.message);
+      const error = new Error(lockError.message) as Error & { code: string; lockedBy: unknown; lockedByUserId: unknown; expiresIn: unknown; expiresAt: unknown };
       error.code = 'LOCKED';
       error.lockedBy = lockError.lockedBy;
       error.lockedByUserId = lockError.lockedByUserId;
@@ -1255,7 +1527,7 @@ export async function update(type, id, data, options = {}) {
   // - Partial updates are more ergonomic
   // - Less data over the wire
   // - Less chance of overwriting parallel edits
-  const merged = {
+  const merged: ContentItem = {
     ...existing,
     ...data,
     // Preserve system fields
@@ -1276,9 +1548,10 @@ export async function update(type, id, data, options = {}) {
       const [slugFieldName, slugFieldDef] = slugFieldEntry;
 
       // If slug changed, track history
-      if (oldSlug && merged[slugFieldName] && oldSlug !== merged[slugFieldName]) {
+      const newSlugValue = merged[slugFieldName] as string | undefined;
+      if (oldSlug && newSlugValue && oldSlug !== newSlugValue) {
         // Validate new slug
-        const validation = validateSlug(merged[slugFieldName], {
+        const validation = validateSlug(newSlugValue, {
           separator: slugSeparator,
           maxLength: slugMaxLength,
         });
@@ -1288,8 +1561,8 @@ export async function update(type, id, data, options = {}) {
         }
 
         // Check uniqueness
-        if (slugFieldDef.unique !== false && slugExists(type, merged[slugFieldName], id)) {
-          throw new Error(`Slug "${merged[slugFieldName]}" already exists for type "${type}"`);
+        if (slugFieldDef.unique !== false && slugExists(type, newSlugValue, id)) {
+          throw new Error(`Slug "${newSlugValue}" already exists for type "${type}"`);
         }
 
         // Track old slug in history if enabled
@@ -1364,7 +1637,7 @@ export async function update(type, id, data, options = {}) {
  *   console.log('Not found');
  * }
  */
-export async function remove(type, id, options = {}) {
+export async function remove(type: string, id: string, options: RemoveOptions = {}): Promise<boolean> {
   const { permanent = false, trashedBy = null } = options;
   const filePath = getContentPath(type, id);
 
@@ -1373,7 +1646,7 @@ export async function remove(type, id, options = {}) {
   }
 
   // Read item before delete (for slug index cleanup and trash)
-  const item = read(type, id);
+  const item = read(type, id)!;
 
   // Fire beforeDelete hook
   // WHY BEFORE FILE DELETE:
@@ -1410,7 +1683,7 @@ export async function remove(type, id, options = {}) {
 
     return true;
   } catch (error) {
-    console.error(`[content] Failed to delete ${type}/${id}: ${error.message}`);
+    console.error(`[content] Failed to delete ${type}/${id}: ${error instanceof Error ? error.message : String(error)}`);
     return false;
   }
 }
@@ -1452,7 +1725,7 @@ export { remove as delete };
  * @returns {{ field: string, operator: string }}
  * @private
  */
-function parseFilterKey(key) {
+function parseFilterKey(key: string): { field: string; operator: string } {
   const operators = ['ne', 'gt', 'gte', 'lt', 'lte', 'contains', 'startswith', 'endswith', 'in'];
 
   for (const op of operators) {
@@ -1478,7 +1751,7 @@ function parseFilterKey(key) {
  * @returns {boolean} - Whether the item passes the filter
  * @private
  */
-function applyFilter(itemValue, operator, filterValue) {
+function applyFilter(itemValue: unknown, operator: string, filterValue: unknown): boolean {
   // Handle null/undefined item values
   if (itemValue === null || itemValue === undefined) {
     // Only 'ne' operator can match null/undefined values
@@ -1509,8 +1782,8 @@ function applyFilter(itemValue, operator, filterValue) {
         return itemValue > Number(filterValue);
       }
       // Try as date
-      const itemDate = new Date(itemValue);
-      const filterDate = new Date(filterValue);
+      const itemDate = new Date(itemValue as string | number);
+      const filterDate = new Date(filterValue as string | number);
       if (!isNaN(itemDate.getTime()) && !isNaN(filterDate.getTime())) {
         return itemDate > filterDate;
       }
@@ -1521,8 +1794,8 @@ function applyFilter(itemValue, operator, filterValue) {
       if (typeof itemValue === 'number') {
         return itemValue >= Number(filterValue);
       }
-      const itemDateGte = new Date(itemValue);
-      const filterDateGte = new Date(filterValue);
+      const itemDateGte = new Date(itemValue as string | number);
+      const filterDateGte = new Date(filterValue as string | number);
       if (!isNaN(itemDateGte.getTime()) && !isNaN(filterDateGte.getTime())) {
         return itemDateGte >= filterDateGte;
       }
@@ -1533,8 +1806,8 @@ function applyFilter(itemValue, operator, filterValue) {
       if (typeof itemValue === 'number') {
         return itemValue < Number(filterValue);
       }
-      const itemDateLt = new Date(itemValue);
-      const filterDateLt = new Date(filterValue);
+      const itemDateLt = new Date(itemValue as string | number);
+      const filterDateLt = new Date(filterValue as string | number);
       if (!isNaN(itemDateLt.getTime()) && !isNaN(filterDateLt.getTime())) {
         return itemDateLt < filterDateLt;
       }
@@ -1545,8 +1818,8 @@ function applyFilter(itemValue, operator, filterValue) {
       if (typeof itemValue === 'number') {
         return itemValue <= Number(filterValue);
       }
-      const itemDateLte = new Date(itemValue);
-      const filterDateLte = new Date(filterValue);
+      const itemDateLte = new Date(itemValue as string | number);
+      const filterDateLte = new Date(filterValue as string | number);
       if (!isNaN(itemDateLte.getTime()) && !isNaN(filterDateLte.getTime())) {
         return itemDateLte <= filterDateLte;
       }
@@ -1586,7 +1859,7 @@ function applyFilter(itemValue, operator, filterValue) {
  * @returns {boolean} - Whether item passes all filters (AND logic)
  * @private
  */
-function matchesFilters(item, filters) {
+function matchesFilters(item: ContentItem, filters: Record<string, unknown>): boolean {
   if (!filters || Object.keys(filters).length === 0) {
     return true;
   }
@@ -1674,7 +1947,7 @@ function matchesFilters(item, filters) {
  * // With computed fields
  * const articles = list('article'); // includes wordCount, readTime etc.
  */
-export function list(type, options = {}) {
+export function list(type: string, options: ListOptions = {}): ListResult {
   const {
     page = 1,
     limit = 20,
@@ -1690,14 +1963,14 @@ export function list(type, options = {}) {
   // Check cache first if enabled
   // Include filters in cache key for accurate caching
   if (cacheEnabled) {
-    const cacheKey = cache.listKey(type, { page, limit, search, sortBy, sortOrder, filters });
-    const cached = cache.get(cacheKey);
-    if (cached !== null) {
+    const cacheKey = cache.listKey(type, { page, limit, search, sortBy, sortOrder, filters: filters as Record<string, string> | null });
+    const cached = cache.get(cacheKey) as ListResult | undefined;
+    if (cached !== undefined) {
       return cached;
     }
   }
 
-  const typeDir = join(contentDir, type);
+  const typeDir = join(contentDir!, type);
 
   if (!existsSync(typeDir)) {
     return { items: [], total: 0, page, limit, pages: 0, filters: filters || {} };
@@ -1706,7 +1979,7 @@ export function list(type, options = {}) {
   const files = readdirSync(typeDir)
     .filter(f => f.endsWith('.json'));
 
-  let items = [];
+  let items: ContentItem[] = [];
 
   for (const file of files) {
     const id = file.replace('.json', '');
@@ -1748,13 +2021,13 @@ export function list(type, options = {}) {
   // - Flexibility for different use cases
   // - Common patterns: sort by created, updated, title, etc.
   items.sort((a, b) => {
-    let aVal = a[sortBy];
-    let bVal = b[sortBy];
+    let aVal: unknown = a[sortBy];
+    let bVal: unknown = b[sortBy];
 
     // Handle dates
     if (sortBy === 'created' || sortBy === 'updated') {
-      aVal = new Date(aVal).getTime();
-      bVal = new Date(bVal).getTime();
+      aVal = new Date(aVal as string | number).getTime();
+      bVal = new Date(bVal as string | number).getTime();
     }
 
     // Handle strings case-insensitively
@@ -1762,8 +2035,8 @@ export function list(type, options = {}) {
     if (typeof bVal === 'string') bVal = bVal.toLowerCase();
 
     // Compare
-    if (aVal < bVal) return sortOrder === 'asc' ? -1 : 1;
-    if (aVal > bVal) return sortOrder === 'asc' ? 1 : -1;
+    if ((aVal as string | number) < (bVal as string | number)) return sortOrder === 'asc' ? -1 : 1;
+    if ((aVal as string | number) > (bVal as string | number)) return sortOrder === 'asc' ? 1 : -1;
     return 0;
   });
 
@@ -1816,7 +2089,7 @@ export function list(type, options = {}) {
               try {
                 resolved[fieldName] = fieldDef.compute(item, null);
               } catch (error) {
-                console.error(`[content] Error computing "${fieldName}": ${error.message}`);
+                console.error(`[content] Error computing "${fieldName}": ${error instanceof Error ? error.message : String(error)}`);
                 resolved[fieldName] = null;
               }
             }
@@ -1827,7 +2100,7 @@ export function list(type, options = {}) {
     }
   }
 
-  const result = {
+  const result: ListResult = {
     items: paginatedItems,
     total,
     page,
@@ -1842,7 +2115,7 @@ export function list(type, options = {}) {
   // - Cache key would need to include populate fields
   // - Complexity vs benefit tradeoff
   if (cacheEnabled && !populate) {
-    const cacheKey = cache.listKey(type, { page, limit, search, sortBy, sortOrder, filters });
+    const cacheKey = cache.listKey(type, { page, limit, search, sortBy, sortOrder, filters: filters as Record<string, string> | null });
     cache.set(cacheKey, result, cacheTTL);
   }
 
@@ -1865,7 +2138,7 @@ export function list(type, options = {}) {
  * - Slice with NaN returns empty array
  * - Use MAX_SAFE_INTEGER instead as practical "unlimited"
  */
-export function listAll(type) {
+export function listAll(type: string): ContentItem[] {
   const result = list(type, { limit: Number.MAX_SAFE_INTEGER });
   return result.items;
 }
@@ -1888,16 +2161,16 @@ export function listAll(type) {
  *   console.log(`[${type}] ${item.id}`);
  * }
  */
-export function search(query, types = null) {
+export function search(query: string, types: string[] | null = null): SearchResult[] {
   // Get all types if not specified
   const typesToSearch = types || Object.keys(contentTypes);
-  const results = [];
+  const results: Array<{ type: string; item: ContentItem; score: number }> = [];
   const queryLower = query.toLowerCase();
 
   for (const type of typesToSearch) {
     if (!contentTypes[type]) continue;
 
-    const typeDir = join(contentDir, type);
+    const typeDir = join(contentDir!, type);
     if (!existsSync(typeDir)) continue;
 
     const files = readdirSync(typeDir).filter(f => f.endsWith('.json'));
@@ -1953,7 +2226,7 @@ export function search(query, types = null) {
  *   console.log(`${type} (from ${source})`);
  * }
  */
-export function listTypes() {
+export function listTypes(): Array<{ type: string; schema: ContentSchema; source: string }> {
   return Object.entries(contentTypes).map(([type, { schema, source }]) => ({
     type,
     schema,
@@ -1967,7 +2240,7 @@ export function listTypes() {
  * @param {string} type - Content type name
  * @returns {boolean}
  */
-export function hasType(type) {
+export function hasType(type: string): boolean {
   return type in contentTypes;
 }
 
@@ -1977,14 +2250,14 @@ export function hasType(type) {
  * @param {string} type - Content type name
  * @returns {Object|null} - Schema or null if not registered
  */
-export function getSchema(type) {
+export function getSchema(type: string): ContentSchema | null {
   return contentTypes[type]?.schema || null;
 }
 
 /**
  * Clear all registered content types (mainly for testing)
  */
-export function clearTypes() {
+export function clearTypes(): void {
   for (const key of Object.keys(contentTypes)) {
     delete contentTypes[key];
   }
@@ -2019,7 +2292,7 @@ export function clearTypes() {
  * //   { timestamp: '2024-01-15T11:00:00.000Z', size: 198 }
  * // ]
  */
-export function getRevisions(type, id) {
+export function getRevisions(type: string, id: string): RevisionMeta[] {
   const revisionsDir = getRevisionsDir(type, id);
 
   if (!existsSync(revisionsDir)) {
@@ -2029,7 +2302,7 @@ export function getRevisions(type, id) {
   const files = readdirSync(revisionsDir)
     .filter(f => f.endsWith('.json'));
 
-  const revisions = [];
+  const revisions: RevisionMeta[] = [];
 
   for (const file of files) {
     // Convert filename back to timestamp
@@ -2065,7 +2338,7 @@ export function getRevisions(type, id) {
  * const oldVersion = getRevision('greeting', 'abc123', '2024-01-15T11:00:00.000Z');
  * console.log(oldVersion.message); // Previous message
  */
-export function getRevision(type, id, timestamp) {
+export function getRevision(type: string, id: string, timestamp: string): ContentItem | null {
   const revisionPath = getRevisionPath(type, id, timestamp);
 
   if (!existsSync(revisionPath)) {
@@ -2076,7 +2349,7 @@ export function getRevision(type, id, timestamp) {
     const raw = readFileSync(revisionPath, 'utf-8');
     return JSON.parse(raw);
   } catch (error) {
-    console.error(`[content] Failed to read revision ${type}/${id}@${timestamp}: ${error.message}`);
+    console.error(`[content] Failed to read revision ${type}/${id}@${timestamp}: ${error instanceof Error ? error.message : String(error)}`);
     return null;
   }
 }
@@ -2109,7 +2382,7 @@ export function getRevision(type, id, timestamp) {
  * const restored = await revertTo('greeting', 'abc123', '2024-01-15T11:00:00.000Z');
  * // Current version is now what it was at that timestamp
  */
-export async function revertTo(type, id, timestamp) {
+export async function revertTo(type: string, id: string, timestamp: string): Promise<ContentItem | null> {
   // Get the revision to restore
   const revision = getRevision(type, id, timestamp);
 
@@ -2189,7 +2462,7 @@ export async function revertTo(type, id, timestamp) {
  *   console.log(`${change.field}: ${change.from} → ${change.to}`);
  * }
  */
-export function diffRevisions(type, id, ts1, ts2) {
+export function diffRevisions(type: string, id: string, ts1: string, ts2: string): DiffResult | null {
   // Get both versions
   const v1 = ts1 === 'current' ? read(type, id) : getRevision(type, id, ts1);
   const v2 = ts2 === 'current' ? read(type, id) : getRevision(type, id, ts2);
@@ -2198,7 +2471,7 @@ export function diffRevisions(type, id, ts1, ts2) {
     return null;
   }
 
-  const changes = [];
+  const changes: DiffChange[] = [];
 
   // Get all unique keys from both versions
   const allKeys = new Set([...Object.keys(v1), ...Object.keys(v2)]);
@@ -2265,7 +2538,7 @@ export function diffRevisions(type, id, ts1, ts2) {
  * const deleted = pruneRevisions('greeting', 'abc123', 5);
  * console.log(`Deleted ${deleted} old revisions`);
  */
-export function pruneRevisions(type, id, keep = maxRevisionsPerItem) {
+export function pruneRevisions(type: string, id: string, keep: number = maxRevisionsPerItem): number {
   return pruneRevisionsInternal(type, id, keep);
 }
 
@@ -2310,7 +2583,7 @@ export function getRevisionsConfig() {
  * // This is equivalent to:
  * list('post', { filters: { author: 'userId123' } });
  */
-export function getRelated(sourceType, sourceId, relationField, targetType, options = {}) {
+export function getRelated(sourceType: string, sourceId: string, relationField: string, targetType: string, options: ListOptions = {}): ListResult {
   // Verify the source content exists
   const source = readRaw(sourceType, sourceId);
   if (!source) {
@@ -2340,17 +2613,17 @@ export function getRelated(sourceType, sourceId, relationField, targetType, opti
  * //   { field: 'tags', target: 'tag', relation: 'belongsToMany' }
  * // ]
  */
-export function getRelationFields(type) {
+export function getRelationFields(type: string): RelationFieldInfo[] {
   const schema = contentTypes[type]?.schema;
   if (!schema) return [];
 
-  const relations = [];
+  const relations: RelationFieldInfo[] = [];
   for (const [field, def] of Object.entries(schema)) {
     if (def.type === 'relation') {
       relations.push({
         field,
-        target: def.target,
-        relation: def.relation,
+        target: def.target!,
+        relation: def.relation!,
       });
     }
   }
@@ -2379,8 +2652,8 @@ export function getRelationFields(type) {
  *   console.log(`Cannot delete: ${refs.length} items reference this user`);
  * }
  */
-export function checkReferences(type, id) {
-  const references = [];
+export function checkReferences(type: string, id: string): ReferenceInfo[] {
+  const references: ReferenceInfo[] = [];
 
   // Check all content types for relations targeting this type
   for (const [otherType, { schema }] of Object.entries(contentTypes)) {
@@ -2426,12 +2699,12 @@ export function checkReferences(type, id) {
  * const data = await parseBody(req);
  * const content = create('greeting', data);
  */
-export function parseBody(req) {
+export function parseBody(req: { on: (event: string, handler: (data?: unknown) => void) => void }): Promise<Record<string, unknown>> {
   return new Promise((resolve, reject) => {
     let body = '';
 
-    req.on('data', chunk => {
-      body += chunk.toString();
+    req.on('data', (chunk: unknown) => {
+      body += String(chunk);
 
       // Prevent huge bodies (basic protection)
       // WHY 1MB LIMIT:
@@ -2482,9 +2755,9 @@ export function parseBody(req) {
  * const filters = parseFiltersFromQuery(url.searchParams, schema);
  * // { status: 'published', 'views__gt': '100' }
  */
-export function parseFiltersFromQuery(searchParams, schema = null) {
+export function parseFiltersFromQuery(searchParams: URLSearchParams, schema: ContentSchema | null = null): Record<string, string> | null {
   const reservedParams = ['page', 'limit', 'search', 'sort', 'order'];
-  const filters = {};
+  const filters: Record<string, string> = {};
 
   for (const [key, value] of searchParams.entries()) {
     // Skip reserved params
@@ -2524,14 +2797,14 @@ export function parseFiltersFromQuery(searchParams, schema = null) {
  * formatFiltersForQuery({ role: 'admin', 'age__gt': '18' })
  * // 'role=admin&age__gt=18'
  */
-export function formatFiltersForQuery(filters) {
+export function formatFiltersForQuery(filters: Record<string, unknown> | null): string {
   if (!filters || Object.keys(filters).length === 0) {
     return '';
   }
 
   const params = new URLSearchParams();
   for (const [key, value] of Object.entries(filters)) {
-    params.set(key, value);
+    params.set(key, String(value));
   }
   return params.toString();
 }
@@ -2546,7 +2819,7 @@ export function formatFiltersForQuery(filters) {
  * - Documentation generation
  * - Client-side validation
  */
-export function getFilterOperators() {
+export function getFilterOperators(): FilterOperatorInfo[] {
   return [
     { op: 'eq', label: '=', description: 'Exact match', types: ['string', 'number', 'boolean'] },
     { op: 'ne', label: '≠', description: 'Not equal', types: ['string', 'number', 'boolean'] },
@@ -2570,7 +2843,7 @@ export function getFilterOperators() {
  *
  * @returns {{ enabled: boolean, defaultStatus: string, scheduleCheckInterval: number, statuses: string[] }}
  */
-export function getWorkflowConfig() {
+export function getWorkflowConfig(): { enabled: boolean; defaultStatus: string; scheduleCheckInterval: number; statuses: string[] } {
   return {
     enabled: workflowEnabled,
     defaultStatus,
@@ -2598,7 +2871,7 @@ export function getWorkflowConfig() {
  * @example
  * await setStatus('article', 'abc123', 'published');
  */
-export async function setStatus(type, id, status, options = {}) {
+export async function setStatus(type: string, id: string, status: string, options: StatusChangeOptions = {}): Promise<ContentItem | null> {
   // Validate status
   if (!WORKFLOW_STATUSES.includes(status)) {
     throw new Error(`Invalid status: "${status}". Valid statuses: ${WORKFLOW_STATUSES.join(', ')}`);
@@ -2620,7 +2893,7 @@ export async function setStatus(type, id, status, options = {}) {
 
   // Check workflow options for this type (if defined)
   const typeInfo = contentTypes[type];
-  const workflowOptions = typeInfo?.schema?._workflow;
+  const workflowOptions = typeInfo?.schema?._workflow as { allowedTransitions?: Record<string, string[]> } | undefined;
 
   if (workflowOptions?.allowedTransitions) {
     const allowed = workflowOptions.allowedTransitions[fromStatus] || [];
@@ -2639,7 +2912,7 @@ export async function setStatus(type, id, status, options = {}) {
   const now = new Date().toISOString();
 
   // Build update data
-  const updateData = {
+  const updateData: Record<string, unknown> = {
     status: toStatus,
   };
 
@@ -2688,7 +2961,7 @@ export async function setStatus(type, id, status, options = {}) {
  * @param {string} id - Content ID
  * @returns {Promise<Object|null>} - Updated content or null
  */
-export async function publish(type, id) {
+export async function publish(type: string, id: string): Promise<ContentItem | null> {
   return setStatus(type, id, 'published');
 }
 
@@ -2699,7 +2972,7 @@ export async function publish(type, id) {
  * @param {string} id - Content ID
  * @returns {Promise<Object|null>} - Updated content or null
  */
-export async function unpublish(type, id) {
+export async function unpublish(type: string, id: string): Promise<ContentItem | null> {
   return setStatus(type, id, 'draft');
 }
 
@@ -2710,7 +2983,7 @@ export async function unpublish(type, id) {
  * @param {string} id - Content ID
  * @returns {Promise<Object|null>} - Updated content or null
  */
-export async function archive(type, id) {
+export async function archive(type: string, id: string): Promise<ContentItem | null> {
   return setStatus(type, id, 'archived');
 }
 
@@ -2727,7 +3000,7 @@ export async function archive(type, id) {
  * - Sets scheduledAt to the publish date
  * - Content will be auto-published when processScheduled() runs
  */
-export async function schedulePublish(type, id, publishDate) {
+export async function schedulePublish(type: string, id: string, publishDate: Date | string): Promise<ContentItem | null> {
   return setStatus(type, id, 'pending', { scheduledAt: publishDate });
 }
 
@@ -2739,7 +3012,7 @@ export async function schedulePublish(type, id, publishDate) {
  * @param {Object} options - Query options (same as list())
  * @returns {{ items: Array, total: number, page: number, limit: number, pages: number }}
  */
-export function getByStatus(type, status, options = {}) {
+export function getByStatus(type: string, status: string, options: ListOptions = {}): ListResult {
   if (status === 'all') {
     return list(type, options);
   }
@@ -2769,8 +3042,8 @@ export function getByStatus(type, status, options = {}) {
  * - Can be run manually via CLI
  * - Testable in isolation
  */
-export async function processScheduled() {
-  const published = [];
+export async function processScheduled(): Promise<Array<{ type: string; id: string; title: string }>> {
+  const published: Array<{ type: string; id: string; title: string }> = [];
   const now = new Date();
 
   // Check all content types
@@ -2792,10 +3065,10 @@ export async function processScheduled() {
           await publish(type, item.id);
           // Clear scheduledAt after publishing
           await update(type, item.id, { scheduledAt: null });
-          published.push({ type, id: item.id, title: item.title || item.name || item.id });
+          published.push({ type, id: item.id, title: (item.title as string) || (item.name as string) || item.id });
           console.log(`[workflow] Auto-published ${type}/${item.id}`);
         } catch (error) {
-          console.error(`[workflow] Failed to auto-publish ${type}/${item.id}: ${error.message}`);
+          console.error(`[workflow] Failed to auto-publish ${type}/${item.id}: ${error instanceof Error ? error.message : String(error)}`);
         }
       }
     }
@@ -2818,7 +3091,7 @@ export async function processScheduled() {
  * - Admin API can request all statuses
  * - Encapsulates the workflow filtering logic
  */
-export function listPublic(type, options = {}) {
+export function listPublic(type: string, options: ListOptions = {}): ListResult {
   const { includeAll = false, status = null, ...queryOptions } = options;
 
   // If workflow is disabled, return all content
@@ -2847,7 +3120,7 @@ export function listPublic(type, options = {}) {
  * @param {boolean} options.includeAll - Include unpublished content
  * @returns {Object|null} - Content or null
  */
-export function readPublic(type, id, options = {}) {
+export function readPublic(type: string, id: string, options: ReadOptions = {}): ContentItem | null {
   const { includeAll = false, ...readOptions } = options;
 
   const item = read(type, id, readOptions);
@@ -2877,7 +3150,7 @@ export function readPublic(type, id, options = {}) {
  * @param {boolean} config.computedFields - Whether computed fields are enabled (default: true)
  * @param {boolean} config.cacheComputed - Whether to cache computed values (default: false)
  */
-export function initComputed(config = {}) {
+export function initComputed(config: ComputedConfig = {}): void {
   computedEnabled = config.computedFields !== false;
   cacheComputed = config.cacheComputed === true;
 }
@@ -2901,7 +3174,7 @@ export function initComputed(config = {}) {
  * registerComputed('article', 'readTime', (item) => Math.ceil((item.body?.split(/\s+/).length || 0) / 200) + ' min');
  * registerComputed('user', 'fullName', (item) => `${item.firstName} ${item.lastName}`);
  */
-export function registerComputed(type, field, compute, options = {}) {
+export function registerComputed(type: string, field: string, compute: (item: ContentItem, context?: unknown) => unknown, options: { async?: boolean; source?: string } = {}): void {
   if (!computedFields[type]) {
     computedFields[type] = {};
   }
@@ -2922,8 +3195,8 @@ export function registerComputed(type, field, compute, options = {}) {
  * @param {string} moduleName - The module registering computed fields
  * @returns {Function} - register(type, field, compute)
  */
-export function createComputedRegister(moduleName) {
-  return function registerForModule(type, field, compute, options = {}) {
+export function createComputedRegister(moduleName: string): (type: string, field: string, compute: (item: ContentItem, context?: unknown) => unknown, options?: { async?: boolean; source?: string }) => void {
+  return function registerForModule(type: string, field: string, compute: (item: ContentItem, context?: unknown) => unknown, options: { async?: boolean; source?: string } = {}): void {
     registerComputed(type, field, compute, { ...options, source: moduleName });
   };
 }
@@ -2940,8 +3213,8 @@ export function createComputedRegister(moduleName) {
  * - More convenient for simple computed fields
  * - Keeps schema as single source of truth for type definition
  */
-function extractSchemaComputedFields(schema) {
-  const fields = {};
+function extractSchemaComputedFields(schema: ContentSchema): Record<string, ComputedFieldDef> {
+  const fields: Record<string, ComputedFieldDef> = {};
 
   for (const [fieldName, fieldDef] of Object.entries(schema)) {
     if (fieldDef.type === 'computed' && typeof fieldDef.compute === 'function') {
@@ -2968,8 +3241,8 @@ function extractSchemaComputedFields(schema) {
  * - Hook-registered computed fields (via registerComputed)
  * - Hook-registered fields take precedence if same name
  */
-export function getComputedFields(type) {
-  const result = {};
+export function getComputedFields(type: string): Record<string, ComputedFieldDef> {
+  const result: Record<string, ComputedFieldDef> = {};
 
   // First, get schema-defined computed fields
   const typeInfo = contentTypes[type];
@@ -2992,7 +3265,7 @@ export function getComputedFields(type) {
  * @param {string} type - Content type name
  * @returns {boolean}
  */
-export function hasComputedFields(type) {
+export function hasComputedFields(type: string): boolean {
   return Object.keys(getComputedFields(type)).length > 0;
 }
 
@@ -3018,7 +3291,7 @@ export function hasComputedFields(type) {
  * console.log(withComputed.wordCount); // 450
  * console.log(withComputed.readTime);  // "3 min"
  */
-export async function resolveComputed(item, options = {}) {
+export async function resolveComputed(item: ContentItem, options: ResolveComputedOptions = {}): Promise<ContentItem> {
   if (!item || !item.type) {
     return item;
   }
@@ -3040,8 +3313,8 @@ export async function resolveComputed(item, options = {}) {
   }
 
   // Create a copy to avoid mutating the original
-  const result = { ...item };
-  const computedMarkers = {};
+  const result: ContentItem = { ...item };
+  const computedMarkers: Record<string, boolean> = {};
 
   // Determine which fields to compute
   const fieldsToCompute = requestedFields
@@ -3049,7 +3322,7 @@ export async function resolveComputed(item, options = {}) {
     : Object.keys(allComputed);
 
   for (const fieldName of fieldsToCompute) {
-    const fieldDef = allComputed[fieldName];
+    const fieldDef = allComputed[fieldName]!;
 
     try {
       // Compute the value
@@ -3066,7 +3339,7 @@ export async function resolveComputed(item, options = {}) {
         computedMarkers[fieldName] = true;
       }
     } catch (error) {
-      console.error(`[content] Error computing field "${fieldName}" for ${item.type}/${item.id}: ${error.message}`);
+      console.error(`[content] Error computing field "${fieldName}" for ${item.type}/${item.id}: ${error instanceof Error ? error.message : String(error)}`);
       result[fieldName] = null;
 
       if (markComputed) {
@@ -3090,7 +3363,7 @@ export async function resolveComputed(item, options = {}) {
  * @param {Object} options - Same options as resolveComputed
  * @returns {Promise<Object[]>} - Items with computed fields
  */
-export async function resolveComputedBatch(items, options = {}) {
+export async function resolveComputedBatch(items: ContentItem[], options: ResolveComputedOptions = {}): Promise<ContentItem[]> {
   if (!items || items.length === 0) {
     return items;
   }
@@ -3111,7 +3384,7 @@ export async function resolveComputedBatch(items, options = {}) {
  * @param {Object} context - Context passed to compute function
  * @returns {Promise<*>} - Computed value
  */
-export async function getComputedValue(item, field, context = null) {
+export async function getComputedValue(item: ContentItem, field: string, context: unknown = null): Promise<unknown> {
   if (!item || !item.type) {
     return null;
   }
@@ -3129,7 +3402,7 @@ export async function getComputedValue(item, field, context = null) {
     }
     return fieldDef.compute(item, context);
   } catch (error) {
-    console.error(`[content] Error computing "${field}" for ${item.type}/${item.id}: ${error.message}`);
+    console.error(`[content] Error computing "${field}" for ${item.type}/${item.id}: ${error instanceof Error ? error.message : String(error)}`);
     return null;
   }
 }
@@ -3139,7 +3412,7 @@ export async function getComputedValue(item, field, context = null) {
  *
  * @returns {{ enabled: boolean, cacheComputed: boolean }}
  */
-export function getComputedConfig() {
+export function getComputedConfig(): { enabled: boolean; cacheComputed: boolean } {
   return {
     enabled: computedEnabled,
     cacheComputed,
@@ -3149,7 +3422,7 @@ export function getComputedConfig() {
 /**
  * Clear all registered computed fields (mainly for testing)
  */
-export function clearComputedFields() {
+export function clearComputedFields(): void {
   for (const key of Object.keys(computedFields)) {
     delete computedFields[key];
   }
@@ -3169,7 +3442,7 @@ export function clearComputedFields() {
  * @param {boolean} config.redirectOld - Redirect old slugs (default: true)
  * @param {number} config.historyLimit - Max old slugs to keep (default: 10)
  */
-export function initSlugs(config = {}) {
+export function initSlugs(config: SlugConfig = {}): void {
   slugsEnabled = config.enabled !== false;
   slugSeparator = config.separator || '-';
   slugMaxLength = config.maxLength || 100;
@@ -3182,7 +3455,7 @@ export function initSlugs(config = {}) {
  *
  * @returns {Object} Current slug configuration
  */
-export function getSlugsConfig() {
+export function getSlugsConfig(): { enabled: boolean; separator: string; maxLength: number; redirectOld: boolean; historyLimit: number } {
   return {
     enabled: slugsEnabled,
     separator: slugSeparator,
@@ -3203,11 +3476,11 @@ export function getSlugsConfig() {
  * - After external file changes (e.g., manual edits)
  * - To ensure consistency
  */
-function buildSlugIndex(type) {
+function buildSlugIndex(type: string): void {
   slugIndex[type] = {};
   slugHistoryIndex[type] = {};
 
-  const typeDir = join(contentDir, type);
+  const typeDir = join(contentDir!, type);
   if (!existsSync(typeDir)) {
     return;
   }
@@ -3241,7 +3514,7 @@ function buildSlugIndex(type) {
  * @param {string} type - Content type name
  * @private
  */
-function ensureSlugIndex(type) {
+function ensureSlugIndex(type: string): void {
   if (!slugIndex[type]) {
     buildSlugIndex(type);
   }
@@ -3255,10 +3528,10 @@ function ensureSlugIndex(type) {
  * @param {string} excludeId - Exclude this ID from check (for updates)
  * @returns {boolean} True if slug exists
  */
-export function slugExists(type, slug, excludeId = null) {
+export function slugExists(type: string, slug: string, excludeId: string | null = null): boolean {
   ensureSlugIndex(type);
   const existingId = slugIndex[type]?.[slug];
-  return existingId && existingId !== excludeId;
+  return !!existingId && existingId !== excludeId;
 }
 
 /**
@@ -3277,7 +3550,7 @@ export function slugExists(type, slug, excludeId = null) {
  * @example
  * const article = getBySlug('article', 'hello-world');
  */
-export function getBySlug(type, slug, options = {}) {
+export function getBySlug(type: string, slug: string, options: ReadOptions = {}): ContentItem | null {
   if (!slugsEnabled || !slug) {
     return null;
   }
@@ -3314,7 +3587,7 @@ export function getBySlug(type, slug, options = {}) {
  *   notFound();
  * }
  */
-export function resolvePermalink(type, slug) {
+export function resolvePermalink(type: string, slug: string): PermalinkResult {
   if (!slugsEnabled || !slug) {
     return { found: false };
   }
@@ -3349,7 +3622,7 @@ export function resolvePermalink(type, slug) {
  * @returns {Promise<string|null>} Generated slug or null if no slug field
  * @private
  */
-async function generateSlugForContent(type, data, schema, excludeId = null) {
+async function generateSlugForContent(type: string, data: Record<string, unknown>, schema: ContentSchema, excludeId: string | null = null): Promise<string | null> {
   // Find slug field in schema
   const slugField = Object.entries(schema).find(([_, def]) => def.type === 'slug');
   if (!slugField) {
@@ -3359,24 +3632,25 @@ async function generateSlugForContent(type, data, schema, excludeId = null) {
   const [fieldName, fieldDef] = slugField;
 
   // If slug is already provided and valid, use it
-  if (data[fieldName]) {
-    const validation = validateSlug(data[fieldName], {
+  const existingSlug = data[fieldName] as string | undefined;
+  if (existingSlug) {
+    const validation = validateSlug(existingSlug, {
       separator: slugSeparator,
       maxLength: slugMaxLength,
     });
     if (validation.valid) {
       // Check uniqueness
-      if (fieldDef.unique !== false && slugExists(type, data[fieldName], excludeId)) {
+      if (fieldDef.unique !== false && slugExists(type, existingSlug, excludeId)) {
         // Generate unique version
-        return generateUniqueSlug(data[fieldName], (s) => slugExists(type, s, excludeId));
+        return generateUniqueSlug(existingSlug, (s: string) => slugExists(type, s, excludeId));
       }
-      return data[fieldName];
+      return existingSlug;
     }
   }
 
   // Auto-generate from source field
-  const sourceField = fieldDef.from || 'title';
-  const sourceValue = data[sourceField];
+  const sourceField = (fieldDef.from as string) || 'title';
+  const sourceValue = data[sourceField] as string | undefined;
 
   if (!sourceValue) {
     return null;
@@ -3394,7 +3668,7 @@ async function generateSlugForContent(type, data, schema, excludeId = null) {
 
   // Ensure uniqueness if required
   if (fieldDef.unique !== false) {
-    return generateUniqueSlug(baseSlug, (s) => slugExists(type, s, excludeId));
+    return generateUniqueSlug(baseSlug, (s: string) => slugExists(type, s, excludeId));
   }
 
   return baseSlug;
@@ -3408,23 +3682,23 @@ async function generateSlugForContent(type, data, schema, excludeId = null) {
  * @param {string} oldSlug - Previous slug (for updates)
  * @private
  */
-function updateSlugIndex(type, item, oldSlug = null) {
+function updateSlugIndex(type: string, item: ContentItem, oldSlug: string | null = null): void {
   ensureSlugIndex(type);
 
   // Remove old slug from index
   if (oldSlug && slugIndex[type]?.[oldSlug] === item.id) {
-    delete slugIndex[type][oldSlug];
+    delete slugIndex[type]![oldSlug];
   }
 
   // Add current slug to index
   if (item.slug) {
-    slugIndex[type][item.slug] = item.id;
+    slugIndex[type]![item.slug] = item.id;
   }
 
   // Update history index
   if (Array.isArray(item._slugHistory)) {
     for (const histSlug of item._slugHistory) {
-      slugHistoryIndex[type][histSlug] = item.slug;
+      slugHistoryIndex[type]![histSlug as string] = item.slug as string;
     }
   }
 }
@@ -3436,21 +3710,21 @@ function updateSlugIndex(type, item, oldSlug = null) {
  * @param {Object} item - Content item being removed
  * @private
  */
-function removeFromSlugIndex(type, item) {
+function removeFromSlugIndex(type: string, item: ContentItem): void {
   if (!item) return;
 
   ensureSlugIndex(type);
 
   // Remove current slug
   if (item.slug && slugIndex[type]?.[item.slug] === item.id) {
-    delete slugIndex[type][item.slug];
+    delete slugIndex[type]![item.slug];
   }
 
   // Remove history entries
   if (Array.isArray(item._slugHistory)) {
     for (const histSlug of item._slugHistory) {
-      if (slugHistoryIndex[type]?.[histSlug] === item.slug) {
-        delete slugHistoryIndex[type][histSlug];
+      if (slugHistoryIndex[type]?.[histSlug as string] === item.slug) {
+        delete slugHistoryIndex[type]![histSlug as string];
       }
     }
   }
@@ -3463,7 +3737,7 @@ function removeFromSlugIndex(type, item) {
  * @param {string} id - Content ID
  * @returns {Object|null} { slug, history } or null if not found
  */
-export function getSlugInfo(type, id) {
+export function getSlugInfo(type: string, id: string): { slug: string | null; history: string[] } | null {
   const item = read(type, id);
   if (!item) {
     return null;
@@ -3481,7 +3755,7 @@ export function getSlugInfo(type, id) {
  * @param {string} type - Content type name
  * @returns {Array<Object>} Array of { slug, id, history }
  */
-export function listSlugs(type) {
+export function listSlugs(type: string): Array<{ slug: string; id: string; history: string[] }> {
   if (!hasType(type)) {
     return [];
   }
@@ -3490,7 +3764,7 @@ export function listSlugs(type) {
 
   const items = listAll(type);
   return items
-    .filter(item => item.slug)
+    .filter((item): item is ContentItem & { slug: string } => !!item.slug)
     .map(item => ({
       slug: item.slug,
       id: item.id,
@@ -3504,12 +3778,12 @@ export function listSlugs(type) {
  * @param {string} type - Content type name
  * @returns {Promise<Object>} { fixed: number, errors: Array }
  */
-export async function regenerateMissingSlugs(type) {
+export async function regenerateMissingSlugs(type: string): Promise<{ fixed: number; errors: Array<{ id: string | null; error: string }> }> {
   if (!hasType(type)) {
     return { fixed: 0, errors: [{ id: null, error: 'Unknown content type' }] };
   }
 
-  const schema = getSchema(type);
+  const schema = getSchema(type)!;
   const slugField = Object.entries(schema).find(([_, def]) => def.type === 'slug');
 
   if (!slugField) {
@@ -3518,7 +3792,7 @@ export async function regenerateMissingSlugs(type) {
 
   const [fieldName] = slugField;
   const items = listAll(type);
-  const results = { fixed: 0, errors: [] };
+  const results: { fixed: number; errors: Array<{ id: string | null; error: string }> } = { fixed: 0, errors: [] };
 
   for (const item of items) {
     if (item[fieldName]) {
@@ -3532,7 +3806,7 @@ export async function regenerateMissingSlugs(type) {
         results.fixed++;
       }
     } catch (error) {
-      results.errors.push({ id: item.id, error: error.message });
+      results.errors.push({ id: item.id, error: error instanceof Error ? error.message : String(error) });
     }
   }
 
@@ -3545,15 +3819,15 @@ export async function regenerateMissingSlugs(type) {
  * @param {string} type - Content type name (optional, checks all if not provided)
  * @returns {Object} { duplicates: [...], invalid: [...] }
  */
-export function checkSlugs(type = null) {
+export function checkSlugs(type: string | null = null): { duplicates: Array<{ type: string; slug: string; count: number; ids: string[] }>; invalid: Array<{ type: string; id: string; slug: string; errors: string[] }> } {
   const types = type ? [type] : listTypes().map(t => t.type);
-  const results = { duplicates: [], invalid: [] };
+  const results: { duplicates: Array<{ type: string; slug: string; count: number; ids: string[] }>; invalid: Array<{ type: string; id: string; slug: string; errors: string[] }> } = { duplicates: [], invalid: [] };
 
   for (const t of types) {
     ensureSlugIndex(t);
 
     // Check for duplicates (shouldn't happen with proper index, but check anyway)
-    const slugCounts = {};
+    const slugCounts: Record<string, number> = {};
     const items = listAll(t);
 
     for (const item of items) {
@@ -3595,12 +3869,12 @@ export function checkSlugs(type = null) {
  * @param {string} type - Content type name
  * @returns {boolean} True if type has slug field
  */
-export function hasSlugField(type) {
+export function hasSlugField(type: string): boolean {
   if (!hasType(type)) {
     return false;
   }
 
-  const schema = getSchema(type);
+  const schema = getSchema(type)!;
   return Object.values(schema).some(def => def.type === 'slug');
 }
 
@@ -3610,12 +3884,12 @@ export function hasSlugField(type) {
  * @param {string} type - Content type name
  * @returns {Object|null} Slug field definition or null
  */
-export function getSlugFieldDef(type) {
+export function getSlugFieldDef(type: string): (SchemaFieldDef & { name: string }) | null {
   if (!hasType(type)) {
     return null;
   }
 
-  const schema = getSchema(type);
+  const schema = getSchema(type)!;
   const entry = Object.entries(schema).find(([_, def]) => def.type === 'slug');
   return entry ? { name: entry[0], ...entry[1] } : null;
 }
@@ -3623,7 +3897,7 @@ export function getSlugFieldDef(type) {
 /**
  * Clear slug indexes (mainly for testing)
  */
-export function clearSlugIndexes() {
+export function clearSlugIndexes(): void {
   for (const key of Object.keys(slugIndex)) {
     delete slugIndex[key];
   }
@@ -3644,7 +3918,7 @@ export function clearSlugIndexes() {
  * @param {number} config.retention - Days to keep trashed items (default: 30)
  * @param {boolean} config.autoPurge - Auto-purge old items (default: true)
  */
-export function initTrash(config = {}) {
+export function initTrash(config: TrashConfig = {}): void {
   trashEnabled = config.enabled !== false;
   trashRetentionDays = config.retention || 30;
   trashAutoPurge = config.autoPurge !== false;
@@ -3655,7 +3929,7 @@ export function initTrash(config = {}) {
  *
  * @returns {Object} Current trash configuration
  */
-export function getTrashConfig() {
+export function getTrashConfig(): { enabled: boolean; retention: number; autoPurge: boolean } {
   return {
     enabled: trashEnabled,
     retention: trashRetentionDays,
@@ -3668,8 +3942,8 @@ export function getTrashConfig() {
  *
  * @returns {string} Path to trash directory
  */
-function getTrashDir() {
-  return join(contentDir, '.trash');
+function getTrashDir(): string {
+  return join(contentDir!, '.trash');
 }
 
 /**
@@ -3678,7 +3952,7 @@ function getTrashDir() {
  * @param {string} type - Content type name
  * @returns {string} Path to type's trash directory
  */
-function getTrashTypeDir(type) {
+function getTrashTypeDir(type: string): string {
   return join(getTrashDir(), type);
 }
 
@@ -3689,7 +3963,7 @@ function getTrashTypeDir(type) {
  * @param {string} id - Content ID
  * @returns {string} Path to trashed item file
  */
-function getTrashPath(type, id) {
+function getTrashPath(type: string, id: string): string {
   return join(getTrashTypeDir(type), `${id}.json`);
 }
 
@@ -3698,7 +3972,7 @@ function getTrashPath(type, id) {
  *
  * @param {string} type - Content type name
  */
-function ensureTrashDir(type) {
+function ensureTrashDir(type: string): string {
   const trashTypeDir = getTrashTypeDir(type);
   if (!existsSync(trashTypeDir)) {
     mkdirSync(trashTypeDir, { recursive: true });
@@ -3716,7 +3990,7 @@ function ensureTrashDir(type) {
  * @returns {Promise<Object>} Trashed item
  * @private
  */
-async function moveToTrash(type, id, item, trashedBy = null) {
+async function moveToTrash(type: string, id: string, item: ContentItem, trashedBy: string | null = null): Promise<ContentItem> {
   ensureTrashDir(type);
 
   const trashedItem = {
@@ -3751,7 +4025,7 @@ async function moveToTrash(type, id, item, trashedBy = null) {
  * @example
  * const item = await restore('article', 'abc123');
  */
-export async function restore(type, id) {
+export async function restore(type: string, id: string): Promise<ContentItem | null> {
   const trashPath = getTrashPath(type, id);
 
   if (!existsSync(trashPath)) {
@@ -3792,7 +4066,7 @@ export async function restore(type, id) {
 
     return item;
   } catch (error) {
-    console.error(`[content] Failed to restore ${type}/${id}: ${error.message}`);
+    console.error(`[content] Failed to restore ${type}/${id}: ${error instanceof Error ? error.message : String(error)}`);
     return null;
   }
 }
@@ -3807,7 +4081,7 @@ export async function restore(type, id) {
  * @example
  * await purge('article', 'abc123');
  */
-export async function purge(type, id) {
+export async function purge(type: string, id: string): Promise<boolean> {
   const trashPath = getTrashPath(type, id);
 
   if (!existsSync(trashPath)) {
@@ -3825,7 +4099,7 @@ export async function purge(type, id) {
 
     return true;
   } catch (error) {
-    console.error(`[content] Failed to purge ${type}/${id}: ${error.message}`);
+    console.error(`[content] Failed to purge ${type}/${id}: ${error instanceof Error ? error.message : String(error)}`);
     return false;
   }
 }
@@ -3837,7 +4111,7 @@ export async function purge(type, id) {
  * @param {string} id - Content ID
  * @returns {Object|null} Trashed item or null
  */
-export function getTrash(type, id) {
+export function getTrash(type: string, id: string): ContentItem | null {
   const trashPath = getTrashPath(type, id);
 
   if (!existsSync(trashPath)) {
@@ -3865,10 +4139,10 @@ export function getTrash(type, id) {
  * const articleTrash = listTrash('article');
  * const oldTrash = listTrash(null, { olderThanDays: 20 });
  */
-export function listTrash(type = null, options = {}) {
+export function listTrash(type: string | null = null, options: TrashListOptions = {}): ContentItem[] {
   const { limit = 0, olderThanDays = 0 } = options;
   const trashDir = getTrashDir();
-  const items = [];
+  const items: ContentItem[] = [];
 
   if (!existsSync(trashDir)) {
     return items;
@@ -3918,7 +4192,7 @@ export function listTrash(type = null, options = {}) {
   }
 
   // Sort by trashed date (newest first)
-  items.sort((a, b) => new Date(b._trashedAt) - new Date(a._trashedAt));
+  items.sort((a, b) => new Date(b._trashedAt as string).getTime() - new Date(a._trashedAt as string).getTime());
 
   // Apply limit
   if (limit > 0) {
@@ -3941,10 +4215,10 @@ export function listTrash(type = null, options = {}) {
  * await emptyTrash('article'); // Empty only articles
  * await emptyTrash(null, { olderThanDays: 30 }); // Purge items > 30 days
  */
-export async function emptyTrash(type = null, options = {}) {
+export async function emptyTrash(type: string | null = null, options: TrashListOptions = {}): Promise<{ purged: number; errors: Array<{ type: string; id: string; error: string }> }> {
   const { olderThanDays = 0 } = options;
   const items = listTrash(type, { olderThanDays });
-  const results = { purged: 0, errors: [] };
+  const results: { purged: number; errors: Array<{ type: string; id: string; error: string }> } = { purged: 0, errors: [] };
 
   for (const item of items) {
     try {
@@ -3953,7 +4227,7 @@ export async function emptyTrash(type = null, options = {}) {
         results.purged++;
       }
     } catch (error) {
-      results.errors.push({ type: item.type, id: item.id, error: error.message });
+      results.errors.push({ type: item.type, id: item.id, error: error instanceof Error ? error.message : String(error) });
     }
   }
 
@@ -3965,15 +4239,16 @@ export async function emptyTrash(type = null, options = {}) {
  *
  * @returns {Object} Trash statistics
  */
-export function getTrashStats() {
+export function getTrashStats(): { total: number; byType: Record<string, number>; oldestDays: number; autoPurgeIn: number | null; retention: number; autoPurgeEnabled: boolean } {
   const items = listTrash();
-  const byType = {};
+  const byType: Record<string, number> = {};
   let oldestDays = 0;
 
   for (const item of items) {
     byType[item.type] = (byType[item.type] || 0) + 1;
-    if (item._daysInTrash > oldestDays) {
-      oldestDays = item._daysInTrash;
+    const daysInTrash = item._daysInTrash as number;
+    if (daysInTrash > oldestDays) {
+      oldestDays = daysInTrash;
     }
   }
 
@@ -3996,7 +4271,7 @@ export function getTrashStats() {
  *
  * @returns {Promise<Object>} { purged: number, errors: Array }
  */
-export async function autoPurgeTrash() {
+export async function autoPurgeTrash(): Promise<{ purged: number; errors: Array<{ type: string; id: string; error: string }>; skipped?: boolean }> {
   if (!trashAutoPurge) {
     return { purged: 0, errors: [], skipped: true };
   }
@@ -4011,7 +4286,7 @@ export async function autoPurgeTrash() {
  * @param {string} id - Content ID
  * @returns {boolean} True if in trash
  */
-export function isInTrash(type, id) {
+export function isInTrash(type: string, id: string): boolean {
   return existsSync(getTrashPath(type, id));
 }
 
@@ -4033,7 +4308,7 @@ let cloneDeepDefault = false;
  * @param {string} config.clonePrefix - Default title prefix (default: "Copy of ")
  * @param {boolean} config.cloneDeep - Default deep clone setting (default: false)
  */
-export function initClone(config = {}) {
+export function initClone(config: CloneConfig = {}): void {
   clonePrefix = config.clonePrefix !== undefined ? config.clonePrefix : 'Copy of ';
   cloneDeepDefault = config.cloneDeep === true;
 }
@@ -4043,7 +4318,7 @@ export function initClone(config = {}) {
  *
  * @returns {Object} Current clone configuration
  */
-export function getCloneConfig() {
+export function getCloneConfig(): { prefix: string; deepDefault: boolean } {
   return {
     prefix: clonePrefix,
     deepDefault: cloneDeepDefault,
@@ -4085,14 +4360,14 @@ export function getCloneConfig() {
  * // Deep clone with related media
  * const clone = await content.clone('article', 'abc123', { deep: true });
  */
-export async function clone(type, id, options = {}) {
+export async function clone(type: string, id: string, options: CloneOptions = {}): Promise<ContentItem | null> {
   const {
     prefix = clonePrefix,
     suffix = '',
     fields = {},
     deep = cloneDeepDefault,
     includeTranslations = false,
-    _clonedIds = new Set(),
+    _clonedIds = new Set<string>(),
   } = options;
 
   // Read original item
@@ -4108,10 +4383,10 @@ export async function clone(type, id, options = {}) {
   }
   _clonedIds.add(cloneKey);
 
-  const schema = getSchema(type);
+  const schema = getSchema(type)!;
 
   // Build clone data, excluding system fields
-  const cloneData = {};
+  const cloneData: Record<string, unknown> = {};
   for (const [key, value] of Object.entries(original)) {
     // Skip system fields
     if (['id', 'type', 'created', 'updated'].includes(key)) continue;
@@ -4152,7 +4427,7 @@ export async function clone(type, id, options = {}) {
   Object.assign(cloneData, fields);
 
   // Handle deep clone - clone referenced items
-  let clonedReferences = [];
+  const clonedReferences: Array<{ type: string; original: string; clone: string }> = [];
   if (deep) {
     const relationFields = getRelationFields(type);
     for (const { field, target, relation } of relationFields) {
@@ -4175,7 +4450,7 @@ export async function clone(type, id, options = {}) {
           }
         } catch (err) {
           // Keep original reference if clone fails
-          console.warn(`[content] Could not clone referenced ${target}/${refValue}: ${err.message}`);
+          console.warn(`[content] Could not clone referenced ${target}/${refValue}: ${err instanceof Error ? err.message : String(err)}`);
         }
       } else if (relation === 'belongsToMany' && Array.isArray(refValue)) {
         // Clone multiple references
@@ -4197,7 +4472,7 @@ export async function clone(type, id, options = {}) {
             }
           } catch (err) {
             newRefs.push(refId); // Keep original if clone fails
-            console.warn(`[content] Could not clone referenced ${target}/${refId}: ${err.message}`);
+            console.warn(`[content] Could not clone referenced ${target}/${refId}: ${err instanceof Error ? err.message : String(err)}`);
           }
         }
         cloneData[field] = newRefs;
@@ -4235,7 +4510,7 @@ export async function clone(type, id, options = {}) {
  * @returns {string|null} Field name or null
  * @private
  */
-function findTitleField(schema, data) {
+function findTitleField(schema: ContentSchema, data: Record<string, unknown>): string | null {
   // Check common title field names in order of preference
   const titleFields = ['title', 'name', 'label', 'subject', 'heading'];
 
@@ -4264,12 +4539,12 @@ function findTitleField(schema, data) {
  *
  * Useful for showing user how many items will be cloned in deep mode.
  */
-export function getCloneableReferences(type, id) {
+export function getCloneableReferences(type: string, id: string): CloneableRef[] {
   const item = read(type, id);
   if (!item) return [];
 
   const relationFields = getRelationFields(type);
-  const refs = [];
+  const refs: CloneableRef[] = [];
 
   for (const { field, target, relation } of relationFields) {
     const value = item[field];
@@ -4292,7 +4567,7 @@ export function getCloneableReferences(type, id) {
  * @param {string} id - Content ID
  * @returns {number} Total count including the item itself
  */
-export function countDeepCloneItems(type, id) {
+export function countDeepCloneItems(type: string, id: string): number {
   const refs = getCloneableReferences(type, id);
   let count = 1; // The item itself
 
@@ -4315,10 +4590,10 @@ export function countDeepCloneItems(type, id) {
  * @param {number} config.timeout - Lock timeout in seconds (default: 1800)
  * @param {number} config.gracePeriod - Grace period in seconds (default: 60)
  */
-export function initLocks(config = {}) {
+export function initLocks(config: LockConfig = {}): void {
   locks.init({
     ...config,
-    contentDir,
+    contentDir: contentDir ?? undefined,
   });
 }
 
@@ -4330,7 +4605,7 @@ export function initLocks(config = {}) {
  * @param {object} options - Options { username, timeout }
  * @returns {object|null} Lock object or null if failed
  */
-export function acquireLock(type, id, userId, options = {}) {
+export function acquireLock(type: string, id: string, userId: string, options: Record<string, unknown> = {}): unknown {
   return locks.acquireLock(type, id, userId, options);
 }
 
@@ -4341,7 +4616,7 @@ export function acquireLock(type, id, userId, options = {}) {
  * @param {string} userId - User ID
  * @returns {boolean} True if released
  */
-export function releaseLock(type, id, userId) {
+export function releaseLock(type: string, id: string, userId: string): boolean {
   return locks.releaseLock(type, id, userId);
 }
 
@@ -4351,7 +4626,7 @@ export function releaseLock(type, id, userId) {
  * @param {string} id - Content ID
  * @returns {object} Lock status
  */
-export function checkLock(type, id) {
+export function checkLock(type: string, id: string): unknown {
   return locks.checkLock(type, id);
 }
 
@@ -4362,7 +4637,7 @@ export function checkLock(type, id) {
  * @param {string} userId - User ID
  * @returns {object|null} Updated lock or null if failed
  */
-export function refreshLock(type, id, userId) {
+export function refreshLock(type: string, id: string, userId: string): unknown {
   return locks.refreshLock(type, id, userId);
 }
 
@@ -4372,7 +4647,7 @@ export function refreshLock(type, id, userId) {
  * @param {string} id - Content ID
  * @returns {object|null} Released lock or null
  */
-export function forceReleaseLock(type, id) {
+export function forceReleaseLock(type: string, id: string): unknown {
   return locks.forceRelease(type, id);
 }
 
@@ -4381,7 +4656,7 @@ export function forceReleaseLock(type, id) {
  * @param {string} [type] - Optional type filter
  * @returns {Array} Array of lock objects
  */
-export function listLocks(type = null) {
+export function listLocks(type: string | null = null): unknown[] {
   return locks.listLocks(type);
 }
 
@@ -4389,7 +4664,7 @@ export function listLocks(type = null) {
  * Clean up expired locks
  * @returns {number} Number removed
  */
-export function cleanupExpiredLocks() {
+export function cleanupExpiredLocks(): number {
   return locks.cleanupExpired();
 }
 
@@ -4397,7 +4672,7 @@ export function cleanupExpiredLocks() {
  * Get lock statistics
  * @returns {object} Stats
  */
-export function getLockStats() {
+export function getLockStats(): unknown {
   return locks.getStats();
 }
 
@@ -4405,7 +4680,7 @@ export function getLockStats() {
  * Get lock configuration
  * @returns {object} Config
  */
-export function getLockConfig() {
+export function getLockConfig(): unknown {
   return locks.getConfig();
 }
 
@@ -4427,18 +4702,18 @@ export function getLockConfig() {
  * - Atomic-like operations (all or nothing mentality)
  * - Progress tracking for large batches
  */
-export async function bulkUpdate(type, ids, data, options = {}) {
+export async function bulkUpdate(type: string, ids: string[], data: Record<string, unknown>, options: { skipHooks?: boolean; userId?: string | null } = {}): Promise<BulkResult> {
   const { skipHooks = false, userId = null } = options;
-  const results = { success: 0, failed: 0, errors: [], items: [] };
+  const results: BulkResult = { success: 0, failed: 0, errors: [], items: [] };
 
   for (const id of ids) {
     try {
       const item = await update(type, id, data, { skipHooks, userId });
       results.success++;
-      results.items.push(item);
+      if (item) results.items!.push(item);
     } catch (error) {
       results.failed++;
-      results.errors.push({ id, error: error.message });
+      results.errors.push({ id, error: error instanceof Error ? error.message : String(error) });
     }
   }
 
@@ -4458,9 +4733,9 @@ export async function bulkUpdate(type, ids, data, options = {}) {
  * @param {object} options - Options { permanent, userId }
  * @returns {Promise<object>} - Results { success, failed, errors }
  */
-export async function bulkDelete(type, ids, options = {}) {
+export async function bulkDelete(type: string, ids: string[], options: { permanent?: boolean; userId?: string | null } = {}): Promise<BulkResult> {
   const { permanent = false, userId = null } = options;
-  const results = { success: 0, failed: 0, errors: [] };
+  const results: BulkResult = { success: 0, failed: 0, errors: [] };
 
   for (const id of ids) {
     try {
@@ -4473,7 +4748,7 @@ export async function bulkDelete(type, ids, options = {}) {
       }
     } catch (error) {
       results.failed++;
-      results.errors.push({ id, error: error.message });
+      results.errors.push({ id, error: error instanceof Error ? error.message : String(error) });
     }
   }
 
@@ -4491,21 +4766,21 @@ export async function bulkDelete(type, ids, options = {}) {
  * @param {object} options - Options { userId }
  * @returns {Promise<object>} - Results { success, failed, errors }
  */
-export async function bulkPublish(type, ids, options = {}) {
+export async function bulkPublish(type: string, ids: string[], options: { userId?: string | null } = {}): Promise<BulkResult> {
   if (!workflowEnabled) {
     throw new Error('Workflow is not enabled');
   }
 
-  const results = { success: 0, failed: 0, errors: [], items: [] };
+  const results: BulkResult = { success: 0, failed: 0, errors: [], items: [] };
 
   for (const id of ids) {
     try {
       const item = await publish(type, id);
       results.success++;
-      results.items.push(item);
+      if (item) results.items!.push(item);
     } catch (error) {
       results.failed++;
-      results.errors.push({ id, error: error.message });
+      results.errors.push({ id, error: error instanceof Error ? error.message : String(error) });
     }
   }
 
@@ -4523,21 +4798,21 @@ export async function bulkPublish(type, ids, options = {}) {
  * @param {object} options - Options { userId }
  * @returns {Promise<object>} - Results { success, failed, errors }
  */
-export async function bulkUnpublish(type, ids, options = {}) {
+export async function bulkUnpublish(type: string, ids: string[], options: { userId?: string | null } = {}): Promise<BulkResult> {
   if (!workflowEnabled) {
     throw new Error('Workflow is not enabled');
   }
 
-  const results = { success: 0, failed: 0, errors: [], items: [] };
+  const results: BulkResult = { success: 0, failed: 0, errors: [], items: [] };
 
   for (const id of ids) {
     try {
       const item = await unpublish(type, id);
       results.success++;
-      results.items.push(item);
+      if (item) results.items!.push(item);
     } catch (error) {
       results.failed++;
-      results.errors.push({ id, error: error.message });
+      results.errors.push({ id, error: error instanceof Error ? error.message : String(error) });
     }
   }
 
@@ -4555,21 +4830,21 @@ export async function bulkUnpublish(type, ids, options = {}) {
  * @param {object} options - Options { userId }
  * @returns {Promise<object>} - Results { success, failed, errors }
  */
-export async function bulkArchive(type, ids, options = {}) {
+export async function bulkArchive(type: string, ids: string[], options: { userId?: string | null } = {}): Promise<BulkResult> {
   if (!workflowEnabled) {
     throw new Error('Workflow is not enabled');
   }
 
-  const results = { success: 0, failed: 0, errors: [], items: [] };
+  const results: BulkResult = { success: 0, failed: 0, errors: [], items: [] };
 
   for (const id of ids) {
     try {
       const item = await archive(type, id);
       results.success++;
-      results.items.push(item);
+      if (item) results.items!.push(item);
     } catch (error) {
       results.failed++;
-      results.errors.push({ id, error: error.message });
+      results.errors.push({ id, error: error instanceof Error ? error.message : String(error) });
     }
   }
 
@@ -4588,7 +4863,7 @@ export async function bulkArchive(type, ids, options = {}) {
  * @param {object} options - Options { userId }
  * @returns {Promise<object>} - Results { success, failed, errors }
  */
-export async function bulkStatusChange(type, ids, status, options = {}) {
+export async function bulkStatusChange(type: string, ids: string[], status: string, options: { userId?: string | null } = {}): Promise<BulkResult> {
   if (!workflowEnabled) {
     throw new Error('Workflow is not enabled');
   }
@@ -4597,16 +4872,16 @@ export async function bulkStatusChange(type, ids, status, options = {}) {
     throw new Error(`Invalid status: ${status}`);
   }
 
-  const results = { success: 0, failed: 0, errors: [], items: [] };
+  const results: BulkResult = { success: 0, failed: 0, errors: [], items: [] };
 
   for (const id of ids) {
     try {
       const item = await setStatus(type, id, status, options);
       results.success++;
-      results.items.push(item);
+      if (item) results.items!.push(item);
     } catch (error) {
       results.failed++;
-      results.errors.push({ id, error: error.message });
+      results.errors.push({ id, error: error instanceof Error ? error.message : String(error) });
     }
   }
 
@@ -4624,21 +4899,21 @@ export async function bulkStatusChange(type, ids, status, options = {}) {
  * @param {object} options - Options { userId }
  * @returns {Promise<object>} - Results { success, failed, errors }
  */
-export async function bulkRestore(type, ids, options = {}) {
+export async function bulkRestore(type: string, ids: string[], options: { userId?: string | null } = {}): Promise<BulkResult> {
   if (!trashEnabled) {
     throw new Error('Trash is not enabled');
   }
 
-  const results = { success: 0, failed: 0, errors: [], items: [] };
+  const results: BulkResult = { success: 0, failed: 0, errors: [], items: [] };
 
   for (const id of ids) {
     try {
       const item = await restore(type, id);
       results.success++;
-      results.items.push(item);
+      if (item) results.items!.push(item);
     } catch (error) {
       results.failed++;
-      results.errors.push({ id, error: error.message });
+      results.errors.push({ id, error: error instanceof Error ? error.message : String(error) });
     }
   }
 
@@ -4656,7 +4931,7 @@ export async function bulkRestore(type, ids, options = {}) {
  * @param {object} options - Options { limit }
  * @returns {Array<string>} - Array of matching IDs
  */
-export function getIdsByFilter(type, filters, options = {}) {
+export function getIdsByFilter(type: string, filters: Record<string, unknown>, options: { limit?: number } = {}): string[] {
   const { limit = 1000 } = options;
   const result = list(type, { filters, limit });
   return result.items.map(item => item.id);
