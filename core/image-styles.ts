@@ -1,5 +1,5 @@
 /**
- * image-styles.js - Image Processing and Styles System
+ * image-styles.ts - Image Processing and Styles System
  *
  * WHY THIS EXISTS:
  * ================
@@ -19,61 +19,115 @@
  * - Heavy dependency for a core module
  * - Many deployments already have ImageMagick installed
  * - Graceful degradation if tools not available
- *
- * IMAGE DERIVATIVES:
- * ==================
- * Original: media/2024/01/photo.jpg
- * Derivative: media/derivatives/thumbnail/2024/01/photo.jpg
- *
- * Structure benefits:
- * - Mirrors original directory structure
- * - Easy to find derivatives for an original
- * - Can delete all derivatives of a style (rm -rf derivatives/thumbnail)
- * - Source path preserved for debugging
- *
- * FOCAL POINTS:
- * =============
- * When cropping, you can specify where the "important" part of the image is:
- * - Default: center
- * - Options: center, top-left, top, top-right, left, right, bottom-left, bottom, bottom-right
- * - Custom: {x: 0.5, y: 0.3} (percentages, 0-1)
- *
- * RESPONSIVE IMAGES:
- * ==================
- * Generate multiple sizes for <img srcset>:
- *   <img src="photo.jpg"
- *        srcset="photo-480.jpg 480w, photo-768.jpg 768w, photo-1200.jpg 1200w"
- *        sizes="100vw">
- *
- * This module generates those variants and provides the srcset string.
  */
 
-import { readFileSync, writeFileSync, existsSync, mkdirSync, unlinkSync, readdirSync, statSync } from 'node:fs';
-import { join, dirname, basename, extname } from 'node:path';
+import { readFileSync, writeFileSync, existsSync, mkdirSync, unlinkSync, readdirSync } from 'node:fs';
+import { join, dirname, extname } from 'node:path';
 import { execSync } from 'node:child_process';
 import * as hooks from './hooks.ts';
 
-// ===========================================
-// Configuration
-// ===========================================
+// ============================================================================
+// Types
+// ============================================================================
 
-let baseDir = null;
-let mediaModule = null;
-let stylesConfig = {};
-let derivativesDir = null;
+/** Image dimensions result */
+interface ImageDimensions {
+  width: number;
+  height: number;
+  format: string;
+}
+
+/** Image effect definition */
+interface ImageEffect {
+  type: 'scale' | 'crop' | 'rotate' | 'quality' | 'convert';
+  width?: number;
+  height?: number;
+  upscale?: boolean;
+  anchor?: string;
+  angle?: number;
+  value?: number;
+  format?: string;
+  quality?: number;
+}
+
+/** Breakpoint configuration for responsive styles */
+interface BreakpointConfig {
+  width: number;
+  [key: string]: unknown;
+}
+
+/** Style configuration */
+interface StyleConfig {
+  label?: string;
+  effects?: ImageEffect[];
+  breakpoints?: Record<string, BreakpointConfig>;
+  [key: string]: unknown;
+}
+
+/** Style list entry */
+interface StyleListEntry {
+  name: string;
+  label: string;
+}
+
+/** Derivative result */
+interface DerivativeResult {
+  path: string;
+  url: string;
+  width: number;
+  height: number;
+}
+
+/** Srcset result */
+interface SrcsetResult {
+  srcset: string;
+  sizes: string;
+  src: string | null;
+}
+
+/** Placeholder result */
+interface PlaceholderResult {
+  url: string | null;
+  dataUri: string;
+}
+
+/** Anchor point coordinates */
+interface AnchorPoint {
+  x: number;
+  y: number;
+}
+
+/** Media module interface */
+interface MediaModule {
+  getMediaDir(): string;
+  getFilePath(mediaId: string): string;
+  getMimeType(filePath: string): string;
+}
+
+/** Processing tool type */
+type ProcessingToolType = 'sharp' | 'imagemagick' | 'graphicsmagick' | null;
+
+// ============================================================================
+// Configuration
+// ============================================================================
+
+let baseDir: string | null = null;
+let mediaModule: MediaModule | null = null;
+let stylesConfig: Record<string, StyleConfig> = {};
+let derivativesDir: string | null = null;
 
 // Cache for image dimensions
-const dimensionsCache = new Map();
+const dimensionsCache: Map<string, ImageDimensions> = new Map();
 
 /**
  * Available image processing tools (detected at runtime)
  */
-let processingTool = null;
+let processingTool: ProcessingToolType = null;
 
 /**
  * Anchor points for cropping
  */
-const ANCHOR_POINTS = {
+const ANCHOR_POINTS: Record<string, AnchorPoint> = {
   'center': { x: 0.5, y: 0.5 },
   'top-left': { x: 0, y: 0 },
   'top': { x: 0.5, y: 0 },
@@ -85,17 +139,14 @@ const ANCHOR_POINTS = {
   'bottom-right': { x: 1, y: 1 },
 };
 
-// ===========================================
+// ============================================================================
 // Initialization
-// ===========================================
+// ============================================================================
 
 /**
  * Initialize image styles system
- *
- * @param {string} projectBaseDir - Project root directory
- * @param {Object} media - Media module instance
  */
-export function init(projectBaseDir, media) {
+export function init(projectBaseDir: string, media: MediaModule): void {
   baseDir = projectBaseDir;
   mediaModule = media;
 
@@ -111,23 +162,24 @@ export function init(projectBaseDir, media) {
   // Detect available image processing tools
   detectProcessingTool();
 
-  console.log(`[image-styles] Initialized with tool: ${processingTool || 'none (metadata-only mode)'}`);
+  console.log(`[image-styles] Initialized with tool: ${processingTool ?? 'none (metadata-only mode)'}`);
 }
 
 /**
  * Load styles configuration from config/image-styles.json
  */
-function loadStylesConfig() {
-  const configPath = join(baseDir, 'config', 'image-styles.json');
+function loadStylesConfig(): void {
+  const configPath = join(baseDir!, 'config', 'image-styles.json');
 
   if (existsSync(configPath)) {
     try {
       const data = readFileSync(configPath, 'utf-8');
-      const config = JSON.parse(data);
-      stylesConfig = config.styles || {};
+      const parsed = JSON.parse(data) as Record<string, unknown>;
+      stylesConfig = (parsed.styles as Record<string, StyleConfig>) ?? {};
       console.log(`[image-styles] Loaded ${Object.keys(stylesConfig).length} styles from config`);
-    } catch (error) {
-      console.error(`[image-styles] Failed to load config: ${error.message}`);
+    } catch (error: unknown) {
+      const errMsg = error instanceof Error ? error.message : String(error);
+      console.error(`[image-styles] Failed to load config: ${errMsg}`);
       stylesConfig = {};
     }
   } else {
@@ -139,16 +191,16 @@ function loadStylesConfig() {
  * Detect available image processing tool
  * Priority: sharp (npm) > convert (ImageMagick) > gm (GraphicsMagick)
  */
-function detectProcessingTool() {
-  // Try Sharp first — best quality and performance, installed via npm
+function detectProcessingTool(): void {
+  // Try Sharp first -- best quality and performance, installed via npm
   try {
-    // Dynamic import check — Sharp is an optional dependency
+    // Dynamic import check -- Sharp is an optional dependency
     const sharpPath = require.resolve('sharp');
     if (sharpPath) {
       processingTool = 'sharp';
       return;
     }
-  } catch (e) {
+  } catch {
     // Sharp not installed
   }
 
@@ -156,7 +208,7 @@ function detectProcessingTool() {
     execSync('convert -version', { stdio: 'ignore' });
     processingTool = 'imagemagick';
     return;
-  } catch (e) {
+  } catch {
     // ImageMagick not found
   }
 
@@ -164,27 +216,21 @@ function detectProcessingTool() {
     execSync('gm version', { stdio: 'ignore' });
     processingTool = 'graphicsmagick';
     return;
-  } catch (e) {
+  } catch {
     // GraphicsMagick not found
   }
 
   processingTool = null;
 }
 
-// ===========================================
+// ============================================================================
 // Style Management
-// ===========================================
+// ============================================================================
 
 /**
  * Define or update an image style
- *
- * @param {string} name - Style name
- * @param {Object} config - Style configuration
- * @param {string} config.label - Human-readable label
- * @param {Array} config.effects - Array of effect definitions
- * @param {Object} config.breakpoints - For responsive styles
  */
-export function defineStyle(name, config) {
+export function defineStyle(name: string, config: StyleConfig): void {
   stylesConfig[name] = config;
 
   // Persist to config file
@@ -193,55 +239,48 @@ export function defineStyle(name, config) {
 
 /**
  * Get a style definition
- *
- * @param {string} name - Style name
- * @returns {Object|null} Style config or null if not found
  */
-export function getStyle(name) {
-  return stylesConfig[name] || null;
+export function getStyle(name: string): StyleConfig | null {
+  return stylesConfig[name] ?? null;
 }
 
 /**
  * List all defined styles
- *
- * @returns {Array<{ name: string, label: string }>}
  */
-export function listStyles() {
+export function listStyles(): StyleListEntry[] {
   return Object.entries(stylesConfig).map(([name, config]) => ({
     name,
-    label: config.label || name,
+    label: (config.label as string) ?? name,
   }));
 }
 
 /**
  * Save styles configuration to disk
  */
-function saveStylesConfig() {
-  const configPath = join(baseDir, 'config', 'image-styles.json');
-  const config = { styles: stylesConfig };
+function saveStylesConfig(): void {
+  const configPath = join(baseDir!, 'config', 'image-styles.json');
+  const configObj = { styles: stylesConfig };
 
   try {
-    writeFileSync(configPath, JSON.stringify(config, null, 2));
-  } catch (error) {
-    console.error(`[image-styles] Failed to save config: ${error.message}`);
+    writeFileSync(configPath, JSON.stringify(configObj, null, 2));
+  } catch (error: unknown) {
+    const errMsg = error instanceof Error ? error.message : String(error);
+    console.error(`[image-styles] Failed to save config: ${errMsg}`);
   }
 }
 
-// ===========================================
+// ============================================================================
 // Image Dimension Reading
-// ===========================================
+// ============================================================================
 
 /**
  * Get image dimensions from file header
  * Supports: PNG, JPEG, GIF, WebP
- *
- * @param {string} filePath - Absolute path to image file
- * @returns {{ width: number, height: number, format: string }|null}
  */
-export function getImageDimensions(filePath) {
+export function getImageDimensions(filePath: string): ImageDimensions | null {
   // Check cache first
   if (dimensionsCache.has(filePath)) {
-    return dimensionsCache.get(filePath);
+    return dimensionsCache.get(filePath)!;
   }
 
   if (!existsSync(filePath)) {
@@ -257,8 +296,9 @@ export function getImageDimensions(filePath) {
     }
 
     return dimensions;
-  } catch (error) {
-    console.error(`[image-styles] Failed to read dimensions from ${filePath}: ${error.message}`);
+  } catch (error: unknown) {
+    const errMsg = error instanceof Error ? error.message : String(error);
+    console.error(`[image-styles] Failed to read dimensions from ${filePath}: ${errMsg}`);
     return null;
   }
 }
@@ -266,11 +306,8 @@ export function getImageDimensions(filePath) {
 /**
  * Read dimensions from image buffer
  * Implements basic header parsing for common formats
- *
- * @param {Buffer} buffer - Image file buffer
- * @returns {{ width: number, height: number, format: string }|null}
  */
-function readDimensionsFromBuffer(buffer) {
+function readDimensionsFromBuffer(buffer: Buffer): ImageDimensions | null {
   // PNG: Check signature and read IHDR chunk
   if (buffer[0] === 0x89 && buffer[1] === 0x50 && buffer[2] === 0x4E && buffer[3] === 0x47) {
     // PNG signature: \x89PNG
@@ -310,7 +347,7 @@ function readDimensionsFromBuffer(buffer) {
  * Read JPEG dimensions from buffer
  * Scans for SOF (Start Of Frame) markers
  */
-function readJPEGDimensions(buffer) {
+function readJPEGDimensions(buffer: Buffer): ImageDimensions | null {
   let offset = 2; // Skip initial 0xFFD8
 
   while (offset < buffer.length) {
@@ -320,7 +357,7 @@ function readJPEGDimensions(buffer) {
       continue;
     }
 
-    const marker = buffer[offset + 1];
+    const marker = buffer[offset + 1]!;
 
     // SOF markers (Start Of Frame)
     if ((marker >= 0xC0 && marker <= 0xC3) ||
@@ -343,7 +380,7 @@ function readJPEGDimensions(buffer) {
 /**
  * Read WebP dimensions from buffer
  */
-function readWebPDimensions(buffer) {
+function readWebPDimensions(buffer: Buffer): ImageDimensions | null {
   // VP8 (lossy)
   if (buffer[12] === 0x56 && buffer[13] === 0x50 && buffer[14] === 0x38 && buffer[15] === 0x20) {
     const width = buffer.readUInt16LE(26) & 0x3FFF;
@@ -369,18 +406,14 @@ function readWebPDimensions(buffer) {
   return null;
 }
 
-// ===========================================
+// ============================================================================
 // Derivative Generation
-// ===========================================
+// ============================================================================
 
 /**
  * Get derivative image, generating if needed
- *
- * @param {string} mediaId - Media file relative path (e.g., "2024/01/photo.jpg")
- * @param {string} styleName - Style name
- * @returns {{ path: string, url: string, width: number, height: number }|null}
  */
-export async function getDerivative(mediaId, styleName) {
+export async function getDerivative(mediaId: string, styleName: string): Promise<DerivativeResult> {
   const style = getStyle(styleName);
   if (!style) {
     throw new Error(`Unknown style: ${styleName}`);
@@ -399,25 +432,21 @@ export async function getDerivative(mediaId, styleName) {
   return {
     path: derivativePath,
     url: `/media/derivatives/${styleName}/${mediaId}`,
-    width: dimensions?.width || 0,
-    height: dimensions?.height || 0,
+    width: dimensions?.width ?? 0,
+    height: dimensions?.height ?? 0,
   };
 }
 
 /**
  * Generate derivative image
- *
- * @param {string} mediaId - Media file relative path
- * @param {string} styleName - Style name
- * @returns {Promise<string>} Path to generated derivative
  */
-export async function generateDerivative(mediaId, styleName) {
+export async function generateDerivative(mediaId: string, styleName: string): Promise<string> {
   const style = getStyle(styleName);
   if (!style) {
     throw new Error(`Unknown style: ${styleName}`);
   }
 
-  const sourcePath = mediaModule.getFilePath(mediaId);
+  const sourcePath = mediaModule!.getFilePath(mediaId);
   if (!existsSync(sourcePath)) {
     throw new Error(`Source image not found: ${mediaId}`);
   }
@@ -431,7 +460,7 @@ export async function generateDerivative(mediaId, styleName) {
   }
 
   // Trigger before hook
-  const context = {
+  const context: Record<string, unknown> = {
     mediaId,
     styleName,
     style,
@@ -457,23 +486,15 @@ export async function generateDerivative(mediaId, styleName) {
 
 /**
  * Get path for derivative image
- *
- * @param {string} mediaId - Media file relative path
- * @param {string} styleName - Style name
- * @returns {string} Absolute path to derivative
  */
-function getDerivativePath(mediaId, styleName) {
-  return join(derivativesDir, styleName, mediaId);
+function getDerivativePath(mediaId: string, styleName: string): string {
+  return join(derivativesDir!, styleName, mediaId);
 }
 
 /**
  * Process image with effects using available tool
- *
- * @param {string} sourcePath - Source image path
- * @param {string} outputPath - Output image path
- * @param {Array} effects - Array of effect definitions
  */
-async function processImageWithEffects(sourcePath, outputPath, effects) {
+async function processImageWithEffects(sourcePath: string, outputPath: string, effects: ImageEffect[]): Promise<void> {
   if (processingTool === 'sharp') {
     await processWithSharp(sourcePath, outputPath, effects);
   } else if (processingTool === 'imagemagick') {
@@ -488,33 +509,39 @@ async function processImageWithEffects(sourcePath, outputPath, effects) {
 /**
  * Process image with Sharp (npm package)
  * Provides high-quality, fast image processing without external tools.
+ *
+ * WHY Record<string, unknown>:
+ * Sharp is an optional dependency without bundled types in this project.
+ * We use a loosely-typed pipeline to avoid hard dependency on @types/sharp.
  */
-async function processWithSharp(sourcePath, outputPath, effects) {
+async function processWithSharp(sourcePath: string, outputPath: string, effects: ImageEffect[]): Promise<void> {
   // Dynamic import since Sharp is optional
-  let sharp;
+  let sharp: (input: string) => Record<string, unknown>;
   try {
-    sharp = (await import('sharp')).default;
-  } catch (e) {
-    throw new Error('Sharp module not available: ' + e.message);
+    sharp = ((await import('sharp')) as Record<string, unknown>).default as (input: string) => Record<string, unknown>;
+  } catch (e: unknown) {
+    const errMsg = e instanceof Error ? e.message : String(e);
+    throw new Error('Sharp module not available: ' + errMsg);
   }
 
-  let pipeline = sharp(sourcePath);
+  let pipeline = sharp(sourcePath) as Record<string, unknown>;
+  let cmsQuality: number | undefined;
 
   for (const effect of effects) {
     switch (effect.type) {
       case 'scale': {
-        const opts = {};
-        if (effect.width) opts.width = effect.width;
-        if (effect.height) opts.height = effect.height;
-        if (!effect.upscale) opts.withoutEnlargement = true;
-        opts.fit = 'inside';
-        pipeline = pipeline.resize(opts);
+        const opts: Record<string, unknown> = {};
+        if (effect.width) opts['width'] = effect.width;
+        if (effect.height) opts['height'] = effect.height;
+        if (!effect.upscale) opts['withoutEnlargement'] = true;
+        opts['fit'] = 'inside';
+        pipeline = (pipeline['resize'] as (opts: Record<string, unknown>) => Record<string, unknown>)(opts);
         break;
       }
 
       case 'crop': {
         // Map anchor names to Sharp gravity
-        const gravityMap = {
+        const gravityMap: Record<string, string> = {
           'center': 'centre',
           'top-left': 'northwest',
           'top': 'north',
@@ -525,36 +552,36 @@ async function processWithSharp(sourcePath, outputPath, effects) {
           'bottom': 'south',
           'bottom-right': 'southeast',
         };
-        const opts = {
+        const opts: Record<string, unknown> = {
           width: effect.width,
           height: effect.height,
           fit: 'cover',
-          position: gravityMap[effect.anchor] || 'centre',
+          position: gravityMap[effect.anchor ?? 'center'] ?? 'centre',
         };
-        pipeline = pipeline.resize(opts);
+        pipeline = (pipeline['resize'] as (opts: Record<string, unknown>) => Record<string, unknown>)(opts);
         break;
       }
 
       case 'rotate':
-        pipeline = pipeline.rotate(effect.angle || 0);
+        pipeline = (pipeline['rotate'] as (angle: number) => Record<string, unknown>)(effect.angle ?? 0);
         break;
 
       case 'quality': {
-        // Quality is applied at output time — store for later
-        pipeline._cmsQuality = effect.value;
+        // Quality is applied at output time -- store for later
+        cmsQuality = effect.value;
         break;
       }
 
       case 'convert': {
         // Format conversion (e.g., to WebP)
         if (effect.format === 'webp') {
-          pipeline = pipeline.webp({ quality: effect.quality || 80 });
+          pipeline = (pipeline['webp'] as (opts: Record<string, unknown>) => Record<string, unknown>)({ quality: effect.quality ?? 80 });
         } else if (effect.format === 'avif') {
-          pipeline = pipeline.avif({ quality: effect.quality || 50 });
+          pipeline = (pipeline['avif'] as (opts: Record<string, unknown>) => Record<string, unknown>)({ quality: effect.quality ?? 50 });
         } else if (effect.format === 'png') {
-          pipeline = pipeline.png();
+          pipeline = (pipeline['png'] as () => Record<string, unknown>)();
         } else if (effect.format === 'jpeg' || effect.format === 'jpg') {
-          pipeline = pipeline.jpeg({ quality: effect.quality || 85 });
+          pipeline = (pipeline['jpeg'] as (opts: Record<string, unknown>) => Record<string, unknown>)({ quality: effect.quality ?? 85 });
         }
         break;
       }
@@ -562,23 +589,23 @@ async function processWithSharp(sourcePath, outputPath, effects) {
   }
 
   // Apply quality if set and output is JPEG/WebP
-  if (pipeline._cmsQuality) {
-    const ext = outputPath.split('.').pop().toLowerCase();
+  if (cmsQuality !== undefined) {
+    const ext = outputPath.split('.').pop()?.toLowerCase() ?? '';
     if (ext === 'jpg' || ext === 'jpeg') {
-      pipeline = pipeline.jpeg({ quality: pipeline._cmsQuality });
+      pipeline = (pipeline['jpeg'] as (opts: Record<string, unknown>) => Record<string, unknown>)({ quality: cmsQuality });
     } else if (ext === 'webp') {
-      pipeline = pipeline.webp({ quality: pipeline._cmsQuality });
+      pipeline = (pipeline['webp'] as (opts: Record<string, unknown>) => Record<string, unknown>)({ quality: cmsQuality });
     }
   }
 
-  await pipeline.toFile(outputPath);
+  await (pipeline['toFile'] as (path: string) => Promise<void>)(outputPath);
 }
 
 /**
  * Process image with ImageMagick
  */
-async function processWithImageMagick(sourcePath, outputPath, effects) {
-  const commands = ['convert', escapePath(sourcePath)];
+async function processWithImageMagick(sourcePath: string, outputPath: string, effects: ImageEffect[]): Promise<void> {
+  const commands: string[] = ['convert', escapePathForShell(sourcePath)];
 
   for (const effect of effects) {
     switch (effect.type) {
@@ -587,35 +614,36 @@ async function processWithImageMagick(sourcePath, outputPath, effects) {
         break;
 
       case 'crop':
-        commands.push('-gravity', effect.anchor || 'center');
+        commands.push('-gravity', effect.anchor ?? 'center');
         commands.push('-crop', `${effect.width}x${effect.height}+0+0`);
         commands.push('+repage');
         break;
 
       case 'rotate':
-        commands.push('-rotate', effect.angle.toString());
+        commands.push('-rotate', (effect.angle ?? 0).toString());
         break;
 
       case 'quality':
-        commands.push('-quality', effect.value.toString());
+        commands.push('-quality', (effect.value ?? 85).toString());
         break;
     }
   }
 
-  commands.push(escapePath(outputPath));
+  commands.push(escapePathForShell(outputPath));
 
   try {
     execSync(commands.join(' '), { stdio: 'pipe' });
-  } catch (error) {
-    throw new Error(`ImageMagick processing failed: ${error.message}`);
+  } catch (error: unknown) {
+    const errMsg = error instanceof Error ? error.message : String(error);
+    throw new Error(`ImageMagick processing failed: ${errMsg}`);
   }
 }
 
 /**
  * Process image with GraphicsMagick
  */
-async function processWithGraphicsMagick(sourcePath, outputPath, effects) {
-  const commands = ['gm', 'convert', escapePath(sourcePath)];
+async function processWithGraphicsMagick(sourcePath: string, outputPath: string, effects: ImageEffect[]): Promise<void> {
+  const commands: string[] = ['gm', 'convert', escapePathForShell(sourcePath)];
 
   for (const effect of effects) {
     switch (effect.type) {
@@ -624,34 +652,35 @@ async function processWithGraphicsMagick(sourcePath, outputPath, effects) {
         break;
 
       case 'crop':
-        commands.push('-gravity', effect.anchor || 'center');
+        commands.push('-gravity', effect.anchor ?? 'center');
         commands.push('-crop', `${effect.width}x${effect.height}+0+0`);
         commands.push('+repage');
         break;
 
       case 'rotate':
-        commands.push('-rotate', effect.angle.toString());
+        commands.push('-rotate', (effect.angle ?? 0).toString());
         break;
 
       case 'quality':
-        commands.push('-quality', effect.value.toString());
+        commands.push('-quality', (effect.value ?? 85).toString());
         break;
     }
   }
 
-  commands.push(escapePath(outputPath));
+  commands.push(escapePathForShell(outputPath));
 
   try {
     execSync(commands.join(' '), { stdio: 'pipe' });
-  } catch (error) {
-    throw new Error(`GraphicsMagick processing failed: ${error.message}`);
+  } catch (error: unknown) {
+    const errMsg = error instanceof Error ? error.message : String(error);
+    throw new Error(`GraphicsMagick processing failed: ${errMsg}`);
   }
 }
 
 /**
  * Build resize specification for ImageMagick/GraphicsMagick
  */
-function buildResizeSpec(effect) {
+function buildResizeSpec(effect: ImageEffect): string {
   const { width, height, upscale } = effect;
   const upscaleFlag = upscale === false ? '>' : '';
 
@@ -669,36 +698,32 @@ function buildResizeSpec(effect) {
 /**
  * Escape file path for shell command
  */
-function escapePath(path) {
-  return `"${path.replace(/"/g, '\\"')}"`;
+function escapePathForShell(filePath: string): string {
+  return `"${filePath.replace(/"/g, '\\"')}"`;
 }
 
-// ===========================================
+// ============================================================================
 // Responsive Images
-// ===========================================
+// ============================================================================
 
 /**
  * Get responsive srcset for an image
- *
- * @param {string} mediaId - Media file relative path
- * @param {string} styleName - Responsive style name
- * @returns {Promise<{ srcset: string, sizes: string, src: string }>}
  */
-export async function getResponsiveSrcset(mediaId, styleName) {
+export async function getResponsiveSrcset(mediaId: string, styleName: string): Promise<SrcsetResult> {
   const style = getStyle(styleName);
   if (!style || !style.breakpoints) {
     throw new Error(`Style "${styleName}" is not a responsive style`);
   }
 
-  const srcsetParts = [];
-  let defaultSrc = null;
+  const srcsetParts: string[] = [];
+  let defaultSrc: string | null = null;
 
-  for (const [breakpointName, config] of Object.entries(style.breakpoints)) {
+  for (const [breakpointName, bpConfig] of Object.entries(style.breakpoints)) {
     // Create temporary style for this breakpoint
-    const breakpointStyle = {
-      label: `${style.label} - ${breakpointName}`,
+    const breakpointStyle: StyleConfig = {
+      label: `${style.label ?? styleName} - ${breakpointName}`,
       effects: [
-        { type: 'scale', width: config.width, upscale: false }
+        { type: 'scale', width: bpConfig.width, upscale: false }
       ],
     };
 
@@ -706,7 +731,7 @@ export async function getResponsiveSrcset(mediaId, styleName) {
     stylesConfig[breakpointStyleName] = breakpointStyle;
 
     const derivative = await getDerivative(mediaId, breakpointStyleName);
-    srcsetParts.push(`${derivative.url} ${config.width}w`);
+    srcsetParts.push(`${derivative.url} ${bpConfig.width}w`);
 
     if (!defaultSrc) {
       defaultSrc = derivative.url;
@@ -720,19 +745,15 @@ export async function getResponsiveSrcset(mediaId, styleName) {
   };
 }
 
-// ===========================================
+// ============================================================================
 // Placeholder Generation
-// ===========================================
+// ============================================================================
 
 /**
  * Get placeholder for lazy loading
- *
- * @param {string} mediaId - Media file relative path
- * @param {string} type - 'blur' or 'solid'
- * @returns {{ url: string, dataUri: string }|null}
  */
-export async function getPlaceholder(mediaId, type = 'blur') {
-  const sourcePath = mediaModule.getFilePath(mediaId);
+export async function getPlaceholder(mediaId: string, type: string = 'blur'): Promise<PlaceholderResult | null> {
+  const sourcePath = mediaModule!.getFilePath(mediaId);
   if (!existsSync(sourcePath)) {
     return null;
   }
@@ -752,7 +773,7 @@ export async function getPlaceholder(mediaId, type = 'blur') {
 
   if (type === 'blur' && processingTool) {
     // Generate tiny blurred version (20px wide)
-    const placeholderStyle = {
+    const placeholderStyle: StyleConfig = {
       label: 'Placeholder',
       effects: [
         { type: 'scale', width: 20, upscale: false },
@@ -766,8 +787,7 @@ export async function getPlaceholder(mediaId, type = 'blur') {
     // Read as base64 data URI
     const buffer = readFileSync(derivative.path);
     const base64 = buffer.toString('base64');
-    const ext = extname(derivative.path).slice(1);
-    const mimeType = mediaModule.getMimeType(derivative.path);
+    const mimeType = mediaModule!.getMimeType(derivative.path);
     const dataUri = `data:${mimeType};base64,${base64}`;
 
     return { url: derivative.url, dataUri };
@@ -776,17 +796,15 @@ export async function getPlaceholder(mediaId, type = 'blur') {
   return null;
 }
 
-// ===========================================
+// ============================================================================
 // Cache Management
-// ===========================================
+// ============================================================================
 
 /**
  * Flush derivatives for a specific style
- *
- * @param {string} styleName - Style name
  */
-export function flushDerivatives(styleName) {
-  const styleDir = join(derivativesDir, styleName);
+export function flushDerivatives(styleName: string): void {
+  const styleDir = join(derivativesDir!, styleName);
 
   if (!existsSync(styleDir)) {
     return;
@@ -795,25 +813,25 @@ export function flushDerivatives(styleName) {
   try {
     removeDirectory(styleDir);
     console.log(`[image-styles] Flushed derivatives for style: ${styleName}`);
-  } catch (error) {
-    console.error(`[image-styles] Failed to flush derivatives: ${error.message}`);
+  } catch (error: unknown) {
+    const errMsg = error instanceof Error ? error.message : String(error);
+    console.error(`[image-styles] Failed to flush derivatives: ${errMsg}`);
   }
 }
 
 /**
  * Flush all derivatives for a specific media file
- *
- * @param {string} mediaId - Media file relative path
  */
-export function flushAllDerivatives(mediaId) {
+export function flushAllDerivatives(mediaId: string): void {
   for (const styleName of Object.keys(stylesConfig)) {
     const derivativePath = getDerivativePath(mediaId, styleName);
 
     if (existsSync(derivativePath)) {
       try {
         unlinkSync(derivativePath);
-      } catch (error) {
-        console.error(`[image-styles] Failed to delete derivative: ${error.message}`);
+      } catch (error: unknown) {
+        const errMsg = error instanceof Error ? error.message : String(error);
+        console.error(`[image-styles] Failed to delete derivative: ${errMsg}`);
       }
     }
   }
@@ -824,7 +842,7 @@ export function flushAllDerivatives(mediaId) {
 /**
  * Remove directory recursively
  */
-function removeDirectory(dirPath) {
+function removeDirectory(dirPath: string): void {
   if (!existsSync(dirPath)) {
     return;
   }
@@ -844,14 +862,14 @@ function removeDirectory(dirPath) {
   // Remove empty directory
   try {
     execSync(`rmdir "${dirPath}"`, { stdio: 'ignore' });
-  } catch (e) {
+  } catch {
     // Fallback for non-empty or permission issues
   }
 }
 
-// ===========================================
+// ============================================================================
 // Default Export
-// ===========================================
+// ============================================================================
 
 export default {
   init,

@@ -1,5 +1,5 @@
 /**
- * media.js - Media Upload and File Handling System
+ * media.ts - Media Upload and File Handling System
  *
  * WHY THIS EXISTS:
  * =================
@@ -63,6 +63,54 @@
 
 import { writeFileSync, existsSync, mkdirSync, unlinkSync, readdirSync, statSync } from 'node:fs';
 import { join, extname } from 'node:path';
+import type { IncomingMessage } from 'node:http';
+
+// ===========================================
+// Types
+// ===========================================
+
+/** A parsed uploaded file from multipart form data */
+export interface UploadedFile {
+  fieldName: string;
+  name: string;
+  originalName: string;
+  type: string;
+  size: number;
+  data: Buffer;
+}
+
+/** Result of saving a file to disk */
+export interface SavedFile {
+  path: string;
+  relativePath: string;
+  filename: string;
+  size: number;
+  type: string;
+}
+
+/** Save file options */
+export interface SaveFileOptions {
+  directory?: string;
+}
+
+/** A file entry from listing files */
+export interface FileListEntry {
+  path: string;
+  name: string;
+  size: number;
+  modified: Date;
+  type: string;
+  isImage: boolean;
+}
+
+/** Result of multipart parsing */
+export interface ParseResult {
+  fields: Record<string, string>;
+  files: UploadedFile[];
+}
+
+/** File type category */
+export type FileTypeCategory = 'image' | 'video' | 'document';
 
 // ===========================================
 // Configuration
@@ -72,13 +120,13 @@ import { join, extname } from 'node:path';
  * Base directory for media storage
  * Set during init()
  */
-let mediaDir = null;
+let mediaDir: string | null = null;
 
 /**
  * Maximum file size in bytes
  * Default: 10MB (configurable via init)
  */
-let maxFileSize = 10 * 1024 * 1024;
+let maxFileSize: number = 10 * 1024 * 1024;
 
 /**
  * Allowed file extensions (lowercase, with dot)
@@ -88,7 +136,7 @@ let maxFileSize = 10 * 1024 * 1024;
  * - Whitelists are explicit about what's allowed
  * - Easier to audit and understand
  */
-const ALLOWED_EXTENSIONS = {
+const ALLOWED_EXTENSIONS: Record<string, string> = {
   // Images
   '.jpg': 'image/jpeg',
   '.jpeg': 'image/jpeg',
@@ -117,12 +165,12 @@ const ALLOWED_EXTENSIONS = {
 /**
  * Image extensions for thumbnail/preview handling
  */
-const IMAGE_EXTENSIONS = ['.jpg', '.jpeg', '.png', '.gif', '.webp'];
+const IMAGE_EXTENSIONS: string[] = ['.jpg', '.jpeg', '.png', '.gif', '.webp'];
 
 /**
  * Video extensions for video player handling
  */
-const VIDEO_EXTENSIONS = ['.mp4', '.webm', '.mov', '.avi', '.mkv', '.m4v'];
+const VIDEO_EXTENSIONS: string[] = ['.mp4', '.webm', '.mov', '.avi', '.mkv', '.m4v'];
 
 // ===========================================
 // Initialization
@@ -131,11 +179,10 @@ const VIDEO_EXTENSIONS = ['.mp4', '.webm', '.mov', '.avi', '.mkv', '.m4v'];
 /**
  * Initialize media system
  *
- * @param {string} baseDir - Project root directory
- * @param {Object} config - Media configuration
- * @param {number} config.maxFileSize - Maximum file size in bytes
+ * @param baseDir - Project root directory
+ * @param config - Media configuration
  */
-export function init(baseDir, config = {}) {
+export function init(baseDir: string, config: { maxFileSize?: number } = {}): void {
   mediaDir = join(baseDir, 'media');
 
   // Apply configuration
@@ -159,8 +206,8 @@ export function init(baseDir, config = {}) {
  * This is a zero-dependency implementation of multipart parsing.
  * It handles both regular form fields and file uploads.
  *
- * @param {http.IncomingMessage} req - HTTP request object
- * @returns {Promise<{ fields: Object, files: Array }>}
+ * @param req - HTTP request object
+ * @returns Parsed fields and files
  *
  * IMPLEMENTATION NOTES:
  * ---------------------
@@ -182,7 +229,7 @@ export function init(baseDir, config = {}) {
  * console.log(files[0].name);   // "photo.jpg"
  * console.log(files[0].data);   // Buffer
  */
-export function parseUpload(req) {
+export function parseUpload(req: IncomingMessage): Promise<ParseResult> {
   return new Promise((resolve, reject) => {
     // Extract boundary from Content-Type header
     // Format: multipart/form-data; boundary=----WebKitFormBoundary...
@@ -201,15 +248,15 @@ export function parseUpload(req) {
       return;
     }
 
-    const boundary = boundaryMatch[1].trim();
+    const boundary = (boundaryMatch[1] ?? '').trim();
     // Remove quotes if present
     const cleanBoundary = boundary.replace(/^["']|["']$/g, '');
 
     // Buffer to collect request body
-    const chunks = [];
+    const chunks: Buffer[] = [];
     let totalSize = 0;
 
-    req.on('data', (chunk) => {
+    req.on('data', (chunk: Buffer) => {
       totalSize += chunk.length;
 
       // Enforce size limit
@@ -242,9 +289,9 @@ export function parseUpload(req) {
 /**
  * Parse the multipart body buffer
  *
- * @param {Buffer} body - Complete request body
- * @param {string} boundary - Boundary string (without --)
- * @returns {{ fields: Object, files: Array }}
+ * @param body - Complete request body
+ * @param boundary - Boundary string (without --)
+ * @returns Parsed fields and files
  *
  * PARSING ALGORITHM:
  * ------------------
@@ -256,15 +303,15 @@ export function parseUpload(req) {
  *    b. Parse Content-Disposition header for name and filename
  *    c. If filename exists, it's a file; otherwise, it's a field
  */
-function parseMultipartBody(body, boundary) {
-  const fields = {};
-  const files = [];
+function parseMultipartBody(body: Buffer, boundary: string): ParseResult {
+  const fields: Record<string, string> = {};
+  const files: UploadedFile[] = [];
 
   // Boundary in body is prefixed with --
   const boundaryBuffer = Buffer.from('--' + boundary);
 
   // Find all boundary positions
-  const parts = [];
+  const parts: Array<{ start: number; end: number }> = [];
   let searchStart = 0;
 
   while (true) {
@@ -326,11 +373,11 @@ function parseMultipartBody(body, boundary) {
 
     if (!nameMatch) continue;
 
-    const name = nameMatch[1];
+    const name = nameMatch[1] ?? '';
 
     if (filenameMatch) {
       // This is a file upload
-      const filename = filenameMatch[1];
+      const filename = filenameMatch[1] ?? '';
       const contentType = headers['content-type'] || 'application/octet-stream';
 
       files.push({
@@ -353,10 +400,10 @@ function parseMultipartBody(body, boundary) {
 /**
  * Find position of double CRLF (\r\n\r\n) in buffer
  *
- * @param {Buffer} buffer
- * @returns {number} Position or -1 if not found
+ * @param buffer - Buffer to search
+ * @returns Position or -1 if not found
  */
-function findDoubleCRLF(buffer) {
+function findDoubleCRLF(buffer: Buffer): number {
   for (let i = 0; i < buffer.length - 3; i++) {
     if (buffer[i] === 0x0d && buffer[i + 1] === 0x0a &&
         buffer[i + 2] === 0x0d && buffer[i + 3] === 0x0a) {
@@ -369,11 +416,11 @@ function findDoubleCRLF(buffer) {
 /**
  * Parse part headers from string
  *
- * @param {string} headerStr - Headers as string
- * @returns {Object} Parsed headers (lowercase keys)
+ * @param headerStr - Headers as string
+ * @returns Parsed headers (lowercase keys)
  */
-function parsePartHeaders(headerStr) {
-  const headers = {};
+function parsePartHeaders(headerStr: string): Record<string, string> {
+  const headers: Record<string, string> = {};
   const lines = headerStr.split('\r\n');
 
   for (const line of lines) {
@@ -396,10 +443,10 @@ function parsePartHeaders(headerStr) {
  * - Remove special characters that cause issues
  * - Ensure cross-platform compatibility
  *
- * @param {string} filename - Original filename
- * @returns {string} Sanitized filename
+ * @param filename - Original filename
+ * @returns Sanitized filename
  */
-function sanitizeFilename(filename) {
+function sanitizeFilename(filename: string): string {
   return filename
     // Remove path components (keep only filename)
     .replace(/^.*[\\\/]/, '')
@@ -424,10 +471,9 @@ function sanitizeFilename(filename) {
 /**
  * Save an uploaded file to the media directory
  *
- * @param {Object} file - File object from parseUpload()
- * @param {Object} options - Save options
- * @param {string} options.directory - Custom subdirectory
- * @returns {{ path: string, relativePath: string, filename: string, size: number, type: string }}
+ * @param file - File object from parseUpload()
+ * @param options - Save options
+ * @returns Saved file info
  *
  * FILE NAMING:
  * - Prefix with timestamp for uniqueness
@@ -440,7 +486,11 @@ function sanitizeFilename(filename) {
  * // saved.path = '/absolute/path/to/media/2024/01/1705123456789-photo.jpg'
  * // saved.relativePath = '2024/01/1705123456789-photo.jpg'
  */
-export function saveFile(file, options = {}) {
+export function saveFile(file: UploadedFile, options: SaveFileOptions = {}): SavedFile {
+  if (!mediaDir) {
+    throw new Error('Media system not initialized');
+  }
+
   // Validate file extension
   const ext = extname(file.name).toLowerCase();
   if (!ALLOWED_EXTENSIONS[ext]) {
@@ -473,7 +523,7 @@ export function saveFile(file, options = {}) {
   const relativePath = `${subDir}/${filename}`;
 
   // SVG sanitization: strip dangerous elements (script, event handlers, foreign objects)
-  let fileData = file.data;
+  let fileData: Buffer | string = file.data;
   if (ext === '.svg') {
     let svgContent = typeof fileData === 'string' ? fileData : fileData.toString('utf-8');
     // Remove script tags and their content
@@ -497,7 +547,7 @@ export function saveFile(file, options = {}) {
     path: absolutePath,
     relativePath,
     filename,
-    size: fileData.length || file.size,
+    size: Buffer.isBuffer(fileData) ? fileData.length : file.size,
     type: getMimeType(filename),
   };
 }
@@ -505,14 +555,18 @@ export function saveFile(file, options = {}) {
 /**
  * Delete a file from the media directory
  *
- * @param {string} relativePath - Path relative to media directory
- * @returns {boolean} True if deleted, false if not found
+ * @param relativePath - Path relative to media directory
+ * @returns True if deleted, false if not found
  *
  * SECURITY:
  * - Validates path stays within media directory
  * - Prevents path traversal attacks
  */
-export function deleteFile(relativePath) {
+export function deleteFile(relativePath: string): boolean {
+  if (!mediaDir) {
+    throw new Error('Media system not initialized');
+  }
+
   // Prevent path traversal
   if (relativePath.includes('..')) {
     throw new Error('Invalid path: path traversal not allowed');
@@ -532,8 +586,8 @@ export function deleteFile(relativePath) {
   try {
     unlinkSync(absolutePath);
     return true;
-  } catch (error) {
-    console.error(`[media] Failed to delete ${relativePath}: ${error.message}`);
+  } catch (error: unknown) {
+    console.error(`[media] Failed to delete ${relativePath}: ${error instanceof Error ? error.message : String(error)}`);
     return false;
   }
 }
@@ -541,22 +595,26 @@ export function deleteFile(relativePath) {
 /**
  * List files in the media directory
  *
- * @param {string} directory - Subdirectory to list (default: all)
- * @returns {Array<{ path: string, name: string, size: number, modified: Date, type: string, isImage: boolean }>}
+ * @param directory - Subdirectory to list (default: all)
+ * @returns Array of file entries
  *
  * NOTE: This recursively lists all files. For large media libraries,
  * consider pagination or caching.
  */
-export function listFiles(directory = '') {
+export function listFiles(directory: string = ''): FileListEntry[] {
+  if (!mediaDir) {
+    return [];
+  }
+
   const targetDir = join(mediaDir, directory);
 
   if (!existsSync(targetDir)) {
     return [];
   }
 
-  const files = [];
+  const files: FileListEntry[] = [];
 
-  function scanDir(dir, prefix = '') {
+  function scanDir(dir: string, prefix: string = ''): void {
     const entries = readdirSync(dir, { withFileTypes: true });
 
     for (const entry of entries) {
@@ -590,10 +648,14 @@ export function listFiles(directory = '') {
 /**
  * Get absolute path for a relative media path
  *
- * @param {string} relativePath - Path relative to media directory
- * @returns {string} Absolute filesystem path
+ * @param relativePath - Path relative to media directory
+ * @returns Absolute filesystem path
  */
-export function getFilePath(relativePath) {
+export function getFilePath(relativePath: string): string {
+  if (!mediaDir) {
+    throw new Error('Media system not initialized');
+  }
+
   // Prevent path traversal
   if (relativePath.includes('..')) {
     throw new Error('Invalid path: path traversal not allowed');
@@ -605,9 +667,9 @@ export function getFilePath(relativePath) {
 /**
  * Get the media directory path
  *
- * @returns {string} Absolute path to media directory
+ * @returns Absolute path to media directory
  */
-export function getMediaDir() {
+export function getMediaDir(): string | null {
   return mediaDir;
 }
 
@@ -618,21 +680,21 @@ export function getMediaDir() {
 /**
  * Get MIME type for a filename based on extension
  *
- * @param {string} filename - File name or path
- * @returns {string} MIME type or 'application/octet-stream' if unknown
+ * @param filename - File name or path
+ * @returns MIME type or 'application/octet-stream' if unknown
  */
-export function getMimeType(filename) {
+export function getMimeType(filename: string): string {
   const ext = extname(filename).toLowerCase();
-  return ALLOWED_EXTENSIONS[ext] || 'application/octet-stream';
+  return ALLOWED_EXTENSIONS[ext] ?? 'application/octet-stream';
 }
 
 /**
  * Check if a file is an image
  *
- * @param {string} filename - File name or path
- * @returns {boolean}
+ * @param filename - File name or path
+ * @returns Whether the file is an image
  */
-export function isImageFile(filename) {
+export function isImageFile(filename: string): boolean {
   const ext = extname(filename).toLowerCase();
   return IMAGE_EXTENSIONS.includes(ext);
 }
@@ -640,10 +702,10 @@ export function isImageFile(filename) {
 /**
  * Check if a file is a video
  *
- * @param {string} filename - File name or path
- * @returns {boolean}
+ * @param filename - File name or path
+ * @returns Whether the file is a video
  */
-export function isVideoFile(filename) {
+export function isVideoFile(filename: string): boolean {
   const ext = extname(filename).toLowerCase();
   return VIDEO_EXTENSIONS.includes(ext);
 }
@@ -651,10 +713,10 @@ export function isVideoFile(filename) {
 /**
  * Get the file type category
  *
- * @param {string} filename - File name or path
- * @returns {'image' | 'video' | 'document'} File type category
+ * @param filename - File name or path
+ * @returns File type category
  */
-export function getFileType(filename) {
+export function getFileType(filename: string): FileTypeCategory {
   if (isImageFile(filename)) return 'image';
   if (isVideoFile(filename)) return 'video';
   return 'document';
@@ -663,10 +725,10 @@ export function getFileType(filename) {
 /**
  * Check if a file extension is allowed
  *
- * @param {string} filename - File name or path
- * @returns {boolean}
+ * @param filename - File name or path
+ * @returns Whether the extension is allowed
  */
-export function isAllowedType(filename) {
+export function isAllowedType(filename: string): boolean {
   const ext = extname(filename).toLowerCase();
   return ext in ALLOWED_EXTENSIONS;
 }
@@ -674,28 +736,28 @@ export function isAllowedType(filename) {
 /**
  * Get list of allowed extensions
  *
- * @returns {string[]} Array of allowed extensions (e.g., ['.jpg', '.png', ...])
+ * @returns Array of allowed extensions (e.g., ['.jpg', '.png', ...])
  */
-export function getAllowedExtensions() {
+export function getAllowedExtensions(): string[] {
   return Object.keys(ALLOWED_EXTENSIONS);
 }
 
 /**
  * Get maximum file size
  *
- * @returns {number} Maximum file size in bytes
+ * @returns Maximum file size in bytes
  */
-export function getMaxFileSize() {
+export function getMaxFileSize(): number {
   return maxFileSize;
 }
 
 /**
  * Format file size for display
  *
- * @param {number} bytes - Size in bytes
- * @returns {string} Formatted size (e.g., "1.5 MB")
+ * @param bytes - Size in bytes
+ * @returns Formatted size (e.g., "1.5 MB")
  */
-export function formatFileSize(bytes) {
+export function formatFileSize(bytes: number): string {
   if (bytes < 1024) return `${bytes} B`;
   if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
   return `${(bytes / 1024 / 1024).toFixed(1)} MB`;

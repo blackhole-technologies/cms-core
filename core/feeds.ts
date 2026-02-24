@@ -1,5 +1,5 @@
 /**
- * feeds.js - Content Syndication & Feed Generation
+ * feeds.ts - Content Syndication & Feed Generation
  *
  * WHY THIS EXISTS:
  * Generate RSS, Atom, and JSON feeds for content syndication:
@@ -18,27 +18,128 @@
 import { existsSync, readFileSync, writeFileSync, mkdirSync } from 'node:fs';
 import { join } from 'node:path';
 
-/**
- * Configuration
- */
-let config = {
+// ============================================================================
+// Types
+// ============================================================================
+
+/** Feed format type */
+type FeedFormat = 'rss' | 'atom' | 'json';
+
+/** Configuration for a specific feed type */
+interface FeedTypeConfig {
+  enabled: boolean;
+  title: string | null;
+  description: string;
+  limit: number;
+  includeContent: boolean;
+  contentField: string;
+  titleField: string;
+  dateField: string;
+  authorField: string;
+  slugField: string;
+  linkTemplate: string;
+  formats: FeedFormat[];
+  language: string;
+  copyright: string | null;
+  image: string | null;
+  categories: string[];
+}
+
+/** Global feed configuration */
+interface FeedConfig {
+  enabled: boolean;
+  defaultLimit: number;
+  baseUrl: string;
+  types: Record<string, Partial<FeedTypeConfig>>;
+}
+
+/** Content service interface (subset used by feeds) */
+interface ContentService {
+  listTypes(): Array<{ type: string }>;
+  list(type: string, options?: Record<string, unknown>): { items: ContentItem[]; total: number };
+}
+
+/** Content item with dynamic fields */
+interface ContentItem {
+  id: string;
+  title?: string;
+  name?: string;
+  slug?: string;
+  body?: string;
+  author?: string;
+  created?: string;
+  updated?: string;
+  category?: string | string[];
+  image?: string;
+  [field: string]: unknown;
+}
+
+/** Feed listing entry */
+interface FeedListEntry {
+  type: string;
+  enabled: boolean;
+  title: string | null;
+  description: string;
+  limit: number;
+  formats: FeedFormat[];
+  itemCount: number;
+  urls: {
+    rss: string;
+    atom: string;
+    json: string;
+  };
+}
+
+/** Feed validation result */
+interface FeedValidationResult {
+  valid: boolean;
+  errors: string[];
+  warnings: string[];
+  feedConfig?: FeedTypeConfig;
+  itemCount?: number;
+}
+
+/** Discovery link entry */
+interface DiscoveryLink {
+  rel: string;
+  type: string;
+  title: string;
+  href: string;
+}
+
+/** Options for feed item retrieval */
+interface FeedItemOptions {
+  limit?: number;
+}
+
+/** Options for feed generation */
+interface FeedGenerateOptions {
+  limit?: number;
+}
+
+// ============================================================================
+// Configuration
+// ============================================================================
+
+let config: FeedConfig = {
   enabled: true,
   defaultLimit: 20,
   baseUrl: 'http://localhost:3000',
   types: {},
 };
 
-/**
- * Services
- */
-let contentService = null;
-let baseDir = null;
-let feedsConfigPath = null;
+// ============================================================================
+// Services
+// ============================================================================
+
+let contentService: ContentService | null = null;
+let baseDir: string | null = null;
+let feedsConfigPath: string | null = null;
 
 /**
  * Default feed configuration for a type
  */
-const DEFAULT_FEED_CONFIG = {
+const DEFAULT_FEED_CONFIG: FeedTypeConfig = {
   enabled: false,
   title: null, // Auto-generated from type name
   description: '',
@@ -60,11 +161,11 @@ const DEFAULT_FEED_CONFIG = {
 /**
  * Initialize feeds service
  *
- * @param {string} dir - Base directory
- * @param {Object} content - Content service
- * @param {Object} feedsConfig - Configuration
+ * @param dir - Base directory
+ * @param content - Content service
+ * @param feedsConfig - Configuration
  */
-export function init(dir, content, feedsConfig = {}) {
+export function init(dir: string, content: ContentService, feedsConfig: Partial<FeedConfig> = {}): void {
   baseDir = dir;
   contentService = content;
 
@@ -78,12 +179,13 @@ export function init(dir, content, feedsConfig = {}) {
 /**
  * Load feeds configuration from file
  */
-function loadFeedsConfig() {
+function loadFeedsConfig(): void {
+  if (!feedsConfigPath) return;
   if (existsSync(feedsConfigPath)) {
     try {
-      const data = JSON.parse(readFileSync(feedsConfigPath, 'utf-8'));
+      const data = JSON.parse(readFileSync(feedsConfigPath, 'utf-8')) as Record<string, Partial<FeedTypeConfig>>;
       config.types = { ...config.types, ...data };
-    } catch (e) {
+    } catch (_e) {
       // Ignore parse errors
     }
   }
@@ -92,7 +194,8 @@ function loadFeedsConfig() {
 /**
  * Save feeds configuration to file
  */
-function saveFeedsConfig() {
+function saveFeedsConfig(): void {
+  if (!baseDir || !feedsConfigPath) return;
   const configDir = join(baseDir, 'config');
   if (!existsSync(configDir)) {
     mkdirSync(configDir, { recursive: true });
@@ -104,11 +207,11 @@ function saveFeedsConfig() {
 /**
  * Get feed configuration for a type
  *
- * @param {string} type - Content type
- * @returns {Object}
+ * @param type - Content type
+ * @returns Feed configuration with defaults applied
  */
-export function getFeedConfig(type) {
-  const typeConfig = config.types[type] || {};
+export function getFeedConfig(type: string): FeedTypeConfig {
+  const typeConfig = config.types[type] ?? {};
   return {
     ...DEFAULT_FEED_CONFIG,
     title: capitalizeFirst(type) + ' Feed',
@@ -119,31 +222,32 @@ export function getFeedConfig(type) {
 /**
  * Set feed configuration for a type
  *
- * @param {string} type - Content type
- * @param {Object} feedConfig - Feed configuration
- * @returns {Object}
+ * @param type - Content type
+ * @param feedConfig - Feed configuration
+ * @returns Updated configuration
  */
-export function setFeedConfig(type, feedConfig) {
-  config.types[type] = {
+export function setFeedConfig(type: string, feedConfig: Partial<FeedTypeConfig>): FeedTypeConfig {
+  const merged: FeedTypeConfig = {
     ...getFeedConfig(type),
     ...feedConfig,
   };
+  config.types[type] = merged;
 
   saveFeedsConfig();
 
-  return config.types[type];
+  return merged;
 }
 
 /**
  * List all available feeds
  *
- * @returns {Array}
+ * @returns Array of feed listing entries
  */
-export function listFeeds() {
+export function listFeeds(): FeedListEntry[] {
   if (!contentService) return [];
 
   const types = contentService.listTypes();
-  const feeds = [];
+  const feeds: FeedListEntry[] = [];
 
   for (const { type } of types) {
     const feedConfig = getFeedConfig(type);
@@ -171,13 +275,14 @@ export function listFeeds() {
 /**
  * Get feed items for a type
  *
- * @param {string} type - Content type
- * @param {Object} options - Options
- * @returns {Array}
+ * @param type - Content type
+ * @param options - Options
+ * @returns Array of content items
  */
-function getFeedItems(type, options = {}) {
+function getFeedItems(type: string, options: FeedItemOptions = {}): ContentItem[] {
+  if (!contentService) return [];
   const feedConfig = getFeedConfig(type);
-  const limit = options.limit || feedConfig.limit || config.defaultLimit;
+  const limit = options.limit ?? feedConfig.limit ?? config.defaultLimit;
 
   // Get published content sorted by date
   const result = contentService.list(type, {
@@ -203,21 +308,22 @@ function getFeedItems(type, options = {}) {
 /**
  * Generate item link from template
  *
- * @param {Object} item - Content item
- * @param {string} type - Content type
- * @param {Object} feedConfig - Feed configuration
- * @returns {string}
+ * @param item - Content item
+ * @param type - Content type
+ * @param feedConfig - Feed configuration
+ * @returns Absolute URL
  */
-function generateItemLink(item, type, feedConfig) {
+function generateItemLink(item: ContentItem, type: string, feedConfig: FeedTypeConfig): string {
   let link = feedConfig.linkTemplate || '/{{type}}/{{id}}';
 
   link = link.replace(/\{\{type\}\}/g, type);
   link = link.replace(/\{\{id\}\}/g, item.id);
-  link = link.replace(/\{\{slug\}\}/g, item[feedConfig.slugField] || item.slug || item.id);
+  const slugValue = item[feedConfig.slugField];
+  link = link.replace(/\{\{slug\}\}/g, String(slugValue ?? item.slug ?? item.id));
 
   // Replace any remaining {{field}} patterns
-  link = link.replace(/\{\{(\w+)\}\}/g, (match, field) => {
-    return item[field] || '';
+  link = link.replace(/\{\{(\w+)\}\}/g, (_match: string, field: string) => {
+    return String(item[field] ?? '');
   });
 
   return config.baseUrl + link;
@@ -226,10 +332,10 @@ function generateItemLink(item, type, feedConfig) {
 /**
  * Escape XML special characters
  *
- * @param {string} str
- * @returns {string}
+ * @param str - String to escape
+ * @returns Escaped string
  */
-function escapeXml(str) {
+function escapeXml(str: string | null | undefined): string {
   if (!str) return '';
   return String(str)
     .replace(/&/g, '&amp;')
@@ -242,38 +348,38 @@ function escapeXml(str) {
 /**
  * Format date for RSS (RFC 822)
  *
- * @param {string|Date} date
- * @returns {string}
+ * @param date - Date string or Date object
+ * @returns RFC 822 formatted date
  */
-function formatRssDate(date) {
-  const d = date instanceof Date ? date : new Date(date);
+function formatRssDate(date: string | Date | undefined): string {
+  const d = date instanceof Date ? date : new Date(date ?? Date.now());
   return d.toUTCString();
 }
 
 /**
  * Format date for Atom (ISO 8601)
  *
- * @param {string|Date} date
- * @returns {string}
+ * @param date - Date string or Date object
+ * @returns ISO 8601 formatted date
  */
-function formatAtomDate(date) {
-  const d = date instanceof Date ? date : new Date(date);
+function formatAtomDate(date: string | Date | undefined): string {
+  const d = date instanceof Date ? date : new Date(date ?? Date.now());
   return d.toISOString();
 }
 
 /**
  * Generate RSS 2.0 feed
  *
- * @param {string} type - Content type
- * @param {Object} options - Options
- * @returns {string}
+ * @param type - Content type
+ * @param options - Options
+ * @returns RSS XML string
  */
-export function generateRSS(type, options = {}) {
+export function generateRSS(type: string, options: FeedGenerateOptions = {}): string {
   const feedConfig = getFeedConfig(type);
   const items = getFeedItems(type, options);
   const now = new Date();
 
-  const lines = [];
+  const lines: string[] = [];
   lines.push('<?xml version="1.0" encoding="UTF-8"?>');
   lines.push('<rss version="2.0" xmlns:atom="http://www.w3.org/2005/Atom" xmlns:content="http://purl.org/rss/1.0/modules/content/">');
   lines.push('  <channel>');
@@ -297,11 +403,11 @@ export function generateRSS(type, options = {}) {
   }
 
   for (const item of items) {
-    const title = item[feedConfig.titleField] || item.title || item.name || 'Untitled';
+    const title = String(item[feedConfig.titleField] ?? item.title ?? item.name ?? 'Untitled');
     const link = generateItemLink(item, type, feedConfig);
-    const date = item[feedConfig.dateField] || item.created;
-    const content = feedConfig.includeContent ? (item[feedConfig.contentField] || item.body || '') : '';
-    const author = item[feedConfig.authorField] || item.author || '';
+    const date = item[feedConfig.dateField] as string | undefined ?? item.created;
+    const content = feedConfig.includeContent ? String(item[feedConfig.contentField] ?? item.body ?? '') : '';
+    const author = String(item[feedConfig.authorField] ?? item.author ?? '');
 
     lines.push('    <item>');
     lines.push(`      <title>${escapeXml(title)}</title>`);
@@ -340,11 +446,11 @@ export function generateRSS(type, options = {}) {
 /**
  * Generate Atom feed
  *
- * @param {string} type - Content type
- * @param {Object} options - Options
- * @returns {string}
+ * @param type - Content type
+ * @param options - Options
+ * @returns Atom XML string
  */
-export function generateAtom(type, options = {}) {
+export function generateAtom(type: string, options: FeedGenerateOptions = {}): string {
   const feedConfig = getFeedConfig(type);
   const items = getFeedItems(type, options);
   const now = new Date();
@@ -352,7 +458,7 @@ export function generateAtom(type, options = {}) {
   const feedUrl = `${config.baseUrl}/feed/${type}.atom`;
   const feedId = feedUrl;
 
-  const lines = [];
+  const lines: string[] = [];
   lines.push('<?xml version="1.0" encoding="UTF-8"?>');
   lines.push('<feed xmlns="http://www.w3.org/2005/Atom">');
   lines.push(`  <title>${escapeXml(feedConfig.title)}</title>`);
@@ -374,12 +480,12 @@ export function generateAtom(type, options = {}) {
   lines.push('  <generator uri="https://github.com/cms-core" version="0.0.59">CMS Core</generator>');
 
   for (const item of items) {
-    const title = item[feedConfig.titleField] || item.title || item.name || 'Untitled';
+    const title = String(item[feedConfig.titleField] ?? item.title ?? item.name ?? 'Untitled');
     const link = generateItemLink(item, type, feedConfig);
-    const date = item[feedConfig.dateField] || item.created;
-    const updated = item.updated || date;
-    const content = feedConfig.includeContent ? (item[feedConfig.contentField] || item.body || '') : '';
-    const author = item[feedConfig.authorField] || item.author || '';
+    const date = item[feedConfig.dateField] as string | undefined ?? item.created;
+    const updated = (item.updated as string | undefined) ?? date;
+    const content = feedConfig.includeContent ? String(item[feedConfig.contentField] ?? item.body ?? '') : '';
+    const author = String(item[feedConfig.authorField] ?? item.author ?? '');
 
     lines.push('  <entry>');
     lines.push(`    <title>${escapeXml(title)}</title>`);
@@ -417,18 +523,44 @@ export function generateAtom(type, options = {}) {
   return lines.join('\n');
 }
 
+/** JSON Feed item structure */
+interface JsonFeedItem {
+  id: string;
+  title: string;
+  url: string;
+  date_published: string;
+  date_modified?: string;
+  content_html?: string;
+  summary?: string;
+  authors?: Array<{ name: string }>;
+  tags?: string[];
+  image?: string;
+}
+
+/** JSON Feed structure */
+interface JsonFeed {
+  version: string;
+  title: string | null;
+  home_page_url: string;
+  feed_url: string;
+  description?: string;
+  language: string;
+  icon?: string;
+  items: JsonFeedItem[];
+}
+
 /**
  * Generate JSON Feed
  *
- * @param {string} type - Content type
- * @param {Object} options - Options
- * @returns {string}
+ * @param type - Content type
+ * @param options - Options
+ * @returns JSON Feed string
  */
-export function generateJSON(type, options = {}) {
+export function generateJSON(type: string, options: FeedGenerateOptions = {}): string {
   const feedConfig = getFeedConfig(type);
   const items = getFeedItems(type, options);
 
-  const feed = {
+  const feed: JsonFeed = {
     version: 'https://jsonfeed.org/version/1.1',
     title: feedConfig.title,
     home_page_url: config.baseUrl,
@@ -443,14 +575,14 @@ export function generateJSON(type, options = {}) {
   }
 
   for (const item of items) {
-    const title = item[feedConfig.titleField] || item.title || item.name || 'Untitled';
+    const title = String(item[feedConfig.titleField] ?? item.title ?? item.name ?? 'Untitled');
     const link = generateItemLink(item, type, feedConfig);
-    const date = item[feedConfig.dateField] || item.created;
-    const updated = item.updated || date;
-    const content = feedConfig.includeContent ? (item[feedConfig.contentField] || item.body || '') : '';
-    const author = item[feedConfig.authorField] || item.author || '';
+    const date = item[feedConfig.dateField] as string | undefined ?? item.created;
+    const updated = (item.updated as string | undefined) ?? date;
+    const content = feedConfig.includeContent ? String(item[feedConfig.contentField] ?? item.body ?? '') : '';
+    const author = String(item[feedConfig.authorField] ?? item.author ?? '');
 
-    const feedItem = {
+    const feedItem: JsonFeedItem = {
       id: item.id,
       title,
       url: link,
@@ -477,7 +609,8 @@ export function generateJSON(type, options = {}) {
     }
 
     if (item.image) {
-      feedItem.image = item.image.startsWith('http') ? item.image : config.baseUrl + item.image;
+      const img = String(item.image);
+      feedItem.image = img.startsWith('http') ? img : config.baseUrl + img;
     }
 
     feed.items.push(feedItem);
@@ -489,12 +622,12 @@ export function generateJSON(type, options = {}) {
 /**
  * Generate feed in specified format
  *
- * @param {string} type - Content type
- * @param {string} format - Feed format (rss, atom, json)
- * @param {Object} options - Options
- * @returns {string}
+ * @param type - Content type
+ * @param format - Feed format (rss, atom, json)
+ * @param options - Options
+ * @returns Feed string
  */
-export function generateFeed(type, format = 'rss', options = {}) {
+export function generateFeed(type: string, format: string = 'rss', options: FeedGenerateOptions = {}): string {
   switch (format.toLowerCase()) {
     case 'atom':
       return generateAtom(type, options);
@@ -509,12 +642,12 @@ export function generateFeed(type, format = 'rss', options = {}) {
 /**
  * Validate feed configuration
  *
- * @param {string} type - Content type
- * @returns {Object}
+ * @param type - Content type
+ * @returns Validation result
  */
-export function validateFeed(type) {
-  const errors = [];
-  const warnings = [];
+export function validateFeed(type: string): FeedValidationResult {
+  const errors: string[] = [];
+  const warnings: string[] = [];
 
   // Check if type exists
   if (!contentService) {
@@ -533,7 +666,8 @@ export function validateFeed(type) {
   const feedConfig = getFeedConfig(type);
 
   // Check title field exists
-  const typeSchema = types.find(t => t.type === type)?.schema || {};
+  const typeEntry = types.find(t => t.type === type);
+  const typeSchema = ((typeEntry as Record<string, unknown> | undefined)?.schema ?? {}) as Record<string, unknown>;
   if (feedConfig.titleField !== 'title' && feedConfig.titleField !== 'name') {
     if (!typeSchema[feedConfig.titleField]) {
       warnings.push(`Title field "${feedConfig.titleField}" not found in schema`);
@@ -572,11 +706,11 @@ export function validateFeed(type) {
 /**
  * Get auto-discovery link tags for HTML head
  *
- * @param {string} type - Content type (optional, returns all if not specified)
- * @returns {Array}
+ * @param type - Content type (optional, returns all if not specified)
+ * @returns Array of discovery link objects
  */
-export function getDiscoveryLinks(type = null) {
-  const links = [];
+export function getDiscoveryLinks(type: string | null = null): DiscoveryLink[] {
+  const links: DiscoveryLink[] = [];
   const feeds = listFeeds();
 
   for (const feed of feeds) {
@@ -617,10 +751,10 @@ export function getDiscoveryLinks(type = null) {
 /**
  * Generate HTML link tags for auto-discovery
  *
- * @param {string} type - Content type (optional)
- * @returns {string}
+ * @param type - Content type (optional)
+ * @returns HTML string of link tags
  */
-export function getDiscoveryHTML(type = null) {
+export function getDiscoveryHTML(type: string | null = null): string {
   const links = getDiscoveryLinks(type);
   return links.map(link =>
     `<link rel="${link.rel}" type="${link.type}" title="${escapeXml(link.title)}" href="${escapeXml(link.href)}">`
@@ -630,10 +764,10 @@ export function getDiscoveryHTML(type = null) {
 /**
  * Get content type for feed format
  *
- * @param {string} format
- * @returns {string}
+ * @param format - Feed format
+ * @returns MIME content type
  */
-export function getContentType(format) {
+export function getContentType(format: string): string {
   switch (format.toLowerCase()) {
     case 'atom':
       return 'application/atom+xml; charset=utf-8';
@@ -648,37 +782,37 @@ export function getContentType(format) {
 /**
  * Get configuration
  *
- * @returns {Object}
+ * @returns Copy of current configuration
  */
-export function getConfig() {
+export function getConfig(): FeedConfig {
   return { ...config };
 }
 
 /**
  * Set base URL
  *
- * @param {string} url
+ * @param url - Base URL
  */
-export function setBaseUrl(url) {
+export function setBaseUrl(url: string): void {
   config.baseUrl = url.replace(/\/$/, ''); // Remove trailing slash
 }
 
 /**
  * Check if feeds are enabled
  *
- * @returns {boolean}
+ * @returns Whether feeds are enabled
  */
-export function isEnabled() {
+export function isEnabled(): boolean {
   return config.enabled;
 }
 
 /**
  * Capitalize first letter
  *
- * @param {string} str
- * @returns {string}
+ * @param str - String to capitalize
+ * @returns Capitalized string
  */
-function capitalizeFirst(str) {
+function capitalizeFirst(str: string): string {
   if (!str) return '';
   return str.charAt(0).toUpperCase() + str.slice(1);
 }

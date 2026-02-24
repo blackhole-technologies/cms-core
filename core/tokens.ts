@@ -1,5 +1,5 @@
 /**
- * tokens.js - Token/Placeholder Replacement System
+ * tokens.ts - Token/Placeholder Replacement System
  * v1.0.0
  *
  * WHY THIS EXISTS:
@@ -21,22 +21,101 @@
 
 import { trigger } from './hooks.ts';
 
+// ============================================================================
+// Types
+// ============================================================================
+
+/** Token definition info for a single token within a type */
+export interface TokenDefinition {
+  name: string;
+  description: string;
+  example?: string;
+}
+
+/** Token type info stored in the registry */
+export interface TokenTypeInfo {
+  name: string;
+  description: string;
+  tokens: Record<string, TokenDefinition>;
+}
+
+/** Parsed token structure */
+export interface ParsedToken {
+  full: string;
+  type: string;
+  name: string;
+  chain: string[];
+  modifier: string | null;
+}
+
+/** Token handler callback */
+export type TokenHandler = (
+  context: Record<string, unknown>,
+  chain: string[],
+  modifier: string | null
+) => unknown;
+
+/** Token validation error */
+export interface TokenValidationError {
+  token: string;
+  error: string;
+}
+
+/** Token validation result */
+export interface TokenValidationResult {
+  valid: boolean;
+  errors: TokenValidationError[];
+}
+
+/** Token browser data item */
+export interface TokenBrowserToken {
+  id: string;
+  name: string;
+  description: string;
+  token: string;
+  example: string;
+}
+
+/** Token browser type data */
+export interface TokenBrowserType {
+  id: string;
+  name: string;
+  description: string;
+  available: boolean;
+  tokens: TokenBrowserToken[];
+}
+
+/** Token browser data result */
+export interface TokenBrowserData {
+  types: TokenBrowserType[];
+}
+
+/** Token config */
+interface TokenConfig {
+  pattern: RegExp;
+  escapeHtml: boolean;
+}
+
+// ============================================================================
+// State
+// ============================================================================
+
 /**
  * Token type registry
  * Structure: { type: { name, description, tokens: { tokenName: info } } }
  */
-const types = {};
+const types: Record<string, TokenTypeInfo> = {};
 
 /**
  * Token handler registry
  * Structure: { 'type:token': callback }
  */
-const handlers = {};
+const handlers: Record<string, TokenHandler> = {};
 
 /**
  * Configuration
  */
-let config = {
+let config: TokenConfig = {
   pattern: /\[([a-zA-Z0-9_-]+):([a-zA-Z0-9_:-]+)\]/g,
   escapeHtml: true,
 };
@@ -44,14 +123,10 @@ let config = {
 /**
  * Initialize token system
  *
- * @param {Object} options - Configuration options
- * @param {RegExp} options.pattern - Custom token pattern regex
- * @param {boolean} options.escapeHtml - HTML escape by default
- *
  * WHY LAZY INIT:
  * System works out of box with defaults. Init only needed for customization.
  */
-export function init(options = {}) {
+export function init(options: Partial<TokenConfig> = {}): void {
   config = { ...config, ...options };
 
   // Register core token types
@@ -61,17 +136,11 @@ export function init(options = {}) {
 /**
  * Register a token type
  *
- * @param {string} type - Type identifier (e.g., 'site', 'user')
- * @param {Object} info - Type metadata
- * @param {string} info.name - Human-readable name
- * @param {string} info.description - Type description
- * @param {Object} info.tokens - Token definitions { tokenName: { name, description } }
- *
  * WHY SEPARATE TYPE REGISTRATION:
  * Allows discovery of available tokens without executing handlers.
  * UI can list tokens before needing actual values.
  */
-export function registerType(type, info) {
+export function registerType(type: string, info: { name: string; description?: string; tokens?: Record<string, TokenDefinition> }): void {
   if (!type || typeof type !== 'string') {
     throw new Error('Token type must be a non-empty string');
   }
@@ -90,10 +159,6 @@ export function registerType(type, info) {
 /**
  * Register a token handler
  *
- * @param {string} type - Token type (e.g., 'site')
- * @param {string} name - Token name (e.g., 'name')
- * @param {Function} callback - Handler function(context, chain, modifier)
- *
  * WHY SEPARATE HANDLER REGISTRATION:
  * Decouples metadata (registerType) from logic (registerToken).
  * Type can be defined with static info, handlers added dynamically.
@@ -103,7 +168,7 @@ export function registerType(type, info) {
  * - chain: Array of chained properties ['author', 'name'] for [content:author:name]
  * - modifier: Special modifier like 'raw'
  */
-export function registerToken(type, name, callback) {
+export function registerToken(type: string, name: string, callback: TokenHandler): void {
   if (!type || !name) {
     throw new Error('Token type and name are required');
   }
@@ -119,15 +184,11 @@ export function registerToken(type, name, callback) {
 /**
  * Replace all tokens in text
  *
- * @param {string} text - Text containing tokens
- * @param {Object} context - Context object with data for replacement
- * @returns {Promise<string>} - Text with tokens replaced
- *
  * WHY ASYNC:
  * Token handlers may need to fetch data (database, API, etc.)
  * Async allows handlers flexibility without blocking.
  */
-export async function replace(text, context = {}) {
+export async function replace(text: string, context: Record<string, unknown> = {}): Promise<string> {
   if (!text || typeof text !== 'string') {
     return text;
   }
@@ -136,71 +197,71 @@ export async function replace(text, context = {}) {
   const tokens = scan(text);
 
   // Allow hooks to add/modify context
-  const hookContext = { context, tokens };
+  const hookContext: Record<string, unknown> = { context, tokens };
   await trigger('token:beforeReplace', hookContext);
 
   // Replace each token
   let result = text;
   for (const token of tokens) {
     try {
-      const value = await replaceToken(token, hookContext.context);
+      const value = await replaceToken(token, hookContext.context as Record<string, unknown>);
       if (value !== null && value !== undefined) {
         // WHY GLOBAL REPLACE:
         // Same token may appear multiple times in text
         result = result.split(token.full).join(value);
       }
-    } catch (error) {
-      console.error(`[tokens] Error replacing ${token.full}:`, error.message);
+    } catch (error: unknown) {
+      const message = error instanceof Error ? error.message : String(error);
+      console.error(`[tokens] Error replacing ${token.full}:`, message);
       // Keep original token on error
     }
   }
 
   // Allow hooks to modify final result
-  const afterContext = { text: result, originalText: text, context: hookContext.context };
+  const afterContext: Record<string, unknown> = { text: result, originalText: text, context: hookContext.context };
   await trigger('token:afterReplace', afterContext);
 
-  return afterContext.text;
+  return afterContext.text as string;
 }
 
 /**
  * Replace a single token
  *
- * @param {Object|string} token - Parsed token object or token string
- * @param {Object} context - Context object
- * @returns {Promise<string|null>} - Replacement value or null if not found
- *
  * WHY ACCEPT OBJECT OR STRING:
  * Internal calls already have parsed object. External calls might have string.
  * Flexibility without forcing callers to parse.
  */
-export async function replaceToken(token, context = {}) {
+export async function replaceToken(token: ParsedToken | string, context: Record<string, unknown> = {}): Promise<string | null> {
   // Parse if string
+  let parsed: ParsedToken;
   if (typeof token === 'string') {
-    const parsed = parseToken(token);
-    if (!parsed) return null;
-    token = parsed;
+    const result = parseToken(token);
+    if (!result) return null;
+    parsed = result;
+  } else {
+    parsed = token;
   }
 
-  const { type, name, chain, modifier } = token;
+  const { type, name, chain, modifier } = parsed;
   const handlerKey = `${type}:${name}`;
 
   // Check for registered handler
   const handler = handlers[handlerKey];
   if (!handler) {
     // Allow hooks to provide value
-    const hookContext = { token, context, value: null };
+    const hookContext: Record<string, unknown> = { token: parsed, context, value: null };
     await trigger('token:replace', hookContext);
-    return hookContext.value !== null ? hookContext.value : null;
+    return hookContext.value !== null ? hookContext.value as string : null;
   }
 
   // Execute handler
-  let value = await handler(context, chain, modifier);
+  let value: unknown = await handler(context, chain, modifier);
 
   // Handle chained tokens (e.g., [content:author:name])
   // Handler returns object, we drill down the chain
   if (chain.length > 0 && value !== null && typeof value === 'object') {
     for (const prop of chain) {
-      value = value?.[prop];
+      value = (value as Record<string, unknown>)?.[prop];
       if (value === null || value === undefined) break;
     }
   }
@@ -210,32 +271,29 @@ export async function replaceToken(token, context = {}) {
     return null;
   }
 
-  value = String(value);
+  let strValue = String(value);
 
   // HTML escape unless 'raw' modifier
   if (config.escapeHtml && modifier !== 'raw') {
-    value = escapeHtml(value);
+    strValue = escapeHtmlChars(strValue);
   }
 
-  return value;
+  return strValue;
 }
 
 /**
  * Scan text for tokens
  *
- * @param {string} text - Text to scan
- * @returns {Array} - Array of parsed token objects
- *
  * WHY RETURN PARSED OBJECTS:
  * Avoids re-parsing when iterating for replacement.
  * Caller gets structured data immediately.
  */
-export function scan(text) {
+export function scan(text: string): ParsedToken[] {
   if (!text || typeof text !== 'string') {
     return [];
   }
 
-  const tokens = [];
+  const tokens: ParsedToken[] = [];
   const matches = text.matchAll(config.pattern);
 
   for (const match of matches) {
@@ -251,14 +309,11 @@ export function scan(text) {
 /**
  * Parse a token string into components
  *
- * @param {string} tokenStr - Token string like '[site:name]' or '[content:author:name:raw]'
- * @returns {Object|null} - Parsed token { full, type, name, chain, modifier }
- *
  * WHY INTERNAL FUNCTION:
  * Token parsing is implementation detail. Callers use scan() or replace().
  * But exported for debugging/testing purposes.
  */
-export function parseToken(tokenStr) {
+export function parseToken(tokenStr: string): ParsedToken | null {
   if (!tokenStr || typeof tokenStr !== 'string') {
     return null;
   }
@@ -271,16 +326,16 @@ export function parseToken(tokenStr) {
     return null;
   }
 
-  const type = parts[0];
-  const name = parts[1];
-  const chain = [];
-  let modifier = null;
+  const type = parts[0]!;
+  const name = parts[1]!;
+  const chain: string[] = [];
+  let modifier: string | null = null;
 
   // Parse chained properties and modifiers
   // [content:author:name:raw] -> chain: ['author', 'name'], modifier: 'raw'
   if (parts.length > 2) {
     for (let i = 2; i < parts.length; i++) {
-      const part = parts[i];
+      const part = parts[i]!;
       // Check if it's a known modifier
       if (part === 'raw') {
         modifier = part;
@@ -302,16 +357,13 @@ export function parseToken(tokenStr) {
 /**
  * Validate tokens in text
  *
- * @param {string} text - Text to validate
- * @returns {Object} - { valid: boolean, errors: Array }
- *
  * WHY SEPARATE VALIDATION:
  * Forms/UI can check tokens before saving.
  * Better UX than discovering broken tokens at render time.
  */
-export function validate(text) {
+export function validate(text: string): TokenValidationResult {
   const tokens = scan(text);
-  const errors = [];
+  const errors: TokenValidationError[] = [];
 
   for (const token of tokens) {
     const handlerKey = `${token.type}:${token.name}`;
@@ -342,36 +394,28 @@ export function validate(text) {
 
 /**
  * Get all registered token types
- *
- * @returns {Object} - Types registry
  */
-export function getTypes() {
+export function getTypes(): Record<string, TokenTypeInfo> {
   return { ...types };
 }
 
 /**
  * Get tokens for a specific type
- *
- * @param {string} type - Token type
- * @returns {Object|null} - Type info with tokens
  */
-export function getTokens(type) {
+export function getTokens(type: string): TokenTypeInfo | null {
   return types[type] || null;
 }
 
 /**
  * Get available tokens for a context
  *
- * @param {Object} context - Context to check
- * @returns {Array} - Available token types
- *
  * WHY CONTEXT-AWARE:
  * Not all tokens available in all contexts.
  * E.g., [content:title] only works when content is in context.
  * UI can show only relevant tokens.
  */
-export function getAvailableTokens(context = {}) {
-  const available = [];
+export function getAvailableTokens(context: Record<string, unknown> = {}): TokenTypeInfo[] {
+  const available: (TokenTypeInfo | undefined)[] = [];
 
   // Always available
   available.push(types['site']);
@@ -391,36 +435,39 @@ export function getAvailableTokens(context = {}) {
   }
 
   // Filter out undefined (in case type not registered)
-  return available.filter(Boolean);
+  return available.filter((t): t is TokenTypeInfo => t !== undefined);
 }
 
 /**
  * Get data for token browser UI
  *
- * @param {Object} context - Context for availability check
- * @returns {Object} - Structured data for UI
- *
  * WHY SEPARATE METHOD:
  * UI needs different structure than internal registry.
  * This formats data for consumption by React/Vue/etc.
  */
-export function getBrowserData(context = {}) {
+export function getBrowserData(context: Record<string, unknown> = {}): TokenBrowserData {
   const available = getAvailableTokens(context);
 
   return {
-    types: Object.keys(types).map(key => ({
-      id: key,
-      name: types[key].name,
-      description: types[key].description,
-      available: available.includes(types[key]),
-      tokens: Object.keys(types[key].tokens).map(tokenKey => ({
-        id: tokenKey,
-        name: types[key].tokens[tokenKey].name,
-        description: types[key].tokens[tokenKey].description,
-        token: `[${key}:${tokenKey}]`,
-        example: types[key].tokens[tokenKey].example || '',
-      })),
-    })),
+    types: Object.keys(types).map(key => {
+      const typeInfo = types[key]!;
+      return {
+        id: key,
+        name: typeInfo.name,
+        description: typeInfo.description,
+        available: available.includes(typeInfo),
+        tokens: Object.keys(typeInfo.tokens).map(tokenKey => {
+          const tokenDef = typeInfo.tokens[tokenKey]!;
+          return {
+            id: tokenKey,
+            name: tokenDef.name,
+            description: tokenDef.description,
+            token: `[${key}:${tokenKey}]`,
+            example: tokenDef.example || '',
+          };
+        }),
+      };
+    }),
   };
 }
 
@@ -431,15 +478,15 @@ export function getBrowserData(context = {}) {
  * Simple escaping for common cases. Not a full sanitization library.
  * Complex HTML needs proper sanitizer. This prevents basic XSS.
  */
-function escapeHtml(text) {
-  const map = {
+function escapeHtmlChars(text: string): string {
+  const map: Record<string, string> = {
     '&': '&amp;',
     '<': '&lt;',
     '>': '&gt;',
     '"': '&quot;',
     "'": '&#039;',
   };
-  return text.replace(/[&<>"']/g, char => map[char]);
+  return text.replace(/[&<>"']/g, char => map[char] ?? char);
 }
 
 /**
@@ -449,7 +496,7 @@ function escapeHtml(text) {
  * Called by init(). Separated for clarity.
  * These are the built-in tokens every system has.
  */
-function registerCoreTypes() {
+function registerCoreTypes(): void {
   // Site tokens
   registerType('site', {
     name: 'Site information',
@@ -462,10 +509,10 @@ function registerCoreTypes() {
     },
   });
 
-  registerToken('site', 'name', (ctx) => ctx.site?.name || 'Site Name');
-  registerToken('site', 'url', (ctx) => ctx.site?.url || 'http://localhost');
-  registerToken('site', 'slogan', (ctx) => ctx.site?.slogan || '');
-  registerToken('site', 'mail', (ctx) => ctx.site?.mail || '');
+  registerToken('site', 'name', (ctx) => (ctx.site as Record<string, unknown> | undefined)?.name || 'Site Name');
+  registerToken('site', 'url', (ctx) => (ctx.site as Record<string, unknown> | undefined)?.url || 'http://localhost');
+  registerToken('site', 'slogan', (ctx) => (ctx.site as Record<string, unknown> | undefined)?.slogan || '');
+  registerToken('site', 'mail', (ctx) => (ctx.site as Record<string, unknown> | undefined)?.mail || '');
 
   // Date tokens
   registerType('date', {
@@ -511,23 +558,23 @@ function registerCoreTypes() {
   });
 
   registerToken('current-user', 'name', (ctx) => {
-    const user = ctx.user || ctx.currentUser;
+    const user = (ctx.user || ctx.currentUser) as Record<string, unknown> | undefined;
     return user?.name || user?.username || 'Anonymous';
   });
 
   registerToken('current-user', 'email', (ctx) => {
-    const user = ctx.user || ctx.currentUser;
+    const user = (ctx.user || ctx.currentUser) as Record<string, unknown> | undefined;
     return user?.email || '';
   });
 
   registerToken('current-user', 'id', (ctx) => {
-    const user = ctx.user || ctx.currentUser;
+    const user = (ctx.user || ctx.currentUser) as Record<string, unknown> | undefined;
     return user?.id || '';
   });
 
   registerToken('current-user', 'role', (ctx) => {
-    const user = ctx.user || ctx.currentUser;
-    return user?.role || user?.roles?.[0] || '';
+    const user = (ctx.user || ctx.currentUser) as Record<string, unknown> | undefined;
+    return user?.role || (user?.roles as string[] | undefined)?.[0] || '';
   });
 
   // Content tokens
@@ -545,23 +592,27 @@ function registerCoreTypes() {
     },
   });
 
-  registerToken('content', 'id', (ctx) => ctx.content?.id || '');
-  registerToken('content', 'type', (ctx) => ctx.content?.type || '');
-  registerToken('content', 'title', (ctx) => ctx.content?.title || '');
+  registerToken('content', 'id', (ctx) => (ctx.content as Record<string, unknown> | undefined)?.id || '');
+  registerToken('content', 'type', (ctx) => (ctx.content as Record<string, unknown> | undefined)?.type || '');
+  registerToken('content', 'title', (ctx) => (ctx.content as Record<string, unknown> | undefined)?.title || '');
   registerToken('content', 'created', (ctx) => {
-    if (!ctx.content?.created) return '';
-    const date = new Date(ctx.content.created);
+    const content = ctx.content as Record<string, unknown> | undefined;
+    if (!content?.created) return '';
+    const date = new Date(content.created as string);
     return date.toISOString().split('T')[0];
   });
   registerToken('content', 'updated', (ctx) => {
-    if (!ctx.content?.updated) return '';
-    const date = new Date(ctx.content.updated);
+    const content = ctx.content as Record<string, unknown> | undefined;
+    if (!content?.updated) return '';
+    const date = new Date(content.updated as string);
     return date.toISOString().split('T')[0];
   });
-  registerToken('content', 'author', (ctx) => ctx.content?.author || null);
+  registerToken('content', 'author', (ctx) => (ctx.content as Record<string, unknown> | undefined)?.author || null);
   registerToken('content', 'field', (ctx, chain) => {
-    if (!ctx.content?.fields || chain.length === 0) return '';
-    return ctx.content.fields[chain[0]] || '';
+    const content = ctx.content as Record<string, unknown> | undefined;
+    const fields = content?.fields as Record<string, unknown> | undefined;
+    if (!fields || chain.length === 0) return '';
+    return fields[chain[0]!] || '';
   });
 
   // Term tokens (taxonomy)
@@ -576,10 +627,10 @@ function registerCoreTypes() {
     },
   });
 
-  registerToken('term', 'id', (ctx) => ctx.term?.id || '');
-  registerToken('term', 'name', (ctx) => ctx.term?.name || '');
-  registerToken('term', 'vocabulary', (ctx) => ctx.term?.vocabulary || '');
-  registerToken('term', 'parent', (ctx) => ctx.term?.parent || null);
+  registerToken('term', 'id', (ctx) => (ctx.term as Record<string, unknown> | undefined)?.id || '');
+  registerToken('term', 'name', (ctx) => (ctx.term as Record<string, unknown> | undefined)?.name || '');
+  registerToken('term', 'vocabulary', (ctx) => (ctx.term as Record<string, unknown> | undefined)?.vocabulary || '');
+  registerToken('term', 'parent', (ctx) => (ctx.term as Record<string, unknown> | undefined)?.parent || null);
 }
 
 // Auto-initialize with defaults
