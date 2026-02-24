@@ -1,5 +1,5 @@
 /**
- * path-aliases.js - URL Path Alias System
+ * path-aliases.ts - URL Path Alias System
  *
  * WHY THIS EXISTS:
  * - SEO-friendly URLs: /about instead of /content/page/page-1
@@ -21,14 +21,136 @@ import { readFile, writeFile, mkdir } from 'node:fs/promises';
 import { join } from 'node:path';
 import { existsSync } from 'node:fs';
 
-/**
- * Module state
- */
-let baseDir = null;
-let router = null;
-let content = null;
-let hooks = null;
-let config = {
+// ============================================================================
+// Types
+// ============================================================================
+
+/** Pattern configuration for a content type */
+interface PatternConfig {
+  pattern: string;
+  enabled: boolean;
+}
+
+/** Alias data stored in config */
+interface AliasData {
+  target: string;
+  created: string;
+}
+
+/** Redirect data stored in config */
+interface RedirectData {
+  target: string;
+  status: number;
+}
+
+/** Path aliases configuration */
+interface PathAliasConfig {
+  patterns: Record<string, PatternConfig>;
+  aliases: Record<string, AliasData>;
+  redirects: Record<string, RedirectData>;
+}
+
+/** Resolved alias result */
+interface ResolvedAlias {
+  target: string;
+  isRedirect: boolean;
+  status?: number;
+}
+
+/** Alias validation result */
+interface AliasValidation {
+  valid: boolean;
+  error?: string;
+}
+
+/** Options for creating an alias */
+interface CreateAliasOptions {
+  unique?: boolean;
+  force?: boolean;
+}
+
+/** Options for bulk generation */
+interface BulkGenerateOptions {
+  overwrite?: boolean;
+}
+
+/** Bulk generation statistics */
+interface BulkGenerateStats {
+  created: number;
+  skipped: number;
+  errors: number;
+}
+
+/** Available token description */
+interface TokenDescription {
+  token: string;
+  description: string;
+}
+
+/** Alias listing entry */
+interface AliasEntry {
+  alias: string;
+  target: string;
+  created: string;
+}
+
+/** Redirect listing entry */
+interface RedirectEntry {
+  from: string;
+  to: string;
+  status: number;
+}
+
+/** Pattern listing entry */
+interface PatternEntry {
+  type: string;
+  pattern: string;
+  enabled: boolean;
+}
+
+/** Alias statistics */
+interface AliasStats {
+  aliases: number;
+  redirects: number;
+  patterns: number;
+}
+
+/** Content item with fields used by path aliases */
+interface ContentItem {
+  id: string;
+  type: string;
+  title?: string;
+  slug?: string;
+  created?: string;
+  date?: string;
+  terms?: Array<{ name: string }>;
+  vocabulary?: string;
+  [field: string]: unknown;
+}
+
+/** Content service interface (subset used by path-aliases) */
+interface ContentService {
+  list(type: string): ContentItem[];
+  getSchema?(type: string): { fields?: Record<string, { type: string }> } | null;
+}
+
+/** Hooks service interface */
+interface HooksService {
+  trigger(event: string, context: Record<string, unknown>): Promise<void>;
+}
+
+/** Router service interface (reserved for future use) */
+type RouterService = Record<string, unknown>;
+
+// ============================================================================
+// Module state
+// ============================================================================
+
+let baseDir: string | null = null;
+let router: RouterService | null = null;
+let content: ContentService | null = null;
+let hooks: HooksService | null = null;
+let config: PathAliasConfig = {
   patterns: {},
   aliases: {},
   redirects: {},
@@ -41,7 +163,7 @@ let config = {
  * Core routes and admin paths should not be overridden by aliases.
  * Prevents conflicts with system functionality.
  */
-const RESERVED_PATHS = [
+const RESERVED_PATHS: string[] = [
   '/health',
   '/admin',
   '/api',
@@ -56,16 +178,21 @@ const RESERVED_PATHS = [
 /**
  * Initialize path alias system
  *
- * @param {string} dir - Base directory for CMS
- * @param {Object} routerInstance - Router instance for integration
- * @param {Object} contentInstance - Content instance for data access
- * @param {Object} hooksInstance - Hooks instance for events
+ * @param dir - Base directory for CMS
+ * @param routerInstance - Router instance for integration
+ * @param contentInstance - Content instance for data access
+ * @param hooksInstance - Hooks instance for events
  *
  * WHY DEPENDENCY INJECTION:
  * Allows testing with mock implementations.
  * Avoids circular dependencies.
  */
-export async function init(dir, routerInstance = null, contentInstance = null, hooksInstance = null) {
+export async function init(
+  dir: string,
+  routerInstance: RouterService | null = null,
+  contentInstance: ContentService | null = null,
+  hooksInstance: HooksService | null = null
+): Promise<void> {
   baseDir = dir;
   router = routerInstance;
   content = contentInstance;
@@ -81,13 +208,14 @@ export async function init(dir, routerInstance = null, contentInstance = null, h
  * File operations are async in Node.js.
  * Keeps the system non-blocking.
  */
-async function load() {
+async function load(): Promise<void> {
+  if (!baseDir) return;
   const configPath = join(baseDir, 'config', 'path-aliases.json');
 
   try {
     if (existsSync(configPath)) {
       const data = await readFile(configPath, 'utf-8');
-      config = JSON.parse(data);
+      config = JSON.parse(data) as PathAliasConfig;
     } else {
       // Initialize with defaults
       config = {
@@ -97,8 +225,8 @@ async function load() {
       };
       await save();
     }
-  } catch (error) {
-    console.error('[path-aliases] Error loading config:', error.message);
+  } catch (error: unknown) {
+    console.error('[path-aliases] Error loading config:', error instanceof Error ? error.message : String(error));
     // Use defaults on error
     config = {
       patterns: {},
@@ -115,7 +243,8 @@ async function load() {
  * Write to temp file, then rename to prevent corruption if process dies.
  * (Not implemented yet, but should be for production)
  */
-async function save() {
+async function save(): Promise<void> {
+  if (!baseDir) return;
   const configDir = join(baseDir, 'config');
   const configPath = join(configDir, 'path-aliases.json');
 
@@ -126,8 +255,8 @@ async function save() {
     }
 
     await writeFile(configPath, JSON.stringify(config, null, 2), 'utf-8');
-  } catch (error) {
-    console.error('[path-aliases] Error saving config:', error.message);
+  } catch (error: unknown) {
+    console.error('[path-aliases] Error saving config:', error instanceof Error ? error.message : String(error));
     throw error;
   }
 }
@@ -135,9 +264,9 @@ async function save() {
 /**
  * Set URL pattern for a content type
  *
- * @param {string} contentType - Content type name
- * @param {string} pattern - URL pattern with tokens
- * @param {boolean} enabled - Whether pattern is enabled
+ * @param contentType - Content type name
+ * @param pattern - URL pattern with tokens
+ * @param enabled - Whether pattern is enabled
  *
  * PATTERN SYNTAX:
  * - [type] - Content type
@@ -155,7 +284,7 @@ async function save() {
  * - /blog/[title]
  * - /[title]
  */
-export async function setPattern(contentType, pattern, enabled = true) {
+export async function setPattern(contentType: string, pattern: string, enabled: boolean = true): Promise<void> {
   config.patterns[contentType] = {
     pattern,
     enabled,
@@ -166,32 +295,32 @@ export async function setPattern(contentType, pattern, enabled = true) {
 /**
  * Get URL pattern for a content type
  *
- * @param {string} contentType - Content type name
- * @returns {Object|null} - Pattern config or null
+ * @param contentType - Content type name
+ * @returns Pattern config or null
  */
-export function getPattern(contentType) {
-  return config.patterns[contentType] || null;
+export function getPattern(contentType: string): PatternConfig | null {
+  return config.patterns[contentType] ?? null;
 }
 
 /**
  * Replace tokens in a pattern with actual values
  *
- * @param {string} pattern - Pattern with tokens
- * @param {Object} item - Content item
- * @returns {string} - Resolved path
+ * @param pattern - Pattern with tokens
+ * @param item - Content item
+ * @returns Resolved path
  *
  * WHY SEPARATE FUNCTION:
  * Token replacement is complex enough to warrant isolation.
  * Makes testing easier.
  */
-export function replaceTokens(pattern, item) {
+export function replaceTokens(pattern: string, item: ContentItem): string {
   let result = pattern;
 
   // [type]
-  result = result.replace(/\[type\]/g, item.type || '');
+  result = result.replace(/\[type\]/g, item.type ?? '');
 
   // [id]
-  result = result.replace(/\[id\]/g, item.id || '');
+  result = result.replace(/\[id\]/g, item.id ?? '');
 
   // [title] - slugified
   if (item.title) {
@@ -205,8 +334,8 @@ export function replaceTokens(pattern, item) {
   }
 
   // Date tokens
-  if (item.created || item.date) {
-    const date = new Date(item.created || item.date);
+  if (item.created ?? item.date) {
+    const date = new Date((item.created ?? item.date)!);
     result = result.replace(/\[date:Y\]/g, date.getFullYear().toString());
     result = result.replace(/\[date:m\]/g, (date.getMonth() + 1).toString().padStart(2, '0'));
     result = result.replace(/\[date:d\]/g, date.getDate().toString().padStart(2, '0'));
@@ -214,7 +343,7 @@ export function replaceTokens(pattern, item) {
 
   // [term:name] - first term if available
   if (item.terms && item.terms.length > 0) {
-    result = result.replace(/\[term:name\]/g, slugify(item.terms[0].name || ''));
+    result = result.replace(/\[term:name\]/g, slugify(item.terms[0]?.name ?? ''));
   }
 
   // [vocabulary]
@@ -232,10 +361,10 @@ export function replaceTokens(pattern, item) {
  * Zero dependencies requirement.
  * Simple enough to implement ourselves.
  *
- * @param {string} text - Text to slugify
- * @returns {string} - URL-safe slug
+ * @param text - Text to slugify
+ * @returns URL-safe slug
  */
-function slugify(text) {
+function slugify(text: string): string {
   return text
     .toLowerCase()
     .trim()
@@ -247,14 +376,14 @@ function slugify(text) {
 /**
  * Generate alias from pattern
  *
- * @param {Object} item - Content item
- * @returns {string|null} - Generated alias or null
+ * @param item - Content item
+ * @returns Generated alias or null
  *
  * WHY RETURN NULL:
  * Pattern might not be set or enabled for this type.
  * Caller needs to know if generation failed.
  */
-export function generateAlias(item) {
+export function generateAlias(item: ContentItem): string | null {
   const patternConfig = getPattern(item.type);
 
   if (!patternConfig || !patternConfig.enabled) {
@@ -274,8 +403,8 @@ export function generateAlias(item) {
 /**
  * Validate alias format
  *
- * @param {string} alias - Alias to validate
- * @returns {{valid: boolean, error?: string}}
+ * @param alias - Alias to validate
+ * @returns Validation result
  *
  * VALIDATION RULES:
  * - Must start with /
@@ -283,7 +412,7 @@ export function generateAlias(item) {
  * - Cannot contain special characters (except - and /)
  * - Cannot be empty
  */
-export function validateAlias(alias) {
+export function validateAlias(alias: string): AliasValidation {
   if (!alias || typeof alias !== 'string') {
     return { valid: false, error: 'Alias must be a non-empty string' };
   }
@@ -314,14 +443,14 @@ export function validateAlias(alias) {
 /**
  * Make alias unique by adding suffix
  *
- * @param {string} alias - Desired alias
- * @returns {string} - Unique alias
+ * @param alias - Desired alias
+ * @returns Unique alias
  *
  * WHY SUFFIXES:
  * Common pattern for handling duplicates.
  * User-friendly (about, about-1, about-2).
  */
-function makeUnique(alias) {
+function makeUnique(alias: string): string {
   let unique = alias;
   let counter = 1;
 
@@ -336,10 +465,10 @@ function makeUnique(alias) {
 /**
  * Create a new alias
  *
- * @param {string} alias - Desired alias
- * @param {string} target - Internal path
- * @param {Object} options - Options
- * @returns {Promise<string>} - Actual alias created
+ * @param alias - Desired alias
+ * @param target - Internal path
+ * @param options - Options
+ * @returns Actual alias created
  *
  * OPTIONS:
  * - unique: boolean - Make unique if exists (default: true)
@@ -348,7 +477,7 @@ function makeUnique(alias) {
  * WHY ASYNC:
  * Triggers hooks and saves to disk.
  */
-export async function createAlias(alias, target, options = {}) {
+export async function createAlias(alias: string, target: string, options: CreateAliasOptions = {}): Promise<string> {
   const { unique = true, force = false } = options;
 
   // Validate
@@ -359,7 +488,7 @@ export async function createAlias(alias, target, options = {}) {
 
   // Hook: beforeCreate
   if (hooks) {
-    const hookContext = { alias, target, cancelled: false };
+    const hookContext: Record<string, unknown> = { alias, target, cancelled: false };
     await hooks.trigger('alias:beforeCreate', hookContext);
     if (hookContext.cancelled) {
       throw new Error('Alias creation cancelled by hook');
@@ -400,20 +529,19 @@ export async function createAlias(alias, target, options = {}) {
 /**
  * Update an alias (move to new path)
  *
- * @param {string} oldAlias - Current alias
- * @param {string} newAlias - New alias
- * @param {boolean} createRedirect - Create redirect from old to new
- * @returns {Promise<void>}
+ * @param oldAlias - Current alias
+ * @param newAlias - New alias
+ * @param createRedirect - Create redirect from old to new
  *
  * WHY SEPARATE FROM createAlias:
  * Update has different semantics (redirects, validation).
  */
-export async function updateAlias(oldAlias, newAlias, createRedirect = true) {
+export async function updateAlias(oldAlias: string, newAlias: string, createRedirect: boolean = true): Promise<void> {
   if (!config.aliases[oldAlias]) {
     throw new Error(`Alias not found: ${oldAlias}`);
   }
 
-  const target = config.aliases[oldAlias].target;
+  const target = config.aliases[oldAlias]!.target;
 
   // Validate new alias
   const validation = validateAlias(newAlias);
@@ -442,10 +570,9 @@ export async function updateAlias(oldAlias, newAlias, createRedirect = true) {
 /**
  * Delete an alias
  *
- * @param {string} alias - Alias to delete
- * @returns {Promise<void>}
+ * @param alias - Alias to delete
  */
-export async function deleteAlias(alias) {
+export async function deleteAlias(alias: string): Promise<void> {
   if (!config.aliases[alias]) {
     throw new Error(`Alias not found: ${alias}`);
   }
@@ -457,36 +584,36 @@ export async function deleteAlias(alias) {
 /**
  * Resolve alias to internal path
  *
- * @param {string} path - URL path (may be alias or internal)
- * @returns {Object|null} - {target, isRedirect, status}
+ * @param path - URL path (may be alias or internal)
+ * @returns Resolved target or null
  *
  * WHY RETURN OBJECT:
  * Need to distinguish between aliases and redirects.
  * Status code important for HTTP response.
  */
-export async function resolveAlias(path) {
+export async function resolveAlias(path: string): Promise<ResolvedAlias | null> {
   // Hook: resolve
   if (hooks) {
-    const hookContext = { path, resolved: null };
+    const hookContext: Record<string, unknown> = { path, resolved: null };
     await hooks.trigger('alias:resolve', hookContext);
     if (hookContext.resolved) {
-      return hookContext.resolved;
+      return hookContext.resolved as ResolvedAlias;
     }
   }
 
   // Check redirects first
   if (config.redirects[path]) {
     return {
-      target: config.redirects[path].target,
+      target: config.redirects[path]!.target,
       isRedirect: true,
-      status: config.redirects[path].status || 301,
+      status: config.redirects[path]!.status ?? 301,
     };
   }
 
   // Check aliases
   if (config.aliases[path]) {
     return {
-      target: config.aliases[path].target,
+      target: config.aliases[path]!.target,
       isRedirect: false,
     };
   }
@@ -497,14 +624,14 @@ export async function resolveAlias(path) {
 /**
  * Reverse lookup: get alias for internal path
  *
- * @param {string} internalPath - Internal path
- * @returns {string|null} - Alias or null
+ * @param internalPath - Internal path
+ * @returns Alias or null
  *
  * WHY LINEAR SEARCH:
  * Not a performance-critical operation.
  * Building reverse index would complicate save/load.
  */
-export function getAliasFor(internalPath) {
+export function getAliasFor(internalPath: string): string | null {
   for (const [alias, data] of Object.entries(config.aliases)) {
     if (data.target === internalPath) {
       return alias;
@@ -516,15 +643,15 @@ export function getAliasFor(internalPath) {
 /**
  * Bulk generate aliases for content type
  *
- * @param {string} contentType - Content type
- * @param {Object} options - Options
- * @returns {Promise<{created: number, skipped: number, errors: number}>}
+ * @param contentType - Content type
+ * @param options - Options
+ * @returns Generation statistics
  *
  * WHY BATCH OPERATION:
  * Useful for initial setup or pattern changes.
  * Regenerate all aliases at once.
  */
-export async function bulkGenerate(contentType, options = {}) {
+export async function bulkGenerate(contentType: string, options: BulkGenerateOptions = {}): Promise<BulkGenerateStats> {
   const { overwrite = false } = options;
 
   if (!content) {
@@ -532,7 +659,7 @@ export async function bulkGenerate(contentType, options = {}) {
   }
 
   const items = content.list(contentType);
-  const stats = { created: 0, skipped: 0, errors: 0 };
+  const stats: BulkGenerateStats = { created: 0, skipped: 0, errors: 0 };
 
   for (const item of items) {
     try {
@@ -556,8 +683,8 @@ export async function bulkGenerate(contentType, options = {}) {
 
       await createAlias(alias, internalPath, { unique: true });
       stats.created++;
-    } catch (error) {
-      console.error(`[path-aliases] Error generating alias for ${item.id}:`, error.message);
+    } catch (error: unknown) {
+      console.error(`[path-aliases] Error generating alias for ${item.id}:`, error instanceof Error ? error.message : String(error));
       stats.errors++;
     }
   }
@@ -568,15 +695,15 @@ export async function bulkGenerate(contentType, options = {}) {
 /**
  * Get available tokens for content type
  *
- * @param {string} contentType - Content type
- * @returns {Array<{token: string, description: string}>}
+ * @param contentType - Content type
+ * @returns Array of available tokens with descriptions
  *
  * WHY THIS EXISTS:
  * Help UI show available tokens.
  * Documentation for pattern creation.
  */
-export function getAvailableTokens(contentType) {
-  const tokens = [
+export function getAvailableTokens(contentType: string): TokenDescription[] {
+  const tokens: TokenDescription[] = [
     { token: '[type]', description: 'Content type name' },
     { token: '[id]', description: 'Content ID' },
     { token: '[title]', description: 'Title (slugified)' },
@@ -590,8 +717,8 @@ export function getAvailableTokens(contentType) {
   if (content && content.getSchema) {
     const schema = content.getSchema(contentType);
     if (schema) {
-      const hasTerms = Object.values(schema.fields || {}).some(
-        f => f.type === 'taxonomy' || f.type === 'reference'
+      const hasTerms = Object.values(schema.fields ?? {}).some(
+        (f: { type: string }) => f.type === 'taxonomy' || f.type === 'reference'
       );
       if (hasTerms) {
         tokens.push(
@@ -608,9 +735,9 @@ export function getAvailableTokens(contentType) {
 /**
  * List all aliases
  *
- * @returns {Array<{alias: string, target: string, created: string}>}
+ * @returns Array of alias entries
  */
-export function listAliases() {
+export function listAliases(): AliasEntry[] {
   return Object.entries(config.aliases).map(([alias, data]) => ({
     alias,
     target: data.target,
@@ -621,9 +748,9 @@ export function listAliases() {
 /**
  * List all redirects
  *
- * @returns {Array<{from: string, to: string, status: number}>}
+ * @returns Array of redirect entries
  */
-export function listRedirects() {
+export function listRedirects(): RedirectEntry[] {
   return Object.entries(config.redirects).map(([from, data]) => ({
     from,
     to: data.target,
@@ -634,9 +761,9 @@ export function listRedirects() {
 /**
  * List all patterns
  *
- * @returns {Array<{type: string, pattern: string, enabled: boolean}>}
+ * @returns Array of pattern entries
  */
-export function listPatterns() {
+export function listPatterns(): PatternEntry[] {
   return Object.entries(config.patterns).map(([type, data]) => ({
     type,
     pattern: data.pattern,
@@ -647,9 +774,9 @@ export function listPatterns() {
 /**
  * Get statistics
  *
- * @returns {Object} - Stats about aliases
+ * @returns Stats about aliases
  */
-export function getStats() {
+export function getStats(): AliasStats {
   return {
     aliases: Object.keys(config.aliases).length,
     redirects: Object.keys(config.redirects).length,
@@ -660,7 +787,7 @@ export function getStats() {
 /**
  * Clear all data (testing only)
  */
-export function clear() {
+export function clear(): void {
   config = {
     patterns: {},
     aliases: {},

@@ -1,5 +1,5 @@
 /**
- * responsive-images.js - Responsive Image Generation System
+ * responsive-images.ts - Responsive Image Generation System
  *
  * WHY THIS EXISTS:
  * =================
@@ -25,9 +25,9 @@
  *
  * INTEGRATION:
  * ============
- * - image-styles.js: Generates image derivatives
- * - media-library.js: Source images
- * - template.js: Rendering helpers
+ * - image-styles.ts: Generates image derivatives
+ * - media-library.ts: Source images
+ * - template.ts: Rendering helpers
  *
  * STORAGE:
  * ========
@@ -40,29 +40,97 @@ import { readFileSync, writeFileSync, existsSync, mkdirSync } from 'node:fs';
 import { join } from 'node:path';
 
 // ============================================
+// Types
+// ============================================
+
+/** Breakpoint definition for responsive images */
+export interface BreakpointDefinition {
+  id: string;
+  label: string;
+  minWidth: number | null;
+  maxWidth: number | null;
+  weight: number;
+  mediaQuery: string;
+  source: string;
+}
+
+/** Responsive image style definition */
+export interface ResponsiveStyleDefinition {
+  id: string;
+  label: string;
+  description?: string;
+  source: string;
+  mappings: Record<string, string>;
+  fallbackStyle: string;
+  lazyLoad: boolean;
+  sizes: string[];
+  created?: string;
+  updated?: string;
+}
+
+/** Configuration for responsive images */
+export interface ResponsiveImagesConfig {
+  enabled: boolean;
+  defaultLazyLoad: boolean;
+  defaultFallbackStyle: string;
+  enableWebP: boolean;
+  enableAVIF: boolean;
+  placeholderType: string;
+}
+
+/** Initialization options */
+export interface ResponsiveImagesInitOptions {
+  baseDir?: string;
+  imageStyles?: ImageStylesService;
+  hooks?: HooksService;
+  config?: Partial<ResponsiveImagesConfig>;
+}
+
+/** Options for generating responsive img tags */
+export interface ResponsiveImgOptions {
+  alt?: string;
+  class?: string;
+  width?: number;
+  height?: number;
+  lazyLoad?: boolean;
+  artDirection?: boolean;
+  caption?: string;
+}
+
+// Service interfaces
+interface ImageStylesService {
+  getUrl: (imagePath: string, styleName: string) => string;
+  getStyle: (styleName: string) => { width?: number; maxWidth?: number; [key: string]: unknown } | null;
+}
+
+interface HooksService {
+  trigger: (event: string, context: Record<string, unknown>) => Promise<void>;
+}
+
+// ============================================
 // MODULE STATE
 // ============================================
 
-let baseDir = null;
-let imageStylesService = null;
-let hooksService = null;
+let baseDir: string | null = null;
+let imageStylesService: ImageStylesService | null = null;
+let hooksService: HooksService | null = null;
 
 /**
  * Breakpoint definitions
  * Structure: { breakpointId: BreakpointDefinition, ... }
  */
-const breakpoints = {};
+const breakpoints: Record<string, BreakpointDefinition> = {};
 
 /**
  * Responsive image style definitions
  * Structure: { styleId: ResponsiveStyleDefinition, ... }
  */
-const responsiveStyles = {};
+const responsiveStyles: Record<string, ResponsiveStyleDefinition> = {};
 
 /**
  * Configuration
  */
-let config = {
+let config: ResponsiveImagesConfig = {
   enabled: true,
   defaultLazyLoad: true,
   defaultFallbackStyle: 'large',
@@ -72,51 +140,29 @@ let config = {
 };
 
 // ============================================
-// TYPE DEFINITIONS (JSDoc)
-// ============================================
-
-/**
- * @typedef {Object} BreakpointDefinition
- * @property {string} id - Breakpoint identifier
- * @property {string} label - Human-readable name
- * @property {number} minWidth - Minimum viewport width (px)
- * @property {number} maxWidth - Maximum viewport width (px)
- * @property {number} weight - Sort order (lower = smaller screens)
- * @property {string} mediaQuery - Generated media query
- */
-
-/**
- * @typedef {Object} ResponsiveStyleDefinition
- * @property {string} id - Style identifier
- * @property {string} label - Human-readable name
- * @property {Object} mappings - Breakpoint to image style mappings
- * @property {string} fallbackStyle - Default image style
- * @property {boolean} lazyLoad - Enable lazy loading
- * @property {string[]} sizes - Custom sizes attribute
- */
-
-// ============================================
 // INITIALIZATION
 // ============================================
 
 /**
  * Initialize the responsive images system
  *
- * @param {Object} options - Initialization options
+ * @param options - Initialization options
  */
-export function init(options = {}) {
-  baseDir = options.baseDir;
-  imageStylesService = options.imageStyles;
-  hooksService = options.hooks;
+export function init(options: ResponsiveImagesInitOptions = {}): void {
+  baseDir = options.baseDir ?? null;
+  imageStylesService = options.imageStyles ?? null;
+  hooksService = options.hooks ?? null;
 
   if (options.config) {
     config = { ...config, ...options.config };
   }
 
   // Ensure config directory exists
-  const configDir = join(baseDir, 'config');
-  if (!existsSync(configDir)) {
-    mkdirSync(configDir, { recursive: true });
+  if (baseDir) {
+    const configDir = join(baseDir, 'config');
+    if (!existsSync(configDir)) {
+      mkdirSync(configDir, { recursive: true });
+    }
   }
 
   // Register built-in breakpoints
@@ -137,15 +183,16 @@ export function init(options = {}) {
 /**
  * Load breakpoints from config
  */
-function loadBreakpoints() {
-  const path = join(baseDir, 'config', 'breakpoints.json');
+function loadBreakpoints(): void {
+  if (!baseDir) return;
+  const bpPath = join(baseDir, 'config', 'breakpoints.json');
 
-  if (existsSync(path)) {
+  if (existsSync(bpPath)) {
     try {
-      const data = JSON.parse(readFileSync(path, 'utf-8'));
+      const data = JSON.parse(readFileSync(bpPath, 'utf-8')) as Record<string, BreakpointDefinition>;
       Object.assign(breakpoints, data);
-    } catch (e) {
-      console.error('[responsive-images] Failed to load breakpoints:', e.message);
+    } catch (e: unknown) {
+      console.error('[responsive-images] Failed to load breakpoints:', e instanceof Error ? e.message : String(e));
     }
   }
 }
@@ -153,32 +200,34 @@ function loadBreakpoints() {
 /**
  * Save breakpoints to disk
  */
-function saveBreakpoints() {
-  const path = join(baseDir, 'config', 'breakpoints.json');
+function saveBreakpoints(): void {
+  if (!baseDir) return;
+  const bpPath = join(baseDir, 'config', 'breakpoints.json');
 
   // Only save custom breakpoints
-  const custom = {};
+  const custom: Record<string, BreakpointDefinition> = {};
   for (const [id, bp] of Object.entries(breakpoints)) {
     if (bp.source !== 'builtin') {
       custom[id] = bp;
     }
   }
 
-  writeFileSync(path, JSON.stringify(custom, null, 2) + '\n');
+  writeFileSync(bpPath, JSON.stringify(custom, null, 2) + '\n');
 }
 
 /**
  * Load responsive styles from config
  */
-function loadResponsiveStyles() {
-  const path = join(baseDir, 'config', 'responsive-images.json');
+function loadResponsiveStyles(): void {
+  if (!baseDir) return;
+  const stylePath = join(baseDir, 'config', 'responsive-images.json');
 
-  if (existsSync(path)) {
+  if (existsSync(stylePath)) {
     try {
-      const data = JSON.parse(readFileSync(path, 'utf-8'));
+      const data = JSON.parse(readFileSync(stylePath, 'utf-8')) as Record<string, ResponsiveStyleDefinition>;
       Object.assign(responsiveStyles, data);
-    } catch (e) {
-      console.error('[responsive-images] Failed to load responsive styles:', e.message);
+    } catch (e: unknown) {
+      console.error('[responsive-images] Failed to load responsive styles:', e instanceof Error ? e.message : String(e));
     }
   }
 }
@@ -186,18 +235,19 @@ function loadResponsiveStyles() {
 /**
  * Save responsive styles to disk
  */
-function saveResponsiveStyles() {
-  const path = join(baseDir, 'config', 'responsive-images.json');
+function saveResponsiveStyles(): void {
+  if (!baseDir) return;
+  const stylePath = join(baseDir, 'config', 'responsive-images.json');
 
   // Only save custom styles
-  const custom = {};
+  const custom: Record<string, ResponsiveStyleDefinition> = {};
   for (const [id, style] of Object.entries(responsiveStyles)) {
     if (style.source !== 'builtin') {
       custom[id] = style;
     }
   }
 
-  writeFileSync(path, JSON.stringify(custom, null, 2) + '\n');
+  writeFileSync(stylePath, JSON.stringify(custom, null, 2) + '\n');
 }
 
 // ============================================
@@ -207,8 +257,8 @@ function saveResponsiveStyles() {
 /**
  * Register built-in breakpoints
  */
-function registerBuiltinBreakpoints() {
-  breakpoints.mobile = {
+function registerBuiltinBreakpoints(): void {
+  breakpoints['mobile'] = {
     id: 'mobile',
     label: 'Mobile',
     minWidth: 0,
@@ -218,7 +268,7 @@ function registerBuiltinBreakpoints() {
     source: 'builtin',
   };
 
-  breakpoints.tablet = {
+  breakpoints['tablet'] = {
     id: 'tablet',
     label: 'Tablet',
     minWidth: 576,
@@ -228,7 +278,7 @@ function registerBuiltinBreakpoints() {
     source: 'builtin',
   };
 
-  breakpoints.desktop = {
+  breakpoints['desktop'] = {
     id: 'desktop',
     label: 'Desktop',
     minWidth: 992,
@@ -238,7 +288,7 @@ function registerBuiltinBreakpoints() {
     source: 'builtin',
   };
 
-  breakpoints.wide = {
+  breakpoints['wide'] = {
     id: 'wide',
     label: 'Wide',
     minWidth: 1400,
@@ -249,7 +299,7 @@ function registerBuiltinBreakpoints() {
   };
 
   // Retina / HiDPI
-  breakpoints.retina = {
+  breakpoints['retina'] = {
     id: 'retina',
     label: 'Retina',
     minWidth: null,
@@ -267,9 +317,9 @@ function registerBuiltinBreakpoints() {
 /**
  * Register built-in responsive styles
  */
-function registerBuiltinStyles() {
+function registerBuiltinStyles(): void {
   // Full-width hero images
-  responsiveStyles.hero = {
+  responsiveStyles['hero'] = {
     id: 'hero',
     label: 'Hero Image',
     description: 'Full-width hero/banner images',
@@ -286,7 +336,7 @@ function registerBuiltinStyles() {
   };
 
   // Content images
-  responsiveStyles.content = {
+  responsiveStyles['content'] = {
     id: 'content',
     label: 'Content Image',
     description: 'Images within article content',
@@ -307,7 +357,7 @@ function registerBuiltinStyles() {
   };
 
   // Thumbnail grids
-  responsiveStyles.thumbnail = {
+  responsiveStyles['thumbnail'] = {
     id: 'thumbnail',
     label: 'Thumbnail',
     description: 'Grid thumbnails and teasers',
@@ -328,7 +378,7 @@ function registerBuiltinStyles() {
   };
 
   // Card images
-  responsiveStyles.card = {
+  responsiveStyles['card'] = {
     id: 'card',
     label: 'Card Image',
     description: 'Images for cards and teasers',
@@ -349,7 +399,7 @@ function registerBuiltinStyles() {
   };
 
   // Profile/avatar images
-  responsiveStyles.avatar = {
+  responsiveStyles['avatar'] = {
     id: 'avatar',
     label: 'Avatar',
     description: 'Profile and avatar images',
@@ -373,10 +423,10 @@ function registerBuiltinStyles() {
 /**
  * Register a custom breakpoint
  *
- * @param {BreakpointDefinition} breakpoint - Breakpoint definition
- * @returns {BreakpointDefinition}
+ * @param breakpoint - Breakpoint definition
+ * @returns Registered breakpoint
  */
-export function registerBreakpoint(breakpoint) {
+export function registerBreakpoint(breakpoint: Partial<BreakpointDefinition> & { id: string }): BreakpointDefinition {
   if (!breakpoint.id) {
     throw new Error('Breakpoint ID is required');
   }
@@ -384,7 +434,7 @@ export function registerBreakpoint(breakpoint) {
   // Build media query if not provided
   let mediaQuery = breakpoint.mediaQuery;
   if (!mediaQuery) {
-    const conditions = [];
+    const conditions: string[] = [];
     if (breakpoint.minWidth != null) {
       conditions.push(`(min-width: ${breakpoint.minWidth}px)`);
     }
@@ -405,25 +455,25 @@ export function registerBreakpoint(breakpoint) {
   };
 
   saveBreakpoints();
-  return breakpoints[breakpoint.id];
+  return breakpoints[breakpoint.id]!;
 }
 
 /**
  * Get a breakpoint definition
  *
- * @param {string} id - Breakpoint ID
- * @returns {BreakpointDefinition|null}
+ * @param id - Breakpoint ID
+ * @returns Breakpoint definition or null
  */
-export function getBreakpoint(id) {
-  return breakpoints[id] || null;
+export function getBreakpoint(id: string): BreakpointDefinition | null {
+  return breakpoints[id] ?? null;
 }
 
 /**
  * List all breakpoints
  *
- * @returns {BreakpointDefinition[]}
+ * @returns Array of breakpoint definitions, sorted by weight
  */
-export function listBreakpoints() {
+export function listBreakpoints(): BreakpointDefinition[] {
   return Object.values(breakpoints).sort((a, b) => a.weight - b.weight);
 }
 
@@ -434,10 +484,10 @@ export function listBreakpoints() {
 /**
  * Register a responsive image style
  *
- * @param {ResponsiveStyleDefinition} style - Style definition
- * @returns {ResponsiveStyleDefinition}
+ * @param style - Style definition
+ * @returns Registered style
  */
-export async function registerResponsiveStyle(style) {
+export async function registerResponsiveStyle(style: Partial<ResponsiveStyleDefinition> & { id: string; mappings: Record<string, string> }): Promise<ResponsiveStyleDefinition> {
   if (!style.id) {
     throw new Error('Responsive style ID is required');
   }
@@ -477,36 +527,36 @@ export async function registerResponsiveStyle(style) {
     await hooksService.trigger('responsive:afterRegister', { style: responsiveStyles[style.id] });
   }
 
-  return responsiveStyles[style.id];
+  return responsiveStyles[style.id]!;
 }
 
 /**
  * Get a responsive style definition
  *
- * @param {string} id - Style ID
- * @returns {ResponsiveStyleDefinition|null}
+ * @param id - Style ID
+ * @returns Style definition or null
  */
-export function getResponsiveStyle(id) {
-  return responsiveStyles[id] || null;
+export function getResponsiveStyle(id: string): ResponsiveStyleDefinition | null {
+  return responsiveStyles[id] ?? null;
 }
 
 /**
  * List all responsive styles
  *
- * @returns {ResponsiveStyleDefinition[]}
+ * @returns Array of style definitions
  */
-export function listResponsiveStyles() {
+export function listResponsiveStyles(): ResponsiveStyleDefinition[] {
   return Object.values(responsiveStyles);
 }
 
 /**
  * Update a responsive style
  *
- * @param {string} id - Style ID
- * @param {Object} updates - Updates to apply
- * @returns {ResponsiveStyleDefinition}
+ * @param id - Style ID
+ * @param updates - Updates to apply
+ * @returns Updated style
  */
-export async function updateResponsiveStyle(id, updates) {
+export async function updateResponsiveStyle(id: string, updates: Partial<ResponsiveStyleDefinition>): Promise<ResponsiveStyleDefinition> {
   const style = responsiveStyles[id];
   if (!style) {
     throw new Error(`Responsive style "${id}" not found`);
@@ -535,10 +585,10 @@ export async function updateResponsiveStyle(id, updates) {
 /**
  * Delete a responsive style
  *
- * @param {string} id - Style ID
- * @returns {boolean}
+ * @param id - Style ID
+ * @returns True if deleted
  */
-export async function deleteResponsiveStyle(id) {
+export async function deleteResponsiveStyle(id: string): Promise<boolean> {
   const style = responsiveStyles[id];
   if (!style) {
     throw new Error(`Responsive style "${id}" not found`);
@@ -561,16 +611,16 @@ export async function deleteResponsiveStyle(id) {
 /**
  * Generate srcset attribute for an image
  *
- * @param {string} imagePath - Source image path
- * @param {string[]} imageStyles - Image styles to include
- * @returns {Promise<string>} - srcset attribute value
+ * @param imagePath - Source image path
+ * @param imageStyles - Image styles to include
+ * @returns srcset attribute value
  */
-export async function generateSrcset(imagePath, imageStyles) {
+export async function generateSrcset(imagePath: string, imageStyles: string[]): Promise<string> {
   if (!imageStylesService) {
     return '';
   }
 
-  const srcsetParts = [];
+  const srcsetParts: string[] = [];
 
   for (const styleName of imageStyles) {
     try {
@@ -583,8 +633,8 @@ export async function generateSrcset(imagePath, imageStyles) {
           srcsetParts.push(`${url} ${width}w`);
         }
       }
-    } catch (e) {
-      console.warn(`[responsive-images] Failed to generate srcset for ${styleName}:`, e.message);
+    } catch (e: unknown) {
+      console.warn(`[responsive-images] Failed to generate srcset for ${styleName}:`, e instanceof Error ? e.message : String(e));
     }
   }
 
@@ -594,10 +644,10 @@ export async function generateSrcset(imagePath, imageStyles) {
 /**
  * Generate sizes attribute
  *
- * @param {string[]} sizes - Size definitions
- * @returns {string}
+ * @param sizes - Size definitions
+ * @returns Sizes attribute value
  */
-export function generateSizes(sizes) {
+export function generateSizes(sizes: string[]): string {
   if (!sizes || sizes.length === 0) {
     return '100vw';
   }
@@ -611,12 +661,12 @@ export function generateSizes(sizes) {
 /**
  * Generate a responsive <img> tag with srcset
  *
- * @param {string} imagePath - Source image path
- * @param {string} responsiveStyleId - Responsive style to use
- * @param {Object} options - Additional options
- * @returns {Promise<string>} - HTML img tag
+ * @param imagePath - Source image path
+ * @param responsiveStyleId - Responsive style to use
+ * @param options - Additional options
+ * @returns HTML img tag
  */
-export async function generateImg(imagePath, responsiveStyleId, options = {}) {
+export async function generateImg(imagePath: string, responsiveStyleId: string, options: ResponsiveImgOptions = {}): Promise<string> {
   const style = getResponsiveStyle(responsiveStyleId);
   if (!style) {
     throw new Error(`Responsive style "${responsiveStyleId}" not found`);
@@ -635,7 +685,7 @@ export async function generateImg(imagePath, responsiveStyleId, options = {}) {
   const fallbackUrl = imageStylesService?.getUrl(imagePath, style.fallbackStyle) || imagePath;
 
   // Build attributes
-  const attrs = [];
+  const attrs: string[] = [];
   attrs.push(`src="${escapeHtml(fallbackUrl)}"`);
 
   if (srcset) {
@@ -672,18 +722,18 @@ export async function generateImg(imagePath, responsiveStyleId, options = {}) {
 /**
  * Generate a responsive <picture> tag for art direction
  *
- * @param {string} imagePath - Source image path
- * @param {string} responsiveStyleId - Responsive style to use
- * @param {Object} options - Additional options
- * @returns {Promise<string>} - HTML picture tag
+ * @param imagePath - Source image path
+ * @param responsiveStyleId - Responsive style to use
+ * @param options - Additional options
+ * @returns HTML picture tag
  */
-export async function generatePicture(imagePath, responsiveStyleId, options = {}) {
+export async function generatePicture(imagePath: string, responsiveStyleId: string, options: ResponsiveImgOptions = {}): Promise<string> {
   const style = getResponsiveStyle(responsiveStyleId);
   if (!style) {
     throw new Error(`Responsive style "${responsiveStyleId}" not found`);
   }
 
-  const sources = [];
+  const sources: string[] = [];
   const sortedBreakpoints = listBreakpoints().reverse(); // Largest first
 
   for (const bp of sortedBreakpoints) {
@@ -694,7 +744,7 @@ export async function generatePicture(imagePath, responsiveStyleId, options = {}
     if (!url) continue;
 
     // Generate source for this breakpoint
-    const sourceAttrs = [];
+    const sourceAttrs: string[] = [];
     sourceAttrs.push(`media="${bp.mediaQuery}"`);
     sourceAttrs.push(`srcset="${escapeHtml(url)}"`);
 
@@ -710,7 +760,7 @@ export async function generatePicture(imagePath, responsiveStyleId, options = {}
   // Fallback img tag
   const fallbackUrl = imageStylesService?.getUrl(imagePath, style.fallbackStyle) || imagePath;
 
-  const imgAttrs = [];
+  const imgAttrs: string[] = [];
   imgAttrs.push(`src="${escapeHtml(fallbackUrl)}"`);
 
   if (options.alt !== undefined) {
@@ -736,15 +786,15 @@ export async function generatePicture(imagePath, responsiveStyleId, options = {}
 /**
  * Generate a responsive image with optional figure wrapper
  *
- * @param {string} imagePath - Source image path
- * @param {string} responsiveStyleId - Responsive style to use
- * @param {Object} options - Additional options
- * @returns {Promise<string>} - HTML output
+ * @param imagePath - Source image path
+ * @param responsiveStyleId - Responsive style to use
+ * @param options - Additional options
+ * @returns HTML output
  */
-export async function render(imagePath, responsiveStyleId, options = {}) {
+export async function render(imagePath: string, responsiveStyleId: string, options: ResponsiveImgOptions = {}): Promise<string> {
   const usePicture = options.artDirection ?? false;
 
-  let imgHtml;
+  let imgHtml: string;
   if (usePicture) {
     imgHtml = await generatePicture(imagePath, responsiveStyleId, options);
   } else {
@@ -769,10 +819,10 @@ export async function render(imagePath, responsiveStyleId, options = {}) {
 /**
  * Escape HTML special characters
  *
- * @param {string} str - String to escape
- * @returns {string}
+ * @param str - String to escape
+ * @returns Escaped string
  */
-function escapeHtml(str) {
+function escapeHtml(str: string): string {
   if (typeof str !== 'string') return '';
   return str
     .replace(/&/g, '&amp;')
@@ -784,11 +834,11 @@ function escapeHtml(str) {
 /**
  * Calculate aspect ratio padding for lazy loading
  *
- * @param {number} width - Image width
- * @param {number} height - Image height
- * @returns {number} - Padding percentage
+ * @param width - Image width
+ * @param height - Image height
+ * @returns Padding percentage
  */
-export function getAspectRatioPadding(width, height) {
+export function getAspectRatioPadding(width: number, height: number): number {
   if (!width || !height) return 56.25; // Default 16:9
   return (height / width) * 100;
 }
@@ -800,17 +850,17 @@ export function getAspectRatioPadding(width, height) {
 /**
  * Get configuration
  *
- * @returns {Object}
+ * @returns Current configuration copy
  */
-export function getConfig() {
+export function getConfig(): ResponsiveImagesConfig {
   return { ...config };
 }
 
 /**
  * Check if responsive images are enabled
  *
- * @returns {boolean}
+ * @returns Whether responsive images are enabled
  */
-export function isEnabled() {
+export function isEnabled(): boolean {
   return config.enabled;
 }

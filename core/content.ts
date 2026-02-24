@@ -91,7 +91,7 @@ import { join } from 'node:path';
 import * as hooks from './hooks.ts';
 import * as cache from './cache.ts';
 import * as locks from './locks.js';
-import { slugify, generateUniqueSlug, validateSlug, looksLikeId } from './slugify.js';
+import { slugify, generateUniqueSlug, validateSlug, looksLikeId } from './slugify.ts';
 
 // ============================================
 // TYPES

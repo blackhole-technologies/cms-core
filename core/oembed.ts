@@ -1,5 +1,5 @@
 /**
- * oembed.js - oEmbed Discovery and Embedding System
+ * oembed.ts - oEmbed Discovery and Embedding System
  *
  * WHY THIS EXISTS:
  * Content often needs to embed external media (videos, tweets, etc.).
@@ -29,7 +29,134 @@ import * as https from 'https';
 import * as http from 'http';
 import * as crypto from 'crypto';
 
+// ============================================================================
+// Types
+// ============================================================================
+
+/** oEmbed response data from a provider */
+export interface OEmbedResponse {
+  type: string;
+  title?: string;
+  author_name?: string;
+  author_url?: string;
+  provider_name?: string;
+  provider_url?: string;
+  thumbnail_url?: string;
+  thumbnail_width?: number;
+  thumbnail_height?: number;
+  html?: string;
+  width?: number;
+  height?: number;
+  [key: string]: unknown;
+}
+
+/** Registered oEmbed provider */
+export interface OEmbedProvider {
+  name: string;
+  patterns: RegExp[];
+  endpoint: string;
+  format: string;
+  transform: ((oembed: OEmbedResponse) => void) | null;
+}
+
+/** Provider registration options */
+export interface ProviderOptions {
+  format?: string;
+  transform?: (oembed: OEmbedResponse) => void;
+  pattern?: string | RegExp;
+  endpoint?: string;
+}
+
+/** Cached oEmbed data */
+interface CacheEntry {
+  url: string;
+  oembed: OEmbedResponse;
+  fetchedAt: string;
+}
+
+/** oEmbed configuration */
+export interface OEmbedConfig {
+  enabled?: boolean;
+  cacheTtl?: number;
+  maxWidth?: number;
+  maxHeight?: number;
+  timeout?: number;
+  contentDir?: string;
+  providers?: Record<string, ProviderOptions>;
+}
+
+/** Fetch options for embed retrieval */
+export interface FetchEmbedOptions {
+  skipCache?: boolean;
+  width?: number;
+  height?: number;
+}
+
+/** Render options for embed HTML generation */
+export interface RenderEmbedOptions {
+  width?: number;
+  height?: number;
+  className?: string;
+}
+
+/** Embed field definition */
+export interface EmbedFieldDef {
+  providers?: string[];
+  maxWidth?: number;
+  maxHeight?: number;
+}
+
+/** Embed field value */
+export interface EmbedFieldValue {
+  url: string;
+  oembed?: OEmbedResponse | null;
+  fetchedAt?: string;
+  error?: string;
+}
+
+/** Embed validation result */
+export interface EmbedValidationResult {
+  valid: boolean;
+  error?: string;
+}
+
+/** Provider info for listing */
+export interface ProviderInfo {
+  name: string;
+  endpoint: string;
+  patterns: string[];
+}
+
+/** Cache stats */
+export interface CacheStats {
+  entries: number;
+  size: number;
+  sizeFormatted?: string;
+  oldestEntry: string | null;
+  newestEntry: string | null;
+}
+
+/** Support check result */
+export interface SupportCheckResult {
+  supported: boolean;
+  provider: string | null;
+  discoverable: boolean;
+}
+
+/** oEmbed config info */
+export interface OEmbedConfigInfo {
+  enabled: boolean;
+  cacheTtl: number;
+  maxWidth: number;
+  maxHeight: number;
+  timeout: number;
+  providerCount: number;
+}
+
+// ============================================================================
 // Configuration
+// ============================================================================
+
 let enabled = true;
 let cacheTtl = 604800;  // 7 days in seconds
 let maxWidth = 800;
@@ -38,17 +165,17 @@ let timeout = 10000;    // 10 second timeout
 let contentDir = './content';
 
 // Cache directory
-let cacheDir = null;
+let cacheDir: string | null = null;
 
 // Provider registry
 // Structure: { name: { pattern: RegExp, endpoint: string, transform?: fn } }
-const providers = new Map();
+const providers = new Map<string, OEmbedProvider>();
 
 /**
  * Initialize the oEmbed system
- * @param {object} config - Configuration object
+ * @param config - Configuration object
  */
-export function init(config = {}) {
+export function init(config: OEmbedConfig = {}): void {
   if (config.enabled !== undefined) enabled = config.enabled;
   if (config.cacheTtl !== undefined) cacheTtl = config.cacheTtl;
   if (config.maxWidth !== undefined) maxWidth = config.maxWidth;
@@ -68,7 +195,7 @@ export function init(config = {}) {
   // Register custom providers from config
   if (config.providers) {
     for (const [name, providerConfig] of Object.entries(config.providers)) {
-      registerProvider(name, providerConfig.pattern, providerConfig.endpoint, providerConfig);
+      registerProvider(name, providerConfig.pattern as string | RegExp, providerConfig.endpoint as string, providerConfig);
     }
   }
 
@@ -78,7 +205,7 @@ export function init(config = {}) {
 /**
  * Register built-in oEmbed providers
  */
-function registerBuiltinProviders() {
+function registerBuiltinProviders(): void {
   // YouTube
   registerProvider('youtube', [
     /https?:\/\/(?:www\.)?youtube\.com\/watch\?v=[\w-]+/,
@@ -139,13 +266,13 @@ function registerBuiltinProviders() {
 
 /**
  * Register an oEmbed provider
- * @param {string} name - Provider name
- * @param {RegExp|RegExp[]} patterns - URL pattern(s) to match
- * @param {string} endpoint - oEmbed endpoint URL
- * @param {object} options - Additional options
+ * @param name - Provider name
+ * @param patterns - URL pattern(s) to match
+ * @param endpoint - oEmbed endpoint URL
+ * @param options - Additional options
  */
-export function registerProvider(name, patterns, endpoint, options = {}) {
-  const patternArray = Array.isArray(patterns) ? patterns : [patterns];
+export function registerProvider(name: string, patterns: RegExp | RegExp[] | string | RegExp, endpoint: string, options: ProviderOptions = {}): void {
+  const patternArray = Array.isArray(patterns) ? patterns : [patterns as RegExp];
 
   providers.set(name, {
     name,
@@ -158,10 +285,10 @@ export function registerProvider(name, patterns, endpoint, options = {}) {
 
 /**
  * Get all registered providers
- * @returns {Array} Array of provider info
+ * @returns Array of provider info
  */
-export function getProviders() {
-  const result = [];
+export function getProviders(): ProviderInfo[] {
+  const result: ProviderInfo[] = [];
 
   for (const [name, provider] of providers) {
     result.push({
@@ -176,11 +303,11 @@ export function getProviders() {
 
 /**
  * Find provider for URL
- * @param {string} url - URL to check
- * @returns {object|null} Provider or null
+ * @param url - URL to check
+ * @returns Provider or null
  */
-export function findProvider(url) {
-  for (const [name, provider] of providers) {
+export function findProvider(url: string): OEmbedProvider | null {
+  for (const [_name, provider] of providers) {
     for (const pattern of provider.patterns) {
       if (pattern.test(url)) {
         return provider;
@@ -192,19 +319,19 @@ export function findProvider(url) {
 
 /**
  * Generate cache key from URL
- * @param {string} url - URL to hash
- * @returns {string} Cache key
+ * @param url - URL to hash
+ * @returns Cache key
  */
-function getCacheKey(url) {
+function getCacheKey(url: string): string {
   return crypto.createHash('md5').update(url).digest('hex');
 }
 
 /**
  * Get cached embed data
- * @param {string} url - Original URL
- * @returns {object|null} Cached data or null
+ * @param url - Original URL
+ * @returns Cached data or null
  */
-function getFromCache(url) {
+function getFromCache(url: string): CacheEntry | null {
   if (!cacheDir) return null;
 
   const key = getCacheKey(url);
@@ -215,7 +342,7 @@ function getFromCache(url) {
   }
 
   try {
-    const data = JSON.parse(fs.readFileSync(cachePath, 'utf8'));
+    const data = JSON.parse(fs.readFileSync(cachePath, 'utf8')) as CacheEntry;
 
     // Check if expired
     const fetchedAt = new Date(data.fetchedAt);
@@ -227,23 +354,23 @@ function getFromCache(url) {
     }
 
     return data;
-  } catch (error) {
+  } catch {
     return null;
   }
 }
 
 /**
  * Save embed data to cache
- * @param {string} url - Original URL
- * @param {object} oembed - oEmbed response
+ * @param url - Original URL
+ * @param oembed - oEmbed response
  */
-function saveToCache(url, oembed) {
+function saveToCache(url: string, oembed: OEmbedResponse): void {
   if (!cacheDir) return;
 
   const key = getCacheKey(url);
   const cachePath = path.join(cacheDir, `${key}.json`);
 
-  const data = {
+  const data: CacheEntry = {
     url,
     oembed,
     fetchedAt: new Date().toISOString(),
@@ -251,17 +378,17 @@ function saveToCache(url, oembed) {
 
   try {
     fs.writeFileSync(cachePath, JSON.stringify(data, null, 2));
-  } catch (error) {
-    console.error('[oembed] Cache write error:', error.message);
+  } catch (error: unknown) {
+    console.error('[oembed] Cache write error:', error instanceof Error ? error.message : String(error));
   }
 }
 
 /**
  * Make HTTP(S) request
- * @param {string} url - URL to fetch
- * @returns {Promise<object>} Response data
+ * @param url - URL to fetch
+ * @returns Response data
  */
-function httpFetch(url) {
+function httpFetch(url: string): Promise<OEmbedResponse> {
   return new Promise((resolve, reject) => {
     const parsedUrl = new URL(url);
     const client = parsedUrl.protocol === 'https:' ? https : http;
@@ -280,7 +407,7 @@ function httpFetch(url) {
 
     const req = client.request(options, (res) => {
       // Handle redirects
-      if (res.statusCode >= 300 && res.statusCode < 400 && res.headers.location) {
+      if (res.statusCode && res.statusCode >= 300 && res.statusCode < 400 && res.headers.location) {
         httpFetch(res.headers.location).then(resolve).catch(reject);
         return;
       }
@@ -291,11 +418,11 @@ function httpFetch(url) {
       }
 
       let data = '';
-      res.on('data', chunk => data += chunk);
+      res.on('data', (chunk: Buffer | string) => data += chunk);
       res.on('end', () => {
         try {
-          resolve(JSON.parse(data));
-        } catch (e) {
+          resolve(JSON.parse(data) as OEmbedResponse);
+        } catch {
           reject(new Error('Invalid JSON response'));
         }
       });
@@ -313,10 +440,10 @@ function httpFetch(url) {
 
 /**
  * Fetch HTML page for oEmbed discovery
- * @param {string} url - Page URL
- * @returns {Promise<string>} HTML content
+ * @param url - Page URL
+ * @returns HTML content
  */
-function fetchHtml(url) {
+function fetchHtml(url: string): Promise<string> {
   return new Promise((resolve, reject) => {
     const parsedUrl = new URL(url);
     const client = parsedUrl.protocol === 'https:' ? https : http;
@@ -334,7 +461,7 @@ function fetchHtml(url) {
     };
 
     const req = client.request(options, (res) => {
-      if (res.statusCode >= 300 && res.statusCode < 400 && res.headers.location) {
+      if (res.statusCode && res.statusCode >= 300 && res.statusCode < 400 && res.headers.location) {
         fetchHtml(res.headers.location).then(resolve).catch(reject);
         return;
       }
@@ -345,7 +472,7 @@ function fetchHtml(url) {
       }
 
       let data = '';
-      res.on('data', chunk => {
+      res.on('data', (chunk: Buffer | string) => {
         data += chunk;
         // Limit to first 50KB for discovery
         if (data.length > 50000) {
@@ -367,10 +494,10 @@ function fetchHtml(url) {
 
 /**
  * Discover oEmbed endpoint from HTML page
- * @param {string} url - Page URL
- * @returns {Promise<string|null>} oEmbed endpoint URL or null
+ * @param url - Page URL
+ * @returns oEmbed endpoint URL or null
  */
-export async function discoverEmbed(url) {
+export async function discoverEmbed(url: string): Promise<string | null> {
   try {
     const html = await fetchHtml(url);
 
@@ -378,35 +505,35 @@ export async function discoverEmbed(url) {
     // <link rel="alternate" type="application/json+oembed" href="..." />
     const jsonMatch = html.match(/<link[^>]+type=["']application\/json\+oembed["'][^>]+href=["']([^"']+)["']/i);
     if (jsonMatch) {
-      return jsonMatch[1].replace(/&amp;/g, '&');
+      return (jsonMatch[1] ?? '').replace(/&amp;/g, '&');
     }
 
     // Also check for XML format
     const xmlMatch = html.match(/<link[^>]+type=["']text\/xml\+oembed["'][^>]+href=["']([^"']+)["']/i);
     if (xmlMatch) {
-      return xmlMatch[1].replace(/&amp;/g, '&');
+      return (xmlMatch[1] ?? '').replace(/&amp;/g, '&');
     }
 
     // Check alternate order (href before type)
     const altMatch = html.match(/<link[^>]+href=["']([^"']+)["'][^>]+type=["']application\/json\+oembed["']/i);
     if (altMatch) {
-      return altMatch[1].replace(/&amp;/g, '&');
+      return (altMatch[1] ?? '').replace(/&amp;/g, '&');
     }
 
     return null;
-  } catch (error) {
-    console.error('[oembed] Discovery error:', error.message);
+  } catch (error: unknown) {
+    console.error('[oembed] Discovery error:', error instanceof Error ? error.message : String(error));
     return null;
   }
 }
 
 /**
  * Fetch oEmbed data for URL
- * @param {string} url - URL to embed
- * @param {object} options - Fetch options
- * @returns {Promise<object>} oEmbed response with metadata
+ * @param url - URL to embed
+ * @param options - Fetch options
+ * @returns oEmbed response with metadata
  */
-export async function fetchEmbed(url, options = {}) {
+export async function fetchEmbed(url: string, options: FetchEmbedOptions = {}): Promise<OEmbedResponse & { url: string; cached: boolean; fetchedAt: string }> {
   if (!enabled) {
     throw new Error('oEmbed system is disabled');
   }
@@ -427,8 +554,8 @@ export async function fetchEmbed(url, options = {}) {
   }
 
   // Find registered provider
-  let provider = findProvider(url);
-  let endpoint = null;
+  const provider = findProvider(url);
+  let endpoint: string | null = null;
 
   if (provider) {
     endpoint = provider.endpoint;
@@ -478,10 +605,10 @@ export async function fetchEmbed(url, options = {}) {
 
 /**
  * Clear embed cache
- * @param {string} url - Specific URL to clear, or null for all
- * @returns {number} Number of entries cleared
+ * @param url - Specific URL to clear, or null for all
+ * @returns Number of entries cleared
  */
-export function clearCache(url = null) {
+export function clearCache(url: string | null = null): number {
   if (!cacheDir || !fs.existsSync(cacheDir)) {
     return 0;
   }
@@ -508,17 +635,17 @@ export function clearCache(url = null) {
 
 /**
  * Get cache statistics
- * @returns {object} Cache stats
+ * @returns Cache stats
  */
-export function getCacheStats() {
+export function getCacheStats(): CacheStats {
   if (!cacheDir || !fs.existsSync(cacheDir)) {
     return { entries: 0, size: 0, oldestEntry: null, newestEntry: null };
   }
 
   const files = fs.readdirSync(cacheDir).filter(f => f.endsWith('.json'));
   let totalSize = 0;
-  let oldest = null;
-  let newest = null;
+  let oldest: number | null = null;
+  let newest: number | null = null;
 
   for (const file of files) {
     const filePath = path.join(cacheDir, file);
@@ -542,7 +669,7 @@ export function getCacheStats() {
 /**
  * Format bytes for display
  */
-function formatBytes(bytes) {
+function formatBytes(bytes: number): string {
   if (bytes < 1024) return `${bytes} B`;
   if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
   return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
@@ -550,11 +677,11 @@ function formatBytes(bytes) {
 
 /**
  * Validate embed field value
- * @param {object} value - Embed field value
- * @param {object} fieldDef - Field definition
- * @returns {object} Validation result
+ * @param value - Embed field value
+ * @param fieldDef - Field definition
+ * @returns Validation result
  */
-export function validateEmbedField(value, fieldDef = {}) {
+export function validateEmbedField(value: EmbedFieldValue | null | undefined, fieldDef: EmbedFieldDef = {}): EmbedValidationResult {
   if (!value || !value.url) {
     return { valid: false, error: 'URL is required' };
   }
@@ -582,36 +709,39 @@ export function validateEmbedField(value, fieldDef = {}) {
 
 /**
  * Process embed field for storage
- * @param {string|object} value - URL string or embed object
- * @param {object} fieldDef - Field definition
- * @returns {Promise<object>} Processed embed data
+ * @param value - URL string or embed object
+ * @param fieldDef - Field definition
+ * @returns Processed embed data
  */
-export async function processEmbedField(value, fieldDef = {}) {
+export async function processEmbedField(value: string | EmbedFieldValue, fieldDef: EmbedFieldDef = {}): Promise<EmbedFieldValue> {
   // Handle string input (just URL)
+  let embedValue: EmbedFieldValue;
   if (typeof value === 'string') {
-    value = { url: value };
+    embedValue = { url: value };
+  } else {
+    embedValue = value;
   }
 
   // Validate
-  const validation = validateEmbedField(value, fieldDef);
+  const validation = validateEmbedField(embedValue, fieldDef);
   if (!validation.valid) {
     throw new Error(validation.error);
   }
 
   // Fetch oEmbed data if not already present or stale
-  const needsFetch = !value.oembed ||
-    !value.fetchedAt ||
-    (Date.now() - new Date(value.fetchedAt).getTime()) > cacheTtl * 1000;
+  const needsFetch = !embedValue.oembed ||
+    !embedValue.fetchedAt ||
+    (Date.now() - new Date(embedValue.fetchedAt).getTime()) > cacheTtl * 1000;
 
   if (needsFetch) {
     try {
-      const oembed = await fetchEmbed(value.url, {
+      const oembed = await fetchEmbed(embedValue.url, {
         width: fieldDef.maxWidth,
         height: fieldDef.maxHeight,
       });
 
       return {
-        url: value.url,
+        url: embedValue.url,
         oembed: {
           type: oembed.type,
           title: oembed.title,
@@ -628,27 +758,27 @@ export async function processEmbedField(value, fieldDef = {}) {
         },
         fetchedAt: oembed.fetchedAt,
       };
-    } catch (error) {
+    } catch (error: unknown) {
       // Store URL even if fetch fails
       return {
-        url: value.url,
+        url: embedValue.url,
         oembed: null,
-        error: error.message,
+        error: error instanceof Error ? error.message : String(error),
         fetchedAt: new Date().toISOString(),
       };
     }
   }
 
-  return value;
+  return embedValue;
 }
 
 /**
  * Render embed HTML
- * @param {object} embed - Embed field value
- * @param {object} options - Render options
- * @returns {string} HTML string
+ * @param embed - Embed field value
+ * @param options - Render options
+ * @returns HTML string
  */
-export function renderEmbed(embed, options = {}) {
+export function renderEmbed(embed: EmbedFieldValue | null | undefined, options: RenderEmbedOptions = {}): string {
   if (!embed || !embed.url) {
     return '';
   }
@@ -692,7 +822,7 @@ export function renderEmbed(embed, options = {}) {
 /**
  * Escape HTML entities
  */
-function escapeHtml(str) {
+function escapeHtml(str: string): string {
   if (!str) return '';
   return str
     .replace(/&/g, '&amp;')
@@ -703,9 +833,9 @@ function escapeHtml(str) {
 
 /**
  * Get configuration
- * @returns {object} Current configuration
+ * @returns Current configuration
  */
-export function getConfig() {
+export function getConfig(): OEmbedConfigInfo {
   return {
     enabled,
     cacheTtl,
@@ -718,10 +848,10 @@ export function getConfig() {
 
 /**
  * Check if URL is supported
- * @param {string} url - URL to check
- * @returns {object} Support info
+ * @param url - URL to check
+ * @returns Support info
  */
-export function checkSupport(url) {
+export function checkSupport(url: string): SupportCheckResult {
   const provider = findProvider(url);
 
   return {
