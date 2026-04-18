@@ -1,15 +1,40 @@
+# Dependencies
 node_modules/
+
+# OS / editor
 .DS_Store
+*.tmp
+*.bak
+.claude/
+
+# Logs
 *.log
 logs/
+
+# Backups
 backups/
+
+# Environment
+.env
+.env.*
+
+# Runtime state (not source of truth)
 content/.search/
+content/.sessions/
 content/taskrun/
 content/history/
 content/ban/
 content/apitoken/
-.env
-.env.*
-*.tmp
-*.bak
-.claude/
+content/**/.revisions/
+config/.registry.json
+.autoforge/*.db
+.autoforge/*.db-journal
+
+# Loose screenshots / experiment captures at repo root
+/*.png
+/*.jpg
+/*.jpeg
+
+# Build artifacts (none today, future-proof)
+dist/
+build/
