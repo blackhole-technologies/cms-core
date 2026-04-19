@@ -1,0 +1,5 @@
+{
+  "name": "accordion-container",
+  "description": "Container for accordion components — ensures only one is open at a time",
+  "props": {}
+}
