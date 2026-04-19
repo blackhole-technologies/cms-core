@@ -17,6 +17,8 @@
     "anthropic_provider",
     "ollama_provider",
     "ai_test_timeout",
-    "linkit"
+    "linkit",
+    "icons",
+    "ai_test"
   ]
 }
