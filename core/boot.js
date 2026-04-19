@@ -68,33 +68,33 @@ import * as feeds from './feeds.ts';
 import * as sitemap from './sitemap.ts';
 import * as taxonomy from './taxonomy.ts';
 import * as menu from './menu.ts';
-import * as blocks from './blocks.js';
+import * as blocks from './blocks.ts';
 import * as views from './views.js';
-import * as regions from './regions.js';
-import * as layoutBuilder from './layout-builder.js';
+import * as regions from './regions.ts';
+import * as layoutBuilder from './layout-builder.ts';
 import * as mediaLibrary from './media-library.ts';
-import * as editor from './editor.js';
+import * as editor from './editor.ts';
 import * as responsiveImages from './responsive-images.ts';
 import * as jsonapi from './jsonapi.js';
 import * as workflowAdvanced from './workflow-advanced.js';
 import * as entityReference from './entity-reference.ts';
 import * as permissions from './permissions.js';
-import * as forms from './forms.js';
+import * as forms from './forms.ts';
 import * as pathAliases from './path-aliases.ts';
 import * as imageStyles from './image-styles.ts';
 import * as cron from './cron.ts';
 import * as configManagement from './config-management.js';
 import * as tokens from './tokens.ts';
-import * as textFormats from './text-formats.js';
+import * as textFormats from './text-formats.ts';
 import * as entity from './entity.ts';
 import * as actions from './actions.ts';
 import * as userFields from './user-fields.js';
-import * as themeSettings from './theme-settings.js';
+import * as themeSettings from './theme-settings.ts';
 import * as contentTypes from './content-types.ts';
-import * as displayModes from './display-modes.js';
+import * as displayModes from './display-modes.ts';
 import * as batch from './batch.js';
 import * as status from './status.js';
-import * as contextual from './contextual.js';
+import * as contextual from './contextual.ts';
 import * as help from './help.js';
 import * as contact from './contact.js';
 import * as ban from './ban.js';
@@ -106,7 +106,7 @@ import * as aiProviderManager from './ai-provider-manager.ts';
 import * as functionCallPlugins from './function-call-plugins.ts';
 import * as honeypot from './honeypot.js';
 import * as captcha from './captcha.js';
-import * as sdc from './sdc.js';
+import * as sdc from './sdc.ts';
 import * as aiAgents from './ai-agents.ts';
 import * as webform from './webform.js';
 
@@ -216,7 +216,7 @@ export async function boot(baseDir, options = {}) {
     try { dbConfig = config.load('database'); } catch { /* no database.json — flat-file mode */ }
     if (dbConfig && dbConfig.enabled) {
       try {
-        const { createPool } = await import('./pg-client.js');
+        const { createPool } = await import('./pg-client.ts');
         const { runMigrations } = await import('./database/migrations.js');
 
         log('[boot] PostgreSQL enabled — connecting...');
@@ -423,20 +423,11 @@ export async function boot(baseDir, options = {}) {
     const contentConfig = context.config.site.content || { computedFields: true, cacheComputed: false };
     content.init(baseDir, cacheConfig, revisionsConfig, workflowConfig);
 
-    // Initialize storage provider based on database config
-    // WHY AFTER content.init():
-    // content.init() sets contentDir which the provider needs.
-    // WHY BEFORE content.initComputed():
-    // Computed fields may read content, so storage must be ready.
+    // Content storage uses flat-file JSON natively via content.init().
+    // PostgreSQL storage provider is planned but not yet implemented.
     if (context.dbPool) {
-      const { PgProvider } = await import('./storage/pg-provider.js');
-      const pgProvider = new PgProvider(context.dbPool);
-      await content.initStorage(pgProvider);
-      log('[boot] Content storage: PostgreSQL');
+      log('[boot] Content storage: flat-file (PostgreSQL provider not yet implemented)');
     } else {
-      const { FileProvider } = await import('./storage/file-provider.js');
-      const fileProvider = new FileProvider();
-      await content.initStorage(fileProvider);
       log('[boot] Content storage: flat-file');
     }
 

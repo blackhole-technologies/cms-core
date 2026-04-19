@@ -37,7 +37,7 @@
  * }
  */
 
-import { registerFieldType, getFieldType } from '../../core/fields.js';
+import { registerFieldType, getFieldType } from '../../core/fields.ts';
 
 // Module state
 let initialized = false;

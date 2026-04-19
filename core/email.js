@@ -131,6 +131,11 @@ export async function send(to, subject, body, options = {}) {
     timestamp: new Date().toISOString()
   };
 
+  // Inline CSS for HTML emails (email clients strip <style> blocks)
+  if (email.isHtml) {
+    email.body = inlineCss(email.body);
+  }
+
   // Log the email
   logEmail(email);
 
@@ -658,6 +663,81 @@ export function getLog(limit = 20) {
  */
 export function clearLog() {
   sendLog.length = 0;
+}
+
+/**
+ * Inline CSS styles from <style> blocks into matching elements.
+ * Email clients (Gmail, Outlook) strip <style> tags, so inline styles are required.
+ * Zero-dependency alternative to the `juice` library.
+ *
+ * Supports: element, .class, #id, element.class selectors.
+ *
+ * @param {string} html - HTML string with <style> blocks
+ * @returns {string} - HTML with styles inlined
+ */
+function inlineCss(html) {
+  const styleBlocks = [];
+  const styleRegex = /<style[^>]*>([\s\S]*?)<\/style>/gi;
+  let m;
+  while ((m = styleRegex.exec(html)) !== null) {
+    styleBlocks.push(m[1]);
+  }
+  if (styleBlocks.length === 0) return html;
+
+  // Parse CSS rules
+  const rules = [];
+  for (const css of styleBlocks) {
+    const clean = css.replace(/\/\*[\s\S]*?\*\//g, '');
+    const ruleRegex = /([^{@]+)\{([^}]+)\}/g;
+    let rm;
+    while ((rm = ruleRegex.exec(clean)) !== null) {
+      const selectors = rm[1].trim().split(',').map(s => s.trim()).filter(Boolean);
+      const declarations = rm[2].trim();
+      for (const selector of selectors) {
+        if (selector.includes(':') || selector.includes('[') || selector.includes('>')) continue;
+        rules.push({ selector, declarations });
+      }
+    }
+  }
+  if (rules.length === 0) return html;
+
+  let result = html;
+  for (const { selector, declarations } of rules) {
+    const pattern = cssSelectorToPattern(selector);
+    if (!pattern) continue;
+    result = result.replace(pattern, (tag) => {
+      if (/style\s*=\s*"/i.test(tag)) {
+        return tag.replace(/style\s*=\s*"([^"]*)"/i, (_, existing) => `style="${existing}; ${declarations}"`);
+      }
+      return tag.replace(/>$/, ` style="${declarations}">`);
+    });
+  }
+
+  // Strip <style> blocks now that styles are inlined
+  result = result.replace(/<style[^>]*>[\s\S]*?<\/style>/gi, '');
+  return result;
+}
+
+/**
+ * Convert a simple CSS selector to a regex matching the opening HTML tag.
+ */
+function cssSelectorToPattern(sel) {
+  const esc = s => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  sel = sel.trim();
+  if (/^#[\w-]+$/.test(sel)) {
+    return new RegExp(`<[a-z][a-z0-9]*[^>]*\\bid\\s*=\\s*["']${esc(sel.slice(1))}["'][^>]*>`, 'gi');
+  }
+  if (/^\.[\w-]+$/.test(sel)) {
+    return new RegExp(`<[a-z][a-z0-9]*[^>]*\\bclass\\s*=\\s*["'][^"']*\\b${esc(sel.slice(1))}\\b[^"']*["'][^>]*>`, 'gi');
+  }
+  if (/^[a-z][a-z0-9]*\.[\w-]+$/i.test(sel)) {
+    const [tag, cls] = sel.split('.');
+    return new RegExp(`<${esc(tag)}[^>]*\\bclass\\s*=\\s*["'][^"']*\\b${esc(cls)}\\b[^"']*["'][^>]*>`, 'gi');
+  }
+  if (/^[a-z][a-z0-9]*$/i.test(sel)) {
+    return new RegExp(`<${esc(sel)}(?:\\s[^>]*)?>`, 'gi');
+  }
+  return null;
 }
 
 /**

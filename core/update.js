@@ -856,3 +856,287 @@ export function formatUpdateOutput(results) {
 
   return output;
 }
+
+// ============================================
+// AUTO-UPDATE FROM REGISTRY
+// ============================================
+
+const REGISTRY_CONFIG_FILE = join(CONFIG_DIR, 'registry.json');
+let registryConfig = {
+  url: 'https://registry.cms-core.io/api/v1',
+  checkInterval: 86400000,  // 24 hours in ms
+  autoCheck: true,
+  lastCheck: null,
+};
+
+/**
+ * Load registry configuration from disk, or initialize with defaults.
+ */
+async function loadRegistryConfig() {
+  await ensureConfigDir();
+  if (existsSync(REGISTRY_CONFIG_FILE)) {
+    try {
+      const data = await readFile(REGISTRY_CONFIG_FILE, 'utf-8');
+      registryConfig = { ...registryConfig, ...JSON.parse(data) };
+    } catch { /* use defaults */ }
+  }
+  return registryConfig;
+}
+
+/**
+ * Save registry configuration to disk.
+ */
+async function saveRegistryConfig() {
+  await ensureConfigDir();
+  await writeFile(REGISTRY_CONFIG_FILE, JSON.stringify(registryConfig, null, 2), 'utf-8');
+}
+
+/**
+ * Get or set the module registry URL.
+ * @param {string} [url] - New registry URL (if setting)
+ * @returns {string} Current registry URL
+ */
+export async function getRegistryUrl(url) {
+  await loadRegistryConfig();
+  if (url) {
+    registryConfig.url = url;
+    await saveRegistryConfig();
+  }
+  return registryConfig.url;
+}
+
+/**
+ * Check the remote registry for available module updates.
+ * Compares locally installed module versions against the registry catalog.
+ *
+ * @returns {{ available: Object[], lastCheck: string, registryUrl: string }}
+ *   available: Array of { module, currentVersion, latestVersion, changelog }
+ */
+export async function checkRegistryForUpdates() {
+  await loadRegistryConfig();
+  const installed = await loadInstalledModules();
+  const available = [];
+
+  try {
+    // Fetch the registry catalog (list of available module versions)
+    const catalogUrl = `${registryConfig.url}/catalog`;
+    const response = await fetch(catalogUrl, {
+      headers: { 'User-Agent': 'CMS-Core-Update/1.0' },
+      signal: AbortSignal.timeout(15000),
+    });
+
+    if (!response.ok) {
+      throw new Error(`Registry returned ${response.status}: ${response.statusText}`);
+    }
+
+    const catalog = await response.json();
+
+    // Compare installed versions against registry
+    for (const [module, info] of Object.entries(installed)) {
+      const remoteModule = catalog.modules?.[module];
+      if (!remoteModule) continue;
+
+      const currentVersion = info.version || '0.0.0';
+      const latestVersion = remoteModule.latest || remoteModule.version;
+
+      if (latestVersion && compareVersions(latestVersion, currentVersion) > 0) {
+        available.push({
+          module,
+          currentVersion,
+          latestVersion,
+          changelog: remoteModule.changelog || null,
+          downloadUrl: remoteModule.downloadUrl || null,
+        });
+      }
+    }
+
+    // Update last check timestamp
+    registryConfig.lastCheck = new Date().toISOString();
+    await saveRegistryConfig();
+
+  } catch (error) {
+    console.warn(`[update] Registry check failed: ${error.message}`);
+    return {
+      available: [],
+      error: error.message,
+      lastCheck: registryConfig.lastCheck,
+      registryUrl: registryConfig.url,
+    };
+  }
+
+  return {
+    available,
+    lastCheck: registryConfig.lastCheck,
+    registryUrl: registryConfig.url,
+  };
+}
+
+/**
+ * Download a module update from the registry and extract it into modules/.
+ * Does NOT run update hooks — call runUpdates() after downloading.
+ *
+ * @param {string} module - Module name
+ * @param {string} version - Target version
+ * @returns {{ success: boolean, message: string }}
+ */
+export async function downloadModuleUpdate(module, version) {
+  await loadRegistryConfig();
+
+  try {
+    // Fetch module package metadata
+    const metaUrl = `${registryConfig.url}/modules/${module}/${version}`;
+    const metaRes = await fetch(metaUrl, {
+      headers: { 'User-Agent': 'CMS-Core-Update/1.0' },
+      signal: AbortSignal.timeout(15000),
+    });
+
+    if (!metaRes.ok) {
+      throw new Error(`Registry returned ${metaRes.status} for ${module}@${version}`);
+    }
+
+    const meta = await metaRes.json();
+    const downloadUrl = meta.downloadUrl || meta.tarball;
+
+    if (!downloadUrl) {
+      throw new Error(`No download URL for ${module}@${version}`);
+    }
+
+    // Download the module package
+    const pkgRes = await fetch(downloadUrl, {
+      signal: AbortSignal.timeout(60000),
+    });
+
+    if (!pkgRes.ok) {
+      throw new Error(`Download failed: ${pkgRes.status}`);
+    }
+
+    const moduleDir = join(MODULES_DIR, module);
+    if (!existsSync(moduleDir)) {
+      await mkdir(moduleDir, { recursive: true });
+    }
+
+    // Write the package data (JSON module bundle)
+    const packageData = await pkgRes.json();
+
+    // Write each file from the package
+    for (const [filename, content] of Object.entries(packageData.files || {})) {
+      const filePath = join(moduleDir, filename);
+      const fileDir = dirname(filePath);
+      if (!existsSync(fileDir)) {
+        await mkdir(fileDir, { recursive: true });
+      }
+      await writeFile(filePath, typeof content === 'string' ? content : JSON.stringify(content, null, 2), 'utf-8');
+    }
+
+    // Update installed module version
+    const installed = await loadInstalledModules();
+    if (installed[module]) {
+      installed[module].version = version;
+      installed[module].updatedAt = new Date().toISOString();
+    }
+    await saveInstalledModules(installed);
+
+    // Log the update
+    const log = await loadUpdateLog();
+    log.push({
+      type: 'registry_download',
+      module,
+      version,
+      timestamp: new Date().toISOString(),
+    });
+    await saveUpdateLog(log);
+
+    return { success: true, message: `Downloaded ${module}@${version}` };
+
+  } catch (error) {
+    return { success: false, message: `Failed to download ${module}@${version}: ${error.message}` };
+  }
+}
+
+/**
+ * Orchestrate a full auto-update: check registry, download updates, run migrations.
+ *
+ * @param {Object} options
+ * @param {boolean} options.dryRun - Only check, don't download or run updates
+ * @param {string[]} options.modules - Only update specific modules (default: all)
+ * @returns {{ checked: number, downloaded: number, updated: number, results: Object[] }}
+ */
+export async function autoUpdate(options = {}) {
+  const { dryRun = false, modules: onlyModules = null } = options;
+  const report = { checked: 0, downloaded: 0, updated: 0, results: [] };
+
+  // Step 1: Check registry
+  const check = await checkRegistryForUpdates();
+  let available = check.available || [];
+  report.checked = available.length;
+
+  if (onlyModules) {
+    available = available.filter(u => onlyModules.includes(u.module));
+  }
+
+  if (dryRun || available.length === 0) {
+    report.results = available.map(u => ({
+      module: u.module,
+      currentVersion: u.currentVersion,
+      latestVersion: u.latestVersion,
+      action: dryRun ? 'would_update' : 'up_to_date',
+    }));
+    return report;
+  }
+
+  // Step 2: Download each update
+  for (const update of available) {
+    const dlResult = await downloadModuleUpdate(update.module, update.latestVersion);
+    if (dlResult.success) {
+      report.downloaded++;
+      report.results.push({
+        module: update.module,
+        currentVersion: update.currentVersion,
+        latestVersion: update.latestVersion,
+        action: 'downloaded',
+      });
+    } else {
+      report.results.push({
+        module: update.module,
+        action: 'download_failed',
+        error: dlResult.message,
+      });
+    }
+  }
+
+  // Step 3: Run pending update hooks for downloaded modules
+  const pending = await getPendingUpdates();
+  for (const update of available) {
+    if (pending[update.module]) {
+      try {
+        const updateResults = await runUpdates({ [update.module]: pending[update.module] });
+        if (updateResults.success) {
+          report.updated++;
+        }
+      } catch (err) {
+        report.results.push({
+          module: update.module,
+          action: 'update_hooks_failed',
+          error: err.message,
+        });
+      }
+    }
+  }
+
+  return report;
+}
+
+/**
+ * Compare two semver-like version strings.
+ * Returns >0 if a > b, <0 if a < b, 0 if equal.
+ */
+function compareVersions(a, b) {
+  const pa = (a || '0').split('.').map(Number);
+  const pb = (b || '0').split('.').map(Number);
+  for (let i = 0; i < Math.max(pa.length, pb.length); i++) {
+    const va = pa[i] || 0;
+    const vb = pb[i] || 0;
+    if (va !== vb) return va - vb;
+  }
+  return 0;
+}

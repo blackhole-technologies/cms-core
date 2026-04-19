@@ -1278,8 +1278,8 @@ function readRaw(type: string, id: string): ContentItem | null {
   // Check cache first if enabled
   if (cacheEnabled) {
     const cacheKey = cache.itemKey(type, id);
-    const cached = cache.get(cacheKey) as ContentItem | undefined;
-    if (cached !== undefined) {
+    const cached = cache.get(cacheKey) as ContentItem | null;
+    if (cached != null) {
       return cached;
     }
   }
@@ -1964,8 +1964,8 @@ export function list(type: string, options: ListOptions = {}): ListResult {
   // Include filters in cache key for accurate caching
   if (cacheEnabled) {
     const cacheKey = cache.listKey(type, { page, limit, search, sortBy, sortOrder, filters: filters as Record<string, string> | null });
-    const cached = cache.get(cacheKey) as ListResult | undefined;
-    if (cached !== undefined) {
+    const cached = cache.get(cacheKey) as ListResult | null;
+    if (cached != null) {
       return cached;
     }
   }
