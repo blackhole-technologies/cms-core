@@ -1,0 +1,15 @@
+{
+  "enabled": false,
+  "host": "localhost",
+  "port": 5432,
+  "database": "cms",
+  "user": "cms",
+  "password": "cms",
+  "pool": {
+    "min": 2,
+    "max": 10,
+    "idleTimeoutMs": 30000,
+    "acquireTimeoutMs": 5000
+  },
+  "ssl": false
+}
