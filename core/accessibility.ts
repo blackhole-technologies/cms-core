@@ -30,6 +30,141 @@
 
 import { existsSync, readFileSync, writeFileSync, mkdirSync } from 'node:fs';
 import { join } from 'node:path';
+import type { IncomingMessage, ServerResponse } from 'node:http';
+
+// ============================================================================
+// Types
+// ============================================================================
+
+/** Severity of an accessibility issue. */
+type Severity = 'error' | 'warning' | 'info';
+
+/** Single issue found by a check. */
+interface Issue {
+  message: string;
+  field?: string | null;
+  element?: string | null;
+  line?: number | null;
+  severity?: Severity;
+  suggestion?: string | null;
+}
+
+/** Issue after it has been augmented with checkId + checkName. */
+interface ReportedIssue extends Issue {
+  checkId: string;
+  checkName: string;
+  severity: Severity;
+}
+
+/** Content item — generic record keyed by field name. */
+type ContentItem = Record<string, unknown>;
+
+/** Map of field name to checkable field payload. */
+interface CheckableField {
+  value: string;
+  type: 'text' | 'html';
+}
+type CheckableFields = Record<string, CheckableField>;
+
+/** A single check function run against a content item. */
+type CheckFn = (content: ContentItem, fields: CheckableFields) => Issue[];
+
+/** Registered check definition. */
+interface CheckDefinition {
+  id: string;
+  name: string;
+  description: string;
+  severity: Severity;
+  check: CheckFn;
+}
+
+/** Input to registerCheck(). */
+interface CheckDefinitionInput {
+  name: string;
+  description: string;
+  severity?: Severity;
+  check: CheckFn;
+}
+
+/** Published shape of getChecks() output. */
+interface CheckSummary {
+  id: string;
+  name: string;
+  description: string;
+  severity: Severity;
+}
+
+/** Options accepted by check(). */
+interface CheckOptions {
+  only?: string[];
+  skip?: string[];
+  severity?: Severity;
+}
+
+/** Result of running checks against one content item. */
+interface CheckResult {
+  issues: ReportedIssue[];
+  score: number;
+  summary: string;
+  total?: number;
+  byType?: { error: number; warning: number; info: number };
+}
+
+/** RGB triple parsed from a CSS colour value. */
+interface RGB {
+  r: number;
+  g: number;
+  b: number;
+}
+
+/** Minimal content service used by this module. */
+interface ContentService {
+  read(type: string, id: string): ContentItem | null | undefined;
+  list(type: string): ContentItem[];
+}
+
+/** Hooks service — opaque here, reference held only. */
+type HooksService = Record<string, unknown>;
+
+/** Options accepted by init(). */
+interface AccessibilityInitOptions {
+  baseDir?: string;
+  content?: ContentService | null;
+  hooks?: HooksService | null;
+  config?: Record<string, unknown>;
+}
+
+/** Runtime configuration bag. */
+interface AccessibilityConfig {
+  enabled: boolean;
+  autoCheck: boolean;
+  [key: string]: unknown;
+}
+
+/** CLI register function contract (matches other core modules). */
+type CliHandler = (args: string[]) => Promise<boolean | void> | boolean | void;
+type CliRegister = (
+  name: string,
+  handler: CliHandler,
+  description?: string,
+  category?: string,
+) => void;
+
+/** Minimal router interface used for registerRoutes(). */
+interface RouterService {
+  register(
+    method: string,
+    path: string,
+    handler: (
+      req: IncomingMessage,
+      res: ServerResponse,
+      params: Record<string, string>,
+    ) => Promise<void> | void,
+  ): void;
+}
+
+/** Auth service — opaque; only the reference is retained. */
+type AuthService = Record<string, unknown>;
 
 /**
  * Severity levels for accessibility issues
@@ -39,7 +174,7 @@ import { join } from 'node:path';
  * - warning: Likely problematic (WCAG AA violations)
  * - info: Best practice suggestion (WCAG AAA or editorial)
  */
-const SEVERITY = {
+const SEVERITY: { ERROR: Severity; WARNING: Severity; INFO: Severity } = {
   ERROR: 'error',
   WARNING: 'warning',
   INFO: 'info',
@@ -49,27 +184,21 @@ const SEVERITY = {
  * Registry of accessibility checks
  * Each check is { id, name, description, severity, check: (content) => issues[] }
  */
-const checks = new Map();
+const checks: Map<string, CheckDefinition> = new Map();
 
 /**
  * Module state
  */
 let initialized = false;
-let contentService = null;
-let hooksService = null;
-let baseDir = null;
-let configData = {};
+let contentService: ContentService | null = null;
+let hooksService: HooksService | null = null;
+let baseDir: string | null = null;
+let configData: AccessibilityConfig = { enabled: true, autoCheck: false };
 
 /**
  * Initialize the accessibility checker service
- *
- * @param {Object} opts - Configuration options
- * @param {string} opts.baseDir - Project root directory
- * @param {Object} opts.content - Content service reference
- * @param {Object} opts.hooks - Hooks service reference (optional)
- * @param {Object} opts.config - Configuration overrides
  */
-export function init(opts = {}) {
+export function init(opts: AccessibilityInitOptions = {}): void {
   baseDir = opts.baseDir || process.cwd();
   contentService = opts.content || null;
   hooksService = opts.hooks || null;
@@ -92,15 +221,8 @@ export const name = 'accessibility';
 
 /**
  * Register a new accessibility check
- *
- * @param {string} id - Unique check identifier (e.g., 'missing-alt-text')
- * @param {Object} checkDef - Check definition
- * @param {string} checkDef.name - Human-readable name
- * @param {string} checkDef.description - What this check looks for
- * @param {string} checkDef.severity - Default severity (error|warning|info)
- * @param {Function} checkDef.check - Function that returns array of issues
  */
-export function registerCheck(id, checkDef) {
+export function registerCheck(id: string, checkDef: CheckDefinitionInput): void {
   checks.set(id, {
     id,
     name: checkDef.name,
@@ -112,10 +234,8 @@ export function registerCheck(id, checkDef) {
 
 /**
  * Get all registered checks
- *
- * @returns {Array} List of registered check definitions
  */
-export function getChecks() {
+export function getChecks(): CheckSummary[] {
   return Array.from(checks.values()).map(c => ({
     id: c.id,
     name: c.name,
@@ -130,15 +250,11 @@ export function getChecks() {
  * WHY ACCEPT RAW CONTENT OBJECT:
  * Content can come from many sources - the content service, API input,
  * or direct editor input. Accepting raw objects keeps us flexible.
- *
- * @param {Object} contentItem - Content object with fields to check
- * @param {Object} options - Check options
- * @param {string[]} options.only - Only run these check IDs
- * @param {string[]} options.skip - Skip these check IDs
- * @param {string} options.severity - Minimum severity to report
- * @returns {Object} Check results with issues, score, and summary
  */
-export function check(contentItem, options = {}) {
+export function check(
+  contentItem: ContentItem | null | undefined,
+  options: CheckOptions = {},
+): CheckResult {
   if (!contentItem) {
     return { issues: [], score: 100, summary: 'No content to check' };
   }
@@ -149,7 +265,7 @@ export function check(contentItem, options = {}) {
   const fields = extractCheckableFields(contentItem);
 
   // Run each registered check
-  const allIssues = [];
+  const allIssues: ReportedIssue[] = [];
 
   for (const [checkId, checkDef] of checks) {
     // Filter checks if options specify
@@ -173,12 +289,13 @@ export function check(contentItem, options = {}) {
         }
       }
     } catch (err) {
+      const message = err instanceof Error ? err.message : String(err);
       // Don't let a broken check crash the whole analysis
       allIssues.push({
         checkId,
         checkName: checkDef.name,
         severity: SEVERITY.INFO,
-        message: `Check failed: ${err.message}`,
+        message: `Check failed: ${message}`,
         field: null,
         element: null,
         line: null,
@@ -188,8 +305,8 @@ export function check(contentItem, options = {}) {
   }
 
   // Filter by minimum severity if requested
-  const severityOrder = { error: 0, warning: 1, info: 2 };
-  let filteredIssues = allIssues;
+  const severityOrder: Record<Severity, number> = { error: 0, warning: 1, info: 2 };
+  let filteredIssues: ReportedIssue[] = allIssues;
   if (severity) {
     const minLevel = severityOrder[severity] ?? 2;
     filteredIssues = allIssues.filter(i => (severityOrder[i.severity] ?? 2) <= minLevel);
@@ -214,13 +331,8 @@ export function check(contentItem, options = {}) {
 
 /**
  * Check a specific content item by type and ID
- *
- * @param {string} type - Content type
- * @param {string} id - Content ID
- * @param {Object} options - Check options
- * @returns {Object} Check results
  */
-export function checkContent(type, id, options = {}) {
+export function checkContent(type: string, id: string, options: CheckOptions = {}): CheckResult {
   if (!contentService) {
     return { issues: [], score: 0, summary: 'Content service not available' };
   }
@@ -232,7 +344,8 @@ export function checkContent(type, id, options = {}) {
     }
     return check(item, options);
   } catch (err) {
-    return { issues: [], score: 0, summary: `Error loading content: ${err.message}` };
+    const message = err instanceof Error ? err.message : String(err);
+    return { issues: [], score: 0, summary: `Error loading content: ${message}` };
   }
 }
 
@@ -244,18 +357,15 @@ export function checkContent(type, id, options = {}) {
  * - Rich text / HTML fields (body, summary, description)
  * - Plain text fields that may contain HTML
  * - Skip system fields (id, type, created, updated, status)
- *
- * @param {Object} contentItem - Content object
- * @returns {Object} Map of fieldName → { value, type }
  */
-function extractCheckableFields(contentItem) {
-  const systemFields = new Set([
+function extractCheckableFields(contentItem: ContentItem): CheckableFields {
+  const systemFields: Set<string> = new Set([
     'id', 'type', 'created', 'updated', 'status',
     'publishedAt', 'scheduledAt', 'slug', 'author',
     'isDefaultRevision', 'revisionId',
   ]);
 
-  const fields = {};
+  const fields: CheckableFields = {};
 
   for (const [key, value] of Object.entries(contentItem)) {
     if (systemFields.has(key)) continue;
@@ -263,11 +373,13 @@ function extractCheckableFields(contentItem) {
 
     if (typeof value === 'string' && value.trim().length > 0) {
       fields[key] = { value, type: looksLikeHtml(value) ? 'html' : 'text' };
-    } else if (typeof value === 'object' && value.value) {
+    } else if (typeof value === 'object' && value !== null && 'value' in value) {
       // Handle structured field values like { value: 'html', format: 'full_html' }
+      const inner = (value as { value: unknown }).value;
+      const strVal = String(inner);
       fields[key] = {
-        value: String(value.value),
-        type: looksLikeHtml(String(value.value)) ? 'html' : 'text',
+        value: strVal,
+        type: looksLikeHtml(strVal) ? 'html' : 'text',
       };
     }
   }
@@ -278,7 +390,7 @@ function extractCheckableFields(contentItem) {
 /**
  * Check if a string looks like it contains HTML
  */
-function looksLikeHtml(str) {
+function looksLikeHtml(str: string): boolean {
   return /<[a-z][^>]*>/i.test(str);
 }
 
@@ -288,14 +400,11 @@ function looksLikeHtml(str) {
  * WHY WEIGHTED SCORING:
  * Errors are definite barriers, so they reduce score more.
  * A single error is worse than several warnings.
- *
- * @param {Array} issues - List of accessibility issues
- * @returns {number} Score from 0 to 100
  */
-function calculateScore(issues) {
+function calculateScore(issues: ReportedIssue[]): number {
   if (issues.length === 0) return 100;
 
-  const weights = { error: 15, warning: 5, info: 1 };
+  const weights: Record<Severity, number> = { error: 15, warning: 5, info: 1 };
   let penalty = 0;
 
   for (const issue of issues) {
@@ -308,14 +417,14 @@ function calculateScore(issues) {
 /**
  * Generate a human-readable summary of issues
  */
-function generateSummary(issues) {
+function generateSummary(issues: ReportedIssue[]): string {
   if (issues.length === 0) return 'No accessibility issues found';
 
   const errors = issues.filter(i => i.severity === 'error').length;
   const warnings = issues.filter(i => i.severity === 'warning').length;
   const infos = issues.filter(i => i.severity === 'info').length;
 
-  const parts = [];
+  const parts: string[] = [];
   if (errors > 0) parts.push(`${errors} error${errors > 1 ? 's' : ''}`);
   if (warnings > 0) parts.push(`${warnings} warning${warnings > 1 ? 's' : ''}`);
   if (infos > 0) parts.push(`${infos} suggestion${infos > 1 ? 's' : ''}`);
@@ -334,24 +443,24 @@ function generateSummary(issues) {
  * Keeps init() clean. Each check is self-contained with its own
  * detection logic and suggestion generation.
  */
-function registerBuiltinChecks() {
+function registerBuiltinChecks(): void {
   // ----- CHECK: Missing alt text -----
   registerCheck('missing-alt-text', {
     name: 'Missing Alt Text',
     description: 'Images must have alt text for screen reader users',
     severity: SEVERITY.ERROR,
     check: (content, fields) => {
-      const issues = [];
+      const issues: Issue[] = [];
 
       for (const [fieldName, field] of Object.entries(fields)) {
         if (field.type !== 'html') continue;
 
         // Find <img> tags without alt attribute or with empty alt
         const imgRegex = /<img\b([^>]*)>/gi;
-        let match;
+        let match: RegExpExecArray | null;
 
         while ((match = imgRegex.exec(field.value)) !== null) {
-          const attrs = match[1];
+          const attrs = match[1] ?? '';
 
           // Check for alt attribute
           const altMatch = /\balt\s*=\s*(?:"([^"]*)"|'([^']*)'|(\S+))/i.exec(attrs);
@@ -396,20 +505,20 @@ function registerBuiltinChecks() {
     description: 'Headings should follow a logical hierarchy without skipping levels',
     severity: SEVERITY.WARNING,
     check: (content, fields) => {
-      const issues = [];
+      const issues: Issue[] = [];
 
       for (const [fieldName, field] of Object.entries(fields)) {
         if (field.type !== 'html') continue;
 
         // Extract all heading tags in order
         const headingRegex = /<h([1-6])\b[^>]*>([\s\S]*?)<\/h\1>/gi;
-        const headings = [];
-        let hMatch;
+        const headings: Array<{ level: number; text: string; raw: string }> = [];
+        let hMatch: RegExpExecArray | null;
 
         while ((hMatch = headingRegex.exec(field.value)) !== null) {
           headings.push({
-            level: parseInt(hMatch[1]),
-            text: stripHtml(hMatch[2]).trim(),
+            level: parseInt(hMatch[1]!, 10),
+            text: stripHtml(hMatch[2]!).trim(),
             raw: hMatch[0],
           });
         }
@@ -418,8 +527,8 @@ function registerBuiltinChecks() {
 
         // Check for hierarchy violations
         for (let i = 1; i < headings.length; i++) {
-          const prev = headings[i - 1];
-          const curr = headings[i];
+          const prev = headings[i - 1]!;
+          const curr = headings[i]!;
 
           // A heading can go up (smaller number) or one level deeper
           // But it should NOT skip levels (e.g., h1 → h3, skipping h2)
@@ -458,9 +567,9 @@ function registerBuiltinChecks() {
     description: 'Links should have descriptive text (not "click here" or "read more")',
     severity: SEVERITY.WARNING,
     check: (content, fields) => {
-      const issues = [];
+      const issues: Issue[] = [];
 
-      const poorLinkTexts = new Set([
+      const poorLinkTexts: Set<string> = new Set([
         'click here', 'here', 'click', 'link', 'read more',
         'more', 'learn more', 'more info', 'this', 'go',
         'this link', 'this page',
@@ -471,11 +580,11 @@ function registerBuiltinChecks() {
 
         // Find all anchor tags
         const linkRegex = /<a\b([^>]*)>([\s\S]*?)<\/a>/gi;
-        let lMatch;
+        let lMatch: RegExpExecArray | null;
 
         while ((lMatch = linkRegex.exec(field.value)) !== null) {
-          const linkText = stripHtml(lMatch[2]).trim().toLowerCase();
-          const attrs = lMatch[1];
+          const linkText = stripHtml(lMatch[2]!).trim().toLowerCase();
+          const attrs = lMatch[1] ?? '';
 
           // Check for empty links
           if (linkText === '') {
@@ -530,18 +639,18 @@ function registerBuiltinChecks() {
     description: 'Interactive elements should have accessible labels',
     severity: SEVERITY.INFO,
     check: (content, fields) => {
-      const issues = [];
+      const issues: Issue[] = [];
 
       for (const [fieldName, field] of Object.entries(fields)) {
         if (field.type !== 'html') continue;
 
         // Check for buttons without accessible text
         const buttonRegex = /<button\b([^>]*)>([\s\S]*?)<\/button>/gi;
-        let bMatch;
+        let bMatch: RegExpExecArray | null;
 
         while ((bMatch = buttonRegex.exec(field.value)) !== null) {
-          const buttonText = stripHtml(bMatch[2]).trim();
-          const attrs = bMatch[1];
+          const buttonText = stripHtml(bMatch[2]!).trim();
+          const attrs = bMatch[1] ?? '';
 
           if (buttonText === '' && !(/aria-label/i.test(attrs))) {
             issues.push({
@@ -556,10 +665,10 @@ function registerBuiltinChecks() {
 
         // Check for inputs without labels
         const inputRegex = /<input\b([^>]*)>/gi;
-        let iMatch;
+        let iMatch: RegExpExecArray | null;
 
         while ((iMatch = inputRegex.exec(field.value)) !== null) {
-          const attrs = iMatch[1];
+          const attrs = iMatch[1] ?? '';
           const type = extractAttr(attrs, 'type') || 'text';
 
           // Skip hidden and submit inputs
@@ -594,7 +703,7 @@ function registerBuiltinChecks() {
     description: 'Inline color styles may cause contrast issues',
     severity: SEVERITY.WARNING,
     check: (content, fields) => {
-      const issues = [];
+      const issues: Issue[] = [];
 
       for (const [fieldName, field] of Object.entries(fields)) {
         if (field.type !== 'html') continue;
@@ -602,17 +711,17 @@ function registerBuiltinChecks() {
         // Check for inline color/background-color styles that might cause contrast issues
         // Match entire style attribute to extract both color and background-color
         const styleRegex = /<[^>]+style\s*=\s*"([^"]*)"/gi;
-        let sMatch;
+        let sMatch: RegExpExecArray | null;
 
         while ((sMatch = styleRegex.exec(field.value)) !== null) {
-          const styleContent = sMatch[1];
+          const styleContent = sMatch[1] ?? '';
 
           // Extract color and background-color from style
           const colorMatch = /(?:^|;)\s*color\s*:\s*([^;]+)/i.exec(styleContent);
           const bgColorMatch = /(?:^|;)\s*background-color\s*:\s*([^;]+)/i.exec(styleContent);
 
-          const foreground = colorMatch ? colorMatch[1].trim() : null;
-          const background = bgColorMatch ? bgColorMatch[1].trim() : null;
+          const foreground = colorMatch ? colorMatch[1]!.trim() : null;
+          const background = bgColorMatch ? bgColorMatch[1]!.trim() : null;
 
           // If we have both foreground and background, calculate contrast ratio
           if (foreground && background) {
@@ -622,7 +731,7 @@ function registerBuiltinChecks() {
               // WCAG AA requires 4.5:1 for normal text, 3:1 for large text
               // WCAG AAA requires 7:1 for normal text, 4.5:1 for large text
               if (contrastRatio < 4.5) {
-                const severity = contrastRatio < 3 ? SEVERITY.ERROR : SEVERITY.WARNING;
+                const severity: Severity = contrastRatio < 3 ? SEVERITY.ERROR : SEVERITY.WARNING;
                 issues.push({
                   message: `Low color contrast: ${contrastRatio.toFixed(2)}:1 (foreground: ${foreground}, background: ${background})`,
                   field: fieldName,
@@ -635,10 +744,9 @@ function registerBuiltinChecks() {
           } else if (foreground) {
             // Only foreground color specified - check against likely backgrounds
             const likelyBgLight = parseColor('#ffffff'); // Assume white background
-            const likelyBgDark = parseColor('#000000'); // Could also be dark
 
             const fgColor = parseColor(foreground);
-            if (fgColor) {
+            if (fgColor && likelyBgLight) {
               // Check contrast against white background (most common)
               const contrastLight = getContrastRatio(fgColor, likelyBgLight);
 
@@ -668,14 +776,14 @@ function registerBuiltinChecks() {
 /**
  * Strip HTML tags from a string
  */
-function stripHtml(html) {
+function stripHtml(html: string): string {
   return html.replace(/<[^>]+>/g, '');
 }
 
 /**
  * Extract an attribute value from an attribute string
  */
-function extractAttr(attrString, attrName) {
+function extractAttr(attrString: string, attrName: string): string | null {
   const regex = new RegExp(`\\b${attrName}\\s*=\\s*(?:"([^"]*)"|'([^']*)'|(\\S+))`, 'i');
   const match = regex.exec(attrString);
   if (!match) return null;
@@ -688,37 +796,34 @@ function extractAttr(attrString, attrName) {
  * WHY COMPREHENSIVE PARSING:
  * CSS supports multiple color formats (hex, rgb, rgba, named colors).
  * We need to normalize all formats to RGB for contrast calculation.
- *
- * @param {string} colorStr - CSS color value
- * @returns {object|null} - {r, g, b} object or null if invalid
  */
-function parseColor(colorStr) {
+function parseColor(colorStr: string): RGB | null {
   const c = colorStr.toLowerCase().trim();
 
   // Named colors (subset of most common)
-  const namedColors = {
-    'white': [255, 255, 255], 'black': [0, 0, 0], 'red': [255, 0, 0],
-    'green': [0, 128, 0], 'blue': [0, 0, 255], 'yellow': [255, 255, 0],
-    'cyan': [0, 255, 255], 'magenta': [255, 0, 255], 'gray': [128, 128, 128],
-    'grey': [128, 128, 128], 'silver': [192, 192, 192], 'maroon': [128, 0, 0],
-    'olive': [128, 128, 0], 'lime': [0, 255, 0], 'aqua': [0, 255, 255],
-    'teal': [0, 128, 128], 'navy': [0, 0, 128], 'fuchsia': [255, 0, 255],
-    'purple': [128, 0, 128], 'orange': [255, 165, 0],
+  const namedColors: Record<string, [number, number, number]> = {
+    white: [255, 255, 255], black: [0, 0, 0], red: [255, 0, 0],
+    green: [0, 128, 0], blue: [0, 0, 255], yellow: [255, 255, 0],
+    cyan: [0, 255, 255], magenta: [255, 0, 255], gray: [128, 128, 128],
+    grey: [128, 128, 128], silver: [192, 192, 192], maroon: [128, 0, 0],
+    olive: [128, 128, 0], lime: [0, 255, 0], aqua: [0, 255, 255],
+    teal: [0, 128, 128], navy: [0, 0, 128], fuchsia: [255, 0, 255],
+    purple: [128, 0, 128], orange: [255, 165, 0],
   };
 
   if (namedColors[c]) {
-    const [r, g, b] = namedColors[c];
+    const [r, g, b] = namedColors[c]!;
     return { r, g, b };
   }
 
   // Hex colors (#rgb, #rrggbb, #rrggbbaa)
   const hexMatch = /^#([0-9a-f]{3,8})$/i.exec(c);
   if (hexMatch) {
-    let hex = hexMatch[1];
+    let hex = hexMatch[1]!;
 
     // Expand 3-char hex to 6-char
     if (hex.length === 3) {
-      hex = hex[0] + hex[0] + hex[1] + hex[1] + hex[2] + hex[2];
+      hex = hex[0]! + hex[0]! + hex[1]! + hex[1]! + hex[2]! + hex[2]!;
     }
 
     if (hex.length >= 6) {
@@ -733,9 +838,9 @@ function parseColor(colorStr) {
   const rgbMatch = /rgba?\s*\(\s*(\d+)\s*,\s*(\d+)\s*,\s*(\d+)(?:\s*,\s*[\d.]+)?\s*\)/i.exec(c);
   if (rgbMatch) {
     return {
-      r: parseInt(rgbMatch[1]),
-      g: parseInt(rgbMatch[2]),
-      b: parseInt(rgbMatch[3]),
+      r: parseInt(rgbMatch[1]!, 10),
+      g: parseInt(rgbMatch[2]!, 10),
+      b: parseInt(rgbMatch[3]!, 10),
     };
   }
 
@@ -748,11 +853,8 @@ function parseColor(colorStr) {
  * WHY GAMMA CORRECTION:
  * sRGB colors are gamma-encoded. We need to convert to linear RGB
  * before calculating luminance per WCAG spec.
- *
- * @param {object} rgb - {r, g, b} object with values 0-255
- * @returns {number} - Relative luminance (0-1)
  */
-function getRelativeLuminance(rgb) {
+function getRelativeLuminance(rgb: RGB): number {
   // Convert 0-255 to 0-1
   let r = rgb.r / 255;
   let g = rgb.g / 255;
@@ -773,12 +875,8 @@ function getRelativeLuminance(rgb) {
  * WHY WCAG FORMULA:
  * WCAG 2.1 defines contrast ratio as (L1 + 0.05) / (L2 + 0.05)
  * where L1 is lighter color luminance, L2 is darker.
- *
- * @param {object} rgb1 - First color {r, g, b}
- * @param {object} rgb2 - Second color {r, g, b}
- * @returns {number} - Contrast ratio (1-21)
  */
-function getContrastRatio(rgb1, rgb2) {
+function getContrastRatio(rgb1: RGB, rgb2: RGB): number {
   const l1 = getRelativeLuminance(rgb1);
   const l2 = getRelativeLuminance(rgb2);
 
@@ -791,12 +889,8 @@ function getContrastRatio(rgb1, rgb2) {
 
 /**
  * Calculate contrast ratio from CSS color strings
- *
- * @param {string} foreground - Foreground CSS color
- * @param {string} background - Background CSS color
- * @returns {number|null} - Contrast ratio or null if invalid colors
  */
-function calculateContrastRatio(foreground, background) {
+function calculateContrastRatio(foreground: string, background: string): number | null {
   const fg = parseColor(foreground);
   const bg = parseColor(background);
 
@@ -812,11 +906,11 @@ function calculateContrastRatio(foreground, background) {
  * Common CMS patterns auto-generate alt text from filenames,
  * resulting in non-descriptive values like "IMG_1234" or "image".
  */
-function isPlaceholderAlt(alt) {
+function isPlaceholderAlt(alt: string): boolean {
   const normalized = alt.toLowerCase().trim();
 
   // Common placeholder patterns
-  const placeholders = [
+  const placeholders: string[] = [
     'image', 'photo', 'picture', 'img', 'graphic',
     'banner', 'thumbnail', 'icon', 'logo',
     'untitled', 'no description', 'placeholder',
@@ -839,11 +933,11 @@ function isPlaceholderAlt(alt) {
  * and background colors. We do a basic heuristic to flag obviously
  * problematic inline colors that editors should verify.
  */
-function isLightColor(colorStr) {
+function isLightColor(colorStr: string): boolean {
   const c = colorStr.toLowerCase().trim();
 
   // Named light colors
-  const lightNames = ['white', 'lightyellow', 'lighcyan', 'linen',
+  const lightNames: string[] = ['white', 'lightyellow', 'lighcyan', 'linen',
     'ivory', 'snow', 'ghostwhite', 'floralwhite', 'aliceblue',
     'honeydew', 'mintcream', 'azure', 'lavenderblush', 'seashell'];
   if (lightNames.includes(c)) return true;
@@ -851,8 +945,8 @@ function isLightColor(colorStr) {
   // Hex colors
   const hexMatch = /^#([0-9a-f]{3,8})$/i.exec(c);
   if (hexMatch) {
-    let hex = hexMatch[1];
-    if (hex.length === 3) hex = hex[0]+hex[0]+hex[1]+hex[1]+hex[2]+hex[2];
+    let hex = hexMatch[1]!;
+    if (hex.length === 3) hex = hex[0]! + hex[0]! + hex[1]! + hex[1]! + hex[2]! + hex[2]!;
     if (hex.length >= 6) {
       const r = parseInt(hex.substring(0, 2), 16);
       const g = parseInt(hex.substring(2, 4), 16);
@@ -868,19 +962,17 @@ function isLightColor(colorStr) {
 
 /**
  * Register CLI commands for accessibility checking
- *
- * @param {Function} register - CLI registration function
  */
-export function registerCli(register) {
+export function registerCli(register: CliRegister): void {
   // accessibility:check <type> <id> - Check content accessibility
-  register('accessibility:check', async (args) => {
+  register('accessibility:check', async (args: string[]) => {
     if (args.length < 2) {
       console.log('Usage: accessibility:check <type> <id>');
       console.log('Example: accessibility:check article my-post');
       return true;
     }
 
-    const [type, id] = args;
+    const [type, id] = args as [string, string, ...string[]];
     const result = checkContent(type, id);
 
     console.log(`\nAccessibility Report: ${type}/${id}`);
@@ -915,13 +1007,13 @@ export function registerCli(register) {
   }, 'List available accessibility checks', 'accessibility');
 
   // accessibility:scan <type> - Scan all content of a type
-  register('accessibility:scan', async (args) => {
+  register('accessibility:scan', async (args: string[]) => {
     if (args.length < 1) {
       console.log('Usage: accessibility:scan <type>');
       return true;
     }
 
-    const type = args[0];
+    const type = args[0]!;
     if (!contentService) {
       console.log('Content service not available');
       return false;
@@ -935,7 +1027,11 @@ export function registerCli(register) {
       for (const item of items) {
         const result = check(item);
         if (result.issues.length > 0) {
-          console.log(`  ${item.id} (${item.title || item.name || 'untitled'}): ${result.summary} [Score: ${result.score}]`);
+          const id = (item as { id?: unknown }).id ?? '(no id)';
+          const titleField = (item as { title?: unknown; name?: unknown }).title;
+          const nameField = (item as { title?: unknown; name?: unknown }).name;
+          const displayName = titleField ?? nameField ?? 'untitled';
+          console.log(`  ${String(id)} (${String(displayName)}): ${result.summary} [Score: ${result.score}]`);
           totalIssues += result.issues.length;
         }
       }
@@ -946,7 +1042,8 @@ export function registerCli(register) {
         console.log(`\nTotal: ${totalIssues} issue(s) across ${items.length} item(s)`);
       }
     } catch (err) {
-      console.log(`Error scanning ${type}: ${err.message}`);
+      const message = err instanceof Error ? err.message : String(err);
+      console.log(`Error scanning ${type}: ${message}`);
     }
 
     return true;
@@ -955,15 +1052,12 @@ export function registerCli(register) {
 
 /**
  * Register HTTP routes for accessibility API
- *
- * @param {Object} router - Router service
- * @param {Object} auth - Auth service
  */
-export function registerRoutes(router, auth) {
+export function registerRoutes(router: RouterService, auth: AuthService): void {
   // GET /api/accessibility/check/:type/:id
   router.register('GET', '/api/accessibility/check/:type/:id', async (req, res, params) => {
     const { type, id } = params;
-    const result = checkContent(type, id);
+    const result = checkContent(type!, id!);
 
     res.writeHead(200, { 'Content-Type': 'application/json' });
     res.end(JSON.stringify(result));
@@ -975,14 +1069,15 @@ export function registerRoutes(router, auth) {
     for await (const chunk of req) body += chunk;
 
     try {
-      const contentItem = JSON.parse(body);
+      const contentItem = JSON.parse(body) as ContentItem;
       const result = check(contentItem);
 
       res.writeHead(200, { 'Content-Type': 'application/json' });
       res.end(JSON.stringify(result));
     } catch (err) {
+      const message = err instanceof Error ? err.message : String(err);
       res.writeHead(400, { 'Content-Type': 'application/json' });
-      res.end(JSON.stringify({ error: 'Invalid JSON', message: err.message }));
+      res.end(JSON.stringify({ error: 'Invalid JSON', message }));
     }
   });
 

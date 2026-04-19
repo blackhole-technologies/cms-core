@@ -26,9 +26,155 @@
 // DEPENDENCIES
 // ============================================
 
-import * as fields from './fields.js';
-import * as validation from './validation.js';
+import * as fields from './fields.ts';
+import * as validation from './validation.ts';
 import * as template from './template.ts';
+
+// ============================================
+// Types
+// ============================================
+
+/** Configuration for the forms system */
+interface FormsConfig {
+  defaultMode: string;
+  enableState: boolean;
+  enableMultiStep: boolean;
+}
+
+/** A form field configuration within a form definition */
+interface FormFieldConfig {
+  widget: string;
+  group?: string;
+  weight?: number;
+}
+
+/** A form group configuration */
+interface FormGroupConfig {
+  label: string;
+  weight?: number;
+  collapsed?: boolean;
+  collapsible?: boolean;
+}
+
+/** Multi-step form step definition */
+interface FormStep {
+  label: string;
+  description?: string;
+  fields?: string[];
+}
+
+/** Conditional visibility rule for a field */
+interface FormCondition {
+  field?: string;
+  value?: unknown;
+  op?: string;
+}
+
+/** Form callbacks configuration */
+interface FormCallbacks {
+  onBuild: FormLifecycleCallback | null;
+  onValidate: FormValidateCallback | null;
+  onSubmit: FormSubmitCallback | null;
+}
+
+/** A form definition stored in the registry */
+interface FormDefinition {
+  id: string;
+  contentType: string | null;
+  mode: string;
+  groups: Record<string, FormGroupConfig>;
+  fields: Record<string, FormFieldConfig>;
+  conditions: Record<string, FormCondition>;
+  steps: FormStep[] | null;
+  validation: Record<string, unknown>;
+  callbacks: FormCallbacks;
+}
+
+/** A built form structure ready for rendering */
+interface BuiltForm {
+  id: string;
+  contentType: string;
+  mode: string;
+  groups: Record<string, FormGroupConfig>;
+  fields: Record<string, BuiltFormField>;
+  conditions: Record<string, FormCondition>;
+  steps: FormStep[] | null;
+  content: Record<string, unknown> | null;
+}
+
+/** A built field within a form */
+interface BuiltFormField {
+  name: string;
+  definition: FieldDefinition;
+  config: FormFieldConfig;
+  widget: string;
+  group: string;
+  weight: number;
+  value: unknown;
+}
+
+/** A field definition from the schema */
+interface FieldDefinition {
+  type?: string;
+  label?: string;
+  hint?: string;
+  description?: string;
+  required?: boolean;
+  default?: unknown;
+  [key: string]: unknown;
+}
+
+/** Widget renderer and parser */
+interface WidgetConfig {
+  render: ((field: FieldWithId, value: unknown, options: Record<string, unknown>) => string) | null;
+  parse: ((value: unknown) => unknown) | null;
+  description: string;
+}
+
+/** Field with id added for rendering */
+interface FieldWithId extends FieldDefinition {
+  name: string;
+  id: string;
+}
+
+/** Form state for tracking server-side session */
+interface FormStateData {
+  fields: Record<string, unknown>;
+  errors: Record<string, string>;
+  dirty: string[];
+  step: number;
+}
+
+/** Validation result from the validation module */
+interface ValidationResult {
+  valid: boolean;
+  errors: Array<{ field: string; message: string }>;
+}
+
+/** Form processing result */
+interface FormProcessResult {
+  success: boolean;
+  content?: Record<string, unknown>;
+  errors?: Record<string, string>;
+}
+
+/** Content service interface for form processing */
+interface ContentServiceInterface {
+  create(contentType: string, data: Record<string, unknown>): unknown;
+  update(contentType: string, id: string, data: Record<string, unknown>): unknown;
+}
+
+/** Content item with at least an id */
+interface ContentItem {
+  id?: string;
+  [key: string]: unknown;
+}
+
+/** Lifecycle callback types */
+type FormLifecycleCallback = (form: FormDefinition, context: Record<string, unknown>) => void;
+type FormValidateCallback = (data: Record<string, unknown>, result: ValidationResult) => Promise<{ valid: boolean; errors?: Array<{ field: string; message: string }> } | null>;
+type FormSubmitCallback = (parsed: Record<string, unknown>, content: ContentItem | null, contentService: ContentServiceInterface | null) => Promise<FormProcessResult | null>;
+type FormHookCallback = (...args: unknown[]) => void | Promise<void>;
 
 // ============================================
 // FORM REGISTRY
@@ -38,24 +184,24 @@ import * as template from './template.ts';
  * Registry of form definitions
  * Structure: { formId: { config } }
  */
-const forms = {};
+const forms: Record<string, FormDefinition> = {};
 
 /**
  * Widget registry: maps widget names to custom renderers
  * Structure: { widgetName: { render: fn, parse: fn } }
  */
-const widgets = {};
+const widgets: Record<string, WidgetConfig> = {};
 
 /**
  * Form state storage (server-side session)
  * Structure: { formId: { fields: {}, errors: {}, dirty: [], step: 0 } }
  */
-const formStates = new Map();
+const formStates: Map<string, FormStateData> = new Map();
 
 /**
  * Hook registry for form lifecycle events
  */
-const hooks = {
+const hooks: Record<string, FormHookCallback[]> = {
   'form:build': [],
   'form:validate': [],
   'form:submit': [],
@@ -65,7 +211,7 @@ const hooks = {
 /**
  * Configuration
  */
-let config = {
+let config: FormsConfig = {
   defaultMode: 'default',
   enableState: true,
   enableMultiStep: true
@@ -83,12 +229,9 @@ let config = {
  * - Configurable during boot
  * - Testable in isolation
  *
- * @param {Object} fieldsModule - fields.js module
- * @param {Object} validationModule - validation.js module
- * @param {Object} templateModule - template.js module
- * @param {Object} cfg - Configuration options
+ * @param cfg - Configuration options
  */
-export function init(cfg = {}) {
+export function init(cfg: Partial<FormsConfig> = {}): void {
   config = { ...config, ...cfg };
   console.log('[forms] Initialized');
 }
@@ -100,9 +243,9 @@ export function init(cfg = {}) {
 /**
  * Define a form configuration
  *
- * @param {string} id - Unique form ID
- * @param {Object} formConfig - Form configuration
- * @returns {Object} Form definition
+ * @param id - Unique form ID
+ * @param formConfig - Form configuration
+ * @returns Form definition
  *
  * @example
  * defineForm('article_form', {
@@ -118,7 +261,7 @@ export function init(cfg = {}) {
  *   }
  * })
  */
-export function defineForm(id, formConfig) {
+export function defineForm(id: string, formConfig: Partial<FormDefinition> & { contentType?: string; mode?: string; onBuild?: FormLifecycleCallback; onValidate?: FormValidateCallback; onSubmit?: FormSubmitCallback }): FormDefinition {
   if (!id || typeof id !== 'string') {
     throw new Error('Form ID must be a non-empty string');
   }
@@ -139,35 +282,35 @@ export function defineForm(id, formConfig) {
     }
   };
 
-  return forms[id];
+  return forms[id]!;
 }
 
 /**
  * Get a form definition
  *
- * @param {string} id - Form ID
- * @returns {Object|null} Form definition or null
+ * @param id - Form ID
+ * @returns Form definition or null
  */
-export function getForm(id) {
+export function getForm(id: string): FormDefinition | null {
   return forms[id] || null;
 }
 
 /**
  * List all registered forms
  *
- * @returns {Array} Array of form IDs
+ * @returns Array of form IDs
  */
-export function listForms() {
+export function listForms(): string[] {
   return Object.keys(forms).sort();
 }
 
 /**
  * Check if a form exists
  *
- * @param {string} id - Form ID
- * @returns {boolean}
+ * @param id - Form ID
+ * @returns true if form exists
  */
-export function hasForm(id) {
+export function hasForm(id: string): boolean {
   return id in forms;
 }
 
@@ -178,18 +321,18 @@ export function hasForm(id) {
 /**
  * Build a form structure from content type schema
  *
- * @param {string} contentType - Content type name
- * @param {string} mode - Form mode (default, compact, inline)
- * @param {Object} schema - Content type schema
- * @param {Object} content - Existing content (for edit mode)
- * @returns {Object} Form structure
+ * @param contentType - Content type name
+ * @param mode - Form mode (default, compact, inline)
+ * @param schema - Content type schema
+ * @param content - Existing content (for edit mode)
+ * @returns Form structure
  *
  * WHY BUILD VS DEFINE:
  * - defineForm: Manual form configuration
  * - buildForm: Auto-generate from schema
  * Most forms are auto-generated from schemas.
  */
-export function buildForm(contentType, mode, schema, content = null) {
+export function buildForm(contentType: string, mode: string, schema: Record<string, FieldDefinition>, content: Record<string, unknown> | null = null): BuiltForm {
   const formId = `${contentType}_${mode}`;
 
   // Check for existing form definition
@@ -200,12 +343,12 @@ export function buildForm(contentType, mode, schema, content = null) {
   }
 
   // Run form:build hooks
-  for (const hook of hooks['form:build']) {
+  for (const hook of hooks['form:build']!) {
     hook(form, { contentType, mode, schema, content });
   }
 
   // Build field structures
-  const fieldStructures = {};
+  const fieldStructures: Record<string, BuiltFormField> = {};
   for (const [fieldName, fieldConfig] of Object.entries(form.fields)) {
     const fieldDef = schema[fieldName];
     if (!fieldDef) continue;
@@ -214,7 +357,7 @@ export function buildForm(contentType, mode, schema, content = null) {
       name: fieldName,
       definition: fieldDef,
       config: fieldConfig,
-      widget: fieldConfig.widget || getFieldWidget(fieldDef.type),
+      widget: fieldConfig.widget || getFieldWidget(fieldDef.type || 'string'),
       group: fieldConfig.group || 'default',
       weight: fieldConfig.weight ?? 0,
       value: content?.[fieldName] ?? fieldDef.default ?? null
@@ -236,17 +379,17 @@ export function buildForm(contentType, mode, schema, content = null) {
 /**
  * Auto-generate form from schema
  *
- * @param {string} contentType - Content type
- * @param {string} mode - Form mode
- * @param {Object} schema - Content schema
- * @returns {Object} Form definition
+ * @param contentType - Content type
+ * @param mode - Form mode
+ * @param schema - Content schema
+ * @returns Form definition
  */
-function autoGenerateForm(contentType, mode, schema) {
-  const groups = {
+function autoGenerateForm(contentType: string, mode: string, schema: Record<string, FieldDefinition>): FormDefinition {
+  const groups: Record<string, FormGroupConfig> = {
     default: { label: 'Content', weight: 0 }
   };
 
-  const fieldConfigs = {};
+  const fieldConfigs: Record<string, FormFieldConfig> = {};
   let weight = 0;
 
   for (const [name, fieldDef] of Object.entries(schema)) {
@@ -254,7 +397,7 @@ function autoGenerateForm(contentType, mode, schema) {
     if (name.startsWith('_')) continue;
 
     fieldConfigs[name] = {
-      widget: getFieldWidget(fieldDef.type),
+      widget: getFieldWidget(fieldDef.type || 'string'),
       group: 'default',
       weight: weight++
     };
@@ -271,10 +414,10 @@ function autoGenerateForm(contentType, mode, schema) {
 /**
  * Get default widget for field type
  *
- * @param {string} fieldType - Field type name
- * @returns {string} Widget name
+ * @param fieldType - Field type name
+ * @returns Widget name
  */
-export function getFieldWidget(fieldType) {
+export function getFieldWidget(fieldType: string): string {
   const fieldTypeConfig = fields.getFieldType(fieldType);
   return fieldTypeConfig?.widget || 'text';
 }
@@ -286,20 +429,20 @@ export function getFieldWidget(fieldType) {
 /**
  * Render a form to HTML
  *
- * @param {string} formId - Form ID
- * @param {Object} content - Content data
- * @param {Object} errors - Validation errors { fieldName: error }
- * @param {Object} options - Render options
- * @returns {string} HTML string
+ * @param formId - Form ID
+ * @param content - Content data
+ * @param errors - Validation errors { fieldName: error }
+ * @param options - Render options
+ * @returns HTML string
  */
-export function renderForm(formId, content = null, errors = {}, options = {}) {
+export function renderForm(formId: string, content: Record<string, unknown> | null = null, errors: Record<string, string> = {}, options: Record<string, unknown> = {}): string {
   const form = getForm(formId);
   if (!form) {
     throw new Error(`Form not found: ${formId}`);
   }
 
-  const schema = options.schema || {};
-  const built = buildForm(form.contentType, form.mode, schema, content);
+  const schema = (options.schema || {}) as Record<string, FieldDefinition>;
+  const built = buildForm(form.contentType || '', form.mode, schema, content);
 
   // Multi-step form?
   if (built.steps && config.enableMultiStep) {
@@ -313,29 +456,29 @@ export function renderForm(formId, content = null, errors = {}, options = {}) {
 /**
  * Render a regular (single-page) form
  *
- * @param {Object} built - Built form structure
- * @param {Object} errors - Validation errors
- * @param {Object} options - Render options
- * @returns {string} HTML string
+ * @param built - Built form structure
+ * @param errors - Validation errors
+ * @param options - Render options
+ * @returns HTML string
  */
-function renderRegularForm(built, errors, options) {
-  const { action = '', method = 'POST', cssClass = 'cms-form' } = options;
+function renderRegularForm(built: BuiltForm, errors: Record<string, string>, options: Record<string, unknown>): string {
+  const { action = '', method = 'POST', cssClass = 'cms-form' } = options as { action?: string; method?: string; cssClass?: string };
 
   // Group fields
-  const groupedFields = {};
+  const groupedFields: Record<string, Array<BuiltFormField & { name: string }>> = {};
   for (const [name, field] of Object.entries(built.fields)) {
     const group = field.group || 'default';
     if (!groupedFields[group]) {
       groupedFields[group] = [];
     }
-    groupedFields[group].push({ name, ...field });
+    groupedFields[group]!.push({ name, ...field });
   }
 
   // Sort groups by weight
   const sortedGroups = Object.entries(built.groups)
     .sort(([, a], [, b]) => (a.weight ?? 0) - (b.weight ?? 0));
 
-  let html = `<form id="${built.id}" action="${template.escapeHtml(action)}" method="${method}" class="${cssClass}">`;
+  let html = `<form id="${built.id}" action="${template.escapeHtml(action as string)}" method="${method}" class="${cssClass}">`;
 
   // Render each group
   for (const [groupName, groupConfig] of sortedGroups) {
@@ -383,12 +526,12 @@ function renderRegularForm(built, errors, options) {
 /**
  * Render a single form field
  *
- * @param {Object} field - Field structure
- * @param {string|null} error - Validation error
- * @param {Object} conditions - Conditional visibility rules
- * @returns {string} HTML string
+ * @param field - Field structure
+ * @param error - Validation error
+ * @param conditions - Conditional visibility rules
+ * @returns HTML string
  */
-function renderFormField(field, error, conditions) {
+function renderFormField(field: BuiltFormField & { name: string }, error: string | null, conditions: Record<string, FormCondition>): string {
   const { name, definition, value, widget } = field;
   const fieldId = `field-${name}`;
 
@@ -400,7 +543,7 @@ function renderFormField(field, error, conditions) {
       conditionalAttrs = ` data-show-if-field="${template.escapeHtml(condition.field)}" data-show-if-value="${template.escapeHtml(String(condition.value))}"`;
     }
     if (condition.op === 'not_empty') {
-      conditionalAttrs = ` data-show-if-field="${template.escapeHtml(condition.field)}" data-show-if-not-empty="true"`;
+      conditionalAttrs = ` data-show-if-field="${template.escapeHtml(condition.field || '')}" data-show-if-not-empty="true"`;
     }
   }
 
@@ -413,9 +556,9 @@ function renderFormField(field, error, conditions) {
 
   // Get widget renderer
   const widgetRenderer = widgets[widget];
-  const fieldWithId = { ...definition, name, id: fieldId };
+  const fieldWithId: FieldWithId = { ...definition, name, id: fieldId };
 
-  let inputHtml;
+  let inputHtml: string;
   if (widgetRenderer && widgetRenderer.render) {
     inputHtml = widgetRenderer.render(fieldWithId, value, {});
   } else {
@@ -438,13 +581,13 @@ function renderFormField(field, error, conditions) {
 /**
  * Render a multi-step form
  *
- * @param {Object} built - Built form structure
- * @param {Object} errors - Validation errors
- * @param {Object} options - Render options
- * @returns {string} HTML string
+ * @param built - Built form structure
+ * @param errors - Validation errors
+ * @param options - Render options
+ * @returns HTML string
  */
-function renderMultiStepForm(built, errors, options) {
-  const { currentStep = 0 } = options;
+function renderMultiStepForm(built: BuiltForm, errors: Record<string, string>, options: Record<string, unknown>): string {
+  const { currentStep = 0 } = options as { currentStep?: number };
   const steps = built.steps;
 
   if (!steps || steps.length === 0) {
@@ -508,24 +651,24 @@ function renderMultiStepForm(built, errors, options) {
 /**
  * Validate form data
  *
- * @param {string} formId - Form ID
- * @param {Object} data - Form data to validate
- * @param {Object} schema - Content type schema
- * @returns {Promise<Object>} { valid: bool, errors: {} }
+ * @param formId - Form ID
+ * @param data - Form data to validate
+ * @param schema - Content type schema
+ * @returns Validation result { valid: bool, errors: {} }
  */
-export async function validateForm(formId, data, schema) {
+export async function validateForm(formId: string, data: Record<string, unknown>, schema: Record<string, FieldDefinition>): Promise<ValidationResult> {
   const form = getForm(formId);
   if (!form) {
     throw new Error(`Form not found: ${formId}`);
   }
 
   // Run form:validate hooks
-  for (const hook of hooks['form:validate']) {
+  for (const hook of hooks['form:validate']!) {
     await hook(form, data);
   }
 
   // Use validation.js to validate against schema
-  const result = await validation.validate(form.contentType, data, { schema });
+  const result = await validation.validate(form.contentType || '', data, { schema }) as ValidationResult;
 
   // Custom form validation
   if (form.callbacks.onValidate) {
@@ -546,12 +689,12 @@ export async function validateForm(formId, data, schema) {
 /**
  * Process form submission
  *
- * @param {string} formId - Form ID
- * @param {Object} data - Submitted form data
- * @param {Object} options - Processing options { schema, content, contentService }
- * @returns {Promise<Object>} { success: bool, content?: obj, errors?: obj }
+ * @param formId - Form ID
+ * @param data - Submitted form data
+ * @param options - Processing options { schema, content, contentService }
+ * @returns Processing result
  */
-export async function processForm(formId, data, options = {}) {
+export async function processForm(formId: string, data: Record<string, unknown>, options: { schema?: Record<string, FieldDefinition>; content?: ContentItem | null; contentService?: ContentServiceInterface | null } = {}): Promise<FormProcessResult> {
   const form = getForm(formId);
   if (!form) {
     throw new Error(`Form not found: ${formId}`);
@@ -560,7 +703,7 @@ export async function processForm(formId, data, options = {}) {
   const { schema = {}, content = null, contentService = null } = options;
 
   // Parse form data using field parsers
-  const parsed = {};
+  const parsed: Record<string, unknown> = {};
   for (const [fieldName, fieldDef] of Object.entries(schema)) {
     if (fieldName.startsWith('_')) continue;
     if (fieldName in data) {
@@ -573,7 +716,7 @@ export async function processForm(formId, data, options = {}) {
   if (!validationResult.valid) {
     return {
       success: false,
-      errors: validationResult.errors.reduce((acc, e) => {
+      errors: validationResult.errors.reduce((acc: Record<string, string>, e) => {
         acc[e.field] = e.message;
         return acc;
       }, {})
@@ -581,7 +724,7 @@ export async function processForm(formId, data, options = {}) {
   }
 
   // Run form:submit hooks
-  for (const hook of hooks['form:submit']) {
+  for (const hook of hooks['form:submit']!) {
     await hook(form, parsed, content);
   }
 
@@ -592,18 +735,18 @@ export async function processForm(formId, data, options = {}) {
   }
 
   // Default: save via content service
-  let saved;
+  let saved: unknown;
   if (contentService) {
     if (content && content.id) {
-      saved = contentService.update(form.contentType, content.id, parsed);
+      saved = contentService.update(form.contentType || '', content.id, parsed);
     } else {
-      saved = contentService.create(form.contentType, parsed);
+      saved = contentService.create(form.contentType || '', parsed);
     }
   }
 
   return {
     success: true,
-    content: saved || parsed
+    content: (saved || parsed) as Record<string, unknown>
   };
 }
 
@@ -614,28 +757,28 @@ export async function processForm(formId, data, options = {}) {
 /**
  * Register a custom widget
  *
- * @param {string} name - Widget name
- * @param {Object} config - Widget config { render, parse }
+ * @param name - Widget name
+ * @param widgetConfig - Widget config { render, parse }
  */
-export function registerWidget(name, config) {
+export function registerWidget(name: string, widgetConfig: Partial<WidgetConfig> & { description?: string }): void {
   if (!name || typeof name !== 'string') {
     throw new Error('Widget name must be a non-empty string');
   }
 
   widgets[name] = {
-    render: config.render || null,
-    parse: config.parse || null,
-    description: config.description || ''
+    render: widgetConfig.render || null,
+    parse: widgetConfig.parse || null,
+    description: widgetConfig.description || ''
   };
 }
 
 /**
  * Get a widget configuration
  *
- * @param {string} name - Widget name
- * @returns {Object|null}
+ * @param name - Widget name
+ * @returns Widget config or null
  */
-export function getWidget(name) {
+export function getWidget(name: string): WidgetConfig | null {
   return widgets[name] || null;
 }
 
@@ -646,10 +789,10 @@ export function getWidget(name) {
 /**
  * Get form state
  *
- * @param {string} formId - Form ID
- * @returns {Object} Form state { fields, errors, dirty, step }
+ * @param formId - Form ID
+ * @returns Form state { fields, errors, dirty, step }
  */
-export function getFormState(formId) {
+export function getFormState(formId: string): FormStateData | null {
   if (!config.enableState) return null;
 
   if (!formStates.has(formId)) {
@@ -661,39 +804,39 @@ export function getFormState(formId) {
     });
   }
 
-  return formStates.get(formId);
+  return formStates.get(formId) ?? null;
 }
 
 /**
  * Set form state
  *
- * @param {string} formId - Form ID
- * @param {Object} state - State to set
+ * @param formId - Form ID
+ * @param state - State to set
  */
-export function setFormState(formId, state) {
+export function setFormState(formId: string, state: Partial<FormStateData>): void {
   if (!config.enableState) return;
 
   const current = getFormState(formId);
-  formStates.set(formId, { ...current, ...state });
+  formStates.set(formId, { ...current, ...state } as FormStateData);
 }
 
 /**
  * Clear form state
  *
- * @param {string} formId - Form ID
+ * @param formId - Form ID
  */
-export function clearFormState(formId) {
+export function clearFormState(formId: string): void {
   formStates.delete(formId);
 }
 
 /**
  * Set field visibility
  *
- * @param {string} formId - Form ID
- * @param {string} fieldName - Field name
- * @param {boolean} visible - Visible state
+ * @param formId - Form ID
+ * @param fieldName - Field name
+ * @param visible - Visible state
  */
-export function setFieldVisibility(formId, fieldName, visible) {
+export function setFieldVisibility(formId: string, _fieldName: string, _visible: boolean): void {
   const form = getForm(formId);
   if (!form) return;
 
@@ -708,25 +851,25 @@ export function setFieldVisibility(formId, fieldName, visible) {
 /**
  * Register a form hook
  *
- * @param {string} event - Hook event name
- * @param {Function} callback - Hook callback
+ * @param event - Hook event name
+ * @param callback - Hook callback
  */
-export function registerHook(event, callback) {
+export function registerHook(event: string, callback: FormHookCallback): void {
   if (!hooks[event]) {
     throw new Error(`Unknown hook event: ${event}`);
   }
 
-  hooks[event].push(callback);
+  hooks[event]!.push(callback);
 }
 
 /**
  * Run form:alter hooks
  *
- * @param {Object} form - Form definition
- * @returns {Object} Altered form
+ * @param form - Form definition
+ * @returns Altered form
  */
-export function runAlterHooks(form) {
-  for (const hook of hooks['form:alter']) {
+export function runAlterHooks(form: FormDefinition): FormDefinition {
+  for (const hook of hooks['form:alter']!) {
     hook(form);
   }
   return form;
@@ -739,9 +882,9 @@ export function runAlterHooks(form) {
 /**
  * Get JavaScript for form interactivity
  *
- * @returns {string} JavaScript code
+ * @returns JavaScript code
  */
-export function getFormScript() {
+export function getFormScript(): string {
   return `
 <script>
 // Multi-step form navigation

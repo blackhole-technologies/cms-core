@@ -46,31 +46,202 @@ import { readFileSync, writeFileSync, existsSync, mkdirSync } from 'node:fs';
 import { join } from 'node:path';
 
 // ============================================
+// TYPE DEFINITIONS
+// ============================================
+
+/** Plugin configuration within an editor format */
+interface PluginConfig {
+  enabled?: boolean;
+  [key: string]: unknown;
+}
+
+/** An editor format definition */
+interface EditorFormat {
+  /** Format identifier */
+  id: string;
+  /** Human-readable name */
+  label: string;
+  /** What this format is for */
+  description: string;
+  /** Where this format came from ('builtin', 'custom') */
+  source: string;
+  /** Toolbar rows and groups (button IDs or '|' separators) */
+  toolbar: string[][];
+  /** Format-specific settings */
+  settings: Record<string, unknown>;
+  /** Text format to use for processing */
+  textFormat: string;
+  /** Allowed HTML tags */
+  allowedHtmlTags: string[];
+  /** Allowed attributes per tag (key '*' = all tags) */
+  allowedHtmlAttributes: Record<string, string[]>;
+  /** Enabled plugins and their config */
+  plugins: Record<string, PluginConfig>;
+  /** Creation timestamp */
+  created?: string;
+  /** Last update timestamp */
+  updated?: string;
+}
+
+/** Input for registering a format (partial, pre-defaults) */
+interface EditorFormatInput {
+  id: string;
+  label?: string;
+  description?: string;
+  source?: string;
+  toolbar: string[][];
+  settings?: Record<string, unknown>;
+  textFormat?: string;
+  allowedHtmlTags?: string[];
+  allowedHtmlAttributes?: Record<string, string[]>;
+  plugins?: Record<string, PluginConfig>;
+}
+
+/** A toolbar button definition */
+interface ButtonDefinition {
+  /** Button identifier */
+  id: string;
+  /** Button label (for accessibility) */
+  label: string;
+  /** Icon identifier */
+  icon: string;
+  /** Button category (formatting, lists, etc.) */
+  category: string;
+  /** Editor command to execute */
+  command: string;
+  /** Command options */
+  options: Record<string, unknown>;
+  /** Is this a toggle button */
+  toggle: boolean;
+  /** HTML tags this button produces */
+  tags: string[];
+  /** Dialog to open (e.g., 'link', 'media', 'table') */
+  dialog: string | null;
+  /** Keyboard shortcut (e.g., 'Ctrl+B') */
+  shortcut: string | null;
+}
+
+/** Input for registering a button (partial, pre-defaults) */
+interface ButtonInput {
+  id: string;
+  label?: string;
+  icon?: string;
+  category?: string;
+  command?: string;
+  options?: Record<string, unknown>;
+  toggle?: boolean;
+  tags?: string[];
+  dialog?: string;
+  shortcut?: string;
+}
+
+/** Configuration for the editor module */
+interface EditorConfig {
+  enabled: boolean;
+  defaultFormat: string;
+  sanitizeOnSave: boolean;
+  processMediaEmbeds: boolean;
+  processOembeds: boolean;
+}
+
+/** Initialization options */
+interface EditorInitOptions {
+  baseDir: string;
+  textFormats?: TextFormatsServiceInterface;
+  mediaLibrary?: MediaLibraryServiceInterface;
+  oembed?: OembedServiceInterface;
+  hooks?: HooksServiceInterface;
+  config?: Partial<EditorConfig>;
+}
+
+/** Resolved toolbar item for frontend consumption */
+interface ResolvedToolbarItem {
+  type: string;
+  id?: string;
+  label?: string;
+  icon?: string;
+  category?: string;
+  command?: string;
+  options?: Record<string, unknown>;
+  toggle?: boolean;
+  tags?: string[];
+  dialog?: string | null;
+  shortcut?: string | null;
+}
+
+/** Frontend editor configuration */
+interface FrontendEditorConfig {
+  format: {
+    id: string;
+    label: string;
+  };
+  toolbar: ResolvedToolbarItem[][];
+  settings: Record<string, unknown>;
+  allowedHtmlTags: string[];
+  allowedHtmlAttributes: Record<string, string[]>;
+  plugins: Record<string, PluginConfig>;
+  endpoints: {
+    mediaLibrary: string;
+    linkAutocomplete: string;
+    oembed: string;
+  };
+}
+
+// ---- Service interfaces ----
+
+/** Media entity from the media library */
+interface MediaEntity {
+  mediaType: string;
+  alt?: string;
+  caption?: string;
+  mimeType?: string;
+  name?: string;
+}
+
+interface TextFormatsServiceInterface {
+  process(formatId: string, html: string): Promise<string>;
+}
+
+interface MediaLibraryServiceInterface {
+  get(mediaId: string): MediaEntity | null;
+  getUrl(entity: MediaEntity): string;
+  getEmbed(entity: MediaEntity): string;
+}
+
+interface OembedServiceInterface {
+  fetch(url: string): Promise<{ html?: string } | null>;
+}
+
+interface HooksServiceInterface {
+  trigger(hook: string, data: Record<string, unknown>): Promise<Record<string, unknown> | void>;
+}
+
+// ============================================
 // MODULE STATE
 // ============================================
 
-let baseDir = null;
-let textFormatsService = null;
-let mediaLibraryService = null;
-let oembedService = null;
-let hooksService = null;
+let baseDir: string | null = null;
+let textFormatsService: TextFormatsServiceInterface | null = null;
+let mediaLibraryService: MediaLibraryServiceInterface | null = null;
+let oembedService: OembedServiceInterface | null = null;
+let hooksService: HooksServiceInterface | null = null;
 
 /**
  * Editor format definitions
  * Structure: { formatId: EditorFormat, ... }
  */
-const formats = {};
+const formats: Record<string, EditorFormat> = {};
 
 /**
  * Available toolbar buttons
  * Structure: { buttonId: ButtonDefinition, ... }
  */
-const buttons = {};
+const buttons: Record<string, ButtonDefinition> = {};
 
 /**
  * Configuration
  */
-let config = {
+let config: EditorConfig = {
   enabled: true,
   defaultFormat: 'basic',
   sanitizeOnSave: true,
@@ -79,49 +250,18 @@ let config = {
 };
 
 // ============================================
-// TYPE DEFINITIONS (JSDoc)
-// ============================================
-
-/**
- * @typedef {Object} EditorFormat
- * @property {string} id - Format identifier
- * @property {string} label - Human-readable name
- * @property {string} description - What this format is for
- * @property {string[][]} toolbar - Toolbar rows and groups
- * @property {Object} settings - Format-specific settings
- * @property {string} textFormat - Text format to use for processing
- * @property {string[]} allowedHtmlTags - Allowed HTML tags
- * @property {Object} allowedHtmlAttributes - Allowed attributes per tag
- * @property {Object} plugins - Enabled plugins and their config
- */
-
-/**
- * @typedef {Object} ButtonDefinition
- * @property {string} id - Button identifier
- * @property {string} label - Button label (for accessibility)
- * @property {string} icon - Icon identifier
- * @property {string} category - Button category (formatting, lists, etc.)
- * @property {string} command - Editor command to execute
- * @property {Object} options - Command options
- * @property {boolean} toggle - Is this a toggle button
- * @property {string[]} tags - HTML tags this button produces
- */
-
-// ============================================
 // INITIALIZATION
 // ============================================
 
 /**
  * Initialize the editor system
- *
- * @param {Object} options - Initialization options
  */
-export function init(options = {}) {
+export function init(options: EditorInitOptions = { baseDir: '' }): void {
   baseDir = options.baseDir;
-  textFormatsService = options.textFormats;
-  mediaLibraryService = options.mediaLibrary;
-  oembedService = options.oembed;
-  hooksService = options.hooks;
+  textFormatsService = options.textFormats || null;
+  mediaLibraryService = options.mediaLibrary || null;
+  oembedService = options.oembed || null;
+  hooksService = options.hooks || null;
 
   if (options.config) {
     config = { ...config, ...options.config };
@@ -148,15 +288,16 @@ export function init(options = {}) {
 /**
  * Load format definitions from config/editor-formats.json
  */
-function loadFormats() {
-  const formatsPath = join(baseDir, 'config', 'editor-formats.json');
+function loadFormats(): void {
+  const formatsPath = join(baseDir!, 'config', 'editor-formats.json');
 
   if (existsSync(formatsPath)) {
     try {
-      const data = JSON.parse(readFileSync(formatsPath, 'utf-8'));
+      const data = JSON.parse(readFileSync(formatsPath, 'utf-8')) as Record<string, EditorFormat>;
       Object.assign(formats, data);
-    } catch (e) {
-      console.error('[editor] Failed to load formats:', e.message);
+    } catch (e: unknown) {
+      const message = e instanceof Error ? e.message : String(e);
+      console.error('[editor] Failed to load formats:', message);
     }
   }
 }
@@ -164,11 +305,11 @@ function loadFormats() {
 /**
  * Save formats to disk
  */
-function saveFormats() {
-  const formatsPath = join(baseDir, 'config', 'editor-formats.json');
+function saveFormats(): void {
+  const formatsPath = join(baseDir!, 'config', 'editor-formats.json');
 
   // Only save custom formats (not built-ins)
-  const customFormats = {};
+  const customFormats: Record<string, EditorFormat> = {};
   for (const [id, format] of Object.entries(formats)) {
     if (format.source !== 'builtin') {
       customFormats[id] = format;
@@ -190,7 +331,7 @@ function saveFormats() {
  * - Frontend editors can use this for toolbar rendering
  * - Enables format-based filtering of allowed buttons
  */
-function registerBuiltinButtons() {
+function registerBuiltinButtons(): void {
   // ---- TEXT FORMATTING ----
   buttons.bold = {
     id: 'bold',
@@ -198,8 +339,10 @@ function registerBuiltinButtons() {
     icon: 'bold',
     category: 'formatting',
     command: 'bold',
+    options: {},
     toggle: true,
     tags: ['strong', 'b'],
+    dialog: null,
     shortcut: 'Ctrl+B',
   };
 
@@ -209,8 +352,10 @@ function registerBuiltinButtons() {
     icon: 'italic',
     category: 'formatting',
     command: 'italic',
+    options: {},
     toggle: true,
     tags: ['em', 'i'],
+    dialog: null,
     shortcut: 'Ctrl+I',
   };
 
@@ -220,8 +365,10 @@ function registerBuiltinButtons() {
     icon: 'underline',
     category: 'formatting',
     command: 'underline',
+    options: {},
     toggle: true,
     tags: ['u'],
+    dialog: null,
     shortcut: 'Ctrl+U',
   };
 
@@ -231,8 +378,11 @@ function registerBuiltinButtons() {
     icon: 'strikethrough',
     category: 'formatting',
     command: 'strikethrough',
+    options: {},
     toggle: true,
     tags: ['s', 'del'],
+    dialog: null,
+    shortcut: null,
   };
 
   buttons.subscript = {
@@ -241,8 +391,11 @@ function registerBuiltinButtons() {
     icon: 'subscript',
     category: 'formatting',
     command: 'subscript',
+    options: {},
     toggle: true,
     tags: ['sub'],
+    dialog: null,
+    shortcut: null,
   };
 
   buttons.superscript = {
@@ -251,8 +404,11 @@ function registerBuiltinButtons() {
     icon: 'superscript',
     category: 'formatting',
     command: 'superscript',
+    options: {},
     toggle: true,
     tags: ['sup'],
+    dialog: null,
+    shortcut: null,
   };
 
   buttons.code = {
@@ -261,8 +417,11 @@ function registerBuiltinButtons() {
     icon: 'code',
     category: 'formatting',
     command: 'code',
+    options: {},
     toggle: true,
     tags: ['code'],
+    dialog: null,
+    shortcut: null,
   };
 
   // ---- HEADINGS ----
@@ -273,7 +432,10 @@ function registerBuiltinButtons() {
     category: 'headings',
     command: 'heading',
     options: { level: 1 },
+    toggle: false,
     tags: ['h1'],
+    dialog: null,
+    shortcut: null,
   };
 
   buttons.heading2 = {
@@ -283,7 +445,10 @@ function registerBuiltinButtons() {
     category: 'headings',
     command: 'heading',
     options: { level: 2 },
+    toggle: false,
     tags: ['h2'],
+    dialog: null,
+    shortcut: null,
   };
 
   buttons.heading3 = {
@@ -293,7 +458,10 @@ function registerBuiltinButtons() {
     category: 'headings',
     command: 'heading',
     options: { level: 3 },
+    toggle: false,
     tags: ['h3'],
+    dialog: null,
+    shortcut: null,
   };
 
   buttons.heading4 = {
@@ -303,7 +471,10 @@ function registerBuiltinButtons() {
     category: 'headings',
     command: 'heading',
     options: { level: 4 },
+    toggle: false,
     tags: ['h4'],
+    dialog: null,
+    shortcut: null,
   };
 
   buttons.heading5 = {
@@ -313,7 +484,10 @@ function registerBuiltinButtons() {
     category: 'headings',
     command: 'heading',
     options: { level: 5 },
+    toggle: false,
     tags: ['h5'],
+    dialog: null,
+    shortcut: null,
   };
 
   buttons.heading6 = {
@@ -323,7 +497,10 @@ function registerBuiltinButtons() {
     category: 'headings',
     command: 'heading',
     options: { level: 6 },
+    toggle: false,
     tags: ['h6'],
+    dialog: null,
+    shortcut: null,
   };
 
   buttons.paragraph = {
@@ -332,7 +509,11 @@ function registerBuiltinButtons() {
     icon: 'paragraph',
     category: 'headings',
     command: 'paragraph',
+    options: {},
+    toggle: false,
     tags: ['p'],
+    dialog: null,
+    shortcut: null,
   };
 
   // ---- LISTS ----
@@ -342,8 +523,11 @@ function registerBuiltinButtons() {
     icon: 'list-ul',
     category: 'lists',
     command: 'bulletList',
+    options: {},
     toggle: true,
     tags: ['ul', 'li'],
+    dialog: null,
+    shortcut: null,
   };
 
   buttons.orderedList = {
@@ -352,8 +536,11 @@ function registerBuiltinButtons() {
     icon: 'list-ol',
     category: 'lists',
     command: 'orderedList',
+    options: {},
     toggle: true,
     tags: ['ol', 'li'],
+    dialog: null,
+    shortcut: null,
   };
 
   buttons.indent = {
@@ -362,6 +549,11 @@ function registerBuiltinButtons() {
     icon: 'indent',
     category: 'lists',
     command: 'indent',
+    options: {},
+    toggle: false,
+    tags: [],
+    dialog: null,
+    shortcut: null,
   };
 
   buttons.outdent = {
@@ -370,6 +562,11 @@ function registerBuiltinButtons() {
     icon: 'outdent',
     category: 'lists',
     command: 'outdent',
+    options: {},
+    toggle: false,
+    tags: [],
+    dialog: null,
+    shortcut: null,
   };
 
   // ---- ALIGNMENT ----
@@ -380,6 +577,10 @@ function registerBuiltinButtons() {
     category: 'alignment',
     command: 'align',
     options: { alignment: 'left' },
+    toggle: false,
+    tags: [],
+    dialog: null,
+    shortcut: null,
   };
 
   buttons.alignCenter = {
@@ -389,6 +590,10 @@ function registerBuiltinButtons() {
     category: 'alignment',
     command: 'align',
     options: { alignment: 'center' },
+    toggle: false,
+    tags: [],
+    dialog: null,
+    shortcut: null,
   };
 
   buttons.alignRight = {
@@ -398,6 +603,10 @@ function registerBuiltinButtons() {
     category: 'alignment',
     command: 'align',
     options: { alignment: 'right' },
+    toggle: false,
+    tags: [],
+    dialog: null,
+    shortcut: null,
   };
 
   buttons.alignJustify = {
@@ -407,6 +616,10 @@ function registerBuiltinButtons() {
     category: 'alignment',
     command: 'align',
     options: { alignment: 'justify' },
+    toggle: false,
+    tags: [],
+    dialog: null,
+    shortcut: null,
   };
 
   // ---- LINKS & MEDIA ----
@@ -416,8 +629,10 @@ function registerBuiltinButtons() {
     icon: 'link',
     category: 'insert',
     command: 'link',
-    dialog: 'link',
+    options: {},
+    toggle: false,
     tags: ['a'],
+    dialog: 'link',
     shortcut: 'Ctrl+K',
   };
 
@@ -427,6 +642,11 @@ function registerBuiltinButtons() {
     icon: 'unlink',
     category: 'insert',
     command: 'unlink',
+    options: {},
+    toggle: false,
+    tags: [],
+    dialog: null,
+    shortcut: null,
   };
 
   buttons.image = {
@@ -435,8 +655,11 @@ function registerBuiltinButtons() {
     icon: 'image',
     category: 'insert',
     command: 'image',
-    dialog: 'media',
+    options: {},
+    toggle: false,
     tags: ['img'],
+    dialog: 'media',
+    shortcut: null,
   };
 
   buttons.media = {
@@ -445,7 +668,11 @@ function registerBuiltinButtons() {
     icon: 'media',
     category: 'insert',
     command: 'media',
+    options: {},
+    toggle: false,
+    tags: [],
     dialog: 'media',
+    shortcut: null,
   };
 
   buttons.video = {
@@ -454,8 +681,11 @@ function registerBuiltinButtons() {
     icon: 'video',
     category: 'insert',
     command: 'video',
-    dialog: 'video',
+    options: {},
+    toggle: false,
     tags: ['video', 'iframe'],
+    dialog: 'video',
+    shortcut: null,
   };
 
   // ---- BLOCKS ----
@@ -465,8 +695,11 @@ function registerBuiltinButtons() {
     icon: 'quote',
     category: 'blocks',
     command: 'blockquote',
+    options: {},
     toggle: true,
     tags: ['blockquote'],
+    dialog: null,
+    shortcut: null,
   };
 
   buttons.codeBlock = {
@@ -475,8 +708,11 @@ function registerBuiltinButtons() {
     icon: 'code-block',
     category: 'blocks',
     command: 'codeBlock',
+    options: {},
     toggle: true,
     tags: ['pre', 'code'],
+    dialog: null,
+    shortcut: null,
   };
 
   buttons.horizontalRule = {
@@ -485,7 +721,11 @@ function registerBuiltinButtons() {
     icon: 'horizontal-rule',
     category: 'blocks',
     command: 'horizontalRule',
+    options: {},
+    toggle: false,
     tags: ['hr'],
+    dialog: null,
+    shortcut: null,
   };
 
   // ---- TABLES ----
@@ -495,8 +735,11 @@ function registerBuiltinButtons() {
     icon: 'table',
     category: 'tables',
     command: 'table',
-    dialog: 'table',
+    options: {},
+    toggle: false,
     tags: ['table', 'thead', 'tbody', 'tr', 'th', 'td'],
+    dialog: 'table',
+    shortcut: null,
   };
 
   buttons.tableAddRowBefore = {
@@ -505,6 +748,11 @@ function registerBuiltinButtons() {
     icon: 'table-row-add-before',
     category: 'tables',
     command: 'tableAddRowBefore',
+    options: {},
+    toggle: false,
+    tags: [],
+    dialog: null,
+    shortcut: null,
   };
 
   buttons.tableAddRowAfter = {
@@ -513,6 +761,11 @@ function registerBuiltinButtons() {
     icon: 'table-row-add-after',
     category: 'tables',
     command: 'tableAddRowAfter',
+    options: {},
+    toggle: false,
+    tags: [],
+    dialog: null,
+    shortcut: null,
   };
 
   buttons.tableAddColumnBefore = {
@@ -521,6 +774,11 @@ function registerBuiltinButtons() {
     icon: 'table-column-add-before',
     category: 'tables',
     command: 'tableAddColumnBefore',
+    options: {},
+    toggle: false,
+    tags: [],
+    dialog: null,
+    shortcut: null,
   };
 
   buttons.tableAddColumnAfter = {
@@ -529,6 +787,11 @@ function registerBuiltinButtons() {
     icon: 'table-column-add-after',
     category: 'tables',
     command: 'tableAddColumnAfter',
+    options: {},
+    toggle: false,
+    tags: [],
+    dialog: null,
+    shortcut: null,
   };
 
   buttons.tableDeleteRow = {
@@ -537,6 +800,11 @@ function registerBuiltinButtons() {
     icon: 'table-row-delete',
     category: 'tables',
     command: 'tableDeleteRow',
+    options: {},
+    toggle: false,
+    tags: [],
+    dialog: null,
+    shortcut: null,
   };
 
   buttons.tableDeleteColumn = {
@@ -545,6 +813,11 @@ function registerBuiltinButtons() {
     icon: 'table-column-delete',
     category: 'tables',
     command: 'tableDeleteColumn',
+    options: {},
+    toggle: false,
+    tags: [],
+    dialog: null,
+    shortcut: null,
   };
 
   buttons.tableDelete = {
@@ -553,6 +826,11 @@ function registerBuiltinButtons() {
     icon: 'table-delete',
     category: 'tables',
     command: 'tableDelete',
+    options: {},
+    toggle: false,
+    tags: [],
+    dialog: null,
+    shortcut: null,
   };
 
   // ---- HISTORY ----
@@ -562,6 +840,10 @@ function registerBuiltinButtons() {
     icon: 'undo',
     category: 'history',
     command: 'undo',
+    options: {},
+    toggle: false,
+    tags: [],
+    dialog: null,
     shortcut: 'Ctrl+Z',
   };
 
@@ -571,6 +853,10 @@ function registerBuiltinButtons() {
     icon: 'redo',
     category: 'history',
     command: 'redo',
+    options: {},
+    toggle: false,
+    tags: [],
+    dialog: null,
     shortcut: 'Ctrl+Y',
   };
 
@@ -581,6 +867,11 @@ function registerBuiltinButtons() {
     icon: 'clear-formatting',
     category: 'utilities',
     command: 'clearFormatting',
+    options: {},
+    toggle: false,
+    tags: [],
+    dialog: null,
+    shortcut: null,
   };
 
   buttons.source = {
@@ -589,7 +880,11 @@ function registerBuiltinButtons() {
     icon: 'source',
     category: 'utilities',
     command: 'source',
+    options: {},
     toggle: true,
+    tags: [],
+    dialog: null,
+    shortcut: null,
   };
 
   buttons.fullscreen = {
@@ -598,7 +893,11 @@ function registerBuiltinButtons() {
     icon: 'fullscreen',
     category: 'utilities',
     command: 'fullscreen',
+    options: {},
     toggle: true,
+    tags: [],
+    dialog: null,
+    shortcut: null,
   };
 
   buttons.specialCharacters = {
@@ -607,7 +906,11 @@ function registerBuiltinButtons() {
     icon: 'omega',
     category: 'utilities',
     command: 'specialCharacters',
+    options: {},
+    toggle: false,
+    tags: [],
     dialog: 'specialCharacters',
+    shortcut: null,
   };
 }
 
@@ -618,7 +921,7 @@ function registerBuiltinButtons() {
 /**
  * Register built-in editor formats
  */
-function registerBuiltinFormats() {
+function registerBuiltinFormats(): void {
   // Minimal format - for simple text fields
   formats.minimal = {
     id: 'minimal',
@@ -757,11 +1060,8 @@ function registerBuiltinFormats() {
 
 /**
  * Register a custom editor format
- *
- * @param {EditorFormat} format - Format definition
- * @returns {EditorFormat}
  */
-export async function registerFormat(format) {
+export async function registerFormat(format: EditorFormatInput): Promise<EditorFormat> {
   if (!format.id) {
     throw new Error('Format ID is required');
   }
@@ -802,39 +1102,30 @@ export async function registerFormat(format) {
 
   // Fire hook
   if (hooksService) {
-    await hooksService.trigger('editor:afterRegisterFormat', { format: formats[format.id] });
+    await hooksService.trigger('editor:afterRegisterFormat', { format: formats[format.id]! });
   }
 
-  return formats[format.id];
+  return formats[format.id]!;
 }
 
 /**
  * Get a format definition
- *
- * @param {string} id - Format ID
- * @returns {EditorFormat|null}
  */
-export function getFormat(id) {
+export function getFormat(id: string): EditorFormat | null {
   return formats[id] || null;
 }
 
 /**
  * List all formats
- *
- * @returns {EditorFormat[]}
  */
-export function listFormats() {
+export function listFormats(): EditorFormat[] {
   return Object.values(formats);
 }
 
 /**
  * Update a custom format
- *
- * @param {string} id - Format ID
- * @param {Object} updates - Updates to apply
- * @returns {EditorFormat}
  */
-export async function updateFormat(id, updates) {
+export async function updateFormat(id: string, updates: Partial<EditorFormat>): Promise<EditorFormat> {
   const format = formats[id];
   if (!format) {
     throw new Error(`Format "${id}" not found`);
@@ -862,11 +1153,8 @@ export async function updateFormat(id, updates) {
 
 /**
  * Delete a custom format
- *
- * @param {string} id - Format ID
- * @returns {boolean}
  */
-export async function deleteFormat(id) {
+export async function deleteFormat(id: string): Promise<boolean> {
   const format = formats[id];
   if (!format) {
     throw new Error(`Format "${id}" not found`);
@@ -898,11 +1186,8 @@ export async function deleteFormat(id) {
 
 /**
  * Register a custom button
- *
- * @param {ButtonDefinition} button - Button definition
- * @returns {ButtonDefinition}
  */
-export function registerButton(button) {
+export function registerButton(button: ButtonInput): ButtonDefinition {
   if (!button.id) {
     throw new Error('Button ID is required');
   }
@@ -920,26 +1205,20 @@ export function registerButton(button) {
     shortcut: button.shortcut || null,
   };
 
-  return buttons[button.id];
+  return buttons[button.id]!;
 }
 
 /**
  * Get a button definition
- *
- * @param {string} id - Button ID
- * @returns {ButtonDefinition|null}
  */
-export function getButton(id) {
+export function getButton(id: string): ButtonDefinition | null {
   return buttons[id] || null;
 }
 
 /**
  * List all buttons
- *
- * @param {string} category - Filter by category
- * @returns {ButtonDefinition[]}
  */
-export function listButtons(category = null) {
+export function listButtons(category: string | null = null): ButtonDefinition[] {
   const allButtons = Object.values(buttons);
 
   if (category) {
@@ -951,11 +1230,9 @@ export function listButtons(category = null) {
 
 /**
  * List button categories
- *
- * @returns {string[]}
  */
-export function listButtonCategories() {
-  const categories = new Set();
+export function listButtonCategories(): string[] {
+  const categories = new Set<string>();
   for (const button of Object.values(buttons)) {
     categories.add(button.category);
   }
@@ -968,12 +1245,8 @@ export function listButtonCategories() {
 
 /**
  * Process content before saving
- *
- * @param {string} html - HTML content
- * @param {string} formatId - Editor format ID
- * @returns {Promise<string>} - Processed HTML
  */
-export async function processContent(html, formatId) {
+export async function processContent(html: string, formatId: string): Promise<string> {
   const format = getFormat(formatId) || getFormat(config.defaultFormat);
   if (!format) {
     throw new Error(`Editor format not found: ${formatId}`);
@@ -984,7 +1257,7 @@ export async function processContent(html, formatId) {
   // Fire before hook
   if (hooksService) {
     const result = await hooksService.trigger('editor:beforeProcess', { html, format });
-    processed = result?.html ?? processed;
+    processed = (result as Record<string, unknown> | undefined)?.html as string ?? processed;
   }
 
   // Process media embeds
@@ -1005,7 +1278,7 @@ export async function processContent(html, formatId) {
   // Fire after hook
   if (hooksService) {
     const result = await hooksService.trigger('editor:afterProcess', { html: processed, format });
-    processed = result?.html ?? processed;
+    processed = (result as Record<string, unknown> | undefined)?.html as string ?? processed;
   }
 
   return processed;
@@ -1013,21 +1286,18 @@ export async function processContent(html, formatId) {
 
 /**
  * Process media embed placeholders
- *
- * @param {string} html - HTML content
- * @returns {Promise<string>}
  */
-async function processMediaEmbeds(html) {
+async function processMediaEmbeds(html: string): Promise<string> {
   // Replace media placeholders with actual embeds
   // Format: <media-embed data-media-id="xxx" />
   const mediaPattern = /<media-embed\s+data-media-id="([^"]+)"[^>]*><\/media-embed>/g;
 
   let result = html;
-  let match;
+  let match: RegExpExecArray | null;
 
   while ((match = mediaPattern.exec(html)) !== null) {
-    const mediaId = match[1];
-    const entity = mediaLibraryService.get(mediaId);
+    const mediaId = match[1]!;
+    const entity = mediaLibraryService!.get(mediaId);
 
     if (entity) {
       let embed = '';
@@ -1035,7 +1305,7 @@ async function processMediaEmbeds(html) {
       switch (entity.mediaType) {
         case 'image':
           embed = `<figure class="media-embed media-image">
-            <img src="${mediaLibraryService.getUrl(entity)}" alt="${escapeHtml(entity.alt || '')}" />
+            <img src="${mediaLibraryService!.getUrl(entity)}" alt="${escapeHtml(entity.alt || '')}" />
             ${entity.caption ? `<figcaption>${escapeHtml(entity.caption)}</figcaption>` : ''}
           </figure>`;
           break;
@@ -1043,27 +1313,27 @@ async function processMediaEmbeds(html) {
         case 'video':
           embed = `<figure class="media-embed media-video">
             <video controls>
-              <source src="${mediaLibraryService.getUrl(entity)}" type="${entity.mimeType}" />
+              <source src="${mediaLibraryService!.getUrl(entity)}" type="${entity.mimeType}" />
             </video>
           </figure>`;
           break;
 
         case 'remote_video':
           embed = `<figure class="media-embed media-remote-video">
-            ${mediaLibraryService.getEmbed(entity)}
+            ${mediaLibraryService!.getEmbed(entity)}
           </figure>`;
           break;
 
         case 'audio':
           embed = `<figure class="media-embed media-audio">
             <audio controls>
-              <source src="${mediaLibraryService.getUrl(entity)}" type="${entity.mimeType}" />
+              <source src="${mediaLibraryService!.getUrl(entity)}" type="${entity.mimeType}" />
             </audio>
           </figure>`;
           break;
 
         default:
-          embed = `<a href="${mediaLibraryService.getUrl(entity)}" class="media-embed media-document">${escapeHtml(entity.name)}</a>`;
+          embed = `<a href="${mediaLibraryService!.getUrl(entity)}" class="media-embed media-document">${escapeHtml(entity.name || '')}</a>`;
       }
 
       result = result.replace(match[0], embed);
@@ -1075,28 +1345,26 @@ async function processMediaEmbeds(html) {
 
 /**
  * Process oembed URLs
- *
- * @param {string} html - HTML content
- * @returns {Promise<string>}
  */
-async function processOembeds(html) {
+async function processOembeds(html: string): Promise<string> {
   // Replace oembed placeholders with actual embeds
   // Format: <oembed url="https://..." />
   const oembedPattern = /<oembed\s+url="([^"]+)"[^>]*><\/oembed>/g;
 
   let result = html;
-  let match;
+  let match: RegExpExecArray | null;
 
   while ((match = oembedPattern.exec(html)) !== null) {
-    const url = match[1];
+    const url = match[1]!;
 
     try {
-      const embedData = await oembedService.fetch(url);
+      const embedData = await oembedService!.fetch(url);
       if (embedData && embedData.html) {
         result = result.replace(match[0], `<div class="oembed">${embedData.html}</div>`);
       }
-    } catch (e) {
-      console.warn(`[editor] Failed to fetch oembed for ${url}:`, e.message);
+    } catch (e: unknown) {
+      const message = e instanceof Error ? e.message : String(e);
+      console.warn(`[editor] Failed to fetch oembed for ${url}:`, message);
     }
   }
 
@@ -1105,11 +1373,8 @@ async function processOembeds(html) {
 
 /**
  * Escape HTML special characters
- *
- * @param {string} str - String to escape
- * @returns {string}
  */
-function escapeHtml(str) {
+function escapeHtml(str: string): string {
   if (typeof str !== 'string') return '';
   return str
     .replace(/&/g, '&amp;')
@@ -1124,23 +1389,20 @@ function escapeHtml(str) {
 
 /**
  * Get editor configuration for frontend
- *
- * @param {string} formatId - Format ID
- * @returns {Object} - Configuration for frontend editor
  */
-export function getEditorConfig(formatId) {
+export function getEditorConfig(formatId: string): FrontendEditorConfig {
   const format = getFormat(formatId) || getFormat(config.defaultFormat);
   if (!format) {
     throw new Error(`Editor format not found: ${formatId}`);
   }
 
   // Resolve toolbar buttons
-  const resolvedToolbar = format.toolbar.map(row =>
+  const resolvedToolbar: ResolvedToolbarItem[][] = format.toolbar.map(row =>
     row.map(item => {
       if (item === '|') return { type: 'separator' };
       const button = getButton(item);
       return button ? { type: 'button', ...button } : null;
-    }).filter(Boolean)
+    }).filter((item): item is ResolvedToolbarItem => item !== null)
   );
 
   return {
@@ -1167,18 +1429,14 @@ export function getEditorConfig(formatId) {
 
 /**
  * Get configuration
- *
- * @returns {Object}
  */
-export function getConfig() {
+export function getConfig(): EditorConfig {
   return { ...config };
 }
 
 /**
  * Check if editor is enabled
- *
- * @returns {boolean}
  */
-export function isEnabled() {
+export function isEnabled(): boolean {
   return config.enabled;
 }

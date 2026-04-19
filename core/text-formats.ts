@@ -1,5 +1,5 @@
 /**
- * text-formats.js - Text Format and Filter System
+ * text-formats.ts - Text Format and Filter System
  *
  * WHY THIS EXISTS:
  * User-generated content needs transformation before display:
@@ -27,6 +27,62 @@ import { existsSync } from 'fs';
 import * as hooks from './hooks.ts';
 
 // ===========================================
+// Types
+// ===========================================
+
+/** Settings passed to a filter's process function */
+interface FilterSettings {
+  [key: string]: unknown;
+}
+
+/** A filter implementation containing the transform function and default settings */
+interface FilterImplementation {
+  process: (text: string, settings: FilterSettings) => string;
+  defaults: FilterSettings;
+}
+
+/** Configuration for registering a filter */
+interface FilterConfig {
+  process: (text: string, settings: FilterSettings) => string;
+  defaults?: FilterSettings;
+}
+
+/** A single filter entry within a text format's filter chain */
+interface FilterChainEntry {
+  weight: number;
+  status: boolean;
+  settings?: FilterSettings;
+}
+
+/** A text format definition with its filter chain and access control */
+interface TextFormat {
+  label: string;
+  weight: number;
+  filters: Record<string, FilterChainEntry>;
+  roles: string[];
+}
+
+/** Configuration for creating a new text format */
+interface TextFormatConfig {
+  label: string;
+  weight?: number;
+  filters?: Record<string, FilterChainEntry>;
+  roles?: string[];
+}
+
+/** A cache instance that supports get, set, and clear operations */
+interface CacheInstance {
+  get(key: string): unknown;
+  set(key: string, value: unknown, ttl: number): void;
+  clear(pattern: string): void;
+}
+
+/** A user object for access control checks */
+interface TextFormatUser {
+  roles?: string[];
+}
+
+// ===========================================
 // State
 // ===========================================
 
@@ -38,19 +94,19 @@ let baseDir = './data';
 /**
  * Cache instance (optional, passed in init)
  */
-let cache = null;
+let cache: CacheInstance | null = null;
 
 /**
  * Registered text formats
  * Structure: { formatId: { label, weight, filters, roles } }
  */
-const formats = {};
+const formats: Record<string, TextFormat> = {};
 
 /**
  * Registered filter implementations
  * Structure: { filterName: { process, defaults } }
  */
-const filters = {};
+const filters: Record<string, FilterImplementation> = {};
 
 /**
  * Default format ID for fallback
@@ -64,10 +120,10 @@ let defaultFormatId = 'plain_text';
 /**
  * Initialize text format system
  *
- * @param {string} dir - Base directory for config files
- * @param {Object} cacheInstance - Optional cache instance
+ * @param dir - Base directory for config files
+ * @param cacheInstance - Optional cache instance
  */
-export async function init(dir = './data', cacheInstance = null) {
+export async function init(dir = './data', cacheInstance: CacheInstance | null = null): Promise<void> {
   baseDir = dir;
   cache = cacheInstance;
 
@@ -81,10 +137,10 @@ export async function init(dir = './data', cacheInstance = null) {
 /**
  * Register all built-in filters
  */
-function registerBuiltInFilters() {
+function registerBuiltInFilters(): void {
   // Plain text - escape all HTML
   registerFilter('filter_plain', {
-    process: (text) => {
+    process: (text: string): string => {
       return text
         .replace(/&/g, '&amp;')
         .replace(/</g, '&lt;')
@@ -97,19 +153,19 @@ function registerBuiltInFilters() {
 
   // HTML filter - strip/allow specific tags
   registerFilter('filter_html', {
-    process: (text, settings) => {
-      const allowedTags = settings.allowed_tags || '<p><br><strong><em><a><ul><ol><li><h2><h3><blockquote>';
+    process: (text: string, settings: FilterSettings): string => {
+      const allowedTags = (settings.allowed_tags as string) || '<p><br><strong><em><a><ul><ol><li><h2><h3><blockquote>';
 
       // Parse allowed tags into array
       const tagPattern = /<([a-z][a-z0-9]*)\b[^>]*>/gi;
-      const allowed = new Set();
-      let match;
+      const allowed = new Set<string>();
+      let match: RegExpExecArray | null;
       while ((match = tagPattern.exec(allowedTags)) !== null) {
-        allowed.add(match[1].toLowerCase());
+        allowed.add(match[1]!.toLowerCase());
       }
 
       // Strip disallowed tags
-      return text.replace(/<\/?([a-z][a-z0-9]*)\b[^>]*>/gi, (fullMatch, tagName) => {
+      return text.replace(/<\/?([a-z][a-z0-9]*)\b[^>]*>/gi, (fullMatch: string, tagName: string): string => {
         const tag = tagName.toLowerCase();
         if (allowed.has(tag)) {
           return fullMatch; // Keep allowed tags
@@ -124,7 +180,7 @@ function registerBuiltInFilters() {
 
   // Auto-paragraph - convert line breaks to <p> and <br>
   registerFilter('filter_autop', {
-    process: (text) => {
+    process: (text: string): string => {
       // Split into blocks (double line breaks)
       const blocks = text.split(/\n\s*\n/);
 
@@ -148,13 +204,13 @@ function registerBuiltInFilters() {
 
   // URL filter - auto-link URLs
   registerFilter('filter_url', {
-    process: (text, settings) => {
-      const maxLength = settings.length || 72;
+    process: (text: string, settings: FilterSettings): string => {
+      const maxLength = (settings.length as number) || 72;
 
       // URL regex pattern
       const urlPattern = /\b(https?:\/\/[^\s<]+)/g;
 
-      return text.replace(urlPattern, (url) => {
+      return text.replace(urlPattern, (url: string): string => {
         // Truncate long URLs
         let displayUrl = url;
         if (url.length > maxLength) {
@@ -171,19 +227,19 @@ function registerBuiltInFilters() {
 
   // HTML corrector - fix broken HTML
   registerFilter('filter_htmlcorrector', {
-    process: (text) => {
+    process: (text: string): string => {
       // Stack to track open tags
-      const stack = [];
+      const stack: string[] = [];
       const voidTags = new Set(['br', 'hr', 'img', 'input', 'meta', 'link']);
 
       // Find all tags
       const tagPattern = /<\/?([a-z][a-z0-9]*)\b[^>]*>/gi;
-      const tags = [];
-      let match;
+      const tags: Array<{ match: string; tag: string; isClosing: boolean; index: number }> = [];
+      let match: RegExpExecArray | null;
 
       while ((match = tagPattern.exec(text)) !== null) {
         const isClosing = match[0].startsWith('</');
-        const tagName = match[1].toLowerCase();
+        const tagName = match[1]!.toLowerCase();
 
         tags.push({
           match: match[0],
@@ -230,12 +286,10 @@ function registerBuiltInFilters() {
 /**
  * Register a filter implementation
  *
- * @param {string} name - Filter identifier
- * @param {Object} config - Filter configuration
- * @param {Function} config.process - Transform function (text, settings) => transformedText
- * @param {Object} config.defaults - Default settings
+ * @param name - Filter identifier
+ * @param config - Filter configuration with process function and optional defaults
  */
-export function registerFilter(name, config) {
+export function registerFilter(name: string, config: FilterConfig): void {
   if (!config.process || typeof config.process !== 'function') {
     throw new Error(`Filter "${name}" must have a process function`);
   }
@@ -253,7 +307,7 @@ export function registerFilter(name, config) {
 /**
  * Load formats from config file
  */
-async function loadFormats() {
+async function loadFormats(): Promise<void> {
   const configPath = join(baseDir, 'config', 'text-formats.json');
 
   if (!existsSync(configPath)) {
@@ -264,19 +318,20 @@ async function loadFormats() {
 
   try {
     const data = await readFile(configPath, 'utf8');
-    const config = JSON.parse(data);
+    const parsedConfig: { formats?: Record<string, TextFormat>; default?: string } = JSON.parse(data);
 
     // Load formats
-    for (const [id, format] of Object.entries(config.formats || {})) {
+    for (const [id, format] of Object.entries(parsedConfig.formats || {})) {
       formats[id] = format;
     }
 
     // Set default format
-    if (config.default) {
-      defaultFormatId = config.default;
+    if (parsedConfig.default) {
+      defaultFormatId = parsedConfig.default;
     }
-  } catch (error) {
-    console.error('[text-formats] Failed to load config:', error.message);
+  } catch (error: unknown) {
+    const message = error instanceof Error ? error.message : String(error);
+    console.error('[text-formats] Failed to load config:', message);
     await createDefaultFormats();
   }
 }
@@ -284,7 +339,7 @@ async function loadFormats() {
 /**
  * Save formats to config file
  */
-async function saveFormats() {
+async function saveFormats(): Promise<void> {
   const configPath = join(baseDir, 'config', 'text-formats.json');
   const configDir = join(baseDir, 'config');
 
@@ -293,18 +348,18 @@ async function saveFormats() {
     await mkdir(configDir, { recursive: true });
   }
 
-  const config = {
+  const configData = {
     formats,
     default: defaultFormatId,
   };
 
-  await writeFile(configPath, JSON.stringify(config, null, 2), 'utf8');
+  await writeFile(configPath, JSON.stringify(configData, null, 2), 'utf8');
 }
 
 /**
  * Create default text formats
  */
-async function createDefaultFormats() {
+async function createDefaultFormats(): Promise<void> {
   // Plain text format
   formats.plain_text = {
     label: 'Plain text',
@@ -355,33 +410,29 @@ async function createDefaultFormats() {
 /**
  * Get all text formats
  *
- * @returns {Object} All registered formats
+ * @returns All registered formats
  */
-export function getFormats() {
+export function getFormats(): Record<string, TextFormat> {
   return { ...formats };
 }
 
 /**
  * Get a specific text format
  *
- * @param {string} id - Format identifier
- * @returns {Object|null} Format config or null if not found
+ * @param id - Format identifier
+ * @returns Format config or null if not found
  */
-export function getFormat(id) {
+export function getFormat(id: string): TextFormat | null {
   return formats[id] ? { ...formats[id] } : null;
 }
 
 /**
  * Create a new text format
  *
- * @param {string} id - Format identifier
- * @param {Object} config - Format configuration
- * @param {string} config.label - Display label
- * @param {number} config.weight - Sort weight
- * @param {Object} config.filters - Filter chain config
- * @param {Array<string>} config.roles - Roles allowed to use format
+ * @param id - Format identifier
+ * @param config - Format configuration
  */
-export async function createFormat(id, config) {
+export async function createFormat(id: string, config: TextFormatConfig): Promise<void> {
   if (formats[id]) {
     throw new Error(`Format "${id}" already exists`);
   }
@@ -402,10 +453,10 @@ export async function createFormat(id, config) {
 /**
  * Update an existing text format
  *
- * @param {string} id - Format identifier
- * @param {Object} config - Updated configuration
+ * @param id - Format identifier
+ * @param config - Updated configuration
  */
-export async function updateFormat(id, config) {
+export async function updateFormat(id: string, config: Partial<TextFormat>): Promise<void> {
   if (!formats[id]) {
     throw new Error(`Format "${id}" not found`);
   }
@@ -429,9 +480,9 @@ export async function updateFormat(id, config) {
 /**
  * Delete a text format
  *
- * @param {string} id - Format identifier
+ * @param id - Format identifier
  */
-export async function deleteFormat(id) {
+export async function deleteFormat(id: string): Promise<void> {
   if (!formats[id]) {
     throw new Error(`Format "${id}" not found`);
   }
@@ -460,11 +511,11 @@ export async function deleteFormat(id) {
 /**
  * Process text through a filter chain
  *
- * @param {string} text - Input text
- * @param {string} formatId - Format identifier
- * @returns {Promise<string>} Processed text
+ * @param text - Input text
+ * @param formatId - Format identifier
+ * @returns Processed text
  */
-export async function processText(text, formatId) {
+export async function processText(text: string, formatId: string): Promise<string> {
   const format = formats[formatId];
 
   if (!format) {
@@ -476,26 +527,26 @@ export async function processText(text, formatId) {
     const cacheKey = `text-format:${formatId}:${hashText(text)}`;
     const cached = cache.get(cacheKey);
 
-    if (cached) {
+    if (typeof cached === 'string') {
       return cached;
     }
   }
 
   // Sort filters by weight
   const filterChain = Object.entries(format.filters)
-    .filter(([_, config]) => config.status)
+    .filter(([_, filterConfig]) => filterConfig.status)
     .sort((a, b) => a[1].weight - b[1].weight);
 
   // Apply filters in sequence
   let result = text;
 
-  for (const [filterName, config] of filterChain) {
-    const settings = { ...filters[filterName]?.defaults, ...config.settings };
+  for (const [filterName, filterConfig] of filterChain) {
+    const settings: FilterSettings = { ...filters[filterName]?.defaults, ...filterConfig.settings };
     result = await processFilter(result, filterName, settings);
   }
 
   // Trigger hook for post-processing
-  const context = { text: result, formatId };
+  const context: { text: string; formatId: string } = { text: result, formatId };
   await hooks.trigger('filter:process', context);
   result = context.text;
 
@@ -511,12 +562,12 @@ export async function processText(text, formatId) {
 /**
  * Process text through a single filter
  *
- * @param {string} text - Input text
- * @param {string} filterName - Filter identifier
- * @param {Object} settings - Filter settings
- * @returns {Promise<string>} Processed text
+ * @param text - Input text
+ * @param filterName - Filter identifier
+ * @param settings - Filter settings
+ * @returns Processed text
  */
-export async function processFilter(text, filterName, settings = {}) {
+export async function processFilter(text: string, filterName: string, settings: FilterSettings = {}): Promise<string> {
   const filter = filters[filterName];
 
   if (!filter) {
@@ -525,10 +576,11 @@ export async function processFilter(text, filterName, settings = {}) {
   }
 
   try {
-    const mergedSettings = { ...filter.defaults, ...settings };
+    const mergedSettings: FilterSettings = { ...filter.defaults, ...settings };
     return filter.process(text, mergedSettings);
-  } catch (error) {
-    console.error(`[text-formats] Error in filter "${filterName}":`, error.message);
+  } catch (error: unknown) {
+    const message = error instanceof Error ? error.message : String(error);
+    console.error(`[text-formats] Error in filter "${filterName}":`, message);
     return text; // Return original text on error
   }
 }
@@ -540,13 +592,13 @@ export async function processFilter(text, filterName, settings = {}) {
 /**
  * Get text formats available to a user
  *
- * @param {Object} user - User object with roles
- * @returns {Object} Formats accessible to user
+ * @param user - User object with roles
+ * @returns Formats accessible to user
  */
-export function getFormatsForUser(user) {
+export function getFormatsForUser(user: TextFormatUser | null): Record<string, TextFormat> {
   const userRoles = user?.roles || ['anonymous'];
 
-  const available = {};
+  const available: Record<string, TextFormat> = {};
 
   for (const [id, format] of Object.entries(formats)) {
     // Check if user has any of the required roles
@@ -563,10 +615,10 @@ export function getFormatsForUser(user) {
 /**
  * Get default format for a user
  *
- * @param {Object} user - User object with roles
- * @returns {string} Default format ID for user
+ * @param user - User object with roles
+ * @returns Default format ID for user
  */
-export function getDefaultFormat(user) {
+export function getDefaultFormat(user: TextFormatUser | null): string {
   const available = getFormatsForUser(user);
 
   // Use system default if user has access
@@ -576,7 +628,7 @@ export function getDefaultFormat(user) {
 
   // Otherwise return first available format
   const formatIds = Object.keys(available).sort((a, b) => {
-    return available[a].weight - available[b].weight;
+    return (available[a]?.weight ?? 0) - (available[b]?.weight ?? 0);
   });
 
   return formatIds[0] || 'plain_text';
@@ -585,9 +637,9 @@ export function getDefaultFormat(user) {
 /**
  * Set the system default format
  *
- * @param {string} formatId - Format identifier
+ * @param formatId - Format identifier
  */
-export async function setDefaultFormat(formatId) {
+export async function setDefaultFormat(formatId: string): Promise<void> {
   if (!formats[formatId]) {
     throw new Error(`Format "${formatId}" not found`);
   }
@@ -603,10 +655,10 @@ export async function setDefaultFormat(formatId) {
 /**
  * Generate a simple hash of text for cache keys
  *
- * @param {string} text - Text to hash
- * @returns {string} Hash string
+ * @param text - Text to hash
+ * @returns Hash string
  */
-function hashText(text) {
+function hashText(text: string): string {
   let hash = 0;
 
   for (let i = 0; i < text.length; i++) {

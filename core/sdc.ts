@@ -24,19 +24,63 @@
 import { existsSync, readFileSync, readdirSync, statSync } from 'node:fs';
 import { join } from 'node:path';
 
+// ============================================================================
+// Types
+// ============================================================================
+
+/** Shape of per-prop definitions inside component.json. */
+interface PropDefinition {
+  required?: boolean;
+  type?: string;
+  default?: unknown;
+}
+
+/** Shape of the parsed component.json file. */
+interface ComponentMeta {
+  name?: string;
+  description?: string;
+  props?: Record<string, PropDefinition>;
+}
+
+/** Registry entry for one discovered component. */
+interface ComponentEntry {
+  meta: ComponentMeta;
+  template: string;
+  cssPath: string | null;
+  cssContent: string | null;
+  dir: string;
+}
+
+/**
+ * Render function signature matching core/template.js renderString.
+ * Takes a template string and a data record, returns the rendered output.
+ */
+type RenderFn = (template: string, data: Record<string, unknown>) => string;
+
+/** Public shape returned by listComponents(). */
+interface ComponentSummary {
+  name: string;
+  description: string;
+  props: Record<string, PropDefinition>;
+}
+
+// ============================================================================
+// Module state
+// ============================================================================
+
 // Component registry: { name: { meta, template, cssPath, dir } }
-const registry = new Map();
+const registry: Map<string, ComponentEntry> = new Map();
 
 // CSS files used during current render pass (reset per page render)
-let usedCssFiles = new Set();
+let usedCssFiles: Set<string> = new Set();
 
-let themePath = '';
+let themePath: string = '';
 
 /**
  * Initialize SDC by discovering components in the active theme.
- * @param {string} activeThemePath - Absolute path to the active theme directory
+ * @param activeThemePath - Absolute path to the active theme directory
  */
-export function init(activeThemePath) {
+export function init(activeThemePath: string): void {
   themePath = activeThemePath;
   const componentsDir = join(activeThemePath, 'components');
 
@@ -60,7 +104,7 @@ export function init(activeThemePath) {
     }
 
     try {
-      const meta = JSON.parse(readFileSync(metaPath, 'utf-8'));
+      const meta = JSON.parse(readFileSync(metaPath, 'utf-8')) as ComponentMeta;
       const template = readFileSync(templatePath, 'utf-8');
       const cssPath = join(componentDir, `${entry}.css`);
       const hasCss = existsSync(cssPath);
@@ -70,12 +114,13 @@ export function init(activeThemePath) {
         template,
         cssPath: hasCss ? cssPath : null,
         cssContent: hasCss ? readFileSync(cssPath, 'utf-8') : null,
-        dir: componentDir
+        dir: componentDir,
       });
 
       console.log(`[sdc] Registered component: ${meta.name || entry}${hasCss ? ' (with CSS)' : ''}`);
     } catch (err) {
-      console.error(`[sdc] Error loading component ${entry}: ${err.message}`);
+      const message = err instanceof Error ? err.message : String(err);
+      console.error(`[sdc] Error loading component ${entry}: ${message}`);
     }
   }
 
@@ -86,16 +131,20 @@ export function init(activeThemePath) {
  * Process {{component "name" prop="value"}} tags in a template string.
  * Called by core/template.js during the render pipeline.
  *
- * @param {string} template - Template string with component tags
- * @param {Object} data - Page-level data context (for fallback resolution)
- * @param {Function} renderFn - The template engine's renderString function (to render component templates)
- * @returns {string} - Template with component tags replaced by rendered HTML
+ * @param template - Template string with component tags
+ * @param data - Page-level data context (for fallback resolution)
+ * @param renderFn - The template engine's renderString function (to render component templates)
+ * @returns Template with component tags replaced by rendered HTML
  */
-export function processComponents(template, data, renderFn) {
+export function processComponents(
+  template: string,
+  data: Record<string, unknown>,
+  renderFn: RenderFn,
+): string {
   // Match {{component "name" key="value" key2="value2"}}
   const componentRegex = /\{\{component\s+"([^"]+)"((?:\s+\w+="[^"]*")*)\s*\}\}/g;
 
-  return template.replace(componentRegex, (match, name, propsStr) => {
+  return template.replace(componentRegex, (match: string, name: string, propsStr: string) => {
     const component = registry.get(name);
     if (!component) {
       console.warn(`[sdc] Unknown component: ${name}`);
@@ -103,11 +152,11 @@ export function processComponents(template, data, renderFn) {
     }
 
     // Parse props from key="value" pairs
-    const props = {};
+    const props: Record<string, string> = {};
     const propRegex = /(\w+)="([^"]*)"/g;
-    let propMatch;
+    let propMatch: RegExpExecArray | null;
     while ((propMatch = propRegex.exec(propsStr)) !== null) {
-      props[propMatch[1]] = propMatch[2];
+      props[propMatch[1]!] = propMatch[2]!;
     }
 
     // Validate required props
@@ -126,7 +175,7 @@ export function processComponents(template, data, renderFn) {
 
     // Render the component template with props as data
     // Merge page data as fallback so components can access site-level vars
-    const componentData = { ...data, ...props };
+    const componentData: Record<string, unknown> = { ...data, ...props };
     return renderFn(component.template, componentData);
   });
 }
@@ -134,9 +183,9 @@ export function processComponents(template, data, renderFn) {
 /**
  * Get CSS <style> blocks for all components used in the current page.
  * Call this after rendering and inject into <head>.
- * @returns {string} - Combined <style> tags
+ * @returns Combined <style> tags
  */
-export function getUsedCss() {
+export function getUsedCss(): string {
   if (usedCssFiles.size === 0) return '';
 
   let css = '';
@@ -153,34 +202,31 @@ export function getUsedCss() {
 /**
  * Reset CSS tracking for a new page render.
  */
-export function resetCssTracking() {
+export function resetCssTracking(): void {
   usedCssFiles = new Set();
 }
 
 /**
  * Get a component by name.
- * @param {string} name
- * @returns {Object|undefined}
  */
-export function getComponent(name) {
+export function getComponent(name: string): ComponentEntry | undefined {
   return registry.get(name);
 }
 
 /**
  * List all registered components.
- * @returns {Array<{ name: string, description: string, props: Object }>}
  */
-export function listComponents() {
+export function listComponents(): ComponentSummary[] {
   return Array.from(registry.entries()).map(([name, comp]) => ({
     name,
     description: comp.meta.description || '',
-    props: comp.meta.props || {}
+    props: comp.meta.props || {},
   }));
 }
 
 /**
  * Check if any components are registered.
  */
-export function hasComponents() {
+export function hasComponents(): boolean {
   return registry.size > 0;
 }
