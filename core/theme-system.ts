@@ -49,247 +49,359 @@ import { readFileSync, existsSync, readdirSync, statSync } from 'node:fs';
 import { join, basename, extname, dirname } from 'node:path';
 import { renderString, escapeHtml } from './template.ts';
 
+// ============================================================================
+// Types
+// ============================================================================
+
+/** Variables passed into a theme hook — arbitrary data bag. */
+type ThemeVariables = Record<string, unknown>;
+
+/** Preprocess function signature: mutates (or replaces) the vars in place. */
+type PreprocessFn = (vars: ThemeVariables) => void;
+
+/** Theme hook definition as stored in the registry. */
+interface HookDefinition {
+  variables: ThemeVariables;
+  template: string;
+  preprocess: PreprocessFn[] | string[];
+  type: string;
+  pattern: string | null;
+}
+
+/** Partial hook definition as accepted by registerThemeHook(). */
+interface HookDefinitionInput {
+  variables?: ThemeVariables;
+  template?: string;
+  preprocess?: PreprocessFn[] | string[];
+  type?: string;
+  pattern?: string | null;
+}
+
+/** Shape of the core hooks table (keys are hook names). */
+type CoreHooksMap = Record<string, HookDefinitionInput>;
+
+/** Shape of a theme.info.json file. */
+interface ThemeInfo {
+  name?: string;
+  type?: string;
+  description?: string;
+  version?: string;
+  base_theme?: string | null;
+  regions?: Record<string, string>;
+  libraries?: Record<string, LibraryDefinitionInput>;
+  settings?: Record<string, unknown>;
+  features?: string[];
+  [key: string]: unknown;
+}
+
+/** Active theme record. */
+interface ActiveThemeRecord {
+  name: string;
+  path: string;
+  info: ThemeInfo;
+}
+
+/** Options accepted by init() / setActiveTheme(). */
+interface InitOptions {
+  cacheService?: CacheService | null;
+  themeName?: string;
+}
+
+/** Minimal cache-service contract used by this module. Currently opaque. */
+interface CacheService {
+  [key: string]: unknown;
+}
+
+/** Library definition as accepted by registerLibrary() and theme.info.json. */
+interface LibraryDefinitionInput {
+  css?: string[];
+  js?: string[];
+  dependencies?: string[];
+}
+
+/** Normalized library entry. */
+interface LibraryDefinition {
+  css: string[];
+  js: string[];
+  dependencies: string[];
+}
+
+/** Options for buildJsTag(). */
+interface JsTagOptions {
+  async?: boolean;
+  defer?: boolean;
+  module?: boolean;
+}
+
+/** Meta tag descriptor accepted by renderHead(). */
+interface MetaTag {
+  charset?: string;
+  name?: string;
+  property?: string;
+  content?: string;
+}
+
+/** Options accepted by renderHead(). */
+interface RenderHeadOptions {
+  title?: string;
+  meta?: MetaTag[];
+  js?: string[];
+}
+
+/**
+ * Render array as understood by renderElement().
+ * Any key starting with `#` is an "instruction" (e.g. `#theme`, `#node`).
+ */
+type RenderElement = Record<string, unknown>;
+
+// ============================================================================
+// Module state
+// ============================================================================
+
 /**
  * Theme registry
  * Structure: { hookName: { variables, template, preprocess, type, pattern } }
  */
-const registry = new Map();
+const registry: Map<string, HookDefinition> = new Map();
 
 /**
  * Active theme info
- * { name, path, info, base_theme }
  */
-let activeTheme = null;
+let activeTheme: ActiveThemeRecord | null = null;
 
 /**
  * Template cache
  * Maps template path → compiled template string
  */
-const templateCache = new Map();
+const templateCache: Map<string, string> = new Map();
 
 /**
  * Preprocess function registry
  * Maps hook name → array of preprocess functions
  */
-const preprocessFunctions = new Map();
+const preprocessFunctions: Map<string, PreprocessFn[]> = new Map();
 
 /**
  * Theme suggestions cache
  * Maps cache key → array of suggestion paths
  */
-const suggestionsCache = new Map();
+const suggestionsCache: Map<string, string[]> = new Map();
 
 /**
  * Asset libraries registry
  * Maps library name → { css: [], js: [], dependencies: [] }
  */
-const libraries = new Map();
+const libraries: Map<string, LibraryDefinition> = new Map();
 
 /**
  * Attached libraries (per request)
  * Set of library names to include in page
  */
-let attachedLibraries = new Set();
+const attachedLibraries: Set<string> = new Set();
 
 /**
  * Cache service reference (optional)
  */
-let cacheService = null;
+let cacheService: CacheService | null = null;
 
 /**
  * Core theme hooks
  * These are available in all themes
  */
-const CORE_HOOKS = {
+const CORE_HOOKS: CoreHooksMap = {
   // HTML structure
-  'html': {
+  html: {
     variables: { page: null, head: [], styles: [], scripts: [], language: 'en', dir: 'ltr' },
     template: 'html',
     type: 'base',
   },
-  'page': {
+  page: {
     variables: { content: null, header: null, footer: null, sidebar: null, title: '' },
     template: 'page',
     type: 'layout',
   },
-  'region': {
+  region: {
     variables: { content: null, region: '' },
     template: 'region',
     type: 'layout',
   },
 
   // Content
-  'node': {
+  node: {
     variables: { node: null, view_mode: 'full', content: {}, title_prefix: [], title_suffix: [] },
     template: 'node',
     type: 'entity',
     pattern: 'node__[bundle]__[view_mode]',
   },
-  'field': {
+  field: {
     variables: { field: null, items: [], label: '', label_display: 'above', field_name: '', field_type: '' },
     template: 'field',
     type: 'field',
     pattern: 'field__[field_name]__[bundle]',
   },
-  'field_item': {
+  field_item: {
     variables: { item: null },
     template: 'field-item',
     type: 'field',
   },
-  'comment': {
+  comment: {
     variables: { comment: null, node: null, view_mode: 'full' },
     template: 'comment',
     type: 'entity',
   },
 
   // Lists
-  'item_list': {
+  item_list: {
     variables: { items: [], title: null, list_type: 'ul', wrapper_attributes: {}, attributes: {} },
     template: 'item-list',
     type: 'markup',
   },
-  'table': {
+  table: {
     variables: { header: [], rows: [], footer: [], caption: '', attributes: {}, sticky: false },
     template: 'table',
     type: 'markup',
   },
-  'pager': {
+  pager: {
     variables: { current: 0, total: 0, quantity: 9, tags: {} },
     template: 'pager',
     type: 'navigation',
   },
 
   // Forms
-  'form': {
+  form: {
     variables: { element: null, attributes: {}, children: '' },
     template: 'form',
     type: 'form',
   },
-  'form_element': {
+  form_element: {
     variables: { element: null, label: '', description: '', errors: [], required: false },
     template: 'form-element',
     type: 'form',
   },
-  'form_element_label': {
+  form_element_label: {
     variables: { element: null, title: '', required: false },
     template: 'form-element-label',
     type: 'form',
   },
-  'input': {
+  input: {
     variables: { element: null, attributes: {} },
     template: 'input',
     type: 'form',
   },
-  'select': {
+  select: {
     variables: { element: null, options: [], attributes: {} },
     template: 'select',
     type: 'form',
   },
-  'textarea': {
+  textarea: {
     variables: { element: null, attributes: {} },
     template: 'textarea',
     type: 'form',
   },
-  'checkbox': {
+  checkbox: {
     variables: { element: null, attributes: {} },
     template: 'checkbox',
     type: 'form',
   },
-  'radio': {
+  radio: {
     variables: { element: null, attributes: {} },
     template: 'radio',
     type: 'form',
   },
-  'fieldset': {
+  fieldset: {
     variables: { element: null, legend: '', children: '', description: '' },
     template: 'fieldset',
     type: 'form',
   },
-  'details': {
+  details: {
     variables: { element: null, summary: '', children: '', open: false },
     template: 'details',
     type: 'form',
   },
 
   // Navigation
-  'breadcrumb': {
+  breadcrumb: {
     variables: { links: [] },
     template: 'breadcrumb',
     type: 'navigation',
   },
-  'menu': {
+  menu: {
     variables: { menu_name: '', items: [], attributes: {} },
     template: 'menu',
     type: 'navigation',
   },
-  'menu_link': {
+  menu_link: {
     variables: { title: '', url: '', below: [], attributes: {}, is_expanded: false, in_active_trail: false },
     template: 'menu-link',
     type: 'navigation',
   },
-  'tabs': {
+  tabs: {
     variables: { primary: [], secondary: [] },
     template: 'tabs',
     type: 'navigation',
   },
 
   // Messages & Status
-  'status_messages': {
+  status_messages: {
     variables: { messages: {}, attributes: {} },
     template: 'status-messages',
     type: 'status',
   },
-  'maintenance_page': {
+  maintenance_page: {
     variables: { title: 'Site under maintenance', content: '' },
     template: 'maintenance-page',
     type: 'page',
   },
 
   // Misc
-  'link': {
+  link: {
     variables: { title: '', url: '', attributes: {}, options: {} },
     template: 'link',
     type: 'markup',
   },
-  'image': {
+  image: {
     variables: { uri: '', alt: '', title: '', attributes: {}, width: null, height: null },
     template: 'image',
     type: 'media',
   },
-  'responsive_image': {
+  responsive_image: {
     variables: { uri: '', alt: '', title: '', sources: [], attributes: {} },
     template: 'responsive-image',
     type: 'media',
   },
-  'time': {
+  time: {
     variables: { timestamp: 0, text: '', attributes: {} },
     template: 'time',
     type: 'markup',
   },
-  'username': {
+  username: {
     variables: { user: null, link: true, attributes: {} },
     template: 'username',
     type: 'user',
   },
-  'container': {
+  container: {
     variables: { children: '', attributes: {} },
     template: 'container',
     type: 'markup',
   },
-  'html_tag': {
+  html_tag: {
     variables: { tag: 'div', value: '', attributes: {} },
     template: 'html-tag',
     type: 'markup',
   },
 };
 
+// ============================================================================
+// Public API
+// ============================================================================
+
 /**
  * Initialize theme system
  *
- * @param {string} themePath - Absolute path to active theme directory
- * @param {Object} options - { cacheService, themeName }
+ * @param themePath - Absolute path to active theme directory
+ * @param options - Initialization options
  */
-export function init(themePath, options = {}) {
+export function init(themePath: string, options: InitOptions = {}): void {
   activeTheme = {
     name: options.themeName || basename(themePath),
     path: themePath,
@@ -307,11 +419,8 @@ export function init(themePath, options = {}) {
 
 /**
  * Load theme .info file
- *
- * @param {string} themePath - Path to theme directory
- * @returns {Object} - Theme info object
  */
-function loadThemeInfo(themePath) {
+function loadThemeInfo(themePath: string): ThemeInfo {
   const infoPath = join(themePath, 'theme.info.json');
 
   if (!existsSync(infoPath)) {
@@ -327,62 +436,46 @@ function loadThemeInfo(themePath) {
   }
 
   try {
-    return JSON.parse(readFileSync(infoPath, 'utf-8'));
+    return JSON.parse(readFileSync(infoPath, 'utf-8')) as ThemeInfo;
   } catch (err) {
-    console.error(`Failed to parse theme.info.json: ${err.message}`);
+    const message = err instanceof Error ? err.message : String(err);
+    console.error(`Failed to parse theme.info.json: ${message}`);
     return { name: basename(themePath) };
   }
 }
 
 /**
  * Set cache service for theme system
- *
- * @param {Object} service - Cache service instance
  */
-export function setCache(service) {
+export function setCache(service: CacheService | null): void {
   cacheService = service;
 }
 
 /**
  * Get active theme info
- *
- * @returns {Object} - Active theme object
  */
-export function getActiveTheme() {
+export function getActiveTheme(): ActiveThemeRecord | null {
   return activeTheme;
 }
 
 /**
  * Set active theme
- *
- * @param {string} themePath - Absolute path to theme directory
- * @param {Object} options - Initialization options
  */
-export function setActiveTheme(themePath, options = {}) {
+export function setActiveTheme(themePath: string, options: InitOptions = {}): void {
   init(themePath, options);
 }
 
 /**
  * Get theme registry
- *
- * @returns {Map} - Theme registry map
  */
-export function getThemeRegistry() {
+export function getThemeRegistry(): Map<string, HookDefinition> {
   return registry;
 }
 
 /**
  * Register a theme hook
- *
- * @param {string} hook - Hook name (e.g., 'node', 'field')
- * @param {Object} definition - Hook definition
- *   - variables: Default variables object
- *   - template: Template name (without .html)
- *   - preprocess: Array of preprocess function names
- *   - type: Hook type (entity, field, markup, etc.)
- *   - pattern: Suggestion pattern (e.g., 'node__[bundle]')
  */
-export function registerThemeHook(hook, definition) {
+export function registerThemeHook(hook: string, definition: HookDefinitionInput): void {
   registry.set(hook, {
     variables: definition.variables || {},
     template: definition.template || hook,
@@ -396,7 +489,7 @@ export function registerThemeHook(hook, definition) {
  * Rebuild theme registry
  * Discovers hooks from core and active theme
  */
-export function rebuildRegistry() {
+export function rebuildRegistry(): void {
   registry.clear();
   preprocessFunctions.clear();
   suggestionsCache.clear();
@@ -419,10 +512,8 @@ export function rebuildRegistry() {
 /**
  * Discover theme hooks from theme directory
  * Scans templates/ directory for .html files
- *
- * @param {string} themePath - Path to theme directory
  */
-function discoverThemeHooks(themePath) {
+function discoverThemeHooks(themePath: string): void {
   const templatesDir = join(themePath, 'templates');
 
   if (!existsSync(templatesDir)) {
@@ -452,7 +543,7 @@ function discoverThemeHooks(themePath) {
  * Discover preprocess functions
  * Looks for theme.preprocess.js in theme directory
  */
-function discoverPreprocessFunctions() {
+function discoverPreprocessFunctions(): void {
   if (!activeTheme || !activeTheme.path) return;
 
   const preprocessPath = join(activeTheme.path, 'theme.preprocess.js');
@@ -460,55 +551,53 @@ function discoverPreprocessFunctions() {
   if (!existsSync(preprocessPath)) return;
 
   try {
-    import(preprocessPath).then(module => {
-      // Register all exported functions
-      for (const [name, fn] of Object.entries(module)) {
-        if (typeof fn === 'function' && name.startsWith('preprocess_')) {
-          const hook = name.replace('preprocess_', '');
-          addPreprocessFunction(hook, fn);
+    import(preprocessPath)
+      .then((module: Record<string, unknown>) => {
+        // Register all exported functions
+        for (const [name, fn] of Object.entries(module)) {
+          if (typeof fn === 'function' && name.startsWith('preprocess_')) {
+            const hook = name.replace('preprocess_', '');
+            addPreprocessFunction(hook, fn as PreprocessFn);
+          }
         }
-      }
-    }).catch(err => {
-      console.error(`Failed to load preprocess functions: ${err.message}`);
-    });
+      })
+      .catch((err: unknown) => {
+        const message = err instanceof Error ? err.message : String(err);
+        console.error(`Failed to load preprocess functions: ${message}`);
+      });
   } catch (err) {
-    console.error(`Failed to import preprocess module: ${err.message}`);
+    const message = err instanceof Error ? err.message : String(err);
+    console.error(`Failed to import preprocess module: ${message}`);
   }
 }
 
 /**
  * Add a preprocess function for a hook
- *
- * @param {string} hook - Theme hook name
- * @param {Function} fn - Preprocess function
  */
-export function addPreprocessFunction(hook, fn) {
+export function addPreprocessFunction(hook: string, fn: PreprocessFn): void {
   if (!preprocessFunctions.has(hook)) {
     preprocessFunctions.set(hook, []);
   }
-  preprocessFunctions.get(hook).push(fn);
+  (preprocessFunctions.get(hook) as PreprocessFn[]).push(fn);
 }
 
 /**
  * Preprocess variables for a hook
  * Runs all registered preprocess functions
- *
- * @param {string} hook - Theme hook name
- * @param {Object} variables - Variables object to modify
- * @returns {Object} - Modified variables
  */
-export function preprocess(hook, variables) {
+export function preprocess(hook: string, variables: ThemeVariables): ThemeVariables {
   const functions = preprocessFunctions.get(hook) || [];
 
   // Create a copy to avoid mutations
-  let vars = { ...variables };
+  const vars: ThemeVariables = { ...variables };
 
   // Run each preprocess function
   for (const fn of functions) {
     try {
       fn(vars);
     } catch (err) {
-      console.error(`Preprocess function error for ${hook}: ${err.message}`);
+      const message = err instanceof Error ? err.message : String(err);
+      console.error(`Preprocess function error for ${hook}: ${message}`);
     }
   }
 
@@ -519,22 +608,18 @@ export function preprocess(hook, variables) {
  * Get theme suggestions for a hook
  * Generates hierarchical list of template suggestions
  *
- * @param {string} hook - Base hook name
- * @param {Object} variables - Variables containing context
- * @returns {string[]} - Array of suggestions (most specific first)
- *
  * @example
  * getThemeSuggestions('node', { node: { type: 'article', id: 1 }, view_mode: 'full' })
  * // Returns: ['node--article--full', 'node--article', 'node--1', 'node']
  */
-export function getThemeSuggestions(hook, variables = {}) {
+export function getThemeSuggestions(hook: string, variables: ThemeVariables = {}): string[] {
   const cacheKey = `${hook}:${JSON.stringify(variables)}`;
 
   if (suggestionsCache.has(cacheKey)) {
-    return suggestionsCache.get(cacheKey);
+    return suggestionsCache.get(cacheKey) as string[];
   }
 
-  const suggestions = [hook];
+  const suggestions: string[] = [hook];
   const hookDef = registry.get(hook);
 
   if (!hookDef || !hookDef.pattern) {
@@ -546,7 +631,7 @@ export function getThemeSuggestions(hook, variables = {}) {
   // Pattern format: 'node__[bundle]__[view_mode]'
   const pattern = hookDef.pattern;
   const parts = pattern.split('__');
-  const baseParts = [];
+  const baseParts: string[] = [];
 
   for (const part of parts) {
     if (part.startsWith('[') && part.endsWith(']')) {
@@ -563,9 +648,10 @@ export function getThemeSuggestions(hook, variables = {}) {
   }
 
   // Add entity ID suggestion if available
-  if (variables.node?.id || variables.id) {
-    const id = variables.node?.id || variables.id;
-    suggestions.splice(1, 0, `${hook}--${id}`);
+  const nodeVal = variables.node as { id?: unknown } | undefined;
+  const nodeId = nodeVal?.id ?? (variables as { id?: unknown }).id;
+  if (nodeId !== undefined && nodeId !== null) {
+    suggestions.splice(1, 0, `${hook}--${String(nodeId)}`);
   }
 
   suggestionsCache.set(cacheKey, suggestions);
@@ -575,20 +661,16 @@ export function getThemeSuggestions(hook, variables = {}) {
 /**
  * Get variable value from variables object
  * Supports nested paths (e.g., 'node.type')
- *
- * @param {Object} variables - Variables object
- * @param {string} path - Variable path
- * @returns {*} - Variable value
  */
-function getVariableValue(variables, path) {
+function getVariableValue(variables: ThemeVariables, path: string): unknown {
   const parts = path.split('.');
-  let current = variables;
+  let current: unknown = variables;
 
   for (const part of parts) {
     if (current === null || current === undefined) {
       return null;
     }
-    current = current[part];
+    current = (current as Record<string, unknown>)[part];
   }
 
   return current;
@@ -596,11 +678,8 @@ function getVariableValue(variables, path) {
 
 /**
  * Sanitize suggestion string for use in template name
- *
- * @param {string} str - String to sanitize
- * @returns {string} - Sanitized string
  */
-function sanitizeSuggestion(str) {
+function sanitizeSuggestion(str: unknown): string {
   return String(str)
     .toLowerCase()
     .replace(/[^a-z0-9]+/g, '-')
@@ -610,29 +689,23 @@ function sanitizeSuggestion(str) {
 /**
  * Add a suggestion to a hook
  * Used by modules to add custom suggestions
- *
- * @param {string} hook - Base hook name
- * @param {string} suggestion - Suggestion to add
  */
-export function addSuggestion(hook, suggestion) {
+export function addSuggestion(hook: string, suggestion: string): void {
   // This would be called during render to dynamically add suggestions
   // For now, suggestions are generated via patterns
 }
 
 /**
  * Load template file
- *
- * @param {string} name - Template name (without .html)
- * @returns {string|null} - Template content or null if not found
  */
-export function loadTemplate(name) {
+export function loadTemplate(name: string): string | null {
   if (!activeTheme) {
     throw new Error('Theme system not initialized');
   }
 
   // Check cache first
   if (templateCache.has(name)) {
-    return templateCache.get(name);
+    return templateCache.get(name) as string;
   }
 
   // Convert underscores to hyphens for file name
@@ -651,12 +724,8 @@ export function loadTemplate(name) {
 
 /**
  * Render a template with variables
- *
- * @param {string} template - Template content
- * @param {Object} variables - Variables to pass to template
- * @returns {string} - Rendered HTML
  */
-export function renderTemplate(template, variables) {
+export function renderTemplate(template: string, variables: ThemeVariables): string {
   return renderString(template, variables);
 }
 
@@ -664,14 +733,10 @@ export function renderTemplate(template, variables) {
  * Render a theme hook
  * Main entry point for theme rendering
  *
- * @param {string} hook - Theme hook name
- * @param {Object} variables - Variables for rendering
- * @returns {string} - Rendered HTML
- *
  * @example
  * theme('node', { node: { title: 'Hello', body: '...' }, view_mode: 'full' })
  */
-export function theme(hook, variables = {}) {
+export function theme(hook: string, variables: ThemeVariables = {}): string {
   const hookDef = registry.get(hook);
 
   if (!hookDef) {
@@ -680,7 +745,7 @@ export function theme(hook, variables = {}) {
   }
 
   // Merge with default variables
-  const vars = { ...hookDef.variables, ...variables };
+  const vars: ThemeVariables = { ...hookDef.variables, ...variables };
 
   // Run preprocess functions
   const preprocessed = preprocess(hook, vars);
@@ -689,8 +754,8 @@ export function theme(hook, variables = {}) {
   const suggestions = getThemeSuggestions(hook, preprocessed);
 
   // Try each suggestion until we find a template
-  let template = null;
-  let usedSuggestion = null;
+  let template: string | null = null;
+  let usedSuggestion: string | null = null;
 
   for (const suggestion of suggestions) {
     template = loadTemplate(suggestion);
@@ -709,35 +774,29 @@ export function theme(hook, variables = {}) {
   preprocessed._theme = {
     hook,
     suggestion: usedSuggestion,
-    theme: activeTheme.name,
+    theme: activeTheme ? activeTheme.name : null,
   };
 
   // Render template
   try {
     return renderTemplate(template, preprocessed);
   } catch (err) {
-    console.error(`Error rendering ${hook}: ${err.message}`);
+    const message = err instanceof Error ? err.message : String(err);
+    console.error(`Error rendering ${hook}: ${message}`);
     return renderFallback(hook, preprocessed);
   }
 }
 
 /**
  * Alias for theme() to match Drupal naming
- *
- * @param {string} hook - Theme hook name
- * @param {Object} variables - Variables for rendering
- * @returns {string} - Rendered HTML
  */
-export function render(hook, variables = {}) {
+export function render(hook: string, variables: ThemeVariables = {}): string {
   return theme(hook, variables);
 }
 
 /**
  * Render a render array
  * Processes structured render arrays into HTML
- *
- * @param {Object} element - Render array
- * @returns {string} - Rendered HTML
  *
  * @example
  * renderElement({
@@ -746,7 +805,7 @@ export function render(hook, variables = {}) {
  *   '#title': 'My List'
  * })
  */
-export function renderElement(element) {
+export function renderElement(element: unknown): string {
   if (!element || typeof element !== 'object') {
     return String(element || '');
   }
@@ -761,12 +820,14 @@ export function renderElement(element) {
     return element.map(renderElement).join('');
   }
 
+  const el = element as RenderElement;
+
   // Extract theme and variables
-  const { '#theme': hook, ...rest } = element;
+  const { '#theme': hook, ...rest } = el;
 
   if (!hook) {
     // No theme - render children
-    const children = [];
+    const children: string[] = [];
     for (const [key, value] of Object.entries(rest)) {
       if (!key.startsWith('#')) {
         children.push(renderElement(value));
@@ -776,7 +837,7 @@ export function renderElement(element) {
   }
 
   // Convert #property format to variables
-  const variables = {};
+  const variables: ThemeVariables = {};
   for (const [key, value] of Object.entries(rest)) {
     if (key.startsWith('#')) {
       const varName = key.slice(1);
@@ -785,23 +846,19 @@ export function renderElement(element) {
   }
 
   // Render using theme hook
-  return theme(hook, variables);
+  return theme(String(hook), variables);
 }
 
 /**
  * Fallback rendering when no template found
- *
- * @param {string} hook - Theme hook name
- * @param {Object} variables - Variables
- * @returns {string} - Fallback HTML
  */
-function renderFallback(hook, variables) {
+function renderFallback(hook: string, variables: ThemeVariables): string {
   // Render children if available
-  if (variables.children) {
+  if (variables.children !== undefined && variables.children !== null) {
     return String(variables.children);
   }
 
-  if (variables.content) {
+  if (variables.content !== undefined && variables.content !== null) {
     return typeof variables.content === 'object'
       ? renderElement(variables.content)
       : String(variables.content);
@@ -814,7 +871,7 @@ function renderFallback(hook, variables) {
 /**
  * Clear all caches
  */
-export function clearCache() {
+export function clearCache(): void {
   templateCache.clear();
   suggestionsCache.clear();
   attachedLibraries.clear();
@@ -823,14 +880,14 @@ export function clearCache() {
 /**
  * Clear template cache only
  */
-export function clearTemplateCache() {
+export function clearTemplateCache(): void {
   templateCache.clear();
 }
 
 /**
  * Discover and register asset libraries from theme
  */
-function discoverLibraries() {
+function discoverLibraries(): void {
   if (!activeTheme || !activeTheme.info.libraries) {
     return;
   }
@@ -846,14 +903,8 @@ function discoverLibraries() {
 
 /**
  * Register an asset library
- *
- * @param {string} name - Library name (theme/library_name)
- * @param {Object} definition - Library definition
- *   - css: Array of CSS file paths
- *   - js: Array of JS file paths
- *   - dependencies: Array of dependency library names
  */
-export function registerLibrary(name, definition) {
+export function registerLibrary(name: string, definition: LibraryDefinitionInput): void {
   libraries.set(name, {
     css: definition.css || [],
     js: definition.js || [],
@@ -863,16 +914,14 @@ export function registerLibrary(name, definition) {
 
 /**
  * Attach a library to the current page
- *
- * @param {string} name - Library name
  */
-export function attachLibrary(name) {
+export function attachLibrary(name: string): void {
   if (!libraries.has(name)) {
     console.warn(`Unknown library: ${name}`);
     return;
   }
 
-  const lib = libraries.get(name);
+  const lib = libraries.get(name) as LibraryDefinition;
 
   // Attach dependencies first
   for (const dep of lib.dependencies) {
@@ -884,20 +933,16 @@ export function attachLibrary(name) {
 
 /**
  * Get attached libraries for current page
- *
- * @returns {Set} - Set of library names
  */
-export function getAttachedLibraries() {
+export function getAttachedLibraries(): Set<string> {
   return attachedLibraries;
 }
 
 /**
  * Get CSS files from attached libraries
- *
- * @returns {string[]} - Array of CSS file paths
  */
-export function getAttachedCss() {
-  const css = [];
+export function getAttachedCss(): string[] {
+  const css: string[] = [];
 
   for (const name of attachedLibraries) {
     const lib = libraries.get(name);
@@ -911,11 +956,9 @@ export function getAttachedCss() {
 
 /**
  * Get JS files from attached libraries
- *
- * @returns {string[]} - Array of JS file paths
  */
-export function getAttachedJs() {
-  const js = [];
+export function getAttachedJs(): string[] {
+  const js: string[] = [];
 
   for (const name of attachedLibraries) {
     const lib = libraries.get(name);
@@ -930,29 +973,22 @@ export function getAttachedJs() {
 /**
  * Reset attached libraries (call at start of each request)
  */
-export function resetAttachedLibraries() {
+export function resetAttachedLibraries(): void {
   attachedLibraries.clear();
 }
 
 /**
  * Build HTML link tag for CSS file
- *
- * @param {string} href - CSS file path
- * @returns {string} - Link tag HTML
  */
-export function buildCssTag(href) {
+export function buildCssTag(href: string): string {
   return `<link rel="stylesheet" href="${escapeHtml(href)}">`;
 }
 
 /**
  * Build HTML script tag for JS file
- *
- * @param {string} src - JS file path
- * @param {Object} options - { async, defer, module }
- * @returns {string} - Script tag HTML
  */
-export function buildJsTag(src, options = {}) {
-  const attrs = [];
+export function buildJsTag(src: string, options: JsTagOptions = {}): string {
+  const attrs: string[] = [];
 
   if (options.async) attrs.push('async');
   if (options.defer) attrs.push('defer');
@@ -965,14 +1001,11 @@ export function buildJsTag(src, options = {}) {
 
 /**
  * Render HTML head with attached assets
- *
- * @param {Object} options - Head options
- * @returns {string} - HTML head content
  */
-export function renderHead(options = {}) {
+export function renderHead(options: RenderHeadOptions = {}): string {
   const { title = '', meta = [] } = options;
 
-  const parts = [];
+  const parts: string[] = [];
 
   // Title
   if (title) {
@@ -1007,15 +1040,12 @@ export function renderHead(options = {}) {
 /**
  * Render attributes object as HTML attribute string
  *
- * @param {Object} attributes - Attributes object
- * @returns {string} - HTML attributes string
- *
  * @example
  * renderAttributes({ class: ['btn', 'btn-primary'], id: 'submit' })
  * // Returns: 'class="btn btn-primary" id="submit"'
  */
-export function renderAttributes(attributes = {}) {
-  const parts = [];
+export function renderAttributes(attributes: Record<string, unknown> = {}): string {
+  const parts: string[] = [];
 
   for (const [key, value] of Object.entries(attributes)) {
     if (value === null || value === undefined || value === false) {
@@ -1043,15 +1073,12 @@ export function renderAttributes(attributes = {}) {
 /**
  * Build CSS classes array from various inputs
  *
- * @param {...*} args - Class names, arrays, or objects
- * @returns {string[]} - Array of class names
- *
  * @example
  * buildClasses('btn', ['btn-primary'], { active: true, disabled: false })
  * // Returns: ['btn', 'btn-primary', 'active']
  */
-export function buildClasses(...args) {
-  const classes = [];
+export function buildClasses(...args: unknown[]): string[] {
+  const classes: string[] = [];
 
   for (const arg of args) {
     if (!arg) continue;
@@ -1059,9 +1086,9 @@ export function buildClasses(...args) {
     if (typeof arg === 'string') {
       classes.push(arg);
     } else if (Array.isArray(arg)) {
-      classes.push(...arg.filter(Boolean));
+      classes.push(...(arg.filter(Boolean) as string[]));
     } else if (typeof arg === 'object') {
-      for (const [key, value] of Object.entries(arg)) {
+      for (const [key, value] of Object.entries(arg as Record<string, unknown>)) {
         if (value) classes.push(key);
       }
     }
@@ -1072,12 +1099,8 @@ export function buildClasses(...args) {
 
 /**
  * Get theme setting value
- *
- * @param {string} key - Setting key
- * @param {*} defaultValue - Default value if not set
- * @returns {*} - Setting value
  */
-export function getThemeSetting(key, defaultValue = null) {
+export function getThemeSetting(key: string, defaultValue: unknown = null): unknown {
   if (!activeTheme || !activeTheme.info.settings) {
     return defaultValue;
   }
@@ -1087,11 +1110,8 @@ export function getThemeSetting(key, defaultValue = null) {
 
 /**
  * Check if theme has a specific feature
- *
- * @param {string} feature - Feature name
- * @returns {boolean}
  */
-export function hasThemeFeature(feature) {
+export function hasThemeFeature(feature: string): boolean {
   if (!activeTheme || !activeTheme.info.features) {
     return false;
   }
@@ -1106,15 +1126,11 @@ export function hasThemeFeature(feature) {
 
 /**
  * Format a date/time timestamp
- *
- * @param {number} timestamp - Unix timestamp
- * @param {string} format - Format string or preset
- * @returns {string} - Formatted date
  */
-export function formatDate(timestamp, format = 'medium') {
+export function formatDate(timestamp: number, format: string = 'medium'): string {
   const date = new Date(timestamp * 1000);
 
-  const presets = {
+  const presets: Record<string, Intl.DateTimeFormatOptions> = {
     short: { dateStyle: 'short', timeStyle: 'short' },
     medium: { dateStyle: 'medium', timeStyle: 'short' },
     long: { dateStyle: 'long', timeStyle: 'medium' },
@@ -1128,13 +1144,8 @@ export function formatDate(timestamp, format = 'medium') {
 
 /**
  * Truncate text to a specific length
- *
- * @param {string} text - Text to truncate
- * @param {number} length - Max length
- * @param {string} suffix - Suffix for truncated text
- * @returns {string} - Truncated text
  */
-export function truncate(text, length = 100, suffix = '...') {
+export function truncate(text: string, length: number = 100, suffix: string = '...'): string {
   if (!text || text.length <= length) {
     return text;
   }
@@ -1144,13 +1155,8 @@ export function truncate(text, length = 100, suffix = '...') {
 
 /**
  * Pluralize a word based on count
- *
- * @param {number} count - Count
- * @param {string} singular - Singular form
- * @param {string} plural - Plural form (optional)
- * @returns {string} - Pluralized word
  */
-export function pluralize(count, singular, plural = null) {
+export function pluralize(count: number, singular: string, plural: string | null = null): string {
   if (count === 1) {
     return singular;
   }
@@ -1160,11 +1166,8 @@ export function pluralize(count, singular, plural = null) {
 
 /**
  * Safe JSON encode for templates
- *
- * @param {*} value - Value to encode
- * @returns {string} - JSON string
  */
-export function jsonEncode(value) {
+export function jsonEncode(value: unknown): string {
   try {
     return JSON.stringify(value);
   } catch (err) {
@@ -1177,7 +1180,7 @@ export function jsonEncode(value) {
  * Default templates for core hooks (used when theme doesn't provide them)
  */
 
-const FALLBACK_TEMPLATES = {
+const FALLBACK_TEMPLATES: Record<string, string> = {
   'item-list': `
 {{#if title}}<h3>{{title}}</h3>{{/if}}
 <{{list_type}}{{#if attributes}} {{attributes}}{{/if}}>
@@ -1186,24 +1189,21 @@ const FALLBACK_TEMPLATES = {
   {{/each}}
 </{{list_type}}>`,
 
-  'link': `<a href="{{url}}"{{#if attributes}} {{attributes}}{{/if}}>{{title}}</a>`,
+  link: `<a href="{{url}}"{{#if attributes}} {{attributes}}{{/if}}>{{title}}</a>`,
 
-  'image': `<img src="{{uri}}" alt="{{alt}}"{{#if title}} title="{{title}}"{{/if}}{{#if attributes}} {{attributes}}{{/if}}>`,
+  image: `<img src="{{uri}}" alt="{{alt}}"{{#if title}} title="{{title}}"{{/if}}{{#if attributes}} {{attributes}}{{/if}}>`,
 
-  'time': `<time datetime="{{timestamp}}"{{#if attributes}} {{attributes}}{{/if}}>{{text}}</time>`,
+  time: `<time datetime="{{timestamp}}"{{#if attributes}} {{attributes}}{{/if}}>{{text}}</time>`,
 
-  'container': `<div{{#if attributes}} {{attributes}}{{/if}}>{{children}}</div>`,
+  container: `<div{{#if attributes}} {{attributes}}{{/if}}>{{children}}</div>`,
 
   'html-tag': `<{{tag}}{{#if attributes}} {{attributes}}{{/if}}>{{value}}</{{tag}}>`,
 };
 
 /**
  * Get fallback template content
- *
- * @param {string} name - Template name
- * @returns {string|null} - Template content
  */
-function getFallbackTemplate(name) {
+function getFallbackTemplate(name: string): string | null {
   return FALLBACK_TEMPLATES[name] || null;
 }
 
@@ -1214,7 +1214,7 @@ const originalLoadTemplate = loadTemplate;
 export { originalLoadTemplate as _loadTemplate };
 
 // Re-export with fallback check
-export function loadTemplateWithFallback(name) {
+export function loadTemplateWithFallback(name: string): string | null {
   let template = originalLoadTemplate(name);
 
   if (!template) {

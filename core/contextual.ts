@@ -44,6 +44,87 @@
 
 import * as hooks from './hooks.ts';
 
+// ============================================================================
+// Types
+// ============================================================================
+
+/** Arbitrary context data passed when resolving a link (entity snapshot). */
+type ContextData = Record<string, unknown>;
+
+/** User object supplied to permission checks. Shape depends on auth layer. */
+type User = unknown;
+
+/**
+ * Condition function for showing a link — receives the context object and
+ * returns a boolean. Any throw is caught and treated as "do not show".
+ */
+type ConditionFn = (context: ContextData) => boolean;
+
+/** Raw link definition as passed to register()/addLink(). */
+interface RawLinkConfig {
+  title: string;
+  path: string;
+  permission?: string | null;
+  weight?: number;
+  icon?: string | null;
+  confirm?: string | null;
+  condition?: ConditionFn | null;
+  group?: string;
+  attributes?: Record<string, string | number | boolean>;
+}
+
+/** Normalized link configuration stored in the registry. */
+interface NormalizedLinkConfig {
+  title: string;
+  path: string;
+  permission: string | null;
+  weight: number;
+  icon: string | null;
+  confirm: string | null;
+  condition: ConditionFn | null;
+  group: string;
+  attributes: Record<string, string | number | boolean>;
+}
+
+/** Link returned from getLinks() after resolution and sorting. */
+interface ResolvedLink {
+  id: string;
+  title: string;
+  path: string;
+  weight: number;
+  icon: string | null;
+  confirm: string | null;
+  group: string;
+  attributes: Record<string, string | number | boolean>;
+}
+
+/** Permissions module interface (injected via init). */
+interface PermissionsModule {
+  hasPermission(user: User, permission: string): boolean | Promise<boolean>;
+}
+
+/** Router module interface (injected via init). */
+interface RouterModule {
+  // Router is opaque to this module — we never call it directly,
+  // but keep the reference to mirror the original JS behaviour.
+  [key: string]: unknown;
+}
+
+/** Hook context passed to contextual:alter / contextual:render. */
+interface ContextualHookContext {
+  contextType: string;
+  context: ContextData;
+  user: User;
+  links: ResolvedLink[];
+  html?: string | null;
+  /** Allow hook handlers to attach additional keys. */
+  [key: string]: unknown;
+}
+
+// ============================================================================
+// Module state
+// ============================================================================
+
 /**
  * Registered contextual link definitions
  * Structure: Map<contextType, Map<linkId, config>>
@@ -52,43 +133,41 @@ import * as hooks from './hooks.ts';
  * Fast lookup by context type, then by link ID.
  * Makes adding/removing links efficient.
  */
-const registry = new Map();
+const registry: Map<string, Map<string, NormalizedLinkConfig>> = new Map();
 
 /**
  * Permissions module reference (set by init)
  */
-let permissionsModule = null;
+let permissionsModule: PermissionsModule | null = null;
 
 /**
  * Router module reference (set by init)
  */
-let routerModule = null;
+let routerModule: RouterModule | null = null;
 
 /**
  * Current destination URL (for "return to this page")
  */
-let currentDestination = null;
+let currentDestination: string | null = null;
+
+// ============================================================================
+// Public API
+// ============================================================================
 
 /**
  * Initialize contextual links system
- *
- * @param {Object} permissions - Permissions module
- * @param {Object} router - Router module
  *
  * WHY DEPENDENCY INJECTION:
  * Contextual links need to check permissions and build URLs.
  * Injecting dependencies makes testing easier and avoids circular imports.
  */
-export function init(permissions, router) {
+export function init(permissions: PermissionsModule, router: RouterModule): void {
   permissionsModule = permissions;
   routerModule = router;
 }
 
 /**
  * Register contextual links for a context type
- *
- * @param {string} contextType - Context type (e.g., 'content', 'block')
- * @param {Object} links - Link definitions
  *
  * @example
  * register('content', {
@@ -101,7 +180,7 @@ export function init(permissions, router) {
  *   }
  * });
  */
-export function register(contextType, links) {
+export function register(contextType: string, links: Record<string, RawLinkConfig>): void {
   if (!contextType || typeof contextType !== 'string') {
     throw new TypeError('Context type must be a non-empty string');
   }
@@ -115,7 +194,7 @@ export function register(contextType, links) {
     registry.set(contextType, new Map());
   }
 
-  const contextMap = registry.get(contextType);
+  const contextMap = registry.get(contextType) as Map<string, NormalizedLinkConfig>;
 
   // Add each link
   for (const [linkId, config] of Object.entries(links)) {
@@ -127,10 +206,9 @@ export function register(contextType, links) {
 /**
  * Validate link configuration
  *
- * @param {Object} config - Link config
- * @throws {TypeError} If config is invalid
+ * @throws TypeError If config is invalid
  */
-function validateLinkConfig(config) {
+function validateLinkConfig(config: RawLinkConfig): void {
   if (!config.title || typeof config.title !== 'string') {
     throw new TypeError('Link config must have a title string');
   }
@@ -150,19 +228,16 @@ function validateLinkConfig(config) {
 
 /**
  * Normalize link configuration
- *
- * @param {Object} config - Raw config
- * @returns {Object} - Normalized config
  */
-function normalizeConfig(config) {
+function normalizeConfig(config: RawLinkConfig): NormalizedLinkConfig {
   return {
     title: config.title,
     path: config.path,
-    permission: config.permission || null,
+    permission: config.permission ?? null,
     weight: config.weight ?? 10,
-    icon: config.icon || null,
-    confirm: config.confirm || null,
-    condition: config.condition || null,
+    icon: config.icon ?? null,
+    confirm: config.confirm ?? null,
+    condition: config.condition ?? null,
     group: config.group || 'primary',
     attributes: config.attributes || {},
   };
@@ -170,51 +245,41 @@ function normalizeConfig(config) {
 
 /**
  * Add a single link to a context type
- *
- * @param {string} contextType - Context type
- * @param {string} linkId - Link identifier
- * @param {Object} config - Link configuration
  */
-export function addLink(contextType, linkId, config) {
+export function addLink(contextType: string, linkId: string, config: RawLinkConfig): void {
   if (!registry.has(contextType)) {
     registry.set(contextType, new Map());
   }
 
   validateLinkConfig(config);
 
-  const contextMap = registry.get(contextType);
+  const contextMap = registry.get(contextType) as Map<string, NormalizedLinkConfig>;
   contextMap.set(linkId, normalizeConfig(config));
 }
 
 /**
  * Remove a link from a context type
  *
- * @param {string} contextType - Context type
- * @param {string} linkId - Link identifier
- * @returns {boolean} - True if link was removed
+ * @returns True if link was removed
  */
-export function removeLink(contextType, linkId) {
+export function removeLink(contextType: string, linkId: string): boolean {
   if (!registry.has(contextType)) {
     return false;
   }
 
-  const contextMap = registry.get(contextType);
+  const contextMap = registry.get(contextType) as Map<string, NormalizedLinkConfig>;
   return contextMap.delete(linkId);
 }
 
 /**
  * Replace template variables in a string
  *
- * @param {string} template - Template string with {{var}} placeholders
- * @param {Object} context - Context data
- * @returns {string} - String with variables replaced
- *
  * WHY DOUBLE BRACES:
  * Common template syntax, easy to spot in URLs.
  * Example: /admin/content/{{type}}/{{id}}/edit
  */
-function replaceTemplateVars(template, context) {
-  return template.replace(/\{\{(\w+)\}\}/g, (match, key) => {
+function replaceTemplateVars(template: string, context: ContextData): string {
+  return template.replace(/\{\{(\w+)\}\}/g, (match: string, key: string) => {
     // Look for key in context, support nested paths
     const value = getNestedValue(context, key);
     return value !== undefined ? String(value) : match;
@@ -224,17 +289,16 @@ function replaceTemplateVars(template, context) {
 /**
  * Get nested value from object by path
  *
- * @param {Object} obj - Object to search
- * @param {string} path - Dot-separated path (e.g., 'user.id')
- * @returns {*} - Value or undefined
+ * @param obj - Object to search
+ * @param path - Dot-separated path (e.g., 'user.id')
  */
-function getNestedValue(obj, path) {
+function getNestedValue(obj: ContextData, path: string): unknown {
   const keys = path.split('.');
-  let value = obj;
+  let value: unknown = obj;
 
   for (const key of keys) {
-    if (value && typeof value === 'object' && key in value) {
-      value = value[key];
+    if (value && typeof value === 'object' && key in (value as Record<string, unknown>)) {
+      value = (value as Record<string, unknown>)[key];
     } else {
       return undefined;
     }
@@ -245,13 +309,12 @@ function getNestedValue(obj, path) {
 
 /**
  * Check if user has permission for a link
- *
- * @param {Object} user - User object
- * @param {string} permission - Permission string (may have templates)
- * @param {Object} context - Context data
- * @returns {Promise<boolean>} - True if user has permission
  */
-async function checkLinkPermission(user, permission, context) {
+async function checkLinkPermission(
+  user: User,
+  permission: string | null,
+  context: ContextData,
+): Promise<boolean> {
   if (!permission) {
     // No permission required
     return true;
@@ -270,12 +333,8 @@ async function checkLinkPermission(user, permission, context) {
 
 /**
  * Check if link condition is met
- *
- * @param {Function|null} condition - Condition function
- * @param {Object} context - Context data
- * @returns {boolean} - True if condition met or no condition
  */
-function checkCondition(condition, context) {
+function checkCondition(condition: ConditionFn | null, context: ContextData): boolean {
   if (!condition) {
     return true;
   }
@@ -283,18 +342,14 @@ function checkCondition(condition, context) {
   try {
     return Boolean(condition(context));
   } catch (error) {
-    console.error('[contextual] Error in link condition:', error.message);
+    const message = error instanceof Error ? error.message : String(error);
+    console.error('[contextual] Error in link condition:', message);
     return false;
   }
 }
 
 /**
  * Get links for a context
- *
- * @param {string} contextType - Context type
- * @param {Object} context - Context data (content, block, etc.)
- * @param {Object} user - Current user
- * @returns {Promise<Array>} - Array of link objects
  *
  * PROCESS:
  * 1. Get registered links for context type
@@ -304,13 +359,17 @@ function checkCondition(condition, context) {
  * 5. Sort by weight
  * 6. Emit hook for alteration
  */
-export async function getLinks(contextType, context = {}, user = null) {
+export async function getLinks(
+  contextType: string,
+  context: ContextData = {},
+  user: User = null,
+): Promise<ResolvedLink[]> {
   if (!registry.has(contextType)) {
     return [];
   }
 
-  const contextMap = registry.get(contextType);
-  const links = [];
+  const contextMap = registry.get(contextType) as Map<string, NormalizedLinkConfig>;
+  const links: ResolvedLink[] = [];
 
   // Process each registered link
   for (const [linkId, config] of contextMap.entries()) {
@@ -326,7 +385,7 @@ export async function getLinks(contextType, context = {}, user = null) {
     }
 
     // Build link object
-    const link = {
+    const link: ResolvedLink = {
       id: linkId,
       title: replaceTemplateVars(config.title, context),
       path: replaceTemplateVars(config.path, context),
@@ -349,7 +408,7 @@ export async function getLinks(contextType, context = {}, user = null) {
   links.sort((a, b) => a.weight - b.weight);
 
   // Allow modules to alter links
-  const hookContext = {
+  const hookContext: ContextualHookContext = {
     contextType,
     context,
     user,
@@ -364,11 +423,6 @@ export async function getLinks(contextType, context = {}, user = null) {
 /**
  * Render links as HTML
  *
- * @param {string} contextType - Context type
- * @param {Object} context - Context data
- * @param {Object} user - Current user
- * @returns {Promise<string>} - HTML string
- *
  * OUTPUT FORMAT:
  * <div class="contextual-links" data-context-type="content">
  *   <button class="contextual-trigger">Actions</button>
@@ -379,7 +433,11 @@ export async function getLinks(contextType, context = {}, user = null) {
  *   </ul>
  * </div>
  */
-export async function renderLinks(contextType, context = {}, user = null) {
+export async function renderLinks(
+  contextType: string,
+  context: ContextData = {},
+  user: User = null,
+): Promise<string> {
   const links = await getLinks(contextType, context, user);
 
   if (links.length === 0) {
@@ -387,7 +445,7 @@ export async function renderLinks(contextType, context = {}, user = null) {
   }
 
   // Emit render hook
-  const hookContext = {
+  const hookContext: ContextualHookContext = {
     contextType,
     context,
     user,
@@ -404,7 +462,7 @@ export async function renderLinks(contextType, context = {}, user = null) {
 
   // Generate default HTML
   const menuItems = links.map(link => {
-    const attrs = [`href="${escapeHtml(link.path)}"`];
+    const attrs: string[] = [`href="${escapeHtml(link.path)}"`];
 
     if (link.icon) {
       attrs.push(`data-icon="${escapeHtml(link.icon)}"`);
@@ -435,19 +493,18 @@ ${menuItems}
 /**
  * Render wrapper with contextual links
  *
- * @param {string} content - Content HTML
- * @param {string} contextType - Context type
- * @param {Object} context - Context data
- * @param {Object} user - Current user
- * @returns {Promise<string>} - HTML with contextual links wrapper
- *
  * OUTPUT:
  * <div class="contextual-wrapper">
  *   [contextual links]
  *   [content]
  * </div>
  */
-export async function renderWrapper(content, contextType, context = {}, user = null) {
+export async function renderWrapper(
+  content: string,
+  contextType: string,
+  context: ContextData = {},
+  user: User = null,
+): Promise<string> {
   const linksHtml = await renderLinks(contextType, context, user);
 
   if (!linksHtml) {
@@ -455,7 +512,8 @@ export async function renderWrapper(content, contextType, context = {}, user = n
     return content;
   }
 
-  return `<div class="contextual-wrapper" data-context-id="${escapeHtml(context.id || 'unknown')}">
+  const id = (context as { id?: unknown }).id;
+  return `<div class="contextual-wrapper" data-context-id="${escapeHtml(String(id ?? 'unknown'))}">
   ${linksHtml}
   ${content}
 </div>`;
@@ -464,16 +522,15 @@ export async function renderWrapper(content, contextType, context = {}, user = n
 /**
  * Check if any links exist for a context
  *
- * @param {string} contextType - Context type
- * @param {Object} context - Context data
- * @param {Object} user - Current user
- * @returns {Promise<boolean>} - True if any links available
- *
  * WHY THIS EXISTS:
  * Avoid expensive rendering if no links will show.
  * Can skip wrapper div entirely if no contextual links.
  */
-export async function hasAnyLinks(contextType, context = {}, user = null) {
+export async function hasAnyLinks(
+  contextType: string,
+  context: ContextData = {},
+  user: User = null,
+): Promise<boolean> {
   const links = await getLinks(contextType, context, user);
   return links.length > 0;
 }
@@ -481,43 +538,36 @@ export async function hasAnyLinks(contextType, context = {}, user = null) {
 /**
  * Set destination URL for return navigation
  *
- * @param {string} url - Destination URL
- *
  * WHY THIS EXISTS:
  * After editing content, user should return to the page they came from.
  * Set this to current page URL before rendering contextual links.
  */
-export function setDestination(url) {
+export function setDestination(url: string): void {
   currentDestination = url;
 }
 
 /**
  * Get current destination URL
- *
- * @returns {string|null} - Current destination or null
  */
-export function getDestination() {
+export function getDestination(): string | null {
   return currentDestination;
 }
 
 /**
  * Clear current destination
  */
-export function clearDestination() {
+export function clearDestination(): void {
   currentDestination = null;
 }
 
 /**
  * Escape HTML special characters
  *
- * @param {string} str - String to escape
- * @returns {string} - Escaped string
- *
  * WHY NOT USE A LIBRARY:
  * Simple operation, no need for external dependency.
  * Protects against XSS in link attributes.
  */
-function escapeHtml(str) {
+function escapeHtml(str: string): string {
   if (typeof str !== 'string') {
     return '';
   }
@@ -532,26 +582,21 @@ function escapeHtml(str) {
 
 /**
  * Get all registered context types
- *
- * @returns {string[]} - Array of context types
  */
-export function listContextTypes() {
+export function listContextTypes(): string[] {
   return Array.from(registry.keys());
 }
 
 /**
  * Get all links for a context type (raw configs)
- *
- * @param {string} contextType - Context type
- * @returns {Object} - Link configs by ID
  */
-export function getLinkConfigs(contextType) {
+export function getLinkConfigs(contextType: string): Record<string, NormalizedLinkConfig> {
   if (!registry.has(contextType)) {
     return {};
   }
 
-  const contextMap = registry.get(contextType);
-  const result = {};
+  const contextMap = registry.get(contextType) as Map<string, NormalizedLinkConfig>;
+  const result: Record<string, NormalizedLinkConfig> = {};
 
   for (const [linkId, config] of contextMap.entries()) {
     result[linkId] = { ...config };
@@ -563,25 +608,22 @@ export function getLinkConfigs(contextType) {
 /**
  * Clear all links for a context type
  *
- * @param {string} contextType - Context type
- * @returns {boolean} - True if context type existed
+ * @returns True if context type existed
  */
-export function clearContext(contextType) {
+export function clearContext(contextType: string): boolean {
   return registry.delete(contextType);
 }
 
 /**
  * Clear all contextual links (mainly for testing)
  */
-export function clear() {
+export function clear(): void {
   registry.clear();
 }
 
 /**
  * Check if contextual system is initialized
- *
- * @returns {boolean} - True if initialized
  */
-export function isInitialized() {
+export function isInitialized(): boolean {
   return permissionsModule !== null && routerModule !== null;
 }

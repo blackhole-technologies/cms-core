@@ -46,38 +46,179 @@ import { join } from 'node:path';
 import { randomBytes } from 'node:crypto';
 
 // ============================================
+// TYPE DEFINITIONS
+// ============================================
+
+/** A region within a layout definition */
+interface LayoutRegion {
+  /** Region label (e.g., 'First Column') */
+  label: string;
+  /** Optional description */
+  description?: string;
+  /** Display order (lower = first) */
+  weight?: number;
+}
+
+/** A layout definition describing a column/region template */
+interface LayoutDefinition {
+  /** Unique layout ID (e.g., 'two_column') */
+  id: string;
+  /** Human-readable label */
+  label: string;
+  /** Optional description */
+  description: string;
+  /** Layout category (e.g., 'Columns', 'Grid') */
+  category: string;
+  /** Icon identifier */
+  icon: string;
+  /** Regions in this layout */
+  regions: Record<string, LayoutRegion>;
+  /** Optional template string/path */
+  template: string | null;
+  /** Default settings for new sections */
+  defaultSettings: Record<string, unknown>;
+  /** Where this layout came from ('builtin', 'config', 'custom') */
+  source?: string;
+}
+
+/** Input for registering a layout (partial, pre-defaults) */
+interface LayoutDefinitionInput {
+  id: string;
+  label?: string;
+  description?: string;
+  category?: string;
+  icon?: string;
+  regions: Record<string, LayoutRegion>;
+  template?: string | null;
+  defaultSettings?: Record<string, unknown>;
+  source?: string;
+}
+
+/** A component placed within a section region */
+interface SectionComponent {
+  /** Unique identifier for this component */
+  uuid: string;
+  /** Component type ('block', 'field', 'inline_block') */
+  type: string;
+  /** For type='block', the block instance ID */
+  blockId?: string;
+  /** For type='inline_block', the block type ID */
+  blockType?: string;
+  /** For type='field', the content field name */
+  fieldName?: string;
+  /** Type-specific configuration */
+  configuration?: Record<string, unknown>;
+  /** Order within the region (lower = first) */
+  weight: number;
+}
+
+/** A section instance within a layout */
+interface Section {
+  /** Unique identifier for this section instance */
+  uuid: string;
+  /** ID of the layout definition to use */
+  layoutId: string;
+  /** Layout-specific settings (e.g., column widths) */
+  settings: Record<string, unknown>;
+  /** Components keyed by region ID */
+  components: Record<string, SectionComponent[]>;
+  /** Section order (lower = first) */
+  weight: number;
+}
+
+/** Serialized layout storage format */
+interface LayoutStorage {
+  /** Optional identifier (for content type defaults) */
+  id?: string;
+  /** Ordered array of sections */
+  sections: Section[];
+  /** Last update timestamp */
+  updated?: string;
+}
+
+/** Result from validateLayout() */
+interface ValidationResult {
+  valid: boolean;
+  errors: string[];
+}
+
+/** Render context passed to component/section renderers */
+interface RenderContext {
+  content?: Record<string, unknown>;
+  [key: string]: unknown;
+}
+
+/** Cached rendered layout entry */
+interface RenderCacheEntry {
+  html: string;
+  timestamp: number;
+}
+
+/** Configuration for the layout builder module */
+interface LayoutBuilderConfig {
+  enabled: boolean;
+  /** Enable per-content layout overrides (requires content types to opt-in) */
+  enableOverrides: boolean;
+  /** Default cache TTL for rendered layouts (seconds) */
+  cacheTtl: number;
+  /** CSS class prefix for layout elements */
+  classPrefix: string;
+}
+
+/** Custom layouts config file structure */
+interface CustomLayoutsFile {
+  layouts: Record<string, LayoutDefinitionInput>;
+}
+
+// ---- Service interfaces (describing the methods we call) ----
+
+interface ContentServiceInterface {
+  read(contentType: string, contentId: string): Record<string, unknown> | null;
+  update(contentType: string, contentId: string, data: Record<string, unknown>): Promise<void>;
+}
+
+interface BlocksServiceInterface {
+  renderBlock(blockId: string, context: RenderContext): Promise<{ html?: string }>;
+  getBlockType(blockType: string): { render?: (block: Record<string, unknown>, context: RenderContext) => Promise<string> } | null;
+}
+
+interface HooksServiceInterface {
+  invoke(hook: string, data: Record<string, unknown>): Promise<Record<string, unknown> | void>;
+}
+
+// ============================================
 // MODULE STATE
 // ============================================
 
 /**
  * Base directory for storage
  */
-let baseDir = null;
+let baseDir: string | null = null;
 
 /**
  * Content service reference
  */
-let contentService = null;
+let contentService: ContentServiceInterface | null = null;
 
 /**
  * Blocks service reference
  */
-let blocksService = null;
+let blocksService: BlocksServiceInterface | null = null;
 
 /**
  * Hooks service reference
  */
-let hooksService = null;
+let hooksService: HooksServiceInterface | null = null;
 
 /**
- * Template service reference
+ * Template service reference (reserved for future template-based layout rendering)
  */
-let templateService = null;
+let templateService: unknown = null;
 
 /**
  * Configuration
  */
-let config = {
+let config: LayoutBuilderConfig = {
   enabled: true,
   /** Enable per-content layout overrides (requires content types to opt-in) */
   enableOverrides: true,
@@ -91,67 +232,19 @@ let config = {
  * In-memory layout definitions registry
  * Structure: { layoutId: LayoutDefinition }
  */
-const layoutDefinitions = {};
+const layoutDefinitions: Record<string, LayoutDefinition> = {};
 
 /**
  * Content type default layouts cache
  * Structure: { contentType: LayoutStorage }
  */
-const defaultLayouts = {};
+const defaultLayouts: Record<string, LayoutStorage> = {};
 
 /**
  * Rendered layout cache
  * Structure: Map of cacheKey -> { html, timestamp }
  */
-const renderCache = new Map();
-
-// ============================================
-// TYPE DEFINITIONS (JSDoc)
-// ============================================
-
-/**
- * @typedef {Object} LayoutDefinition
- * @property {string} id - Unique layout ID (e.g., 'two_column')
- * @property {string} label - Human-readable label
- * @property {string} [description] - Optional description
- * @property {string} [category] - Layout category (e.g., 'Columns', 'Grid')
- * @property {string} [icon] - Icon identifier
- * @property {Object.<string, LayoutRegion>} regions - Regions in this layout
- * @property {string} [template] - Optional template string/path
- * @property {Object} [defaultSettings] - Default settings for new sections
- */
-
-/**
- * @typedef {Object} LayoutRegion
- * @property {string} label - Region label (e.g., 'First Column')
- * @property {string} [description] - Optional description
- * @property {number} [weight] - Display order (lower = first)
- */
-
-/**
- * @typedef {Object} Section
- * @property {string} uuid - Unique identifier for this section instance
- * @property {string} layoutId - ID of the layout definition to use
- * @property {Object} settings - Layout-specific settings (e.g., column widths)
- * @property {Object.<string, SectionComponent[]>} components - Components keyed by region
- * @property {number} weight - Section order (lower = first)
- */
-
-/**
- * @typedef {Object} SectionComponent
- * @property {string} uuid - Unique identifier for this component
- * @property {string} type - Component type ('block', 'field', 'inline_block')
- * @property {string} [blockId] - For type='block', the block instance ID
- * @property {Object} [configuration] - Type-specific configuration
- * @property {number} weight - Order within the region (lower = first)
- */
-
-/**
- * @typedef {Object} LayoutStorage
- * @property {string} [id] - Optional identifier (for content type defaults)
- * @property {Section[]} sections - Ordered array of sections
- * @property {string} [updated] - Last update timestamp
- */
+const renderCache: Map<string, RenderCacheEntry> = new Map();
 
 // ============================================
 // INITIALIZATION
@@ -160,16 +253,16 @@ const renderCache = new Map();
 /**
  * Initialize Layout Builder
  *
- * @param {string} directory - Base directory
- * @param {Object} contentSvc - Content service instance
- * @param {Object} blocksSvc - Blocks service instance
- * @param {Object} cfg - Configuration options
- *
  * WHY DEPENDENCIES:
  * - Content service: read/write content items with layouts
  * - Blocks service: render block components
  */
-export function init(directory, contentSvc, blocksSvc, cfg = {}) {
+export function init(
+  directory: string,
+  contentSvc: ContentServiceInterface,
+  blocksSvc: BlocksServiceInterface,
+  cfg: Partial<LayoutBuilderConfig> = {},
+): void {
   baseDir = directory;
   contentService = contentSvc;
   blocksService = blocksSvc;
@@ -193,17 +286,15 @@ export function init(directory, contentSvc, blocksSvc, cfg = {}) {
 
 /**
  * Set hooks service reference
- * @param {Object} service - Hooks service
  */
-export function setHooks(service) {
+export function setHooks(service: HooksServiceInterface): void {
   hooksService = service;
 }
 
 /**
  * Set template service reference
- * @param {Object} service - Template service
  */
-export function setTemplate(service) {
+export function setTemplate(service: unknown): void {
   templateService = service;
 }
 
@@ -219,7 +310,7 @@ export function setTemplate(service) {
  * - Examples for custom layout creation
  * - Work out-of-box without configuration
  */
-function registerBuiltinLayouts() {
+function registerBuiltinLayouts(): void {
   // One Column - Full Width
   registerLayout({
     id: 'one_column',
@@ -354,10 +445,9 @@ function registerBuiltinLayouts() {
 /**
  * Register a layout definition
  *
- * @param {LayoutDefinition} definition - Layout definition
  * @throws {Error} If layout ID already exists or required fields missing
  */
-export function registerLayout(definition) {
+export function registerLayout(definition: LayoutDefinitionInput): void {
   if (!definition.id) {
     throw new Error('Layout definition requires an ID');
   }
@@ -384,17 +474,16 @@ export function registerLayout(definition) {
 
   // Fire hook
   if (hooksService) {
-    hooksService.invoke('layout:register', { layout: layoutDefinitions[definition.id] });
+    hooksService.invoke('layout:register', { layout: layoutDefinitions[definition.id]! });
   }
 }
 
 /**
  * Unregister a layout definition
  *
- * @param {string} layoutId - Layout ID to remove
  * @throws {Error} If layout is in use
  */
-export function unregisterLayout(layoutId) {
+export function unregisterLayout(layoutId: string): void {
   if (!layoutDefinitions[layoutId]) {
     throw new Error(`Layout not found: ${layoutId}`);
   }
@@ -413,22 +502,15 @@ export function unregisterLayout(layoutId) {
 
 /**
  * Get a layout definition by ID
- *
- * @param {string} layoutId - Layout ID
- * @returns {LayoutDefinition|null}
  */
-export function getLayout(layoutId) {
+export function getLayout(layoutId: string): LayoutDefinition | null {
   return layoutDefinitions[layoutId] || null;
 }
 
 /**
  * List all layout definitions
- *
- * @param {Object} options - Filter options
- * @param {string} [options.category] - Filter by category
- * @returns {LayoutDefinition[]}
  */
-export function listLayouts(options = {}) {
+export function listLayouts(options: { category?: string } = {}): LayoutDefinition[] {
   let layouts = Object.values(layoutDefinitions);
 
   if (options.category) {
@@ -446,11 +528,9 @@ export function listLayouts(options = {}) {
 
 /**
  * List layout categories
- *
- * @returns {string[]}
  */
-export function listCategories() {
-  const categories = new Set();
+export function listCategories(): string[] {
+  const categories = new Set<string>();
   Object.values(layoutDefinitions).forEach(l => categories.add(l.category));
   return Array.from(categories).sort();
 }
@@ -458,40 +538,39 @@ export function listCategories() {
 /**
  * Load custom layouts from config/layouts.json
  */
-function loadCustomLayouts() {
-  const layoutsPath = join(baseDir, 'config', 'layouts.json');
+function loadCustomLayouts(): void {
+  const layoutsPath = join(baseDir!, 'config', 'layouts.json');
 
   if (!existsSync(layoutsPath)) {
     return;
   }
 
   try {
-    const data = JSON.parse(readFileSync(layoutsPath, 'utf-8'));
+    const data = JSON.parse(readFileSync(layoutsPath, 'utf-8')) as CustomLayoutsFile;
 
     for (const [id, def] of Object.entries(data.layouts || {})) {
       if (!layoutDefinitions[id]) {
         registerLayout({ ...def, id, source: 'config' });
       }
     }
-  } catch (err) {
-    console.error('[layout-builder] Failed to load custom layouts:', err.message);
+  } catch (err: unknown) {
+    const message = err instanceof Error ? err.message : String(err);
+    console.error('[layout-builder] Failed to load custom layouts:', message);
   }
 }
 
 /**
  * Save custom layout to config/layouts.json
- *
- * @param {LayoutDefinition} definition - Layout to save
  */
-export function saveCustomLayout(definition) {
-  const layoutsPath = join(baseDir, 'config', 'layouts.json');
+export function saveCustomLayout(definition: LayoutDefinition): void {
+  const layoutsPath = join(baseDir!, 'config', 'layouts.json');
 
-  let data = { layouts: {} };
+  let data: CustomLayoutsFile = { layouts: {} };
 
   if (existsSync(layoutsPath)) {
     try {
-      data = JSON.parse(readFileSync(layoutsPath, 'utf-8'));
-    } catch (err) {
+      data = JSON.parse(readFileSync(layoutsPath, 'utf-8')) as CustomLayoutsFile;
+    } catch (_err: unknown) {
       // Start fresh
     }
   }
@@ -506,21 +585,15 @@ export function saveCustomLayout(definition) {
 
 /**
  * Generate a unique UUID for sections/components
- *
- * @returns {string}
  */
-function generateUuid() {
+function generateUuid(): string {
   return randomBytes(16).toString('hex');
 }
 
 /**
  * Create a new section
- *
- * @param {string} layoutId - Layout definition to use
- * @param {Object} settings - Layout-specific settings
- * @returns {Section}
  */
-export function createSection(layoutId, settings = {}) {
+export function createSection(layoutId: string, settings: Record<string, unknown> = {}): Section {
   const layout = getLayout(layoutId);
 
   if (!layout) {
@@ -528,7 +601,7 @@ export function createSection(layoutId, settings = {}) {
   }
 
   // Initialize empty component arrays for each region
-  const components = {};
+  const components: Record<string, SectionComponent[]> = {};
   for (const regionId of Object.keys(layout.regions)) {
     components[regionId] = [];
   }
@@ -544,13 +617,8 @@ export function createSection(layoutId, settings = {}) {
 
 /**
  * Add a component to a section region
- *
- * @param {Section} section - Section to modify
- * @param {string} regionId - Target region
- * @param {SectionComponent} component - Component to add
- * @returns {Section} Modified section
  */
-export function addComponent(section, regionId, component) {
+export function addComponent(section: Section, regionId: string, component: SectionComponent): Section {
   const layout = getLayout(section.layoutId);
 
   if (!layout) {
@@ -572,31 +640,28 @@ export function addComponent(section, regionId, component) {
 
   // Set weight if not present
   if (component.weight === undefined) {
-    component.weight = section.components[regionId].length;
+    component.weight = section.components[regionId]!.length;
   }
 
-  section.components[regionId].push(component);
+  section.components[regionId]!.push(component);
 
   // Sort by weight
-  section.components[regionId].sort((a, b) => a.weight - b.weight);
+  section.components[regionId]!.sort((a, b) => a.weight - b.weight);
 
   return section;
 }
 
 /**
  * Remove a component from a section
- *
- * @param {Section} section - Section to modify
- * @param {string} componentUuid - Component UUID to remove
- * @returns {Section} Modified section
  */
-export function removeComponent(section, componentUuid) {
+export function removeComponent(section: Section, componentUuid: string): Section {
   for (const regionId of Object.keys(section.components)) {
-    const index = section.components[regionId].findIndex(c => c.uuid === componentUuid);
+    const regionComponents = section.components[regionId]!;
+    const index = regionComponents.findIndex(c => c.uuid === componentUuid);
     if (index !== -1) {
-      section.components[regionId].splice(index, 1);
+      regionComponents.splice(index, 1);
       // Recompute weights
-      section.components[regionId].forEach((c, i) => {
+      regionComponents.forEach((c, i) => {
         c.weight = i;
       });
       break;
@@ -608,21 +673,21 @@ export function removeComponent(section, componentUuid) {
 
 /**
  * Move a component within or between regions
- *
- * @param {Section} section - Section to modify
- * @param {string} componentUuid - Component to move
- * @param {string} targetRegion - Target region
- * @param {number} targetIndex - Target position
- * @returns {Section} Modified section
  */
-export function moveComponent(section, componentUuid, targetRegion, targetIndex) {
+export function moveComponent(
+  section: Section,
+  componentUuid: string,
+  targetRegion: string,
+  targetIndex: number,
+): Section {
   // Find and remove the component from its current location
-  let component = null;
+  let component: SectionComponent | null = null;
 
   for (const regionId of Object.keys(section.components)) {
-    const index = section.components[regionId].findIndex(c => c.uuid === componentUuid);
+    const regionComponents = section.components[regionId]!;
+    const index = regionComponents.findIndex(c => c.uuid === componentUuid);
     if (index !== -1) {
-      component = section.components[regionId].splice(index, 1)[0];
+      component = regionComponents.splice(index, 1)[0]!;
       break;
     }
   }
@@ -636,11 +701,11 @@ export function moveComponent(section, componentUuid, targetRegion, targetIndex)
     section.components[targetRegion] = [];
   }
 
-  section.components[targetRegion].splice(targetIndex, 0, component);
+  section.components[targetRegion]!.splice(targetIndex, 0, component);
 
   // Recompute weights for all regions
   for (const regionId of Object.keys(section.components)) {
-    section.components[regionId].forEach((c, i) => {
+    section.components[regionId]!.forEach((c, i) => {
       c.weight = i;
     });
   }
@@ -650,12 +715,11 @@ export function moveComponent(section, componentUuid, targetRegion, targetIndex)
 
 /**
  * Create a block component
- *
- * @param {string} blockId - Block instance ID
- * @param {Object} configuration - Block configuration overrides
- * @returns {SectionComponent}
  */
-export function createBlockComponent(blockId, configuration = {}) {
+export function createBlockComponent(
+  blockId: string,
+  configuration: Record<string, unknown> = {},
+): SectionComponent {
   return {
     uuid: generateUuid(),
     type: 'block',
@@ -667,12 +731,11 @@ export function createBlockComponent(blockId, configuration = {}) {
 
 /**
  * Create an inline block component (block defined within the layout)
- *
- * @param {string} blockType - Block type ID
- * @param {Object} blockConfig - Block configuration
- * @returns {SectionComponent}
  */
-export function createInlineBlockComponent(blockType, blockConfig = {}) {
+export function createInlineBlockComponent(
+  blockType: string,
+  blockConfig: Record<string, unknown> = {},
+): SectionComponent {
   return {
     uuid: generateUuid(),
     type: 'inline_block',
@@ -684,12 +747,11 @@ export function createInlineBlockComponent(blockType, blockConfig = {}) {
 
 /**
  * Create a field component (renders a content field)
- *
- * @param {string} fieldName - Content field name
- * @param {Object} configuration - Display configuration
- * @returns {SectionComponent}
  */
-export function createFieldComponent(fieldName, configuration = {}) {
+export function createFieldComponent(
+  fieldName: string,
+  configuration: Record<string, unknown> = {},
+): SectionComponent {
   return {
     uuid: generateUuid(),
     type: 'field',
@@ -705,19 +767,16 @@ export function createFieldComponent(fieldName, configuration = {}) {
 
 /**
  * Get path for content type default layout
- *
- * @param {string} contentType - Content type
- * @returns {string}
  */
-function getDefaultLayoutPath(contentType) {
-  return join(baseDir, 'config', 'layout-defaults', `${contentType}.json`);
+function getDefaultLayoutPath(contentType: string): string {
+  return join(baseDir!, 'config', 'layout-defaults', `${contentType}.json`);
 }
 
 /**
  * Load default layouts for all content types
  */
-function loadDefaultLayouts() {
-  const layoutsDir = join(baseDir, 'config', 'layout-defaults');
+function loadDefaultLayouts(): void {
+  const layoutsDir = join(baseDir!, 'config', 'layout-defaults');
 
   if (!existsSync(layoutsDir)) {
     return;
@@ -732,31 +791,26 @@ function loadDefaultLayouts() {
     const filePath = join(layoutsDir, file);
 
     try {
-      const data = JSON.parse(readFileSync(filePath, 'utf-8'));
+      const data = JSON.parse(readFileSync(filePath, 'utf-8')) as LayoutStorage;
       defaultLayouts[contentType] = data;
-    } catch (err) {
-      console.error(`[layout-builder] Failed to load default layout for ${contentType}:`, err.message);
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : String(err);
+      console.error(`[layout-builder] Failed to load default layout for ${contentType}:`, message);
     }
   }
 }
 
 /**
  * Get default layout for a content type
- *
- * @param {string} contentType - Content type
- * @returns {LayoutStorage|null}
  */
-export function getDefaultLayout(contentType) {
+export function getDefaultLayout(contentType: string): LayoutStorage | null {
   return defaultLayouts[contentType] || null;
 }
 
 /**
  * Set default layout for a content type
- *
- * @param {string} contentType - Content type
- * @param {LayoutStorage} layout - Layout storage
  */
-export async function setDefaultLayout(contentType, layout) {
+export async function setDefaultLayout(contentType: string, layout: LayoutStorage): Promise<void> {
   // Validate sections
   for (const section of layout.sections || []) {
     if (!getLayout(section.layoutId)) {
@@ -779,10 +833,8 @@ export async function setDefaultLayout(contentType, layout) {
 
 /**
  * Delete default layout for a content type
- *
- * @param {string} contentType - Content type
  */
-export async function deleteDefaultLayout(contentType) {
+export async function deleteDefaultLayout(contentType: string): Promise<void> {
   delete defaultLayouts[contentType];
 
   const filePath = getDefaultLayoutPath(contentType);
@@ -798,10 +850,8 @@ export async function deleteDefaultLayout(contentType) {
 
 /**
  * List content types with default layouts
- *
- * @returns {string[]}
  */
-export function listDefaultLayouts() {
+export function listDefaultLayouts(): string[] {
   return Object.keys(defaultLayouts);
 }
 
@@ -812,19 +862,18 @@ export function listDefaultLayouts() {
 /**
  * Get effective layout for a content item
  * Returns override if exists, otherwise default, otherwise null
- *
- * @param {string} contentType - Content type
- * @param {string} contentId - Content ID (optional, for override lookup)
- * @param {Object} contentItem - Content item (optional, if already loaded)
- * @returns {LayoutStorage|null}
  */
-export function getEffectiveLayout(contentType, contentId = null, contentItem = null) {
+export function getEffectiveLayout(
+  contentType: string,
+  contentId: string | null = null,
+  contentItem: Record<string, unknown> | null = null,
+): LayoutStorage | null {
   // Check for per-content override
   if (config.enableOverrides && contentId) {
     const item = contentItem || (contentService ? contentService.read(contentType, contentId) : null);
 
-    if (item && item._layout && item._layout.sections) {
-      return item._layout;
+    if (item && item._layout && (item._layout as LayoutStorage).sections) {
+      return item._layout as LayoutStorage;
     }
   }
 
@@ -834,12 +883,12 @@ export function getEffectiveLayout(contentType, contentId = null, contentItem = 
 
 /**
  * Set layout override for a specific content item
- *
- * @param {string} contentType - Content type
- * @param {string} contentId - Content ID
- * @param {LayoutStorage} layout - Layout to save
  */
-export async function setContentLayout(contentType, contentId, layout) {
+export async function setContentLayout(
+  contentType: string,
+  contentId: string,
+  layout: LayoutStorage,
+): Promise<void> {
   if (!config.enableOverrides) {
     throw new Error('Per-content layout overrides are disabled');
   }
@@ -873,11 +922,8 @@ export async function setContentLayout(contentType, contentId, layout) {
 
 /**
  * Remove layout override from a content item (reverts to default)
- *
- * @param {string} contentType - Content type
- * @param {string} contentId - Content ID
  */
-export async function removeContentLayout(contentType, contentId) {
+export async function removeContentLayout(contentType: string, contentId: string): Promise<void> {
   if (!contentService) {
     throw new Error('Content service not initialized');
   }
@@ -897,18 +943,14 @@ export async function removeContentLayout(contentType, contentId) {
 
 /**
  * Check if content item has a layout override
- *
- * @param {string} contentType - Content type
- * @param {string} contentId - Content ID
- * @returns {boolean}
  */
-export function hasContentLayoutOverride(contentType, contentId) {
+export function hasContentLayoutOverride(contentType: string, contentId: string): boolean {
   if (!contentService) {
     return false;
   }
 
   const item = contentService.read(contentType, contentId);
-  return item && item._layout && Array.isArray(item._layout.sections);
+  return !!(item && item._layout && Array.isArray((item._layout as LayoutStorage).sections));
 }
 
 // ============================================
@@ -917,20 +959,17 @@ export function hasContentLayoutOverride(contentType, contentId) {
 
 /**
  * Build CSS classes for a layout section
- *
- * @param {Section} section - Section to build classes for
- * @param {LayoutDefinition} layout - Layout definition
- * @returns {string}
  */
-function buildSectionClasses(section, layout) {
+function buildSectionClasses(section: Section, layout: LayoutDefinition): string {
   const classes = [
     `${config.classPrefix}-section`,
     `${config.classPrefix}-${layout.id}`,
   ];
 
   // Add column width class if present
-  if (section.settings.columnWidths) {
-    classes.push(`${config.classPrefix}-${section.settings.columnWidths.replace(/-/g, '_')}`);
+  const columnWidths = section.settings.columnWidths as string | undefined;
+  if (columnWidths) {
+    classes.push(`${config.classPrefix}-${columnWidths.replace(/-/g, '_')}`);
   }
 
   return classes.join(' ');
@@ -938,12 +977,8 @@ function buildSectionClasses(section, layout) {
 
 /**
  * Build CSS classes for a region
- *
- * @param {string} regionId - Region ID
- * @param {LayoutDefinition} layout - Layout definition
- * @returns {string}
  */
-function buildRegionClasses(regionId, layout) {
+function buildRegionClasses(regionId: string, _layout: LayoutDefinition): string {
   return [
     `${config.classPrefix}-region`,
     `${config.classPrefix}-region-${regionId}`,
@@ -952,12 +987,8 @@ function buildRegionClasses(regionId, layout) {
 
 /**
  * Render a single component
- *
- * @param {SectionComponent} component - Component to render
- * @param {Object} context - Render context
- * @returns {Promise<string>} Rendered HTML
  */
-async function renderComponent(component, context) {
+async function renderComponent(component: SectionComponent, context: RenderContext): Promise<string> {
   let html = '';
 
   switch (component.type) {
@@ -975,12 +1006,12 @@ async function renderComponent(component, context) {
         const blockType = blocksService.getBlockType(component.blockType);
         if (blockType && blockType.render) {
           // Create a temporary block-like object
-          const pseudoBlock = {
+          const pseudoBlock: Record<string, unknown> = {
             id: component.uuid,
             type: component.blockType,
             config: component.configuration || {},
-            title: component.configuration?.title || '',
-            showTitle: component.configuration?.showTitle || false,
+            title: (component.configuration as Record<string, unknown> | undefined)?.title || '',
+            showTitle: (component.configuration as Record<string, unknown> | undefined)?.showTitle || false,
           };
           html = await blockType.render(pseudoBlock, context);
         }
@@ -1012,12 +1043,8 @@ async function renderComponent(component, context) {
 
 /**
  * Render a section
- *
- * @param {Section} section - Section to render
- * @param {Object} context - Render context
- * @returns {Promise<string>} Rendered HTML
  */
-async function renderSection(section, context) {
+async function renderSection(section: Section, context: RenderContext): Promise<string> {
   const layout = getLayout(section.layoutId);
 
   if (!layout) {
@@ -1031,13 +1058,13 @@ async function renderSection(section, context) {
   }
 
   // Render components for each region
-  const regionHtml = {};
+  const regionHtml: Record<string, string> = {};
   const sortedRegions = Object.entries(layout.regions)
     .sort((a, b) => (a[1].weight || 0) - (b[1].weight || 0));
 
-  for (const [regionId, regionDef] of sortedRegions) {
+  for (const [regionId, _regionDef] of sortedRegions) {
     const components = section.components[regionId] || [];
-    const componentHtmls = [];
+    const componentHtmls: string[] = [];
 
     for (const component of components.sort((a, b) => a.weight - b.weight)) {
       const componentHtml = await renderComponent(component, context);
@@ -1063,8 +1090,8 @@ ${regionsContent}
   // Fire after render hook
   if (hooksService) {
     const result = await hooksService.invoke('layout:section:afterRender', { section, html, context });
-    if (result && result.html !== undefined) {
-      html = result.html;
+    if (result && (result as Record<string, unknown>).html !== undefined) {
+      html = (result as Record<string, unknown>).html as string;
     }
   }
 
@@ -1073,12 +1100,11 @@ ${regionsContent}
 
 /**
  * Render a complete layout
- *
- * @param {LayoutStorage} layout - Layout storage to render
- * @param {Object} context - Render context
- * @returns {Promise<string>} Rendered HTML
  */
-export async function renderLayout(layout, context = {}) {
+export async function renderLayout(
+  layout: LayoutStorage,
+  context: RenderContext = {},
+): Promise<string> {
   if (!layout || !layout.sections || layout.sections.length === 0) {
     return '';
   }
@@ -1092,7 +1118,7 @@ export async function renderLayout(layout, context = {}) {
   const sortedSections = [...layout.sections].sort((a, b) => (a.weight || 0) - (b.weight || 0));
 
   // Render each section
-  const sectionHtmls = [];
+  const sectionHtmls: string[] = [];
 
   for (const section of sortedSections) {
     const sectionHtml = await renderSection(section, context);
@@ -1106,8 +1132,8 @@ export async function renderLayout(layout, context = {}) {
   // Fire after render hook
   if (hooksService) {
     const result = await hooksService.invoke('layout:afterRender', { layout, html, context });
-    if (result && result.html !== undefined) {
-      html = result.html;
+    if (result && (result as Record<string, unknown>).html !== undefined) {
+      html = (result as Record<string, unknown>).html as string;
     }
   }
 
@@ -1116,17 +1142,16 @@ export async function renderLayout(layout, context = {}) {
 
 /**
  * Render layout for a content item
- *
- * @param {string} contentType - Content type
- * @param {string} contentId - Content ID
- * @param {Object} context - Additional render context
- * @returns {Promise<string>} Rendered HTML
  */
-export async function renderContentLayout(contentType, contentId, context = {}) {
+export async function renderContentLayout(
+  contentType: string,
+  contentId: string,
+  context: RenderContext = {},
+): Promise<string> {
   // Check cache
   const cacheKey = `${contentType}:${contentId}:${JSON.stringify(context)}`;
   if (config.cacheTtl > 0 && renderCache.has(cacheKey)) {
-    const cached = renderCache.get(cacheKey);
+    const cached = renderCache.get(cacheKey)!;
     if (Date.now() - cached.timestamp < config.cacheTtl * 1000) {
       return cached.html;
     }
@@ -1135,7 +1160,7 @@ export async function renderContentLayout(contentType, contentId, context = {}) 
   // Load content if not in context
   let contentItem = context.content;
   if (!contentItem && contentService) {
-    contentItem = contentService.read(contentType, contentId);
+    contentItem = contentService.read(contentType, contentId) as Record<string, unknown> | null ?? undefined;
   }
 
   if (!contentItem) {
@@ -1166,10 +1191,8 @@ export async function renderContentLayout(contentType, contentId, context = {}) 
 
 /**
  * Clear render cache
- *
- * @param {string} [key] - Specific cache key prefix to clear (optional)
  */
-export function clearCache(key = null) {
+export function clearCache(key: string | null = null): void {
   if (key) {
     for (const cacheKey of renderCache.keys()) {
       if (cacheKey.startsWith(key)) {
@@ -1187,13 +1210,12 @@ export function clearCache(key = null) {
 
 /**
  * Add a section to a layout storage
- *
- * @param {LayoutStorage} storage - Layout storage to modify
- * @param {Section} section - Section to add
- * @param {number} [position] - Optional position (appends if not specified)
- * @returns {LayoutStorage} Modified storage
  */
-export function addSection(storage, section, position = null) {
+export function addSection(
+  storage: LayoutStorage,
+  section: Section,
+  position: number | null = null,
+): LayoutStorage {
   if (!storage.sections) {
     storage.sections = [];
   }
@@ -1218,12 +1240,8 @@ export function addSection(storage, section, position = null) {
 
 /**
  * Remove a section from a layout storage
- *
- * @param {LayoutStorage} storage - Layout storage to modify
- * @param {string} sectionUuid - Section UUID to remove
- * @returns {LayoutStorage} Modified storage
  */
-export function removeSection(storage, sectionUuid) {
+export function removeSection(storage: LayoutStorage, sectionUuid: string): LayoutStorage {
   if (!storage.sections) {
     return storage;
   }
@@ -1243,13 +1261,12 @@ export function removeSection(storage, sectionUuid) {
 
 /**
  * Move a section within a layout storage
- *
- * @param {LayoutStorage} storage - Layout storage to modify
- * @param {string} sectionUuid - Section UUID to move
- * @param {number} newPosition - New position index
- * @returns {LayoutStorage} Modified storage
  */
-export function moveSection(storage, sectionUuid, newPosition) {
+export function moveSection(
+  storage: LayoutStorage,
+  sectionUuid: string,
+  newPosition: number,
+): LayoutStorage {
   if (!storage.sections) {
     return storage;
   }
@@ -1263,7 +1280,7 @@ export function moveSection(storage, sectionUuid, newPosition) {
   const [section] = storage.sections.splice(index, 1);
 
   // Insert at new position
-  storage.sections.splice(newPosition, 0, section);
+  storage.sections.splice(newPosition, 0, section!);
 
   // Recompute weights
   storage.sections.forEach((s, i) => {
@@ -1276,12 +1293,8 @@ export function moveSection(storage, sectionUuid, newPosition) {
 
 /**
  * Get a section from storage by UUID
- *
- * @param {LayoutStorage} storage - Layout storage
- * @param {string} sectionUuid - Section UUID
- * @returns {Section|null}
  */
-export function getSection(storage, sectionUuid) {
+export function getSection(storage: LayoutStorage, sectionUuid: string): Section | null {
   if (!storage.sections) {
     return null;
   }
@@ -1291,13 +1304,12 @@ export function getSection(storage, sectionUuid) {
 
 /**
  * Update section settings
- *
- * @param {LayoutStorage} storage - Layout storage to modify
- * @param {string} sectionUuid - Section UUID
- * @param {Object} settings - New settings (merged with existing)
- * @returns {LayoutStorage} Modified storage
  */
-export function updateSectionSettings(storage, sectionUuid, settings) {
+export function updateSectionSettings(
+  storage: LayoutStorage,
+  sectionUuid: string,
+  settings: Record<string, unknown>,
+): LayoutStorage {
   const section = getSection(storage, sectionUuid);
 
   if (!section) {
@@ -1316,11 +1328,8 @@ export function updateSectionSettings(storage, sectionUuid, settings) {
 
 /**
  * Escape HTML special characters
- *
- * @param {string} str - String to escape
- * @returns {string}
  */
-function escapeHtml(str) {
+function escapeHtml(str: string): string {
   if (typeof str !== 'string') {
     return String(str);
   }
@@ -1335,22 +1344,16 @@ function escapeHtml(str) {
 
 /**
  * Clone a layout storage (deep copy)
- *
- * @param {LayoutStorage} storage - Storage to clone
- * @returns {LayoutStorage}
  */
-export function cloneLayout(storage) {
-  return JSON.parse(JSON.stringify(storage));
+export function cloneLayout(storage: LayoutStorage): LayoutStorage {
+  return JSON.parse(JSON.stringify(storage)) as LayoutStorage;
 }
 
 /**
  * Validate a layout storage structure
- *
- * @param {LayoutStorage} storage - Storage to validate
- * @returns {Object} Validation result { valid, errors }
  */
-export function validateLayout(storage) {
-  const errors = [];
+export function validateLayout(storage: LayoutStorage): ValidationResult {
+  const errors: string[] = [];
 
   if (!storage) {
     errors.push('Layout storage is null or undefined');
@@ -1363,7 +1366,7 @@ export function validateLayout(storage) {
   }
 
   for (let i = 0; i < storage.sections.length; i++) {
-    const section = storage.sections[i];
+    const section = storage.sections[i]!;
 
     if (!section.uuid) {
       errors.push(`Section at index ${i} missing UUID`);
@@ -1388,28 +1391,28 @@ export function validateLayout(storage) {
 
 /**
  * Get configuration
- *
- * @returns {Object}
  */
-export function getConfig() {
+export function getConfig(): LayoutBuilderConfig {
   return { ...config };
 }
 
 /**
  * Check if layout builder is enabled
- *
- * @returns {boolean}
  */
-export function isEnabled() {
+export function isEnabled(): boolean {
   return config.enabled;
 }
 
 /**
  * Get statistics about layouts
- *
- * @returns {Object}
  */
-export function getStats() {
+export function getStats(): {
+  layouts: number;
+  contentTypesWithDefaults: number;
+  totalSections: number;
+  totalComponents: number;
+  cacheSize: number;
+} {
   const layoutCount = Object.keys(layoutDefinitions).length;
   const defaultLayoutCount = Object.keys(defaultLayouts).length;
 

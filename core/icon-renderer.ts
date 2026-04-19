@@ -35,10 +35,63 @@
 
 import * as icons from './icons.js';
 
+// ============================================================================
+// Types
+// ============================================================================
+
+/** Options accepted by renderIcon() — size, colour, a11y, caching. */
+interface RenderIconOptions {
+  /** Size preset (small/medium/large/xlarge) or pixel number */
+  size?: string | number;
+  /** CSS color value applied to fill/stroke via currentColor */
+  color?: string;
+  /** Extra CSS classes appended to the SVG */
+  class?: string;
+  /** Accessible title (for screen readers) */
+  title?: string;
+  /** Override for aria-label */
+  ariaLabel?: string;
+  /** If true, adds aria-hidden="true" (decorative image) */
+  decorative?: boolean;
+  /** Whether to use cache (default: true) */
+  cache?: boolean;
+  /** If true, suppress fallback rendering when icon is missing */
+  noFallback?: boolean;
+}
+
+/** Size preset map — name → pixels. */
+interface SizePresets {
+  small: number;
+  medium: number;
+  large: number;
+  xlarge: number;
+}
+
+/** Cache statistics tracked for observability. */
+interface CacheStats {
+  hits: number;
+  misses: number;
+  evictions: number;
+}
+
+/** Public stats shape returned to callers. */
+interface CacheStatsReport {
+  size: number;
+  maxSize: number;
+  hits: number;
+  misses: number;
+  evictions: number;
+  hitRate: string;
+}
+
+// ============================================================================
+// Constants
+// ============================================================================
+
 /**
  * Size presets in pixels
  */
-const SIZE_PRESETS = {
+const SIZE_PRESETS: SizePresets = {
   small: 16,
   medium: 24,
   large: 32,
@@ -54,7 +107,7 @@ const SIZE_PRESETS = {
  * - Same icons rendered many times on a page
  * - Cache key includes all options for correctness
  */
-const renderCache = new Map();
+const renderCache: Map<string, string> = new Map();
 
 /**
  * Maximum cache size (LRU eviction)
@@ -65,7 +118,7 @@ const MAX_CACHE_SIZE = 1000;
 /**
  * Cache statistics for monitoring
  */
-const cacheStats = {
+const cacheStats: CacheStats = {
   hits: 0,
   misses: 0,
   evictions: 0,
@@ -75,7 +128,7 @@ const cacheStats = {
  * SVG element whitelist for sanitization
  * WHY WHITELIST (not blacklist): More secure - only allow known-safe elements
  */
-const SAFE_SVG_ELEMENTS = new Set([
+const SAFE_SVG_ELEMENTS: Set<string> = new Set([
   'svg', 'g', 'path', 'circle', 'rect', 'ellipse', 'line', 'polyline', 'polygon',
   'text', 'tspan', 'defs', 'linearGradient', 'radialGradient', 'stop', 'clipPath',
   'mask', 'pattern', 'use', 'symbol', 'title', 'desc',
@@ -85,7 +138,7 @@ const SAFE_SVG_ELEMENTS = new Set([
  * SVG attribute whitelist for sanitization
  * WHY WHITELIST: Prevent event handlers (onclick, onload, etc.) and javascript: URLs
  */
-const SAFE_SVG_ATTRIBUTES = new Set([
+const SAFE_SVG_ATTRIBUTES: Set<string> = new Set([
   'viewBox', 'width', 'height', 'fill', 'stroke', 'stroke-width', 'stroke-linecap',
   'stroke-linejoin', 'fill-rule', 'clip-rule', 'd', 'cx', 'cy', 'r', 'rx', 'ry',
   'x', 'y', 'x1', 'y1', 'x2', 'y2', 'points', 'transform', 'opacity',
@@ -94,21 +147,18 @@ const SAFE_SVG_ATTRIBUTES = new Set([
   'gradientUnits', 'gradientTransform', 'font-family', 'font-size', 'text-anchor',
 ]);
 
+// ============================================================================
+// Public API
+// ============================================================================
+
 /**
  * Render an icon as inline SVG
  *
- * @param {string} name - Icon name (e.g., "hero:user", "bi:house")
- * @param {Object} options - Rendering options
- * @param {string|number} options.size - Size preset (small/medium/large) or number in pixels
- * @param {string} options.color - CSS color value
- * @param {string} options.class - Additional CSS classes
- * @param {string} options.title - Accessible title (for screen readers)
- * @param {string} options.ariaLabel - ARIA label override
- * @param {boolean} options.decorative - If true, adds aria-hidden="true"
- * @param {boolean} options.cache - Whether to use cache (default: true)
- * @returns {string} Rendered SVG string or empty string if icon not found
+ * @param name - Icon name (e.g., "hero:user", "bi:house")
+ * @param options - Rendering options
+ * @returns Rendered SVG string or empty string if icon not found
  */
-export function renderIcon(name, options = {}) {
+export function renderIcon(name: string, options: RenderIconOptions = {}): string {
   // Validate icon name (prevent path traversal attacks)
   if (!name || typeof name !== 'string') {
     return '';
@@ -120,7 +170,7 @@ export function renderIcon(name, options = {}) {
   // Check cache
   if (cacheKey && renderCache.has(cacheKey)) {
     cacheStats.hits++;
-    return renderCache.get(cacheKey);
+    return renderCache.get(cacheKey) as string;
   }
 
   cacheStats.misses++;
@@ -160,17 +210,13 @@ export function renderIcon(name, options = {}) {
  * - Cache must differentiate between different option combinations
  * - Stable ordering ensures consistent keys
  * - JSON is simple and readable for debugging
- *
- * @param {string} name - Icon name
- * @param {Object} options - Rendering options
- * @returns {string} Cache key
  */
-function generateCacheKey(name, options) {
+function generateCacheKey(name: string, options: RenderIconOptions): string {
   // Sort options for stable key generation
   const sortedOptions = Object.keys(options)
     .sort()
-    .reduce((acc, key) => {
-      acc[key] = options[key];
+    .reduce<Record<string, unknown>>((acc, key) => {
+      acc[key] = (options as Record<string, unknown>)[key];
       return acc;
     }, {});
 
@@ -184,16 +230,15 @@ function generateCacheKey(name, options) {
  * - Most recently used icons are most likely to be used again
  * - Simple to implement (Map maintains insertion order)
  * - Prevents unbounded memory growth
- *
- * @param {string} key - Cache key
- * @param {string} value - Cached value
  */
-function setCached(key, value) {
+function setCached(key: string, value: string): void {
   // Evict oldest entry if cache is full
   if (renderCache.size >= MAX_CACHE_SIZE) {
     const oldestKey = renderCache.keys().next().value;
-    renderCache.delete(oldestKey);
-    cacheStats.evictions++;
+    if (oldestKey !== undefined) {
+      renderCache.delete(oldestKey);
+      cacheStats.evictions++;
+    }
   }
 
   renderCache.set(key, value);
@@ -207,11 +252,8 @@ function setCached(key, value) {
  * - SVG attributes can have javascript: URLs
  * - Event handlers (onclick, onload, etc.) can execute arbitrary code
  * - User-uploaded SVGs are especially dangerous
- *
- * @param {string} svg - Raw SVG string
- * @returns {string} Sanitized SVG string
  */
-function sanitizeSvg(svg) {
+function sanitizeSvg(svg: string): string {
   // Remove <script> tags and their content
   svg = svg.replace(/<script\b[^<]*(?:(?!<\/script>)<[^<]*)*<\/script>/gi, '');
 
@@ -236,20 +278,16 @@ function sanitizeSvg(svg) {
 
 /**
  * Apply customizations to SVG
- *
- * @param {string} svg - Sanitized SVG string
- * @param {Object} options - Rendering options
- * @returns {string} Customized SVG string
  */
-function applySvgCustomizations(svg, options) {
+function applySvgCustomizations(svg: string, options: RenderIconOptions): string {
   // Extract SVG opening tag and attributes
   const svgTagMatch = svg.match(/<svg([^>]*)>/);
   if (!svgTagMatch) {
     return svg; // Invalid SVG
   }
 
-  const originalAttributes = svgTagMatch[1];
-  let newAttributes = originalAttributes;
+  const originalAttributes = svgTagMatch[1] ?? '';
+  let newAttributes: string = originalAttributes;
 
   // Apply size
   const size = resolveSize(options.size);
@@ -263,7 +301,7 @@ function applySvgCustomizations(svg, options) {
   }
 
   // Apply CSS class
-  const classes = [];
+  const classes: string[] = [];
   if (options.class) {
     classes.push(options.class);
   }
@@ -319,11 +357,8 @@ function applySvgCustomizations(svg, options) {
 
 /**
  * Resolve size option to pixels
- *
- * @param {string|number} size - Size preset or number
- * @returns {number|null} Size in pixels or null if not provided
  */
-function resolveSize(size) {
+function resolveSize(size: string | number | undefined): number | null {
   if (!size) {
     return null;
   }
@@ -334,8 +369,8 @@ function resolveSize(size) {
   }
 
   // If it's a preset name, look it up
-  if (typeof size === 'string' && SIZE_PRESETS[size]) {
-    return SIZE_PRESETS[size];
+  if (typeof size === 'string' && size in SIZE_PRESETS) {
+    return SIZE_PRESETS[size as keyof SizePresets];
   }
 
   // If it's a string number, parse it
@@ -354,12 +389,8 @@ function resolveSize(size) {
  * - Prevents broken UI when icon is missing
  * - Easier debugging (shows icon name was wrong)
  * - Better user experience than empty space
- *
- * @param {string} name - Icon name that was not found
- * @param {Object} options - Rendering options
- * @returns {string} Fallback SVG or empty string
  */
-function renderFallbackIcon(name, options) {
+function renderFallbackIcon(name: string, options: RenderIconOptions): string {
   // Return empty string if fallback is disabled
   if (options.noFallback) {
     return '';
@@ -367,7 +398,7 @@ function renderFallbackIcon(name, options) {
 
   // Simple question mark icon as fallback
   const size = resolveSize(options.size) || 24;
-  const classes = ['icon', 'icon-fallback', options.class].filter(Boolean).join(' ');
+  const classes: string = ['icon', 'icon-fallback', options.class].filter(Boolean).join(' ');
 
   return `<svg xmlns="http://www.w3.org/2000/svg" width="${size}" height="${size}" viewBox="0 0 24 24" fill="currentColor" class="${classes}" role="img" aria-label="Icon not found: ${escapeHtml(name)}">
   <title>Icon not found: ${escapeHtml(name)}</title>
@@ -382,11 +413,8 @@ function renderFallbackIcon(name, options) {
  * WHY ESCAPE:
  * - Prevent XSS when user input is used in attributes or text
  * - Ensure valid HTML/XML output
- *
- * @param {string} str - String to escape
- * @returns {string} Escaped string
  */
-function escapeHtml(str) {
+function escapeHtml(str: string | undefined | null): string {
   if (!str) return '';
 
   return String(str)
@@ -405,7 +433,7 @@ function escapeHtml(str) {
  * - Testing (ensure fresh renders)
  * - Icon pack updates (force re-render with new SVG)
  */
-export function clearCache() {
+export function clearCache(): void {
   renderCache.clear();
   cacheStats.hits = 0;
   cacheStats.misses = 0;
@@ -419,10 +447,8 @@ export function clearCache() {
  * - Monitor cache effectiveness
  * - Tune cache size based on hit rate
  * - Debugging performance issues
- *
- * @returns {Object} Cache statistics
  */
-export function getCacheStats() {
+export function getCacheStats(): CacheStatsReport {
   return {
     size: renderCache.size,
     maxSize: MAX_CACHE_SIZE,
@@ -437,10 +463,8 @@ export function getCacheStats() {
 
 /**
  * Get available size presets
- *
- * @returns {Object} Size presets map
  */
-export function getSizePresets() {
+export function getSizePresets(): SizePresets {
   return { ...SIZE_PRESETS };
 }
 

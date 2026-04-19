@@ -26,42 +26,119 @@
 import { readFileSync, writeFileSync, existsSync, mkdirSync } from 'node:fs';
 import { join } from 'node:path';
 
+// ============================================
+// Types
+// ============================================
+
+/** Responsive visibility settings */
+interface ResponsiveConfig {
+  mobile: boolean;
+  tablet: boolean;
+  desktop: boolean;
+}
+
+/** A region definition within a theme */
+interface RegionDefinition {
+  label: string;
+  weight: number;
+  description?: string;
+  responsive: ResponsiveConfig;
+}
+
+/** A theme's region configuration */
+interface ThemeData {
+  regions: Record<string, RegionDefinition>;
+}
+
+/** Block assignment to a region */
+interface BlockAssignment {
+  region: string;
+  weight: number;
+  theme: string;
+}
+
+/** Full regions data structure persisted to disk */
+interface RegionsData {
+  themes: Record<string, ThemeData>;
+  assignments: Record<string, BlockAssignment>;
+}
+
+/** Rendered block result from blocks service */
+interface RenderedBlock {
+  html: string;
+  [key: string]: unknown;
+}
+
+/** Rendered region result */
+interface RenderedRegion {
+  id: string;
+  label: string;
+  weight?: number;
+  responsive?: ResponsiveConfig;
+  blocks?: RenderedBlock[];
+  html: string;
+  isEmpty: boolean;
+  error?: string;
+}
+
+/** Blocks service interface */
+interface BlocksServiceInterface {
+  getBlock(id: string): unknown;
+  renderBlock(id: string, context: Record<string, unknown>): Promise<RenderedBlock>;
+}
+
+/** Template service interface */
+interface TemplateServiceInterface {
+  render(template: string, data: Record<string, unknown>): string;
+}
+
+/** Hooks service interface */
+interface HooksServiceInterface {
+  invoke(event: string, data: Record<string, unknown>): unknown | Promise<unknown>;
+}
+
+/** Theme statistics */
+interface ThemeStats {
+  theme: string;
+  regionCount: number;
+  blockCount: number;
+  blocksByRegion: Record<string, number>;
+}
+
+/** Exportable configuration */
+interface ExportedConfig {
+  themes: Record<string, ThemeData>;
+  assignments: Record<string, BlockAssignment>;
+}
+
+// ============================================
+// Module State
+// ============================================
+
 /**
  * Base directory for configuration
  */
-let baseDir = null;
+let baseDir: string | null = null;
 
 /**
  * Blocks service reference for rendering
  */
-let blocksService = null;
+let blocksService: BlocksServiceInterface | null = null;
 
 /**
  * Template service reference for region rendering
  */
-let templateService = null;
+let templateService: TemplateServiceInterface | null = null;
 
 /**
  * Hooks service reference
  */
-let hooksService = null;
+let hooksService: HooksServiceInterface | null = null;
 
 /**
  * In-memory regions data structure
- * Structure: {
- *   themes: {
- *     themeName: {
- *       regions: {
- *         regionId: { label, weight, responsive }
- *       }
- *     }
- *   },
- *   assignments: {
- *     blockId: { region, weight, theme }
- *   }
- * }
  */
-let regionsData = {
+let regionsData: RegionsData = {
   themes: {},
   assignments: {},
 };
@@ -69,7 +146,7 @@ let regionsData = {
 /**
  * Default regions for all themes
  */
-const DEFAULT_REGIONS = {
+const DEFAULT_REGIONS: Record<string, RegionDefinition> = {
   header: { label: 'Header', weight: -100, responsive: { mobile: true, tablet: true, desktop: true } },
   navigation: { label: 'Navigation', weight: -90, responsive: { mobile: true, tablet: true, desktop: true } },
   sidebar_first: { label: 'Left Sidebar', weight: 0, responsive: { mobile: false, tablet: true, desktop: true } },
@@ -81,14 +158,14 @@ const DEFAULT_REGIONS = {
 /**
  * Get path to regions.json
  */
-function getRegionsPath() {
-  return join(baseDir, 'config', 'regions.json');
+function getRegionsPath(): string {
+  return join(baseDir!, 'config', 'regions.json');
 }
 
 /**
  * Load regions from disk
  */
-function loadRegions() {
+function loadRegions(): void {
   const path = getRegionsPath();
 
   if (!existsSync(path)) {
@@ -105,9 +182,9 @@ function loadRegions() {
 
   try {
     const content = readFileSync(path, 'utf-8');
-    regionsData = JSON.parse(content);
-  } catch (err) {
-    console.error('[regions] Failed to load regions.json:', err.message);
+    regionsData = JSON.parse(content) as RegionsData;
+  } catch (err: unknown) {
+    console.error('[regions] Failed to load regions.json:', err instanceof Error ? err.message : err);
     regionsData = {
       themes: {
         default: { regions: DEFAULT_REGIONS },
@@ -120,9 +197,9 @@ function loadRegions() {
 /**
  * Save regions to disk
  */
-function saveRegions() {
+function saveRegions(): void {
   const path = getRegionsPath();
-  const dir = join(baseDir, 'config');
+  const dir = join(baseDir!, 'config');
 
   if (!existsSync(dir)) {
     mkdirSync(dir, { recursive: true });
@@ -134,19 +211,19 @@ function saveRegions() {
 /**
  * Initialize regions system
  *
- * @param {string} directory - Base directory for config storage
- * @param {object} blocks - Blocks service instance
- * @param {object} template - Template service instance
+ * @param directory - Base directory for config storage
+ * @param blocks - Blocks service instance
+ * @param tmpl - Template service instance
  *
  * WHY INIT:
  * - Sets up dependencies (blocks, template services)
  * - Loads regions from disk
  * - Ensures config directory exists
  */
-export function init(directory, blocks, template) {
+export function init(directory: string, blocks: BlocksServiceInterface, tmpl: TemplateServiceInterface): void {
   baseDir = directory;
   blocksService = blocks;
-  templateService = template;
+  templateService = tmpl;
 
   loadRegions();
 }
@@ -154,9 +231,9 @@ export function init(directory, blocks, template) {
 /**
  * Set hooks service reference
  *
- * @param {object} service - Hooks service instance
+ * @param service - Hooks service instance
  */
-export function setHooks(service) {
+export function setHooks(service: HooksServiceInterface): void {
   hooksService = service;
 }
 
@@ -167,14 +244,14 @@ export function setHooks(service) {
 /**
  * Get all regions for a theme
  *
- * @param {string} theme - Theme name (default: 'default')
- * @returns {object} - Region definitions
+ * @param theme - Theme name (default: 'default')
+ * @returns Region definitions
  *
  * WHY THEME SCOPED:
  * - Admin themes may have different regions than public themes
  * - Custom themes can define their own layout structure
  */
-export function getRegions(theme = 'default') {
+export function getRegions(theme: string = 'default'): Record<string, RegionDefinition> {
   const themeData = regionsData.themes[theme];
 
   if (!themeData) {
@@ -187,11 +264,11 @@ export function getRegions(theme = 'default') {
 /**
  * Get a single region by ID
  *
- * @param {string} regionId - Region ID
- * @param {string} theme - Theme name
- * @returns {object|null} - Region definition or null
+ * @param regionId - Region ID
+ * @param theme - Theme name
+ * @returns Region definition or null
  */
-export function getRegion(regionId, theme = 'default') {
+export function getRegion(regionId: string, theme: string = 'default'): RegionDefinition | null {
   const regions = getRegions(theme);
   return regions[regionId] || null;
 }
@@ -199,20 +276,20 @@ export function getRegion(regionId, theme = 'default') {
 /**
  * Register/define a region for a theme
  *
- * @param {string} regionId - Unique region ID
- * @param {object} definition - Region definition
- * @param {string} theme - Theme name
+ * @param regionId - Unique region ID
+ * @param definition - Region definition
+ * @param theme - Theme name
  *
  * WHY REGISTER:
  * - Themes can define custom regions beyond defaults
  * - Allows dynamic region creation by modules
  */
-export function defineRegion(regionId, definition, theme = 'default') {
+export function defineRegion(regionId: string, definition: Partial<RegionDefinition>, theme: string = 'default'): void {
   if (!regionsData.themes[theme]) {
     regionsData.themes[theme] = { regions: {} };
   }
 
-  regionsData.themes[theme].regions[regionId] = {
+  regionsData.themes[theme]!.regions[regionId] = {
     label: definition.label || regionId,
     weight: definition.weight || 0,
     description: definition.description || '',
@@ -230,11 +307,11 @@ export function defineRegion(regionId, definition, theme = 'default') {
 /**
  * Remove a region definition
  *
- * @param {string} regionId - Region ID to remove
- * @param {string} theme - Theme name
- * @throws {Error} - If region contains assigned blocks
+ * @param regionId - Region ID to remove
+ * @param theme - Theme name
+ * @throws Error if region contains assigned blocks
  */
-export function removeRegion(regionId, theme = 'default') {
+export function removeRegion(regionId: string, theme: string = 'default'): void {
   // Check if any blocks are assigned
   const assignedBlocks = Object.entries(regionsData.assignments)
     .filter(([_, assignment]) => assignment.region === regionId && assignment.theme === theme);
@@ -244,7 +321,7 @@ export function removeRegion(regionId, theme = 'default') {
   }
 
   if (regionsData.themes[theme]) {
-    delete regionsData.themes[theme].regions[regionId];
+    delete regionsData.themes[theme]!.regions[regionId];
     saveRegions();
   }
 
@@ -257,9 +334,9 @@ export function removeRegion(regionId, theme = 'default') {
 /**
  * Initialize a theme with default regions
  *
- * @param {string} theme - Theme name
+ * @param theme - Theme name
  */
-export function initializeTheme(theme) {
+export function initializeTheme(theme: string): void {
   if (!regionsData.themes[theme]) {
     regionsData.themes[theme] = {
       regions: { ...DEFAULT_REGIONS },
@@ -275,17 +352,17 @@ export function initializeTheme(theme) {
 /**
  * Assign a block to a region
  *
- * @param {string} blockId - Block ID
- * @param {string} regionId - Target region ID
- * @param {number} weight - Display order (lower = earlier)
- * @param {string} theme - Theme name
+ * @param blockId - Block ID
+ * @param regionId - Target region ID
+ * @param weight - Display order (lower = earlier)
+ * @param theme - Theme name
  *
  * WHY SEPARATE FROM BLOCKS:
  * - Blocks may be assigned to different regions in different themes
  * - Keeps region logic centralized
  * - Allows region-specific visibility overrides
  */
-export async function assignBlock(blockId, regionId, weight = 0, theme = 'default') {
+export async function assignBlock(blockId: string, regionId: string, weight: number = 0, theme: string = 'default'): Promise<void> {
   // Verify region exists
   const region = getRegion(regionId, theme);
   if (!region) {
@@ -318,10 +395,10 @@ export async function assignBlock(blockId, regionId, weight = 0, theme = 'defaul
 /**
  * Unassign a block from its region
  *
- * @param {string} blockId - Block ID
- * @param {string} theme - Theme name (optional, removes from all themes if not specified)
+ * @param blockId - Block ID
+ * @param theme - Theme name (optional, removes from all themes if not specified)
  */
-export async function unassignBlock(blockId, theme = null) {
+export async function unassignBlock(blockId: string, theme: string | null = null): Promise<void> {
   if (theme) {
     // Remove only from specified theme
     const assignment = regionsData.assignments[blockId];
@@ -337,18 +414,18 @@ export async function unassignBlock(blockId, theme = null) {
 
   // Fire hook
   if (hooksService) {
-    await hooksService.invoke('regions:unassign', { blockId, theme });
+    await hooksService.invoke('regions:unassign', { blockId, theme: theme || '' });
   }
 }
 
 /**
  * Move a block to a different region
  *
- * @param {string} blockId - Block ID
- * @param {string} newRegion - Target region ID
- * @param {number} newWeight - Optional new weight
+ * @param blockId - Block ID
+ * @param newRegion - Target region ID
+ * @param newWeight - Optional new weight
  */
-export async function moveBlock(blockId, newRegion, newWeight = null) {
+export async function moveBlock(blockId: string, newRegion: string, newWeight: number | null = null): Promise<void> {
   const assignment = regionsData.assignments[blockId];
 
   if (!assignment) {
@@ -364,18 +441,18 @@ export async function moveBlock(blockId, newRegion, newWeight = null) {
 /**
  * Reorder blocks within a region
  *
- * @param {string} regionId - Region ID
- * @param {array} blockIds - Array of block IDs in desired order
- * @param {string} theme - Theme name
+ * @param regionId - Region ID
+ * @param blockIds - Array of block IDs in desired order
+ * @param theme - Theme name
  *
  * WHY ARRAY ORDER:
  * - Simpler than specifying individual weights
  * - Natural for drag-and-drop interfaces
  * - Automatically assigns sequential weights
  */
-export async function reorderBlocks(regionId, blockIds, theme = 'default') {
+export async function reorderBlocks(regionId: string, blockIds: string[], theme: string = 'default'): Promise<void> {
   for (let i = 0; i < blockIds.length; i++) {
-    const blockId = blockIds[i];
+    const blockId = blockIds[i]!;
     const assignment = regionsData.assignments[blockId];
 
     if (assignment && assignment.region === regionId && assignment.theme === theme) {
@@ -394,11 +471,11 @@ export async function reorderBlocks(regionId, blockIds, theme = 'default') {
 /**
  * Get all blocks assigned to a region
  *
- * @param {string} regionId - Region ID
- * @param {string} theme - Theme name
- * @returns {array} - Array of block IDs sorted by weight
+ * @param regionId - Region ID
+ * @param theme - Theme name
+ * @returns Array of block IDs sorted by weight
  */
-export function getBlocksInRegion(regionId, theme = 'default') {
+export function getBlocksInRegion(regionId: string, theme: string = 'default'): string[] {
   const blocks = Object.entries(regionsData.assignments)
     .filter(([_, assignment]) => assignment.region === regionId && assignment.theme === theme)
     .map(([blockId, assignment]) => ({ blockId, weight: assignment.weight }))
@@ -410,10 +487,10 @@ export function getBlocksInRegion(regionId, theme = 'default') {
 /**
  * Get assignment info for a block
  *
- * @param {string} blockId - Block ID
- * @returns {object|null} - Assignment or null if not assigned
+ * @param blockId - Block ID
+ * @returns Assignment or null if not assigned
  */
-export function getBlockAssignment(blockId) {
+export function getBlockAssignment(blockId: string): BlockAssignment | null {
   return regionsData.assignments[blockId] || null;
 }
 
@@ -424,10 +501,10 @@ export function getBlockAssignment(blockId) {
 /**
  * Render all blocks in a region
  *
- * @param {string} regionId - Region ID
- * @param {string} theme - Theme name
- * @param {object} context - Render context (passed to blocks)
- * @returns {Promise<object>} - Rendered region data
+ * @param regionId - Region ID
+ * @param theme - Theme name
+ * @param context - Render context (passed to blocks)
+ * @returns Rendered region data
  *
  * RETURN FORMAT:
  * {
@@ -438,7 +515,7 @@ export function getBlockAssignment(blockId) {
  *   isEmpty: false
  * }
  */
-export async function renderRegion(regionId, theme = 'default', context = {}) {
+export async function renderRegion(regionId: string, theme: string = 'default', context: Record<string, unknown> = {}): Promise<RenderedRegion> {
   // Fire before render hook
   if (hooksService) {
     await hooksService.invoke('regions:beforeRender', { regionId, theme, context });
@@ -458,7 +535,7 @@ export async function renderRegion(regionId, theme = 'default', context = {}) {
   }
 
   // Render each block
-  const renderedBlocks = [];
+  const renderedBlocks: RenderedBlock[] = [];
 
   for (const blockId of blockIds) {
     try {
@@ -468,8 +545,8 @@ export async function renderRegion(regionId, theme = 'default', context = {}) {
       if (rendered.html) {
         renderedBlocks.push(rendered);
       }
-    } catch (err) {
-      console.error(`[regions] Error rendering block ${blockId}:`, err.message);
+    } catch (err: unknown) {
+      console.error(`[regions] Error rendering block ${blockId}:`, err instanceof Error ? err.message : err);
     }
   }
 
@@ -481,7 +558,7 @@ export async function renderRegion(regionId, theme = 'default', context = {}) {
     ? `<div class="region region-${regionId}" data-region="${regionId}">\n${blocksHtml}\n</div>`
     : '';
 
-  const result = {
+  const result: RenderedRegion = {
     id: regionId,
     label: region.label,
     weight: region.weight,
@@ -498,7 +575,7 @@ export async function renderRegion(regionId, theme = 'default', context = {}) {
       theme,
       context,
       result
-    });
+    }) as { html?: string } | null;
 
     // Allow hook to modify HTML
     if (hookResult && hookResult.html !== undefined) {
@@ -512,18 +589,18 @@ export async function renderRegion(regionId, theme = 'default', context = {}) {
 /**
  * Render all regions for a page layout
  *
- * @param {string} theme - Theme name
- * @param {object} context - Render context
- * @returns {Promise<Map>} - Map of regionId -> rendered region data
+ * @param theme - Theme name
+ * @param context - Render context
+ * @returns Map of regionId -> rendered region data
  *
  * WHY MAP:
  * - Preserves insertion order
  * - Natural key-value lookup for templates
  * - Easy iteration
  */
-export async function renderLayout(theme = 'default', context = {}) {
+export async function renderLayout(theme: string = 'default', context: Record<string, unknown> = {}): Promise<Map<string, RenderedRegion>> {
   const regions = getRegions(theme);
-  const result = new Map();
+  const result = new Map<string, RenderedRegion>();
 
   // Sort regions by weight
   const sortedRegions = Object.entries(regions)
@@ -534,16 +611,17 @@ export async function renderLayout(theme = 'default', context = {}) {
     try {
       const rendered = await renderRegion(regionId, theme, context);
       result.set(regionId, rendered);
-    } catch (err) {
-      console.error(`[regions] Error rendering region ${regionId}:`, err.message);
+    } catch (err: unknown) {
+      console.error(`[regions] Error rendering region ${regionId}:`, err instanceof Error ? err.message : err);
 
+      const regionDef = regions[regionId];
       // Include empty region in result
       result.set(regionId, {
         id: regionId,
-        label: regions[regionId].label,
+        label: regionDef?.label || regionId,
         html: '',
         isEmpty: true,
-        error: err.message,
+        error: err instanceof Error ? err.message : String(err),
       });
     }
   }
@@ -554,15 +632,15 @@ export async function renderLayout(theme = 'default', context = {}) {
 /**
  * Get region HTML for template injection
  *
- * @param {Map} renderedLayout - Output from renderLayout()
- * @param {string} regionId - Region ID
- * @returns {string} - HTML for region or empty string
+ * @param renderedLayout - Output from renderLayout()
+ * @param regionId - Region ID
+ * @returns HTML for region or empty string
  *
  * WHY HELPER:
  * - Simplifies template code
  * - Provides safe fallback for missing regions
  */
-export function getRegionHtml(renderedLayout, regionId) {
+export function getRegionHtml(renderedLayout: Map<string, RenderedRegion>, regionId: string): string {
   const region = renderedLayout.get(regionId);
   return region ? region.html : '';
 }
@@ -570,8 +648,8 @@ export function getRegionHtml(renderedLayout, regionId) {
 /**
  * Build region data for template context
  *
- * @param {Map} renderedLayout - Output from renderLayout()
- * @returns {object} - Plain object for template injection
+ * @param renderedLayout - Output from renderLayout()
+ * @returns Plain object for template injection
  *
  * USAGE:
  * const regions = renderLayout('default', context);
@@ -583,8 +661,8 @@ export function getRegionHtml(renderedLayout, regionId) {
  * {{content}}
  * {{footer}}
  */
-export function buildRegionContext(renderedLayout) {
-  const context = {};
+export function buildRegionContext(renderedLayout: Map<string, RenderedRegion>): Record<string, string> {
+  const context: Record<string, string> = {};
 
   for (const [regionId, data] of renderedLayout) {
     context[regionId] = data.html;
@@ -600,33 +678,33 @@ export function buildRegionContext(renderedLayout) {
 /**
  * List all themes with defined regions
  *
- * @returns {array} - Array of theme names
+ * @returns Array of theme names
  */
-export function listThemes() {
+export function listThemes(): string[] {
   return Object.keys(regionsData.themes);
 }
 
 /**
  * Get statistics for a theme
  *
- * @param {string} theme - Theme name
- * @returns {object} - Statistics
+ * @param theme - Theme name
+ * @returns Statistics
  */
-export function getThemeStats(theme = 'default') {
+export function getThemeStats(theme: string = 'default'): ThemeStats {
   const regions = getRegions(theme);
   const regionCount = Object.keys(regions).length;
 
   // Count assigned blocks for this theme
   let blockCount = 0;
-  const blocksByRegion = {};
+  const blocksByRegion: Record<string, number> = {};
 
-  Object.entries(regionsData.assignments).forEach(([blockId, assignment]) => {
+  Object.entries(regionsData.assignments).forEach(([_blockId, assignment]) => {
     if (assignment.theme === theme) {
       blockCount++;
       if (!blocksByRegion[assignment.region]) {
         blocksByRegion[assignment.region] = 0;
       }
-      blocksByRegion[assignment.region]++;
+      blocksByRegion[assignment.region]!++;
     }
   });
 
@@ -641,10 +719,10 @@ export function getThemeStats(theme = 'default') {
 /**
  * Export regions configuration
  *
- * @param {string} theme - Theme name (optional, exports all if not specified)
- * @returns {object} - Exportable configuration
+ * @param theme - Theme name (optional, exports all if not specified)
+ * @returns Exportable configuration
  */
-export function exportConfig(theme = null) {
+export function exportConfig(theme: string | null = null): ExportedConfig {
   if (theme) {
     const themeData = regionsData.themes[theme];
     if (!themeData) {
@@ -652,7 +730,7 @@ export function exportConfig(theme = null) {
     }
 
     // Get assignments for this theme
-    const themeAssignments = {};
+    const themeAssignments: Record<string, BlockAssignment> = {};
     Object.entries(regionsData.assignments).forEach(([blockId, assignment]) => {
       if (assignment.theme === theme) {
         themeAssignments[blockId] = assignment;
@@ -672,21 +750,21 @@ export function exportConfig(theme = null) {
 /**
  * Import regions configuration
  *
- * @param {object} config - Configuration to import
- * @param {boolean} merge - Merge with existing (default: false = replace)
+ * @param importData - Configuration to import
+ * @param merge - Merge with existing (default: false = replace)
  */
-export function importConfig(config, merge = false) {
+export function importConfig(importData: RegionsData, merge: boolean = false): void {
   if (!merge) {
-    regionsData = config;
+    regionsData = importData;
   } else {
     // Merge themes
-    Object.entries(config.themes || {}).forEach(([themeName, themeData]) => {
+    Object.entries(importData.themes || {}).forEach(([themeName, themeData]) => {
       if (!regionsData.themes[themeName]) {
         regionsData.themes[themeName] = themeData;
       } else {
         // Merge regions
-        regionsData.themes[themeName].regions = {
-          ...regionsData.themes[themeName].regions,
+        regionsData.themes[themeName]!.regions = {
+          ...regionsData.themes[themeName]!.regions,
           ...themeData.regions,
         };
       }
@@ -695,7 +773,7 @@ export function importConfig(config, merge = false) {
     // Merge assignments
     regionsData.assignments = {
       ...regionsData.assignments,
-      ...(config.assignments || {}),
+      ...(importData.assignments || {}),
     };
   }
 
@@ -705,9 +783,9 @@ export function importConfig(config, merge = false) {
 /**
  * Reset regions to defaults
  *
- * @param {string} theme - Theme to reset (optional, resets all if not specified)
+ * @param theme - Theme to reset (optional, resets all if not specified)
  */
-export function resetToDefaults(theme = null) {
+export function resetToDefaults(theme: string | null = null): void {
   if (theme) {
     regionsData.themes[theme] = {
       regions: { ...DEFAULT_REGIONS },

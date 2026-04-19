@@ -9,8 +9,122 @@
 
 import crypto from 'node:crypto';
 
+// ============================================
+// Types
+// ============================================
+
+/** Attributes map for HTML elements */
+interface FormAttributes {
+  [key: string]: string | boolean | number | undefined;
+}
+
+/** A form element -- the fundamental unit of the Form API */
+interface FormElement {
+  '#type'?: string;
+  '#id'?: string;
+  '#name'?: string;
+  '#value'?: unknown;
+  '#default_value'?: unknown;
+  '#title'?: string;
+  '#title_display'?: string;
+  '#description'?: string;
+  '#required'?: boolean;
+  '#error'?: string;
+  '#attributes'?: FormAttributes;
+  '#method'?: string;
+  '#action'?: string;
+  '#tree'?: boolean;
+  '#parents'?: string[];
+  '#form_id'?: string;
+  '#token'?: string;
+  '#validate'?: Array<FormHandler>;
+  '#submit'?: Array<FormHandler>;
+  '#states'?: Record<string, unknown>;
+  '#ajax'?: Record<string, unknown>;
+  '#options'?: Record<string, string>;
+  '#multiple'?: boolean;
+  '#return_value'?: string;
+  '#button_type'?: string;
+  '#collapsible'?: boolean;
+  '#collapsed'?: boolean;
+  '#open'?: boolean;
+  '#markup'?: string;
+  '#maxlength'?: number;
+  '#size'?: number;
+  '#placeholder'?: string;
+  '#autocomplete'?: string;
+  '#rows'?: number;
+  '#cols'?: number;
+  '#min'?: number;
+  '#max'?: number;
+  '#step'?: number;
+  '#pattern'?: string;
+  '#pattern_error'?: string;
+  '#machine_name'?: { source?: string; maxlength?: number };
+  '#source_field'?: string;
+  '#upload_validators'?: Record<string, unknown[]>;
+  '#max_filesize'?: unknown;
+  '#header'?: string[];
+  '#delta'?: number;
+  '#checked'?: boolean;
+  [key: string]: unknown;
+}
+
+/** A handler function (validate or submit) */
+type FormHandler = ((form: FormElement, formState: FormState) => void | Promise<void>) | string;
+
+/** Form state object tracks values, errors, and metadata */
+interface FormState {
+  formId?: string;
+  values: Record<string, unknown>;
+  input: Record<string, unknown>;
+  errors: FormError[];
+  storage: Record<string, unknown>;
+  rebuild: boolean;
+  redirect: string | null;
+  cached: boolean;
+  buildInfo: Record<string, unknown>;
+  formToken?: string;
+}
+
+/** A validation error on a form element */
+interface FormError {
+  name: string;
+  message: string;
+  element: FormElement | null;
+}
+
+/** An element type definition in the registry */
+interface ElementTypeDefinition {
+  input_type?: string;
+  container?: boolean;
+  process: string[];
+}
+
+/** Cached form entry */
+interface FormCacheEntry {
+  form: FormElement;
+  formState: FormState;
+  timestamp: number;
+}
+
+/** Result of processing a form submission */
+interface FormProcessResult {
+  status: string;
+  error?: string;
+  errors?: FormError[];
+  form?: FormElement;
+  values?: Record<string, unknown>;
+  redirect?: string | null;
+}
+
+/** An HTTP request with body for form processing */
+interface FormRequest {
+  body?: Record<string, unknown>;
+}
+
 // Form element type registry
-const ELEMENT_TYPES = {
+const ELEMENT_TYPES: Record<string, ElementTypeDefinition> = {
   textfield: {
     input_type: 'text',
     process: ['processTextfield']
@@ -131,18 +245,18 @@ const ELEMENT_TYPES = {
 };
 
 // Form storage (in-memory cache)
-const formCache = new Map();
-const formTokens = new Map();
+const formCache: Map<string, FormCacheEntry> = new Map();
+const formTokens: Map<string, string> = new Map();
 
 /**
  * Build a form structure.
  *
- * @param {string} formId - Unique form identifier
- * @param {Object} formState - Current form state
- * @param {...*} args - Additional arguments passed to form builder
- * @returns {Object} Form render array
+ * @param formId - Unique form identifier
+ * @param formState - Current form state
+ * @param args - Additional arguments passed to form builder
+ * @returns Form render array
  */
-export function buildForm(formId, formState, ...args) {
+export function buildForm(formId: string, formState?: FormState | null, ...args: unknown[]): FormElement {
   if (!formId || typeof formId !== 'string') {
     throw new Error('Form ID must be a non-empty string');
   }
@@ -157,7 +271,7 @@ export function buildForm(formId, formState, ...args) {
   formState.formToken = formToken;
 
   // Create base form array
-  const form = {
+  const form: FormElement = {
     '#type': 'form',
     '#id': formId,
     '#method': 'POST',
@@ -191,21 +305,21 @@ export function buildForm(formId, formState, ...args) {
 /**
  * Process form submission from HTTP request.
  *
- * @param {string} formId - Form identifier
- * @param {Object} request - HTTP request object with body
- * @returns {Object} Result object with status and data/errors
+ * @param formId - Form identifier
+ * @param request - HTTP request object with body
+ * @returns Result object with status and data/errors
  */
-export async function processForm(formId, request) {
+export async function processForm(formId: string, request: FormRequest): Promise<FormProcessResult> {
   const cached = formCache.get(formId);
   if (!cached) {
     return { status: 'error', error: 'Form not found or expired' };
   }
 
   const { form, formState } = cached;
-  const formValues = request.body || {};
+  const formValues = (request.body || {}) as Record<string, unknown>;
 
   // Validate CSRF token
-  if (!validateFormToken(formId, formValues.form_token)) {
+  if (!validateFormToken(formId, formValues.form_token as string | undefined)) {
     return { status: 'error', error: 'Invalid form token' };
   }
 
@@ -238,10 +352,10 @@ export async function processForm(formId, request) {
 /**
  * Validate form values.
  *
- * @param {Object} form - Form render array
- * @param {Object} formState - Form state object
+ * @param form - Form render array
+ * @param formState - Form state object
  */
-export function validateForm(form, formState) {
+export function validateForm(form: FormElement, formState: FormState): void {
   // Validate required fields
   validateRequiredFields(form, formState);
 
@@ -261,10 +375,10 @@ export function validateForm(form, formState) {
 /**
  * Submit form after successful validation.
  *
- * @param {Object} form - Form render array
- * @param {Object} formState - Form state object
+ * @param form - Form render array
+ * @param formState - Form state object
  */
-export function submitForm(form, formState) {
+export function submitForm(form: FormElement, formState: FormState): void {
   if (form['#submit']) {
     for (const handler of form['#submit']) {
       if (typeof handler === 'function') {
@@ -277,35 +391,35 @@ export function submitForm(form, formState) {
 /**
  * Render form to HTML.
  *
- * @param {Object} form - Form render array
- * @returns {string} HTML string
+ * @param form - Form render array
+ * @returns HTML string
  */
-export function renderForm(form) {
-  const processedForm = processFormElements(form, {});
+export function renderForm(form: FormElement): string {
+  const processedForm = processFormElements(form, createFormState());
   return renderElement(processedForm);
 }
 
 /**
  * Set validation error on an element.
  *
- * @param {Object} formState - Form state object
- * @param {Object} element - Form element
- * @param {string} message - Error message
+ * @param formState - Form state object
+ * @param element - Form element
+ * @param message - Error message
  */
-export function setError(formState, element, message) {
+export function setError(formState: FormState, element: FormElement, message: string): void {
   formState.errors = formState.errors || [];
-  const name = element['#name'] || element['#id'] || 'unknown';
+  const name = (element['#name'] || element['#id'] || 'unknown') as string;
   formState.errors.push({ name, message, element });
 }
 
 /**
  * Set validation error by element name.
  *
- * @param {Object} formState - Form state object
- * @param {string} name - Element name
- * @param {string} message - Error message
+ * @param formState - Form state object
+ * @param name - Element name
+ * @param message - Error message
  */
-export function setErrorByName(formState, name, message) {
+export function setErrorByName(formState: FormState, name: string, message: string): void {
   formState.errors = formState.errors || [];
   formState.errors.push({ name, message, element: null });
 }
@@ -313,38 +427,39 @@ export function setErrorByName(formState, name, message) {
 /**
  * Get all validation errors.
  *
- * @param {Object} formState - Form state object
- * @returns {Array} Array of error objects
+ * @param formState - Form state object
+ * @returns Array of error objects
  */
-export function getErrors(formState) {
+export function getErrors(formState: FormState): FormError[] {
   return formState.errors || [];
 }
 
 /**
  * Check if form has validation errors.
  *
- * @param {Object} formState - Form state object
- * @returns {boolean} True if errors exist
+ * @param formState - Form state object
+ * @returns True if errors exist
  */
-export function hasErrors(formState) {
+export function hasErrors(formState: FormState): boolean {
   return formState.errors && formState.errors.length > 0;
 }
 
 /**
  * Execute form handlers (validate or submit).
  *
- * @param {string} type - Handler type ('validate' or 'submit')
- * @param {Object} form - Form render array
- * @param {Object} formState - Form state object
+ * @param type - Handler type ('validate' or 'submit')
+ * @param form - Form render array
+ * @param formState - Form state object
  */
-export async function executeHandlers(type, form, formState) {
-  const handlerKey = `#${type}`;
+export async function executeHandlers(type: string, form: FormElement, formState: FormState): Promise<void> {
+  const handlerKey = `#${type}` as keyof FormElement;
 
   // Execute form-level handlers
-  if (form[handlerKey]) {
-    for (const handler of form[handlerKey]) {
+  const handlers = form[handlerKey];
+  if (Array.isArray(handlers)) {
+    for (const handler of handlers) {
       if (typeof handler === 'function') {
-        await handler(form, formState);
+        await (handler as (f: FormElement, s: FormState) => void | Promise<void>)(form, formState);
       } else if (typeof handler === 'string') {
         // Named handler - would lookup from registry
         console.warn(`Named handler not implemented: ${handler}`);
@@ -359,16 +474,16 @@ export async function executeHandlers(type, form, formState) {
 /**
  * Process a single form element.
  *
- * @param {Object} element - Form element
- * @param {Object} formState - Form state object
- * @returns {Object} Processed element
+ * @param element - Form element
+ * @param formState - Form state object
+ * @returns Processed element
  */
-export function processElement(element, formState) {
+export function processElement(element: FormElement, formState: FormState): FormElement {
   if (!element || typeof element !== 'object') {
     return element;
   }
 
-  const type = element['#type'];
+  const type = element['#type'] as string | undefined;
   if (!type) {
     return element;
   }
@@ -381,8 +496,9 @@ export function processElement(element, formState) {
   // Execute process callbacks
   if (elementType.process) {
     for (const processCallback of elementType.process) {
-      if (typeof PROCESSORS[processCallback] === 'function') {
-        element = PROCESSORS[processCallback](element, formState);
+      const processor = PROCESSORS[processCallback];
+      if (typeof processor === 'function') {
+        element = processor(element, formState);
       }
     }
   }
@@ -392,7 +508,7 @@ export function processElement(element, formState) {
     if (key.startsWith('#') || typeof element[key] !== 'object') {
       continue;
     }
-    element[key] = processElement(element[key], formState);
+    element[key] = processElement(element[key] as FormElement, formState);
   }
 
   return element;
@@ -401,10 +517,10 @@ export function processElement(element, formState) {
 /**
  * Prepare element for rendering.
  *
- * @param {Object} element - Form element
- * @returns {Object} Prepared element
+ * @param element - Form element
+ * @returns Prepared element
  */
-export function prepareElement(element) {
+export function prepareElement(element: FormElement): FormElement {
   if (!element || typeof element !== 'object') {
     return element;
   }
@@ -431,23 +547,23 @@ export function prepareElement(element) {
 /**
  * Render element to HTML.
  *
- * @param {Object} element - Form element
- * @returns {string} HTML string
+ * @param element - Form element
+ * @returns HTML string
  */
-export function renderElement(element) {
+export function renderElement(element: FormElement): string {
   if (!element || typeof element !== 'object') {
     return String(element || '');
   }
 
-  const type = element['#type'];
-  const renderer = RENDERERS[type] || RENDERERS.default;
+  const type = element['#type'] as string | undefined;
+  const renderer = (type && RENDERERS[type]) || RENDERERS.default;
 
   return renderer(element);
 }
 
 // Element processors
-const PROCESSORS = {
-  processTextfield(element, formState) {
+const PROCESSORS: Record<string, (element: FormElement, formState: FormState) => FormElement> = {
+  processTextfield(element: FormElement, _formState: FormState): FormElement {
     element['#attributes'] = element['#attributes'] || {};
     element['#attributes'].type = 'text';
 
@@ -467,7 +583,7 @@ const PROCESSORS = {
     return element;
   },
 
-  processTextarea(element, formState) {
+  processTextarea(element: FormElement, _formState: FormState): FormElement {
     element['#attributes'] = element['#attributes'] || {};
 
     if (element['#rows']) {
@@ -483,7 +599,7 @@ const PROCESSORS = {
     return element;
   },
 
-  processPassword(element, formState) {
+  processPassword(element: FormElement, _formState: FormState): FormElement {
     element['#attributes'] = element['#attributes'] || {};
     element['#attributes'].type = 'password';
 
@@ -494,7 +610,7 @@ const PROCESSORS = {
     return element;
   },
 
-  processSelect(element, formState) {
+  processSelect(element: FormElement, _formState: FormState): FormElement {
     element['#options'] = element['#options'] || {};
 
     if (element['#multiple']) {
@@ -510,18 +626,18 @@ const PROCESSORS = {
     return element;
   },
 
-  processCheckboxes(element, formState) {
+  processCheckboxes(element: FormElement, _formState: FormState): FormElement {
     element['#options'] = element['#options'] || {};
     element['#tree'] = true;
     return element;
   },
 
-  processRadios(element, formState) {
+  processRadios(element: FormElement, _formState: FormState): FormElement {
     element['#options'] = element['#options'] || {};
     return element;
   },
 
-  processCheckbox(element, formState) {
+  processCheckbox(element: FormElement, _formState: FormState): FormElement {
     element['#attributes'] = element['#attributes'] || {};
     element['#attributes'].type = 'checkbox';
 
@@ -534,61 +650,61 @@ const PROCESSORS = {
     return element;
   },
 
-  processHidden(element, formState) {
+  processHidden(element: FormElement, _formState: FormState): FormElement {
     element['#attributes'] = element['#attributes'] || {};
     element['#attributes'].type = 'hidden';
     return element;
   },
 
-  processSubmit(element, formState) {
+  processSubmit(element: FormElement, _formState: FormState): FormElement {
     element['#attributes'] = element['#attributes'] || {};
     element['#attributes'].type = 'submit';
     element['#button_type'] = element['#button_type'] || 'primary';
     return element;
   },
 
-  processButton(element, formState) {
+  processButton(element: FormElement, _formState: FormState): FormElement {
     element['#attributes'] = element['#attributes'] || {};
     element['#attributes'].type = 'button';
     return element;
   },
 
-  processFieldset(element, formState) {
+  processFieldset(element: FormElement, _formState: FormState): FormElement {
     element['#collapsible'] = element['#collapsible'] || false;
     element['#collapsed'] = element['#collapsed'] || false;
     return element;
   },
 
-  processDetails(element, formState) {
+  processDetails(element: FormElement, _formState: FormState): FormElement {
     element['#open'] = element['#open'] !== false;
     return element;
   },
 
-  processContainer(element, formState) {
+  processContainer(element: FormElement, _formState: FormState): FormElement {
     return element;
   },
 
-  processItem(element, formState) {
+  processItem(element: FormElement, _formState: FormState): FormElement {
     return element;
   },
 
-  processMarkup(element, formState) {
+  processMarkup(element: FormElement, _formState: FormState): FormElement {
     return element;
   },
 
-  processManagedFile(element, formState) {
+  processManagedFile(element: FormElement, _formState: FormState): FormElement {
     element['#attributes'] = element['#attributes'] || {};
     element['#attributes'].type = 'file';
 
     if (element['#upload_validators']) {
       // Process upload validators
-      const validators = element['#upload_validators'];
+      const validators = element['#upload_validators'] as Record<string, unknown[]>;
 
       if (validators.file_validate_extensions) {
-        const extensions = validators.file_validate_extensions[0];
+        const extensions = validators.file_validate_extensions[0] as string;
         element['#attributes'].accept = extensions
           .split(' ')
-          .map(ext => `.${ext}`)
+          .map((ext: string) => `.${ext}`)
           .join(',');
       }
 
@@ -605,7 +721,7 @@ const PROCESSORS = {
     return element;
   },
 
-  processDate(element, formState) {
+  processDate(element: FormElement, _formState: FormState): FormElement {
     element['#attributes'] = element['#attributes'] || {};
     element['#attributes'].type = 'date';
 
@@ -619,7 +735,7 @@ const PROCESSORS = {
     return element;
   },
 
-  processDateTime(element, formState) {
+  processDateTime(element: FormElement, _formState: FormState): FormElement {
     element['#attributes'] = element['#attributes'] || {};
     element['#attributes'].type = 'datetime-local';
 
@@ -633,7 +749,7 @@ const PROCESSORS = {
     return element;
   },
 
-  processNumber(element, formState) {
+  processNumber(element: FormElement, _formState: FormState): FormElement {
     element['#attributes'] = element['#attributes'] || {};
     element['#attributes'].type = 'number';
 
@@ -650,31 +766,31 @@ const PROCESSORS = {
     return element;
   },
 
-  processEmail(element, formState) {
+  processEmail(element: FormElement, _formState: FormState): FormElement {
     element['#attributes'] = element['#attributes'] || {};
     element['#attributes'].type = 'email';
     return element;
   },
 
-  processUrl(element, formState) {
+  processUrl(element: FormElement, _formState: FormState): FormElement {
     element['#attributes'] = element['#attributes'] || {};
     element['#attributes'].type = 'url';
     return element;
   },
 
-  processTel(element, formState) {
+  processTel(element: FormElement, _formState: FormState): FormElement {
     element['#attributes'] = element['#attributes'] || {};
     element['#attributes'].type = 'tel';
     return element;
   },
 
-  processColor(element, formState) {
+  processColor(element: FormElement, _formState: FormState): FormElement {
     element['#attributes'] = element['#attributes'] || {};
     element['#attributes'].type = 'color';
     return element;
   },
 
-  processRange(element, formState) {
+  processRange(element: FormElement, _formState: FormState): FormElement {
     element['#attributes'] = element['#attributes'] || {};
     element['#attributes'].type = 'range';
 
@@ -691,35 +807,36 @@ const PROCESSORS = {
     return element;
   },
 
-  processTableselect(element, formState) {
+  processTableselect(element: FormElement, _formState: FormState): FormElement {
     element['#header'] = element['#header'] || [];
     element['#options'] = element['#options'] || {};
     element['#multiple'] = element['#multiple'] !== false;
     return element;
   },
 
-  processVerticalTabs(element, formState) {
+  processVerticalTabs(element: FormElement, _formState: FormState): FormElement {
     return element;
   },
 
-  processWeight(element, formState) {
+  processWeight(element: FormElement, _formState: FormState): FormElement {
     element['#delta'] = element['#delta'] || 10;
-    element['#options'] = {};
+    element['#options'] = {} as Record<string, string>;
 
-    for (let i = -element['#delta']; i <= element['#delta']; i++) {
-      element['#options'][i] = String(i);
+    const delta = element['#delta'] as number;
+    for (let i = -delta; i <= delta; i++) {
+      (element['#options'] as Record<string, string>)[String(i)] = String(i);
     }
 
     return element;
   },
 
-  processMachineName(element, formState) {
+  processMachineName(element: FormElement, _formState: FormState): FormElement {
     element['#attributes'] = element['#attributes'] || {};
     element['#attributes'].type = 'text';
     element['#pattern'] = element['#pattern'] || '^[a-z0-9_]+$';
 
     if (element['#machine_name']) {
-      const config = element['#machine_name'];
+      const config = element['#machine_name'] as { source?: string; maxlength?: number };
       element['#source_field'] = config.source;
       element['#maxlength'] = config.maxlength || 64;
     }
@@ -727,14 +844,14 @@ const PROCESSORS = {
     return element;
   },
 
-  processPath(element, formState) {
+  processPath(element: FormElement, _formState: FormState): FormElement {
     element['#attributes'] = element['#attributes'] || {};
     element['#attributes'].type = 'text';
     element['#pattern'] = element['#pattern'] || '^[a-zA-Z0-9/_-]+$';
     return element;
   },
 
-  processLanguageSelect(element, formState) {
+  processLanguageSelect(element: FormElement, _formState: FormState): FormElement {
     element['#options'] = element['#options'] || {
       'en': 'English',
       'es': 'Spanish',
@@ -752,8 +869,8 @@ const PROCESSORS = {
 };
 
 // Element renderers
-const RENDERERS = {
-  form(element) {
+const RENDERERS: Record<string, (element: FormElement) => string> = {
+  form(element: FormElement): string {
     const attrs = renderAttributes({
       id: element['#id'],
       method: element['#method'] || 'POST',
@@ -766,49 +883,52 @@ const RENDERERS = {
     return `<form${attrs}>\n${children}\n</form>`;
   },
 
-  textfield(element) {
+  textfield(element: FormElement): string {
     return renderInput(element);
   },
 
-  textarea(element) {
+  textarea(element: FormElement): string {
     const attrs = renderAttributes({
       id: element['#id'],
       name: element['#name'],
       ...element['#attributes']
     });
 
-    const value = escapeHtml(element['#value'] || element['#default_value'] || '');
+    const value = escapeHtml(String(element['#value'] || element['#default_value'] || ''));
 
     return wrapWithLabel(element, `<textarea${attrs}>${value}</textarea>`);
   },
 
-  password(element) {
+  password(element: FormElement): string {
     return renderInput(element);
   },
 
-  select(element) {
+  select(element: FormElement): string {
     const attrs = renderAttributes({
       id: element['#id'],
       name: element['#name'],
       ...element['#attributes']
     });
 
-    const options = renderOptions(element['#options'], element['#value'] || element['#default_value']);
+    const options = renderOptions(
+      (element['#options'] || {}) as Record<string, string>,
+      element['#value'] || element['#default_value']
+    );
 
     return wrapWithLabel(element, `<select${attrs}>${options}</select>`);
   },
 
-  checkboxes(element) {
-    const items = [];
-    const selectedValues = element['#value'] || element['#default_value'] || [];
+  checkboxes(element: FormElement): string {
+    const items: string[] = [];
+    const selectedValues = (element['#value'] || element['#default_value'] || []) as string[];
 
-    for (const [key, label] of Object.entries(element['#options'])) {
+    for (const [key, label] of Object.entries((element['#options'] || {}) as Record<string, string>)) {
       const checked = selectedValues.includes(key) ? ' checked' : '';
-      const id = `${element['#id']}-${key}`;
+      const id = `${element['#id'] as string}-${key}`;
 
       items.push(
         `<div class="form-checkbox">` +
-        `<input type="checkbox" id="${id}" name="${element['#name']}[${key}]" value="${escapeHtml(key)}"${checked}>` +
+        `<input type="checkbox" id="${id}" name="${element['#name'] as string}[${key}]" value="${escapeHtml(key)}"${checked}>` +
         `<label for="${id}">${escapeHtml(label)}</label>` +
         `</div>`
       );
@@ -817,17 +937,17 @@ const RENDERERS = {
     return wrapWithLabel(element, items.join('\n'), false);
   },
 
-  radios(element) {
-    const items = [];
+  radios(element: FormElement): string {
+    const items: string[] = [];
     const selectedValue = element['#value'] || element['#default_value'];
 
-    for (const [key, label] of Object.entries(element['#options'])) {
+    for (const [key, label] of Object.entries((element['#options'] || {}) as Record<string, string>)) {
       const checked = selectedValue === key ? ' checked' : '';
-      const id = `${element['#id']}-${key}`;
+      const id = `${element['#id'] as string}-${key}`;
 
       items.push(
         `<div class="form-radio">` +
-        `<input type="radio" id="${id}" name="${element['#name']}" value="${escapeHtml(key)}"${checked}>` +
+        `<input type="radio" id="${id}" name="${element['#name'] as string}" value="${escapeHtml(key)}"${checked}>` +
         `<label for="${id}">${escapeHtml(label)}</label>` +
         `</div>`
       );
@@ -836,7 +956,7 @@ const RENDERERS = {
     return wrapWithLabel(element, items.join('\n'), false);
   },
 
-  checkbox(element) {
+  checkbox(element: FormElement): string {
     const checked = element['#value'] || element['#default_value'] ? ' checked' : '';
     const attrs = renderAttributes({
       id: element['#id'],
@@ -852,32 +972,32 @@ const RENDERERS = {
     );
   },
 
-  hidden(element) {
+  hidden(element: FormElement): string {
     const attrs = renderAttributes({
       type: 'hidden',
       id: element['#id'],
       name: element['#name'],
-      value: element['#value'] || element['#default_value'] || '',
+      value: String(element['#value'] || element['#default_value'] || ''),
       ...element['#attributes']
     });
 
     return `<input${attrs}>`;
   },
 
-  submit(element) {
+  submit(element: FormElement): string {
     const attrs = renderAttributes({
       type: 'submit',
       id: element['#id'],
       name: element['#name'] || 'submit',
-      value: element['#value'] || 'Submit',
+      value: String(element['#value'] || 'Submit'),
       class: `button button-${element['#button_type'] || 'primary'}`,
       ...element['#attributes']
     });
 
-    return `<button${attrs}>${escapeHtml(element['#value'] || 'Submit')}</button>`;
+    return `<button${attrs}>${escapeHtml(String(element['#value'] || 'Submit'))}</button>`;
   },
 
-  button(element) {
+  button(element: FormElement): string {
     const attrs = renderAttributes({
       type: 'button',
       id: element['#id'],
@@ -886,86 +1006,86 @@ const RENDERERS = {
       ...element['#attributes']
     });
 
-    return `<button${attrs}>${escapeHtml(element['#value'] || 'Button')}</button>`;
+    return `<button${attrs}>${escapeHtml(String(element['#value'] || 'Button'))}</button>`;
   },
 
-  fieldset(element) {
+  fieldset(element: FormElement): string {
     const attrs = renderAttributes(element['#attributes'] || {});
-    const legend = element['#title'] ? `<legend>${escapeHtml(element['#title'])}</legend>` : '';
-    const description = element['#description'] ? `<div class="description">${escapeHtml(element['#description'])}</div>` : '';
+    const legend = element['#title'] ? `<legend>${escapeHtml(element['#title'] as string)}</legend>` : '';
+    const description = element['#description'] ? `<div class="description">${escapeHtml(element['#description'] as string)}</div>` : '';
     const children = renderChildren(element);
 
     return `<fieldset${attrs}>\n${legend}${description}\n${children}\n</fieldset>`;
   },
 
-  details(element) {
+  details(element: FormElement): string {
     const attrs = renderAttributes({
       open: element['#open'],
       ...element['#attributes']
     });
-    const summary = element['#title'] ? `<summary>${escapeHtml(element['#title'])}</summary>` : '';
-    const description = element['#description'] ? `<div class="description">${escapeHtml(element['#description'])}</div>` : '';
+    const summary = element['#title'] ? `<summary>${escapeHtml(element['#title'] as string)}</summary>` : '';
+    const description = element['#description'] ? `<div class="description">${escapeHtml(element['#description'] as string)}</div>` : '';
     const children = renderChildren(element);
 
     return `<details${attrs}>\n${summary}${description}\n${children}\n</details>`;
   },
 
-  container(element) {
+  container(element: FormElement): string {
     const attrs = renderAttributes(element['#attributes'] || {});
     const children = renderChildren(element);
 
     return `<div${attrs}>\n${children}\n</div>`;
   },
 
-  item(element) {
-    const markup = element['#markup'] || '';
+  item(element: FormElement): string {
+    const markup = (element['#markup'] || '') as string;
     return wrapWithLabel(element, markup, false);
   },
 
-  markup(element) {
-    return element['#markup'] || '';
+  markup(element: FormElement): string {
+    return (element['#markup'] || '') as string;
   },
 
-  managed_file(element) {
+  managed_file(element: FormElement): string {
     return renderInput(element);
   },
 
-  date(element) {
+  date(element: FormElement): string {
     return renderInput(element);
   },
 
-  datetime(element) {
+  datetime(element: FormElement): string {
     return renderInput(element);
   },
 
-  number(element) {
+  number(element: FormElement): string {
     return renderInput(element);
   },
 
-  email(element) {
+  email(element: FormElement): string {
     return renderInput(element);
   },
 
-  url(element) {
+  url(element: FormElement): string {
     return renderInput(element);
   },
 
-  tel(element) {
+  tel(element: FormElement): string {
     return renderInput(element);
   },
 
-  color(element) {
+  color(element: FormElement): string {
     return renderInput(element);
   },
 
-  range(element) {
+  range(element: FormElement): string {
     return renderInput(element);
   },
 
-  tableselect(element) {
-    const header = element['#header'] || [];
-    const options = element['#options'] || {};
-    const selectedValues = element['#value'] || element['#default_value'] || [];
+  tableselect(element: FormElement): string {
+    const header = (element['#header'] || []) as string[];
+    const options = (element['#options'] || {}) as Record<string, string[]>;
+    const selectedValues = (element['#value'] || element['#default_value'] || []) as string | string[];
 
     let html = '<table class="tableselect">';
     html += '<thead><tr>';
@@ -984,11 +1104,11 @@ const RENDERERS = {
       html += '<tr>';
 
       if (element['#multiple']) {
-        const checked = selectedValues.includes(key) ? ' checked' : '';
-        html += `<td><input type="checkbox" name="${element['#name']}[${key}]" value="${escapeHtml(key)}"${checked}></td>`;
+        const checked = Array.isArray(selectedValues) && selectedValues.includes(key) ? ' checked' : '';
+        html += `<td><input type="checkbox" name="${element['#name'] as string}[${key}]" value="${escapeHtml(key)}"${checked}></td>`;
       } else {
         const checked = selectedValues === key ? ' checked' : '';
-        html += `<td><input type="radio" name="${element['#name']}" value="${escapeHtml(key)}"${checked}></td>`;
+        html += `<td><input type="radio" name="${element['#name'] as string}" value="${escapeHtml(key)}"${checked}></td>`;
       }
 
       for (const cell of row) {
@@ -1003,35 +1123,35 @@ const RENDERERS = {
     return wrapWithLabel(element, html, false);
   },
 
-  vertical_tabs(element) {
+  vertical_tabs(element: FormElement): string {
     const children = renderChildren(element);
     return `<div class="vertical-tabs">\n${children}\n</div>`;
   },
 
-  weight(element) {
+  weight(element: FormElement): string {
     return RENDERERS.select(element);
   },
 
-  machine_name(element) {
+  machine_name(element: FormElement): string {
     return renderInput(element);
   },
 
-  path(element) {
+  path(element: FormElement): string {
     return renderInput(element);
   },
 
-  language_select(element) {
+  language_select(element: FormElement): string {
     return RENDERERS.select(element);
   },
 
-  default(element) {
+  default(element: FormElement): string {
     return renderChildren(element);
   }
 };
 
 // Helper functions
 
-function createFormState() {
+function createFormState(): FormState {
   return {
     values: {},
     input: {},
@@ -1044,34 +1164,34 @@ function createFormState() {
   };
 }
 
-function generateFormToken(formId) {
+function generateFormToken(formId: string): string {
   const token = crypto.randomBytes(32).toString('hex');
   formTokens.set(formId, token);
   return token;
 }
 
-function validateFormToken(formId, token) {
+function validateFormToken(formId: string, token: string | undefined): boolean {
   const storedToken = formTokens.get(formId);
-  return storedToken && storedToken === token;
+  return !!storedToken && storedToken === token;
 }
 
-function extractFormValues(form, input) {
-  const values = {};
+function extractFormValues(form: FormElement, input: Record<string, unknown>): Record<string, unknown> {
+  const values: Record<string, unknown> = {};
 
   for (const key in form) {
     if (key.startsWith('#')) {
       continue;
     }
 
-    const element = form[key];
+    const element = form[key] as FormElement | null;
     if (!element || typeof element !== 'object') {
       continue;
     }
 
-    const name = element['#name'] || key;
+    const name = (element['#name'] || key) as string;
 
     if (element['#tree']) {
-      values[key] = extractTreeValues(element, input[name] || {});
+      values[key] = extractTreeValues(element, (input[name] || {}) as Record<string, unknown>);
     } else if (name in input) {
       values[key] = input[name];
     } else if (element['#default_value'] !== undefined) {
@@ -1079,8 +1199,8 @@ function extractFormValues(form, input) {
     }
 
     // Recursively extract from containers
-    const type = element['#type'];
-    if (type && ELEMENT_TYPES[type] && ELEMENT_TYPES[type].container) {
+    const type = element['#type'] as string | undefined;
+    if (type && ELEMENT_TYPES[type] && ELEMENT_TYPES[type]!.container) {
       Object.assign(values, extractFormValues(element, input));
     }
   }
@@ -1088,8 +1208,8 @@ function extractFormValues(form, input) {
   return values;
 }
 
-function extractTreeValues(element, input) {
-  const values = {};
+function extractTreeValues(element: FormElement, input: Record<string, unknown>): Record<string, unknown> {
+  const values: Record<string, unknown> = {};
 
   for (const key in element) {
     if (key.startsWith('#')) {
@@ -1104,13 +1224,13 @@ function extractTreeValues(element, input) {
   return values;
 }
 
-function validateRequiredFields(form, formState) {
+function validateRequiredFields(form: FormElement, formState: FormState): void {
   for (const key in form) {
     if (key.startsWith('#')) {
       continue;
     }
 
-    const element = form[key];
+    const element = form[key] as FormElement | null;
     if (!element || typeof element !== 'object') {
       continue;
     }
@@ -1119,37 +1239,37 @@ function validateRequiredFields(form, formState) {
       const value = formState.values[key];
 
       if (value === undefined || value === null || value === '') {
-        setError(formState, element, `${element['#title'] || key} is required.`);
+        setError(formState, element, `${(element['#title'] || key) as string} is required.`);
       }
     }
 
     // Recursively validate containers
-    const type = element['#type'];
-    if (type && ELEMENT_TYPES[type] && ELEMENT_TYPES[type].container) {
+    const type = element['#type'] as string | undefined;
+    if (type && ELEMENT_TYPES[type] && ELEMENT_TYPES[type]!.container) {
       validateRequiredFields(element, formState);
     }
   }
 }
 
-function validateElements(form, formState) {
+function validateElements(form: FormElement, formState: FormState): void {
   for (const key in form) {
     if (key.startsWith('#')) {
       continue;
     }
 
-    const element = form[key];
+    const element = form[key] as FormElement | null;
     if (!element || typeof element !== 'object') {
       continue;
     }
 
-    const value = formState.values[key];
-    const type = element['#type'];
+    const value = formState.values[key] as string | undefined;
+    const type = element['#type'] as string | undefined;
 
     // Type-specific validation
     if (type === 'email' && value) {
       const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
       if (!emailRegex.test(value)) {
-        setError(formState, element, `${element['#title'] || key} must be a valid email address.`);
+        setError(formState, element, `${(element['#title'] || key) as string} must be a valid email address.`);
       }
     }
 
@@ -1157,7 +1277,7 @@ function validateElements(form, formState) {
       try {
         new URL(value);
       } catch {
-        setError(formState, element, `${element['#title'] || key} must be a valid URL.`);
+        setError(formState, element, `${(element['#title'] || key) as string} must be a valid URL.`);
       }
     }
 
@@ -1165,63 +1285,64 @@ function validateElements(form, formState) {
       const num = Number(value);
 
       if (isNaN(num)) {
-        setError(formState, element, `${element['#title'] || key} must be a number.`);
+        setError(formState, element, `${(element['#title'] || key) as string} must be a number.`);
       } else {
-        if (element['#min'] !== undefined && num < element['#min']) {
-          setError(formState, element, `${element['#title'] || key} must be at least ${element['#min']}.`);
+        if (element['#min'] !== undefined && num < (element['#min'] as number)) {
+          setError(formState, element, `${(element['#title'] || key) as string} must be at least ${element['#min']}.`);
         }
-        if (element['#max'] !== undefined && num > element['#max']) {
-          setError(formState, element, `${element['#title'] || key} must be at most ${element['#max']}.`);
+        if (element['#max'] !== undefined && num > (element['#max'] as number)) {
+          setError(formState, element, `${(element['#title'] || key) as string} must be at most ${element['#max']}.`);
         }
       }
     }
 
     // Pattern validation
     if (element['#pattern'] && value) {
-      const regex = new RegExp(element['#pattern']);
+      const regex = new RegExp(element['#pattern'] as string);
       if (!regex.test(value)) {
-        const message = element['#pattern_error'] || `${element['#title'] || key} format is invalid.`;
+        const message = (element['#pattern_error'] || `${(element['#title'] || key) as string} format is invalid.`) as string;
         setError(formState, element, message);
       }
     }
 
     // Recursively validate containers
-    if (type && ELEMENT_TYPES[type] && ELEMENT_TYPES[type].container) {
+    if (type && ELEMENT_TYPES[type] && ELEMENT_TYPES[type]!.container) {
       validateElements(element, formState);
     }
   }
 }
 
-async function executeElementHandlers(type, form, formState) {
+async function executeElementHandlers(type: string, form: FormElement, formState: FormState): Promise<void> {
   for (const key in form) {
     if (key.startsWith('#')) {
       continue;
     }
 
-    const element = form[key];
+    const element = form[key] as FormElement | null;
     if (!element || typeof element !== 'object') {
       continue;
     }
 
     const handlerKey = `#${type}`;
-    if (element[handlerKey]) {
-      for (const handler of element[handlerKey]) {
+    const handlers = element[handlerKey];
+    if (Array.isArray(handlers)) {
+      for (const handler of handlers) {
         if (typeof handler === 'function') {
-          await handler(element, formState);
+          await (handler as (el: FormElement, s: FormState) => void | Promise<void>)(element, formState);
         }
       }
     }
 
     // Recursively execute handlers
-    const elementType = element['#type'];
-    if (elementType && ELEMENT_TYPES[elementType] && ELEMENT_TYPES[elementType].container) {
+    const elementType = element['#type'] as string | undefined;
+    if (elementType && ELEMENT_TYPES[elementType] && ELEMENT_TYPES[elementType]!.container) {
       await executeElementHandlers(type, element, formState);
     }
   }
 }
 
-function processFormElements(form, formState) {
-  const processed = { ...form };
+function processFormElements(form: FormElement, formState: FormState): FormElement {
+  const processed: FormElement = { ...form };
 
   for (const key in processed) {
     if (key.startsWith('#')) {
@@ -1229,59 +1350,59 @@ function processFormElements(form, formState) {
     }
 
     if (typeof processed[key] === 'object' && processed[key] !== null) {
-      processed[key] = processElement(processed[key], formState);
-      processed[key] = prepareElement(processed[key]);
+      processed[key] = processElement(processed[key] as FormElement, formState);
+      processed[key] = prepareElement(processed[key] as FormElement);
     }
   }
 
   return processed;
 }
 
-async function rebuildForm(form, formState) {
+async function rebuildForm(form: FormElement, formState: FormState): Promise<FormElement> {
   formState.rebuild = true;
   const rebuilt = processFormElements(form, formState);
 
   // Attach error messages
   for (const error of getErrors(formState)) {
     if (error.name && rebuilt[error.name]) {
-      rebuilt[error.name]['#error'] = error.message;
+      (rebuilt[error.name] as FormElement)['#error'] = error.message;
     }
   }
 
   return rebuilt;
 }
 
-function processStates(element) {
+function processStates(element: FormElement): void {
   const states = element['#states'];
   element['#attributes'] = element['#attributes'] || {};
   element['#attributes']['data-states'] = JSON.stringify(states);
 }
 
-function processAjax(element) {
+function processAjax(element: FormElement): void {
   const ajax = element['#ajax'];
   element['#attributes'] = element['#attributes'] || {};
   element['#attributes']['data-ajax'] = JSON.stringify(ajax);
 }
 
-function generateElementId(element) {
-  const name = element['#name'] || 'element';
+function generateElementId(element: FormElement): string {
+  const name = (element['#name'] || 'element') as string;
   return `edit-${name.replace(/[^a-z0-9]/gi, '-').toLowerCase()}`;
 }
 
-function renderInput(element) {
+function renderInput(element: FormElement): string {
   const attrs = renderAttributes({
-    type: element['#attributes']?.type || 'text',
+    type: (element['#attributes'] as FormAttributes | undefined)?.type || 'text',
     id: element['#id'],
     name: element['#name'],
-    value: element['#value'] || element['#default_value'] || '',
+    value: String(element['#value'] || element['#default_value'] || ''),
     ...element['#attributes']
   });
 
   return wrapWithLabel(element, `<input${attrs}>`);
 }
 
-function renderAttributes(attrs) {
-  const parts = [];
+function renderAttributes(attrs: Record<string, unknown>): string {
+  const parts: string[] = [];
 
   for (const [key, value] of Object.entries(attrs)) {
     if (value === null || value === undefined || value === false) {
@@ -1298,8 +1419,8 @@ function renderAttributes(attrs) {
   return parts.length > 0 ? ' ' + parts.join(' ') : '';
 }
 
-function renderOptions(options, selectedValue) {
-  const items = [];
+function renderOptions(options: Record<string, string>, selectedValue: unknown): string {
+  const items: string[] = [];
 
   for (const [key, label] of Object.entries(options)) {
     const selected = key === selectedValue ? ' selected' : '';
@@ -1309,8 +1430,8 @@ function renderOptions(options, selectedValue) {
   return items.join('\n');
 }
 
-function renderChildren(element) {
-  const children = [];
+function renderChildren(element: FormElement): string {
+  const children: string[] = [];
 
   for (const key in element) {
     if (key.startsWith('#')) {
@@ -1318,23 +1439,23 @@ function renderChildren(element) {
     }
 
     if (typeof element[key] === 'object' && element[key] !== null) {
-      children.push(renderElement(element[key]));
+      children.push(renderElement(element[key] as FormElement));
     }
   }
 
   return children.join('\n');
 }
 
-function wrapWithLabel(element, input, inline = true, position = null) {
-  const titleDisplay = position || element['#title_display'] || 'before';
-  const title = element['#title'];
-  const description = element['#description'];
-  const error = element['#error'];
+function wrapWithLabel(element: FormElement, input: string, inline: boolean = true, position: string | null = null): string {
+  const titleDisplay = position || (element['#title_display'] || 'before') as string;
+  const title = element['#title'] as string | undefined;
+  const description = element['#description'] as string | undefined;
+  const error = element['#error'] as string | undefined;
 
   let html = '';
 
   if (titleDisplay === 'before' && title) {
-    html += `<label for="${element['#id']}">${escapeHtml(title)}</label>\n`;
+    html += `<label for="${element['#id'] as string}">${escapeHtml(title)}</label>\n`;
   }
 
   if (error) {
@@ -1344,7 +1465,7 @@ function wrapWithLabel(element, input, inline = true, position = null) {
   html += input;
 
   if (titleDisplay === 'after' && title) {
-    html += `\n<label for="${element['#id']}">${escapeHtml(title)}</label>`;
+    html += `\n<label for="${element['#id'] as string}">${escapeHtml(title)}</label>`;
   }
 
   if (description) {
@@ -1358,8 +1479,8 @@ function wrapWithLabel(element, input, inline = true, position = null) {
   return html;
 }
 
-function escapeHtml(text) {
-  const map = {
+function escapeHtml(text: string): string {
+  const map: Record<string, string> = {
     '&': '&amp;',
     '<': '&lt;',
     '>': '&gt;',
@@ -1367,7 +1488,7 @@ function escapeHtml(text) {
     "'": '&#039;'
   };
 
-  return String(text).replace(/[&<>"']/g, char => map[char]);
+  return String(text).replace(/[&<>"']/g, (char: string) => map[char] ?? char);
 }
 
 export default {
