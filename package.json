@@ -5,10 +5,10 @@
   "type": "module",
   "main": "index.ts",
   "scripts": {
-    "start": "node server.ts",
-    "start:raw": "node index.ts",
-    "build": "node build.ts",
-    "build:watch": "node build.ts --watch",
+    "start": "node server.js",
+    "start:raw": "node index.js",
+    "build": "node build.js",
+    "build:watch": "node build.js --watch",
     "typecheck": "tsc"
   },
   "keywords": [
