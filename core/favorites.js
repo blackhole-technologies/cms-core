@@ -36,6 +36,13 @@ import { join, dirname } from 'node:path';
 // Module State
 // ===========================================
 
+/**
+ * Database pool for PostgreSQL favorites persistence.
+ * When non-null, favorites are stored in `favorites` table.
+ * @type {import('./pg-client.js').PgPool | null}
+ */
+let dbPool = null;
+
 let baseDir = null;
 let contentService = null;
 
@@ -88,11 +95,13 @@ function loadUserFavorites(userId) {
 }
 
 /**
- * Save a user's favorites to disk
+ * Save a user's favorites to disk (flat-file mode only).
  * @param {string} userId - User ID
  * @param {Object[]} favorites - Array of favorite objects
  */
 function saveUserFavorites(userId, favorites) {
+  if (dbPool) return; // DB mode: individual mutations handle persistence
+
   ensureFavoritesDir();
   const filePath = getUserFavoritesPath(userId);
 
@@ -102,6 +111,81 @@ function saveUserFavorites(userId, favorites) {
     console.error(`[favorites] Error saving favorites for ${userId}: ${error.message}`);
     throw error;
   }
+}
+
+/**
+ * Set database pool for PostgreSQL favorites persistence.
+ * @param {import('./pg-client.js').PgPool} pool
+ */
+export async function initDb(pool) {
+  dbPool = pool;
+  console.log('[favorites] Using PostgreSQL for favorites storage');
+}
+
+/**
+ * Load a user's favorites from database.
+ * @param {string} userId
+ * @returns {Promise<Object[]>}
+ */
+async function loadUserFavoritesFromDb(userId) {
+  if (!dbPool) return null;
+
+  try {
+    const result = await dbPool.query(
+      `SELECT user_id, content_type, content_id, label, added_at
+       FROM favorites
+       WHERE user_id = $1
+       ORDER BY added_at DESC`,
+      [userId]
+    );
+
+    return result.rows.map(r => ({
+      userId: r.user_id,
+      contentType: r.content_type,
+      contentId: r.content_id,
+      label: r.label || null,
+      addedAt: new Date(r.added_at).toISOString(),
+    }));
+  } catch (error) {
+    console.warn(`[favorites] Failed to load from DB for ${userId}: ${error.message}`);
+    return null;
+  }
+}
+
+/**
+ * Persist a favorite to the database (upsert).
+ */
+function persistFavoriteToDb(fav) {
+  if (!dbPool) return;
+  dbPool.query(
+    `INSERT INTO favorites (user_id, content_type, content_id, label, added_at)
+     VALUES ($1, $2, $3, $4, $5)
+     ON CONFLICT (user_id, content_type, content_id) DO UPDATE SET
+       label = EXCLUDED.label`,
+    [fav.userId, fav.contentType, fav.contentId, fav.label, fav.addedAt]
+  ).catch(err => console.warn(`[favorites] Failed to persist to DB: ${err.message}`));
+}
+
+/**
+ * Delete a favorite from the database.
+ */
+function deleteFavoriteFromDb(userId, contentType, contentId) {
+  if (!dbPool) return;
+  dbPool.query(
+    `DELETE FROM favorites WHERE user_id = $1 AND content_type = $2 AND content_id = $3`,
+    [userId, contentType, contentId]
+  ).catch(err => console.warn(`[favorites] Failed to delete from DB: ${err.message}`));
+}
+
+/**
+ * Delete all favorites for a user from the database.
+ */
+function clearUserFavoritesFromDb(userId) {
+  if (!dbPool) return;
+  dbPool.query(
+    `DELETE FROM favorites WHERE user_id = $1`,
+    [userId]
+  ).catch(err => console.warn(`[favorites] Failed to clear favorites from DB: ${err.message}`));
 }
 
 // ===========================================
@@ -163,6 +247,7 @@ export function addFavorite(userId, contentType, contentId, label = null) {
     if (label !== null) {
       existing.label = label;
       saveUserFavorites(userId, favorites);
+      persistFavoriteToDb(existing);
     }
     return existing;
   }
@@ -178,6 +263,7 @@ export function addFavorite(userId, contentType, contentId, label = null) {
 
   favorites.unshift(favorite); // Add to beginning (most recent first)
   saveUserFavorites(userId, favorites);
+  persistFavoriteToDb(favorite);
 
   console.log(`[favorites] Added favorite for ${userId}: ${contentType}/${contentId}`);
   return favorite;
@@ -211,6 +297,7 @@ export function removeFavorite(userId, contentType, contentId) {
   }
 
   saveUserFavorites(userId, filtered);
+  deleteFavoriteFromDb(userId, contentType, contentId);
   console.log(`[favorites] Removed favorite for ${userId}: ${contentType}/${contentId}`);
   return true;
 }
@@ -365,6 +452,7 @@ export function updateLabel(userId, contentType, contentId, label) {
 
   favorite.label = label || null;
   saveUserFavorites(userId, favorites);
+  persistFavoriteToDb(favorite);
 
   return favorite;
 }
@@ -495,6 +583,7 @@ export function clearUserFavorites(userId) {
 
   if (count > 0) {
     saveUserFavorites(userId, []);
+    clearUserFavoritesFromDb(userId);
     console.log(`[favorites] Cleared ${count} favorites for ${userId}`);
   }
 
@@ -507,6 +596,7 @@ export function clearUserFavorites(userId) {
 
 export default {
   init,
+  initDb,
   addFavorite,
   removeFavorite,
   toggleFavorite,

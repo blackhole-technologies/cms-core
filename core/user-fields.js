@@ -39,7 +39,7 @@
 
 import { promises as fs } from 'node:fs';
 import { join } from 'node:path';
-import * as fields from './fields.js';
+import * as fields from './fields.ts';
 import * as hooks from './hooks.ts';
 
 /**

@@ -33,6 +33,13 @@ const locks = new Map();
 let lockFile = null;
 
 /**
+ * Database pool for PostgreSQL lock persistence.
+ * When non-null, locks are stored in `content_locks` table instead of index.json.
+ * @type {import('./pg-client.js').PgPool | null}
+ */
+let dbPool = null;
+
+/**
  * Initialize the locking system
  * @param {object} config - Configuration object
  */
@@ -61,6 +68,15 @@ export function init(config = {}) {
 }
 
 /**
+ * Set database pool for PostgreSQL lock persistence.
+ * @param {import('./pg-client.js').PgPool} pool
+ */
+export async function initDb(pool) {
+  dbPool = pool;
+  await loadLocksFromDb();
+}
+
+/**
  * Load locks from persistence file
  */
 function loadLocks() {
@@ -82,9 +98,50 @@ function loadLocks() {
 }
 
 /**
- * Save locks to persistence file
+ * Load locks from PostgreSQL, cleaning up expired ones.
+ */
+async function loadLocksFromDb() {
+  if (!dbPool) return;
+
+  try {
+    await dbPool.simpleQuery(`DELETE FROM content_locks WHERE expires_at < NOW()`);
+
+    const result = await dbPool.simpleQuery(
+      `SELECT content_type, content_id, user_id, username,
+              acquired_at, expires_at, last_activity
+       FROM content_locks`
+    );
+
+    locks.clear();
+    for (const row of result.rows) {
+      const r = row;
+      const lock = {
+        type: r.content_type,
+        id: r.content_id,
+        userId: r.user_id,
+        username: r.username || r.user_id,
+        acquiredAt: new Date(r.acquired_at).toISOString(),
+        expiresAt: new Date(r.expires_at).toISOString(),
+        lastActivity: new Date(r.last_activity).toISOString(),
+      };
+      locks.set(`${lock.type}/${lock.id}`, lock);
+    }
+
+    if (locks.size > 0) {
+      console.log(`[locks] Restored ${locks.size} lock(s) from database`);
+    }
+  } catch (error) {
+    console.warn(`[locks] Failed to load locks from database: ${error.message}`);
+  }
+}
+
+/**
+ * Save locks to persistence file (flat-file mode only).
+ * When database is enabled, individual mutations write directly.
  */
 function saveLocks() {
+  if (dbPool) return; // DB mode: individual mutations handle persistence
+
   if (!lockFile) return;
 
   try {
@@ -93,6 +150,34 @@ function saveLocks() {
   } catch (error) {
     console.error('[locks] Failed to save locks:', error.message);
   }
+}
+
+/**
+ * Persist a single lock to the database (upsert).
+ */
+function persistLockToDb(lock) {
+  if (!dbPool) return;
+  dbPool.query(
+    `INSERT INTO content_locks (content_type, content_id, user_id, username, acquired_at, expires_at, last_activity)
+     VALUES ($1, $2, $3, $4, $5, $6, $7)
+     ON CONFLICT (content_type, content_id) DO UPDATE SET
+       user_id = EXCLUDED.user_id,
+       username = EXCLUDED.username,
+       expires_at = EXCLUDED.expires_at,
+       last_activity = EXCLUDED.last_activity`,
+    [lock.type, lock.id, lock.userId, lock.username, lock.acquiredAt, lock.expiresAt, lock.lastActivity]
+  ).catch(err => console.warn(`[locks] Failed to persist lock to DB: ${err.message}`));
+}
+
+/**
+ * Delete a lock from the database.
+ */
+function deleteLockFromDb(type, id) {
+  if (!dbPool) return;
+  dbPool.query(
+    `DELETE FROM content_locks WHERE content_type = $1 AND content_id = $2`,
+    [type, id]
+  ).catch(err => console.warn(`[locks] Failed to delete lock from DB: ${err.message}`));
 }
 
 /**
@@ -168,6 +253,7 @@ export function acquireLock(type, id, userId, options = {}) {
 
   locks.set(key, lock);
   saveLocks();
+  persistLockToDb(lock);
 
   return lock;
 }
@@ -196,6 +282,7 @@ export function releaseLock(type, id, userId) {
 
   locks.delete(key);
   saveLocks();
+  deleteLockFromDb(type, id);
 
   return true;
 }
@@ -286,6 +373,7 @@ export function refreshLock(type, id, userId) {
 
   locks.set(key, existing);
   saveLocks();
+  persistLockToDb(existing);
 
   return existing;
 }
@@ -306,6 +394,7 @@ export function forceRelease(type, id) {
 
   locks.delete(key);
   saveLocks();
+  deleteLockFromDb(type, id);
 
   return existing;
 }

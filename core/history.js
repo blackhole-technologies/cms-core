@@ -23,6 +23,13 @@
 import { existsSync, readFileSync, writeFileSync, mkdirSync, readdirSync, unlinkSync } from 'node:fs';
 import { join } from 'node:path';
 
+/**
+ * Database pool for PostgreSQL history persistence.
+ * When non-null, read history is stored in `content_history` table.
+ * @type {import('./pg-client.js').PgPool | null}
+ */
+let dbPool = null;
+
 let config = {};
 let historyDir = '';
 let initialized = false;
@@ -81,15 +88,100 @@ function getUserHistory(userId) {
 }
 
 /**
- * Save user history to disk
+ * Save user history to disk (flat-file mode only).
  * WHY: Flush cache to persistent storage
  *
  * @param {string} userId
  * @param {Object} history
  */
 function saveUserHistory(userId, history) {
+  if (dbPool) return; // DB mode: individual mutations handle persistence
+
   const filePath = join(historyDir, `${userId}.json`);
   writeFileSync(filePath, JSON.stringify(history, null, 2) + '\n');
+}
+
+/**
+ * Set database pool for PostgreSQL history persistence.
+ * @param {import('./pg-client.js').PgPool} pool
+ */
+export async function initDb(pool) {
+  dbPool = pool;
+  console.log('[history] Using PostgreSQL for history storage');
+}
+
+/**
+ * Persist a single view record to the database (upsert).
+ */
+function persistViewToDb(userId, contentType, contentId, viewedAtMs) {
+  if (!dbPool) return;
+  dbPool.query(
+    `INSERT INTO content_history (user_id, content_type, content_id, viewed_at)
+     VALUES ($1, $2, $3, $4)
+     ON CONFLICT (user_id, content_type, content_id) DO UPDATE SET
+       viewed_at = EXCLUDED.viewed_at`,
+    [userId, contentType, contentId, new Date(viewedAtMs).toISOString()]
+  ).catch(err => console.warn(`[history] Failed to persist view to DB: ${err.message}`));
+}
+
+/**
+ * Persist user's lastVisit to the database.
+ */
+function persistLastVisitToDb(userId, lastVisit) {
+  if (!dbPool) return;
+  // Use a special sentinel row to track lastVisit
+  dbPool.query(
+    `INSERT INTO content_history (user_id, content_type, content_id, viewed_at)
+     VALUES ($1, '_meta', '_lastVisit', $2)
+     ON CONFLICT (user_id, content_type, content_id) DO UPDATE SET
+       viewed_at = EXCLUDED.viewed_at`,
+    [userId, lastVisit]
+  ).catch(err => console.warn(`[history] Failed to persist lastVisit to DB: ${err.message}`));
+}
+
+/**
+ * Delete all history for a user from the database.
+ */
+function clearHistoryFromDb(userId) {
+  if (!dbPool) return;
+  dbPool.query(
+    `DELETE FROM content_history WHERE user_id = $1`,
+    [userId]
+  ).catch(err => console.warn(`[history] Failed to clear history from DB: ${err.message}`));
+}
+
+/**
+ * Load a user's history from the database into cache format.
+ * @param {string} userId
+ * @returns {Promise<Object|null>}
+ */
+async function loadHistoryFromDb(userId) {
+  if (!dbPool) return null;
+
+  try {
+    const result = await dbPool.query(
+      `SELECT content_type, content_id, viewed_at
+       FROM content_history
+       WHERE user_id = $1`,
+      [userId]
+    );
+
+    const history = { userId, lastVisit: null, reads: {} };
+
+    for (const r of result.rows) {
+      if (r.content_type === '_meta' && r.content_id === '_lastVisit') {
+        history.lastVisit = new Date(r.viewed_at).toISOString();
+      } else {
+        const key = `${r.content_type}/${r.content_id}`;
+        history.reads[key] = new Date(r.viewed_at).getTime();
+      }
+    }
+
+    return history;
+  } catch (error) {
+    console.warn(`[history] Failed to load from DB for ${userId}: ${error.message}`);
+    return null;
+  }
 }
 
 /**
@@ -167,11 +259,14 @@ export function recordView(userId, contentType, contentId) {
   const history = getCachedHistory(userId);
   const key = buildKey(contentType, contentId);
 
-  history.reads[key] = Date.now();
+  const now = Date.now();
+  history.reads[key] = now;
   history.lastVisit = new Date().toISOString();
 
   trimHistory(history);
   saveUserHistory(userId, history);
+  persistViewToDb(userId, contentType, contentId, now);
+  persistLastVisitToDb(userId, history.lastVisit);
 
   // Update cache
   historyCache.set(userId, history);
@@ -299,12 +394,14 @@ export function markAllRead(userId, contentType, items) {
   for (const item of items) {
     const key = buildKey(contentType, item.id);
     history.reads[key] = now;
+    persistViewToDb(userId, contentType, item.id, now);
   }
 
   history.lastVisit = new Date().toISOString();
 
   trimHistory(history);
   saveUserHistory(userId, history);
+  persistLastVisitToDb(userId, history.lastVisit);
   historyCache.set(userId, history);
 }
 
@@ -361,6 +458,7 @@ export function clearHistory(userId) {
     unlinkSync(filePath);
   }
 
+  clearHistoryFromDb(userId);
   historyCache.delete(userId);
 }
 
@@ -390,6 +488,7 @@ export function recordVisit(userId) {
   history.lastVisit = new Date().toISOString();
 
   saveUserHistory(userId, history);
+  persistLastVisitToDb(userId, history.lastVisit);
   historyCache.set(userId, history);
 }
 
