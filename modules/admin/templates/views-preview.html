@@ -93,27 +93,16 @@
       <table class="results-table">
         <thead>
           <tr>
-            {{#if view.fields}}
-            {{#each view.fields}}
-            <th>{{this}}</th>
-            {{/each}}
-            {{else}}
             <th>ID</th>
             <th>Title</th>
             <th>Status</th>
             <th>Author</th>
             <th>Created</th>
-            {{/if}}
           </tr>
         </thead>
         <tbody>
           {{#each results}}
           <tr>
-            {{#if ../view.fields}}
-            {{#each ../view.fields}}
-            <td>{{lookup .. this}}</td>
-            {{/each}}
-            {{else}}
             <td>{{id}}</td>
             <td><strong>{{title}}</strong></td>
             <td>
@@ -125,7 +114,6 @@
             </td>
             <td>{{author}}</td>
             <td>{{created}}</td>
-            {{/if}}
           </tr>
           {{/each}}
         </tbody>
@@ -133,9 +121,9 @@
 
       {{#if view.usePager}}
       <div class="pager">
-        <button class="btn btn-sm btn-secondary" {{^if hasPrevious}}disabled{{/if}}>Previous</button>
+        <button class="btn btn-sm btn-secondary" {{#unless hasPrevious}}disabled{{/unless}}>Previous</button>
         <span class="page-info">Page {{currentPage}} of {{totalPages}}</span>
-        <button class="btn btn-sm btn-secondary" {{^if hasNext}}disabled{{/if}}>Next</button>
+        <button class="btn btn-sm btn-secondary" {{#unless hasNext}}disabled{{/unless}}>Next</button>
       </div>
       {{/if}}
 

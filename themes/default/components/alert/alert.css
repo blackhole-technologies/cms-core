@@ -9,27 +9,27 @@
 }
 
 .sdc-alert--info {
-  background: #e8f0fe;
-  color: #1a56db;
-  border: 1px solid #c6d9f7;
+  background: var(--gin-alert-info-bg, #e8f0fe);
+  color: var(--gin-alert-info-text, #1a56db);
+  border: 1px solid var(--gin-alert-info-border, #c6d9f7);
 }
 
 .sdc-alert--success {
-  background: #def7ec;
-  color: #03713c;
-  border: 1px solid #bcf0da;
+  background: var(--gin-alert-success-bg, #def7ec);
+  color: var(--gin-alert-success-text, #03713c);
+  border: 1px solid var(--gin-alert-success-border, #bcf0da);
 }
 
 .sdc-alert--warning {
-  background: #fdf6b2;
-  color: #8e4b10;
-  border: 1px solid #fce96a;
+  background: var(--gin-alert-warning-bg, #fdf6b2);
+  color: var(--gin-alert-warning-text, #8e4b10);
+  border: 1px solid var(--gin-alert-warning-border, #fce96a);
 }
 
 .sdc-alert--error {
-  background: #fde8e8;
-  color: #c81e1e;
-  border: 1px solid #fbd5d5;
+  background: var(--gin-alert-error-bg, #fde8e8);
+  color: var(--gin-alert-error-text, #c81e1e);
+  border: 1px solid var(--gin-alert-error-border, #fbd5d5);
 }
 
 .sdc-alert__icon {

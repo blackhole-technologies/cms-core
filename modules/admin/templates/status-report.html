@@ -145,6 +145,7 @@
     .status-message h2 {
       margin: 0 0 0.5rem 0;
       font-size: 1.5rem;
+      color: var(--gin-text, #212529);
     }
     .status-message p {
       margin: 0;
@@ -152,7 +153,7 @@
     }
     .status-timestamp {
       text-align: right;
-      color: #6c757d;
+      color: var(--gin-text-muted, #6c757d);
       font-size: 0.9rem;
       margin-bottom: 1rem;
     }
@@ -160,7 +161,7 @@
       margin-bottom: 1.5rem;
     }
     .category-summary {
-      color: #6c757d;
+      color: var(--gin-text-muted, #6c757d);
       font-size: 0.9rem;
     }
     .checks-list {
@@ -170,8 +171,8 @@
     }
     .check-item {
       border-radius: 6px;
-      border: 1px solid #dee2e6;
-      background: white;
+      border: 1px solid var(--gin-border, #dee2e6);
+      background: var(--gin-surface, #fff);
       overflow: hidden;
     }
     .check-item.status-ok {
@@ -192,7 +193,7 @@
       user-select: none;
     }
     .check-header:hover {
-      background: #f8f9fa;
+      background: var(--gin-hover, #f8f9fa);
     }
     .check-icon {
       font-size: 1.5rem;
@@ -217,6 +218,7 @@
     .check-info h3 {
       margin: 0;
       font-size: 1rem;
+      color: var(--gin-text, #212529);
     }
     .status-badge {
       padding: 0.25rem 0.5rem;
@@ -238,45 +240,46 @@
       color: #721c24;
     }
     .check-toggle {
-      color: #6c757d;
+      color: var(--gin-text-muted, #6c757d);
       font-size: 0.8rem;
       transition: transform 0.2s;
     }
     .check-message {
       padding: 0 1rem 1rem 3.25rem;
-      color: #495057;
+      color: var(--gin-text-secondary, #495057);
     }
     .check-details {
       padding: 1rem;
       margin: 0 1rem 1rem 3.25rem;
-      background: #f8f9fa;
+      background: var(--gin-surface-alt, #f8f9fa);
       border-radius: 4px;
-      border: 1px solid #dee2e6;
+      border: 1px solid var(--gin-border, #dee2e6);
     }
     .check-details h4 {
       margin: 0 0 0.5rem 0;
       font-size: 0.9rem;
-      color: #495057;
+      color: var(--gin-text-secondary, #495057);
     }
     .check-details ul {
       margin: 0;
       padding-left: 1.5rem;
+      color: var(--gin-text, #212529);
     }
     .check-details pre {
       margin: 0;
       font-size: 0.85rem;
-      color: #212529;
+      color: var(--gin-text, #212529);
       white-space: pre-wrap;
       word-break: break-word;
     }
     .recommendations-section {
-      background: linear-gradient(135deg, #e3f2fd 0%, #bbdefb 100%);
-      border: 2px solid #2196f3;
+      background: var(--gin-info-bg, linear-gradient(135deg, #e3f2fd 0%, #bbdefb 100%));
+      border: 2px solid var(--gin-primary, #2196f3);
       border-radius: 8px;
       padding: 1.5rem;
     }
     .recommendations-section h2 {
-      color: #0d47a1;
+      color: var(--gin-primary-dark, #0d47a1);
       margin: 0 0 1rem 0;
     }
     .recommendations-list {
@@ -285,10 +288,10 @@
       gap: 1rem;
     }
     .recommendation-item {
-      background: white;
+      background: var(--gin-surface, #fff);
       padding: 1rem;
       border-radius: 6px;
-      border-left: 4px solid #2196f3;
+      border-left: 4px solid var(--gin-primary, #2196f3);
     }
     .recommendation-item.priority-high {
       border-left-color: #dc3545;
@@ -313,8 +316,8 @@
       text-transform: uppercase;
     }
     .priority-badge {
-      background: #e3f2fd;
-      color: #0d47a1;
+      background: var(--gin-info-bg, #e3f2fd);
+      color: var(--gin-primary-dark, #0d47a1);
     }
     .recommendation-item.priority-high .priority-badge {
       background: #f8d7da;
@@ -331,10 +334,11 @@
     .recommendation-header h3 {
       margin: 0;
       font-size: 1rem;
+      color: var(--gin-text, #212529);
     }
     .recommendation-item p {
       margin: 0 0 0.75rem 0;
-      color: #495057;
+      color: var(--gin-text-secondary, #495057);
     }
     .recommendation-actions {
       display: flex;

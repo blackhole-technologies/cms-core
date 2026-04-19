@@ -27,8 +27,8 @@
       <tr>
         <td><small>{{id}}</small></td>
         <td><small>{{created}}</small></td>
-        {{#each ../columns}}
-        <td>{{lookup ../../this.data this.key}}</td>
+        {{#each cells}}
+        <td>{{value}}</td>
         {{/each}}
         <td>
           <a href="/admin/webforms/submission/{{../form.id}}/{{id}}" class="btn btn-sm">View</a>
