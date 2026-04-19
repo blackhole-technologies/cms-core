@@ -1,0 +1,13 @@
+{
+  "name": "card-icon",
+  "description": "Card with a prominent icon, heading, and description text",
+  "props": {
+    "icon": { "type": "string", "default": "star", "description": "Icon name" },
+    "icon_size": { "type": "string", "default": "medium", "enum": ["small", "medium", "large", "extra-large"] },
+    "text": { "type": "string", "description": "Heading text" },
+    "description": { "type": "string", "description": "Description HTML" },
+    "url": { "type": "string", "description": "Optional link" },
+    "background_color": { "type": "string", "default": "muted", "enum": ["primary", "secondary", "accent", "muted"] },
+    "text_align": { "type": "string", "default": "center", "enum": ["left", "center", "right"] }
+  }
+}

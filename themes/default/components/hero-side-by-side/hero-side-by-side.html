@@ -1,0 +1,8 @@
+<section class="sdc-hero-sbs {{#if background}}sdc-hero-sbs--bg-{{background}}{{/if}} sdc-hero-sbs--gap-{{gap}} sdc-hero-sbs--img-{{image_position}}">
+  <div class="sdc-hero-sbs__media">
+    {{#if image_url}}<img src="{{image_url}}" alt="{{image_alt}}" class="sdc-hero-sbs__img {{#if image_radius}}sdc-hero-sbs__img--{{image_radius}}{{/if}}" loading="lazy" style="aspect-ratio:{{image_size}}">{{/if}}
+  </div>
+  <div class="sdc-hero-sbs__content">
+    {{{content}}}
+  </div>
+</section>

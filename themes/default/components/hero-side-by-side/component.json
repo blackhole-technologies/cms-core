@@ -1,0 +1,13 @@
+{
+  "name": "hero-side-by-side",
+  "description": "Side-by-side hero with image on one side and content on the other",
+  "props": {
+    "image_url": { "type": "string", "description": "Image URL" },
+    "image_alt": { "type": "string", "default": "" },
+    "image_position": { "type": "string", "default": "left", "enum": ["left", "right"] },
+    "image_size": { "type": "string", "default": "4:3", "enum": ["2:1", "16:9", "3:2", "4:3", "1:1"] },
+    "image_radius": { "type": "string", "enum": ["small", "large", "extra-large"] },
+    "background": { "type": "string", "enum": ["primary", "secondary", "accent"] },
+    "gap": { "type": "string", "default": "large", "enum": ["large", "extra-large"] }
+  }
+}

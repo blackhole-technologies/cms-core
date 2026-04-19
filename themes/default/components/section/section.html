@@ -1,0 +1,8 @@
+<section class="sdc-section {{#if background_color}}sdc-section--bg-{{background_color}}{{/if}}" style="margin-top:{{margin_top}}px;margin-bottom:{{margin_bottom}}px;padding-top:{{padding_top}}px;padding-bottom:{{padding_bottom}}px;max-width:{{width}}">
+  {{#if image_url}}<div class="sdc-section__bg" style="background-image:url('{{image_url}}')"></div>{{/if}}
+  {{#if header_slot}}<div class="sdc-section__header">{{{header_slot}}}</div>{{/if}}
+  <div class="sdc-section__grid sdc-section__grid--{{columns}} sdc-section__grid--mobile-{{mobile_columns}}">
+    {{{main_slot}}}
+  </div>
+  {{#if footer_slot}}<div class="sdc-section__footer">{{{footer_slot}}}</div>{{/if}}
+</section>

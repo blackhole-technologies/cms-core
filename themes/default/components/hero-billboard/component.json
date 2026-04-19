@@ -1,0 +1,11 @@
+{
+  "name": "hero-billboard",
+  "description": "Full-width hero section with background image, overlay, and positioned content",
+  "props": {
+    "height": { "type": "string", "default": "large", "enum": ["full", "large", "ribbon"] },
+    "flex_position": { "type": "string", "default": "center-left", "enum": ["top-left", "center-left", "bottom-left", "center"] },
+    "image_url": { "type": "string", "description": "Background image URL" },
+    "image_position": { "type": "string", "default": "center", "enum": ["top", "center", "bottom"] },
+    "overlay_opacity": { "type": "string", "default": "40%", "enum": ["0%", "20%", "40%", "60%", "75%"] }
+  }
+}

@@ -1,0 +1,9 @@
+{
+  "name": "text",
+  "description": "Rich text content block with configurable size and color",
+  "props": {
+    "text": { "type": "string", "required": true, "description": "HTML rich text content" },
+    "text_size": { "type": "string", "default": "normal", "enum": ["xs", "sm", "normal", "lg", "xl", "2xl", "3xl"] },
+    "text_color": { "type": "string", "default": "default", "enum": ["default", "inverted", "primary"] }
+  }
+}

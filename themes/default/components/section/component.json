@@ -1,0 +1,16 @@
+{
+  "name": "section",
+  "description": "Responsive grid section with configurable width, columns, spacing, and background",
+  "props": {
+    "width": { "type": "string", "default": "100%", "enum": ["100%", "90%", "80%", "75%", "50%"] },
+    "columns": { "type": "string", "default": "100", "enum": ["100", "50-50", "33-33-33", "75-25", "25-75", "67-33", "33-67", "25-25-25-25"] },
+    "mobile_columns": { "type": "number", "default": 1, "enum": [1, 2, 3] },
+    "margin_top": { "type": "string", "default": "32", "enum": ["0", "8", "20", "32", "48", "64", "96"] },
+    "margin_bottom": { "type": "string", "default": "32", "enum": ["0", "8", "20", "32", "48", "64", "96"] },
+    "padding_top": { "type": "string", "default": "0", "enum": ["0", "16", "32", "64"] },
+    "padding_bottom": { "type": "string", "default": "0", "enum": ["0", "16", "32", "64"] },
+    "background_color": { "type": "string", "enum": ["primary", "secondary", "accent", "muted"] },
+    "image_url": { "type": "string", "description": "Optional background image" }
+  },
+  "slots": ["header_slot", "main_slot", "footer_slot"]
+}

@@ -1,0 +1,17 @@
+<header class="sdc-hero-blog">
+  <div class="sdc-hero-blog__meta">
+    {{#if date}}<time class="sdc-hero-blog__date">{{date}}</time>{{/if}}
+    <h{{level}} class="sdc-hero-blog__title">{{heading_text}}</h{{level}}>
+    {{#if author}}
+    <p class="sdc-hero-blog__author">
+      By {{#if author_url}}<a href="{{author_url}}">{{author}}</a>{{else}}{{author}}{{/if}}
+    </p>
+    {{/if}}
+  </div>
+  {{#if image_url}}
+  <div class="sdc-hero-blog__image">
+    <img src="{{image_url}}" alt="{{image_alt}}" loading="lazy">
+    <div class="sdc-hero-blog__accent"></div>
+  </div>
+  {{/if}}
+</header>

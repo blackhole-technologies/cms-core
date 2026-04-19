@@ -1,0 +1,8 @@
+{
+  "name": "footer",
+  "description": "Site footer with branding, navigation, utility links, and copyright",
+  "props": {
+    "align": { "type": "boolean", "default": false, "description": "Display links horizontally" }
+  },
+  "slots": ["footer_first", "footer_last", "footer_utility_first", "footer_utility_last"]
+}

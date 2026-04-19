@@ -1,0 +1,6 @@
+<figure class="sdc-image {{#if radius}}sdc-image--{{radius}}{{/if}}">
+  {{#if url}}<a href="{{url}}" class="sdc-image__link">{{/if}}
+    <img src="{{src}}" alt="{{alt}}" class="sdc-image__img" style="aspect-ratio:{{size}}" loading="lazy">
+  {{#if url}}</a>{{/if}}
+  {{#if caption}}<figcaption class="sdc-image__caption">{{caption}}</figcaption>{{/if}}
+</figure>

@@ -1,0 +1,13 @@
+{
+  "name": "card-testimonial",
+  "description": "Testimonial card with quote, author image, name, and title",
+  "props": {
+    "text": { "type": "string", "required": true, "description": "Quote text" },
+    "cite_name": { "type": "string", "description": "Author name" },
+    "cite_text": { "type": "string", "description": "Author title/role" },
+    "cite_url": { "type": "string", "description": "Author link" },
+    "image_url": { "type": "string", "description": "Author portrait URL" },
+    "align": { "type": "string", "default": "center", "enum": ["center", "left"] },
+    "style": { "type": "string", "default": "default", "enum": ["default", "inverted"] }
+  }
+}

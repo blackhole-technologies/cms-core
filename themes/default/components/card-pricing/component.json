@@ -1,0 +1,15 @@
+{
+  "name": "card-pricing",
+  "description": "Pricing plan card with price display, feature list, and CTA button",
+  "props": {
+    "heading_text": { "type": "string", "required": true },
+    "description": { "type": "string" },
+    "price": { "type": "string", "required": true },
+    "currency_symbol": { "type": "string", "default": "$" },
+    "symbol_position": { "type": "string", "default": "before", "enum": ["before", "after"] },
+    "features": { "type": "string", "description": "HTML list of features" },
+    "button_url": { "type": "string" },
+    "button_label": { "type": "string", "default": "Get Started" },
+    "promote": { "type": "boolean", "default": false, "description": "Highlighted/promoted card" }
+  }
+}

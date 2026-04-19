@@ -1,0 +1,25 @@
+.sdc-heading { margin: 0; font-weight: 700; line-height: 1.15; }
+
+.sdc-heading--left { text-align: left; }
+.sdc-heading--center { text-align: center; }
+.sdc-heading--right { text-align: right; }
+
+.sdc-heading--default { color: inherit; }
+.sdc-heading--inverted { color: var(--gin-bg, #fff); }
+.sdc-heading--primary { color: var(--gin-primary, #2c59ee); }
+
+.sdc-heading--8xl { font-size: clamp(2.5rem, 5vw, 5rem); }
+.sdc-heading--7xl { font-size: clamp(2.25rem, 4.5vw, 4.5rem); }
+.sdc-heading--6xl { font-size: clamp(2rem, 4vw, 3.75rem); }
+.sdc-heading--5xl { font-size: clamp(1.75rem, 3.5vw, 3rem); }
+.sdc-heading--4xl { font-size: clamp(1.5rem, 3vw, 2.25rem); }
+.sdc-heading--3xl { font-size: clamp(1.25rem, 2.5vw, 1.875rem); }
+.sdc-heading--2xl { font-size: 1.5rem; }
+.sdc-heading--xl { font-size: 1.25rem; }
+
+.sdc-heading__link {
+  color: inherit;
+  text-decoration: none;
+  transition: opacity 0.2s, transform 0.2s;
+}
+.sdc-heading__link:hover { opacity: 0.9; transform: scale(1.02); }

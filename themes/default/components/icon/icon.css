@@ -1,0 +1,12 @@
+.sdc-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: currentColor;
+  line-height: 1;
+}
+.sdc-icon--extra-small { font-size: 1rem; min-width: 1rem; }
+.sdc-icon--small { font-size: 1.25rem; min-width: 1.25rem; }
+.sdc-icon--medium { font-size: 1.5rem; min-width: 1.5rem; }
+.sdc-icon--large { font-size: 2rem; min-width: 2rem; }
+.sdc-icon--extra-large { font-size: 3rem; min-width: 3rem; }

@@ -1,0 +1,41 @@
+.sdc-hero-blog {
+  display: flex;
+  flex-direction: column;
+  gap: 2rem;
+  padding: 2rem 0;
+}
+
+@media (min-width: 768px) {
+  .sdc-hero-blog { gap: 3rem; padding: 3rem 0; }
+}
+
+.sdc-hero-blog__meta { text-align: center; }
+.sdc-hero-blog__date { font-size: 0.875rem; color: var(--gin-text-muted, #71727a); text-transform: uppercase; letter-spacing: 0.05em; }
+.sdc-hero-blog__title { font-size: clamp(1.75rem, 4vw, 3rem); font-weight: 700; margin: 0.5rem 0; line-height: 1.2; }
+.sdc-hero-blog__author { font-size: 0.875rem; color: var(--gin-text-muted, #71727a); }
+.sdc-hero-blog__author a { color: var(--gin-primary, #2c59ee); text-decoration: none; }
+.sdc-hero-blog__author a:hover { text-decoration: underline; }
+
+.sdc-hero-blog__image {
+  position: relative;
+  margin: 0 auto;
+  padding: 0 1.5rem;
+  max-width: 100%;
+}
+.sdc-hero-blog__image img {
+  width: 100%;
+  border-radius: 0.5rem;
+  object-fit: cover;
+  position: relative;
+  z-index: 1;
+}
+.sdc-hero-blog__accent {
+  position: absolute;
+  bottom: -2rem;
+  left: 0;
+  right: 0;
+  height: calc(33% + 2rem);
+  background: var(--gin-accent, #fbbf24);
+  border-radius: 0 0 0.5rem 0.5rem;
+  z-index: 0;
+}

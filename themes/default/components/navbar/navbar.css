@@ -1,0 +1,96 @@
+.sdc-navbar {
+  position: relative;
+  z-index: 500;
+  background: var(--gin-bg, #fff);
+  border-bottom: 1px solid var(--gin-border, #d1d5db);
+}
+
+.sdc-navbar__inner {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  max-width: 80rem;
+  margin: 0 auto;
+  padding: 0.75rem 1rem;
+}
+
+.sdc-navbar__toggle {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 2.5rem;
+  height: 2.5rem;
+  background: none;
+  border: none;
+  cursor: pointer;
+}
+
+@media (min-width: 768px) {
+  .sdc-navbar__toggle { display: none; }
+}
+
+.sdc-navbar__hamburger,
+.sdc-navbar__hamburger::before,
+.sdc-navbar__hamburger::after {
+  display: block;
+  width: 1.25rem;
+  height: 2px;
+  background: var(--gin-text, #1f2937);
+  transition: transform 0.3s;
+  position: relative;
+}
+.sdc-navbar__hamburger::before,
+.sdc-navbar__hamburger::after { content: ""; position: absolute; left: 0; width: 100%; }
+.sdc-navbar__hamburger::before { top: -6px; }
+.sdc-navbar__hamburger::after { top: 6px; }
+
+.sdc-navbar--open .sdc-navbar__hamburger { background: transparent; }
+.sdc-navbar--open .sdc-navbar__hamburger::before { top: 0; transform: rotate(45deg); }
+.sdc-navbar--open .sdc-navbar__hamburger::after { top: 0; transform: rotate(-45deg); }
+
+.sdc-navbar__menu {
+  display: none;
+  flex-direction: column;
+  position: fixed;
+  inset: 0;
+  top: 3.5rem;
+  background: var(--gin-bg, #fff);
+  padding: 1rem;
+  z-index: 500;
+}
+
+.sdc-navbar--open .sdc-navbar__menu { display: flex; }
+
+@media (min-width: 768px) {
+  .sdc-navbar__menu {
+    display: flex !important;
+    position: static;
+    flex-direction: row;
+    align-items: center;
+    gap: 1.5rem;
+    padding: 0;
+    flex: 1;
+  }
+  .sdc-navbar__menu--left { justify-content: flex-start; }
+  .sdc-navbar__menu--center { justify-content: center; }
+  .sdc-navbar__menu--right { justify-content: flex-end; }
+}
+
+.sdc-navbar__nav a {
+  display: block;
+  padding: 0.5rem 0;
+  color: var(--gin-text, #1f2937);
+  text-decoration: none;
+  font-weight: 500;
+}
+.sdc-navbar__nav a:hover { color: var(--gin-primary, #2c59ee); }
+
+@media (min-width: 768px) {
+  .sdc-navbar__nav { display: flex; gap: 1.5rem; }
+  .sdc-navbar__nav a { padding: 0; }
+}
+
+.sdc-navbar__links { margin-top: 1rem; }
+@media (min-width: 768px) {
+  .sdc-navbar__links { margin-top: 0; margin-left: auto; }
+}

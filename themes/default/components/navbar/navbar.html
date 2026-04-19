@@ -1,0 +1,12 @@
+<nav class="sdc-navbar" aria-label="Main navigation">
+  <div class="sdc-navbar__inner">
+    <div class="sdc-navbar__logo">{{{logo}}}</div>
+    <button class="sdc-navbar__toggle" aria-label="Toggle menu" aria-expanded="false" onclick="var m=this.closest('.sdc-navbar');m.classList.toggle('sdc-navbar--open');this.setAttribute('aria-expanded',m.classList.contains('sdc-navbar--open'))">
+      <span class="sdc-navbar__hamburger"></span>
+    </button>
+    <div class="sdc-navbar__menu sdc-navbar__menu--{{menu_align}}">
+      <div class="sdc-navbar__nav">{{{navigation}}}</div>
+      <div class="sdc-navbar__links">{{{links}}}</div>
+    </div>
+  </div>
+</nav>

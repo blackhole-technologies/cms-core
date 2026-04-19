@@ -1,0 +1,38 @@
+.sdc-hero-billboard {
+  position: relative;
+  display: flex;
+  width: 100%;
+  overflow: hidden;
+  color: #fff;
+}
+.sdc-hero-billboard--full { min-height: 100dvh; }
+.sdc-hero-billboard--large { min-height: 500px; height: 75vh; }
+.sdc-hero-billboard--ribbon { min-height: 300px; max-height: 450px; }
+
+.sdc-hero-billboard--top-left { align-items: flex-start; justify-content: flex-start; }
+.sdc-hero-billboard--center-left { align-items: center; justify-content: flex-start; }
+.sdc-hero-billboard--bottom-left { align-items: flex-end; justify-content: flex-start; }
+.sdc-hero-billboard--center { align-items: center; justify-content: center; text-align: center; }
+
+.sdc-hero-billboard__bg {
+  position: absolute;
+  inset: 0;
+  background-size: cover;
+  z-index: 0;
+}
+.sdc-hero-billboard__overlay {
+  position: absolute;
+  inset: 0;
+  background: #000;
+}
+
+.sdc-hero-billboard__content {
+  position: relative;
+  z-index: 1;
+  padding: 3rem 2rem;
+  max-width: 48rem;
+}
+
+@media (min-width: 768px) {
+  .sdc-hero-billboard__content { padding: 4rem 3rem; }
+}

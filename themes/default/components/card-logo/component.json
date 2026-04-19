@@ -1,0 +1,10 @@
+{
+  "name": "card-logo",
+  "description": "Logo display card with background color and optional link",
+  "props": {
+    "image_url": { "type": "string", "required": true, "description": "Logo image URL" },
+    "image_alt": { "type": "string", "default": "" },
+    "background_color": { "type": "string", "default": "muted", "enum": ["primary", "secondary", "accent", "muted"] },
+    "url": { "type": "string", "description": "Optional link" }
+  }
+}

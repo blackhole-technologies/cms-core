@@ -1,0 +1,10 @@
+<section class="sdc-hero-billboard sdc-hero-billboard--{{height}} sdc-hero-billboard--{{flex_position}}">
+  {{#if image_url}}
+  <div class="sdc-hero-billboard__bg" style="background-image:url('{{image_url}}');background-position:{{image_position}}">
+    <div class="sdc-hero-billboard__overlay" style="opacity:{{overlay_opacity}}"></div>
+  </div>
+  {{/if}}
+  <div class="sdc-hero-billboard__content">
+    {{{content}}}
+  </div>
+</section>
