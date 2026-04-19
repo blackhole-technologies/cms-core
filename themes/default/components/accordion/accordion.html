@@ -1,0 +1,9 @@
+<div class="sdc-accordion {{#if open_by_default}}sdc-accordion--open{{/if}}">
+  <button class="sdc-accordion__trigger" aria-expanded="{{#if open_by_default}}true{{else}}false{{/if}}" onclick="this.parentElement.classList.toggle('sdc-accordion--open');this.setAttribute('aria-expanded',this.getAttribute('aria-expanded')==='true'?'false':'true')">
+    <span class="sdc-accordion__title">{{title}}</span>
+    <span class="sdc-accordion__icon" aria-hidden="true">&#9660;</span>
+  </button>
+  <div class="sdc-accordion__content" role="region">
+    {{{content}}}
+  </div>
+</div>
