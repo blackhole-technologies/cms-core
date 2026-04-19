@@ -30,6 +30,11 @@ config/.registry.json
 .autoforge/*.db
 .autoforge/*.db-journal
 
+# Admin user record — churns lastLogin/updated on every login.
+# Untracked in Task 0.6 (ce24f2e); ignored here to keep it out of `git status`.
+# Peer user JSONs in content/user/ remain tracked as seed data.
+content/user/1769870756954-jymy1.json
+
 # Loose screenshots / experiment captures at repo root
 /*.png
 /*.jpg
