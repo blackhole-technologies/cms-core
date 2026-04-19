@@ -162,28 +162,8 @@
             <strong>{{name}}</strong>
             <span class="status-badge status-{{status}}">{{status}}</span>
           </td>
-          <td class="field-value left">
-            {{#if isUnchanged}}
-            <span class="unchanged-value">{{value}}</span>
-            {{else if isRemoved}}
-            <span class="removed-value">{{valueA}}</span>
-            {{else if isModified}}
-            <span class="old-value">{{valueA}}</span>
-            {{else}}
-            <span class="empty-value">—</span>
-            {{/if}}
-          </td>
-          <td class="field-value right">
-            {{#if isUnchanged}}
-            <span class="unchanged-value">{{value}}</span>
-            {{else if isAdded}}
-            <span class="added-value">{{valueB}}</span>
-            {{else if isModified}}
-            <span class="new-value">{{valueB}}</span>
-            {{else}}
-            <span class="empty-value">—</span>
-            {{/if}}
-          </td>
+          <td class="field-value left">{{{leftCellHtml}}}</td>
+          <td class="field-value right">{{{rightCellHtml}}}</td>
         </tr>
         {{#if hasDiff}}
         <tr class="diff-row">
@@ -192,7 +172,7 @@
             <div class="inline-diff">
               {{#each diff}}
               <div class="diff-line {{type}}">
-                <span class="diff-prefix">{{#if (eq type 'added')}}+{{else if (eq type 'removed')}}-{{else}} {{/if}}</span>
+                <span class="diff-prefix">{{prefix}}</span>
                 {{line}}
               </div>
               {{/each}}

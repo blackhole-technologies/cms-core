@@ -15,8 +15,13 @@
   /* Text */
   --gin-text: #222330;
   --gin-text-light: #545560;
+  --gin-text-secondary: #5f6368;
   --gin-text-muted: #71727a;
   --gin-text-disabled: #9e9ea7;
+
+  /* Interaction */
+  --gin-hover: rgba(0, 0, 0, 0.04);
+  --gin-primary-dark: #1e40af;
 
   /* Semantic */
   --gin-success: #058260;
@@ -28,9 +33,25 @@
   --gin-danger: #dc2626;
   --gin-danger-bg: rgba(220, 38, 38, 0.1);
   --gin-danger-text: #991b1b;
+  --gin-error-bg: #fef2f2;
   --gin-info: #2563eb;
   --gin-info-bg: rgba(37, 99, 235, 0.1);
   --gin-info-text: #1e40af;
+  --gin-info-border: #bfdbfe;
+
+  /* Alert variants — used by status/import/workflow templates */
+  --gin-alert-info-bg: #e8f0fe;
+  --gin-alert-info-text: #1e40af;
+  --gin-alert-info-border: #bfdbfe;
+  --gin-alert-success-bg: #def7ec;
+  --gin-alert-success-text: #03543f;
+  --gin-alert-success-border: #a7f3d0;
+  --gin-alert-warning-bg: #fef3c7;
+  --gin-alert-warning-text: #92400e;
+  --gin-alert-warning-border: #fde68a;
+  --gin-alert-error-bg: #fef2f2;
+  --gin-alert-error-text: #991b1b;
+  --gin-alert-error-border: #fecaca;
 
   /* Surfaces */
   --gin-bg: #f5f5f5;
@@ -118,6 +139,7 @@
 
   --gin-text: #e4e4e7;
   --gin-text-light: #a1a1aa;
+  --gin-text-secondary: #a8adb4;
   --gin-text-muted: #71717a;
   --gin-text-disabled: #52525b;
 
@@ -130,8 +152,10 @@
   --gin-border-light: rgba(255, 255, 255, 0.06);
   --gin-border-form: #52525b;
 
+  --gin-hover: rgba(255, 255, 255, 0.08);
   --gin-primary-light: rgba(var(--gin-primary-rgb), 0.15);
   --gin-primary-light-hover: rgba(var(--gin-primary-rgb), 0.25);
+  --gin-primary-dark: #93c5fd;
 
   --gin-success-bg: rgba(5, 130, 96, 0.2);
   --gin-success-text: #6ee7b7;
@@ -139,8 +163,24 @@
   --gin-warning-text: #fbbf24;
   --gin-danger-bg: rgba(220, 38, 38, 0.18);
   --gin-danger-text: #fca5a5;
+  --gin-error-bg: #2d1b1c;
   --gin-info-bg: rgba(37, 99, 235, 0.18);
   --gin-info-text: #93c5fd;
+  --gin-info-border: #1e3a8a;
+
+  /* Alert variants — used by status/import/workflow templates */
+  --gin-alert-info-bg: #1e293b;
+  --gin-alert-info-text: #93c5fd;
+  --gin-alert-info-border: #334155;
+  --gin-alert-success-bg: #14281f;
+  --gin-alert-success-text: #6ee7a0;
+  --gin-alert-success-border: #1e3a2b;
+  --gin-alert-warning-bg: #2d1f0a;
+  --gin-alert-warning-text: #fbbf24;
+  --gin-alert-warning-border: #3f2e0f;
+  --gin-alert-error-bg: #2d1b1c;
+  --gin-alert-error-text: #fca5a5;
+  --gin-alert-error-border: #451e22;
 
   --gin-shadow-xs: 0 1px 2px rgba(0, 0, 0, 0.2);
   --gin-shadow-sm: 0 1px 3px rgba(0, 0, 0, 0.25), 0 1px 2px rgba(0, 0, 0, 0.2);
@@ -200,7 +240,9 @@
    ========================================================================== */
 
 .admin-toolbar {
-  background: var(--gin-surface);
+  background: rgba(255, 255, 255, 0.85);
+  -webkit-backdrop-filter: blur(12px) saturate(180%);
+  backdrop-filter: blur(12px) saturate(180%);
   color: var(--gin-text);
   padding: 0;
   display: flex;
@@ -211,6 +253,10 @@
   height: var(--gin-toolbar-height);
   border-bottom: 1px solid var(--gin-border-light);
   box-shadow: var(--gin-shadow-xs);
+}
+
+[data-theme="dark"] .admin-toolbar {
+  background: rgba(27, 27, 31, 0.85);
 }
 
 .admin-toolbar .toolbar-logo {
@@ -874,6 +920,13 @@
 }
 
 /* Stats row */
+.dashboard-quick-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--gin-space-2);
+  margin-bottom: var(--gin-space-6);
+}
+
 .admin-stats {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
@@ -3650,4 +3703,393 @@ pre {
   font-size: var(--gin-font-size-xs, 0.75rem);
   color: var(--gin-text-muted, #71727a);
   line-height: 1.3;
+}
+
+/* ==========================================================================
+   Dark Mode Override Layer
+   --------------------------------------------------------------------------
+   Many templates use inline <style> blocks with hardcoded light-mode colors
+   (e.g., #111827, #f9fafb, #e5e7eb). Rather than editing 100+ templates,
+   this layer overrides the most common hardcoded patterns so dark mode works.
+   Uses [data-theme="dark"] to target only dark mode.
+   ========================================================================== */
+
+[data-theme="dark"] .admin-content,
+[data-theme="dark"] .admin-section,
+[data-theme="dark"] .admin-page {
+  color: var(--gin-text);
+}
+
+/* Override hardcoded background colors from inline styles */
+[data-theme="dark"] .admin-content [style*="background"],
+[data-theme="dark"] .admin-section [style*="background"] {
+  /* Let the cascade handle it — don't use !important unless needed */
+}
+
+/* Common hardcoded text colors → dark mode text */
+[data-theme="dark"] h1, [data-theme="dark"] h2, [data-theme="dark"] h3,
+[data-theme="dark"] h4, [data-theme="dark"] h5, [data-theme="dark"] h6 {
+  color: var(--gin-text);
+}
+
+[data-theme="dark"] p, [data-theme="dark"] li, [data-theme="dark"] td,
+[data-theme="dark"] th, [data-theme="dark"] label, [data-theme="dark"] span,
+[data-theme="dark"] small, [data-theme="dark"] strong, [data-theme="dark"] code {
+  color: inherit;
+}
+
+/* Tables — many templates hardcode #f9fafb header bg and #e5e7eb borders */
+[data-theme="dark"] table thead,
+[data-theme="dark"] table thead th {
+  background: var(--gin-surface-alt) !important;
+  color: var(--gin-text-muted) !important;
+  border-color: var(--gin-border) !important;
+}
+
+[data-theme="dark"] table td,
+[data-theme="dark"] table tr {
+  border-color: var(--gin-border) !important;
+}
+
+[data-theme="dark"] table tbody tr:hover {
+  background: var(--gin-surface-hover) !important;
+}
+
+/* Info/stat boxes with hardcoded light backgrounds */
+[data-theme="dark"] .stat-card,
+[data-theme="dark"] .info-card,
+[data-theme="dark"] .query-info,
+[data-theme="dark"] .config-card,
+[data-theme="dark"] .detail-card,
+[data-theme="dark"] .help-card,
+[data-theme="dark"] .metric-card {
+  background: var(--gin-surface) !important;
+  border-color: var(--gin-border) !important;
+}
+
+/* Badges and pills — override hardcoded status colors */
+[data-theme="dark"] .status-published,
+[data-theme="dark"] .badge-success {
+  background: var(--gin-success-bg) !important;
+  color: var(--gin-success-text) !important;
+}
+
+[data-theme="dark"] .status-draft,
+[data-theme="dark"] .badge-warning {
+  background: var(--gin-warning-bg) !important;
+  color: var(--gin-warning-text) !important;
+}
+
+[data-theme="dark"] .status-archived,
+[data-theme="dark"] .badge-danger {
+  background: var(--gin-danger-bg) !important;
+  color: var(--gin-danger-text) !important;
+}
+
+[data-theme="dark"] .badge-info {
+  background: var(--gin-info-bg) !important;
+  color: var(--gin-info-text) !important;
+}
+
+/* Forms in dark mode — many templates hardcode white bg and gray borders */
+[data-theme="dark"] input[type="text"],
+[data-theme="dark"] input[type="email"],
+[data-theme="dark"] input[type="password"],
+[data-theme="dark"] input[type="number"],
+[data-theme="dark"] input[type="url"],
+[data-theme="dark"] input[type="search"],
+[data-theme="dark"] input[type="date"],
+[data-theme="dark"] input[type="datetime-local"],
+[data-theme="dark"] textarea,
+[data-theme="dark"] select {
+  background: var(--gin-surface) !important;
+  color: var(--gin-text) !important;
+  border-color: var(--gin-border-form) !important;
+}
+
+[data-theme="dark"] input:focus,
+[data-theme="dark"] textarea:focus,
+[data-theme="dark"] select:focus {
+  border-color: var(--gin-primary) !important;
+  box-shadow: 0 0 0 3px rgba(var(--gin-primary-rgb), 0.2) !important;
+}
+
+/* Override hardcoded section backgrounds (#f9fafb, #f3f4f6, etc.) */
+[data-theme="dark"] .admin-section,
+[data-theme="dark"] .preview-header,
+[data-theme="dark"] .filter-bar {
+  border-color: var(--gin-border) !important;
+}
+
+/* Empty states */
+[data-theme="dark"] .empty-state,
+[data-theme="dark"] .empty-message {
+  color: var(--gin-text-muted) !important;
+}
+
+/* Code blocks */
+[data-theme="dark"] pre, [data-theme="dark"] code {
+  background: var(--gin-surface-alt) !important;
+  color: var(--gin-text) !important;
+}
+
+/* Breadcrumbs */
+[data-theme="dark"] .breadcrumb,
+[data-theme="dark"] .breadcrumb a {
+  color: var(--gin-text-muted) !important;
+}
+[data-theme="dark"] .breadcrumb a:hover {
+  color: var(--gin-primary) !important;
+}
+
+/* Flash/alert messages */
+[data-theme="dark"] .flash {
+  border-color: var(--gin-border) !important;
+}
+
+/* Description text */
+[data-theme="dark"] .description,
+[data-theme="dark"] .help-text,
+[data-theme="dark"] .form-description {
+  color: var(--gin-text-muted) !important;
+}
+
+/* Links inside dark content */
+[data-theme="dark"] .admin-content a:not(.btn):not(.sidebar-link) {
+  color: var(--gin-primary) !important;
+}
+
+/* Dropdown menus from inline styles */
+[data-theme="dark"] .dropdown-menu,
+[data-theme="dark"] .context-menu {
+  background: var(--gin-surface) !important;
+  border-color: var(--gin-border) !important;
+  box-shadow: var(--gin-shadow-lg) !important;
+}
+
+/* Pagination */
+[data-theme="dark"] .pager,
+[data-theme="dark"] .pagination {
+  border-color: var(--gin-border) !important;
+}
+
+/* Modal/dialog overlays */
+[data-theme="dark"] .modal-content,
+[data-theme="dark"] .dialog-content {
+  background: var(--gin-surface) !important;
+  border-color: var(--gin-border) !important;
+  color: var(--gin-text) !important;
+}
+
+/* ================================================================
+   Extended Dark Mode Overrides
+   Covers inline <style> blocks across 90+ admin templates that use
+   hardcoded white/gray backgrounds and border colors.
+   ================================================================ */
+
+/* Catch-all for common inline "background: white" / "#fff" panels */
+[data-theme="dark"] .batch-progress-section,
+[data-theme="dark"] .batch-results,
+[data-theme="dark"] .batch-errors,
+[data-theme="dark"] .check-item,
+[data-theme="dark"] .recommendation-item,
+[data-theme="dark"] .scheduled-item,
+[data-theme="dark"] .error-details pre,
+[data-theme="dark"] .media-card,
+[data-theme="dark"] .media-item,
+[data-theme="dark"] .feed-item,
+[data-theme="dark"] .queue-item,
+[data-theme="dark"] .format-item,
+[data-theme="dark"] .alias-item,
+[data-theme="dark"] .redirect-item,
+[data-theme="dark"] .help-card,
+[data-theme="dark"] .cron-job,
+[data-theme="dark"] .contact-form-item,
+[data-theme="dark"] .analytics-card,
+[data-theme="dark"] .region-item,
+[data-theme="dark"] .field-group-item,
+[data-theme="dark"] .archetype-card,
+[data-theme="dark"] .blueprint-card,
+[data-theme="dark"] .theme-card,
+[data-theme="dark"] .workflow-card,
+[data-theme="dark"] .ban-item,
+[data-theme="dark"] .favorites-item,
+[data-theme="dark"] .revision-item,
+[data-theme="dark"] .comment-item,
+[data-theme="dark"] .import-item,
+[data-theme="dark"] .jsonapi-resource,
+[data-theme="dark"] .responsive-image-item,
+[data-theme="dark"] .i18n-item,
+[data-theme="dark"] .seo-card {
+  background: var(--gin-surface) !important;
+  border-color: var(--gin-border) !important;
+  color: var(--gin-text) !important;
+}
+
+/* Panels with #f8f9fa / #f9fafb / #f3f4f6 light gray backgrounds */
+[data-theme="dark"] .query-info,
+[data-theme="dark"] .check-details,
+[data-theme="dark"] .no-transitions,
+[data-theme="dark"] .schedule-toggle,
+[data-theme="dark"] .history-toggle,
+[data-theme="dark"] .timeline-comment,
+[data-theme="dark"] .stats-card,
+[data-theme="dark"] .summary-box,
+[data-theme="dark"] .detail-panel,
+[data-theme="dark"] .info-box,
+[data-theme="dark"] .meta-panel,
+[data-theme="dark"] .preview-panel {
+  background: var(--gin-surface-alt) !important;
+  color: var(--gin-text) !important;
+}
+
+/* Hover states on interactive panels */
+[data-theme="dark"] .check-header:hover,
+[data-theme="dark"] .schedule-toggle:hover,
+[data-theme="dark"] .history-toggle:hover {
+  background: var(--gin-hover) !important;
+}
+
+/* Status banner backgrounds in dark mode — keep semantic colors but darken */
+[data-theme="dark"] .status-banner.status-ok {
+  background: linear-gradient(135deg, rgba(40, 167, 69, 0.15) 0%, rgba(40, 167, 69, 0.1) 100%) !important;
+  border-color: rgba(40, 167, 69, 0.5) !important;
+}
+[data-theme="dark"] .status-banner.status-warning {
+  background: linear-gradient(135deg, rgba(255, 193, 7, 0.15) 0%, rgba(255, 193, 7, 0.1) 100%) !important;
+  border-color: rgba(255, 193, 7, 0.5) !important;
+}
+[data-theme="dark"] .status-banner.status-error {
+  background: linear-gradient(135deg, rgba(220, 53, 69, 0.15) 0%, rgba(220, 53, 69, 0.1) 100%) !important;
+  border-color: rgba(220, 53, 69, 0.5) !important;
+}
+
+/* Completion message in batch progress */
+[data-theme="dark"] .completion-message.success {
+  background: linear-gradient(135deg, rgba(40, 167, 69, 0.15) 0%, rgba(40, 167, 69, 0.1) 100%) !important;
+  border-color: rgba(40, 167, 69, 0.5) !important;
+}
+[data-theme="dark"] .completion-text h3,
+[data-theme="dark"] .completion-text p {
+  color: #6ee7a0 !important;
+}
+[data-theme="dark"] .completion-icon {
+  color: #6ee7a0 !important;
+}
+
+/* Current operation info box */
+[data-theme="dark"] .current-operation,
+[data-theme="dark"] .scheduled-transitions {
+  background: rgba(var(--gin-primary-rgb, 44, 89, 238), 0.1) !important;
+  border-color: rgba(var(--gin-primary-rgb, 44, 89, 238), 0.3) !important;
+}
+[data-theme="dark"] .operation-text,
+[data-theme="dark"] .scheduled-transitions h4 {
+  color: var(--gin-primary-light, #93b4f5) !important;
+}
+
+/* Result stat badges in dark mode — soften semantic colors */
+[data-theme="dark"] .result-stat.success {
+  background: rgba(40, 167, 69, 0.15) !important;
+  color: #6ee7a0 !important;
+}
+[data-theme="dark"] .result-stat.skipped {
+  background: rgba(255, 193, 7, 0.15) !important;
+  color: #fde68a !important;
+}
+[data-theme="dark"] .result-stat.error {
+  background: rgba(220, 53, 69, 0.15) !important;
+  color: #fca5a5 !important;
+}
+
+/* Error items in dark mode */
+[data-theme="dark"] .error-item {
+  background: rgba(220, 53, 69, 0.08) !important;
+  border-color: rgba(220, 53, 69, 0.3) !important;
+}
+[data-theme="dark"] .errors-header h3,
+[data-theme="dark"] .error-message {
+  color: #fca5a5 !important;
+}
+
+/* Recommendations section in dark mode */
+[data-theme="dark"] .recommendations-section {
+  background: rgba(var(--gin-primary-rgb, 44, 89, 238), 0.08) !important;
+  border-color: rgba(var(--gin-primary-rgb, 44, 89, 238), 0.4) !important;
+}
+[data-theme="dark"] .recommendations-section h2 {
+  color: var(--gin-primary-light, #93b4f5) !important;
+}
+
+/* Workflow state panel */
+[data-theme="dark"] .workflow-state-panel {
+  background: var(--gin-surface) !important;
+  border-color: var(--gin-border) !important;
+}
+[data-theme="dark"] .workflow-header {
+  border-color: var(--gin-border) !important;
+}
+
+/* Timeline in dark mode */
+[data-theme="dark"] .timeline-item:not(:last-child)::before {
+  background: var(--gin-border) !important;
+}
+[data-theme="dark"] .timeline-marker {
+  background: var(--gin-border) !important;
+  border-color: var(--gin-surface) !important;
+}
+[data-theme="dark"] .timeline-state {
+  color: var(--gin-text) !important;
+}
+[data-theme="dark"] .timeline-date,
+[data-theme="dark"] .timeline-body small {
+  color: var(--gin-text-muted) !important;
+}
+
+/* Progress bar container */
+[data-theme="dark"] .progress-bar-container {
+  background: var(--gin-surface-alt) !important;
+}
+
+/* Details/summary panels */
+[data-theme="dark"] details summary {
+  color: var(--gin-text) !important;
+}
+
+/* Stat labels/values */
+[data-theme="dark"] .stat-label,
+[data-theme="dark"] .check-toggle,
+[data-theme="dark"] .category-summary,
+[data-theme="dark"] .role-info,
+[data-theme="dark"] .batch-description {
+  color: var(--gin-text-muted) !important;
+}
+[data-theme="dark"] .stat-value,
+[data-theme="dark"] .error-title,
+[data-theme="dark"] .recommendation-header h3,
+[data-theme="dark"] .batch-header h2,
+[data-theme="dark"] .status-message h2 {
+  color: var(--gin-text) !important;
+}
+
+/* SDC alert component dark mode */
+[data-theme="dark"] .sdc-alert--info {
+  background: rgba(var(--gin-primary-rgb, 44, 89, 238), 0.1) !important;
+  color: var(--gin-primary-light, #93b4f5) !important;
+  border-color: rgba(var(--gin-primary-rgb, 44, 89, 238), 0.3) !important;
+}
+[data-theme="dark"] .sdc-alert--success {
+  background: rgba(40, 167, 69, 0.1) !important;
+  color: #6ee7a0 !important;
+  border-color: rgba(40, 167, 69, 0.3) !important;
+}
+[data-theme="dark"] .sdc-alert--warning {
+  background: rgba(255, 193, 7, 0.1) !important;
+  color: #fde68a !important;
+  border-color: rgba(255, 193, 7, 0.3) !important;
+}
+[data-theme="dark"] .sdc-alert--error {
+  background: rgba(220, 53, 69, 0.1) !important;
+  color: #fca5a5 !important;
+  border-color: rgba(220, 53, 69, 0.3) !important;
 }

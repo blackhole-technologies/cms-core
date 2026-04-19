@@ -1,5 +1,3 @@
-{{> admin-header title="Responsive Images"}}
-
 <div class="admin-content">
   <div class="page-header">
     <h1>Responsive Images</h1>
@@ -49,16 +47,16 @@
     <h2>Responsive Styles</h2>
     <div class="styles-grid">
       {{#each styles}}
-      <div class="style-card {{#if (eq source "builtin")}}builtin{{/if}}">
+      <div class="style-card {{#if isBuiltin}}builtin{{/if}}">
         <div class="style-header">
           <h3>{{label}}</h3>
-          {{#if (eq source "builtin")}}
+          {{#if isBuiltin}}
           <span class="badge">Built-in</span>
           {{/if}}
         </div>
-        
+
         <p class="style-description">{{description}}</p>
-        
+
         <div class="style-details">
           <div class="detail">
             <span class="label">ID:</span>
@@ -77,24 +75,24 @@
         <div class="mappings">
           <h4>Breakpoint Mappings</h4>
           <table class="mappings-table">
-            {{#each mappings}}
+            {{#each mappingsList}}
             <tr>
-              <td>{{@key}}</td>
+              <td>{{breakpoint}}</td>
               <td>→</td>
-              <td><code>{{this}}</code></td>
+              <td><code>{{style}}</code></td>
             </tr>
             {{/each}}
           </table>
         </div>
 
-        {{#if sizes.length}}
+        {{#if hasSizes}}
         <div class="sizes">
           <h4>Sizes Attribute</h4>
-          <code class="sizes-value">{{join sizes ", "}}</code>
+          <code class="sizes-value">{{sizesDisplay}}</code>
         </div>
         {{/if}}
 
-        {{#unless (eq source "builtin")}}
+        {{#unless isBuiltin}}
         <div class="style-actions">
           <a href="/admin/responsive-images/{{id}}/edit" class="btn btn-sm">Edit</a>
         </div>
@@ -116,7 +114,7 @@
 .section h2 {
   margin-bottom: 1rem;
   padding-bottom: 0.5rem;
-  border-bottom: 2px solid #1976d2;
+  border-bottom: 2px solid var(--gin-primary, #2c59ee);
 }
 .data-table {
   width: 100%;
@@ -148,7 +146,7 @@ code.small {
   padding: 1.5rem;
 }
 .style-card.builtin {
-  border-left: 4px solid #1976d2;
+  border-left: 4px solid var(--gin-primary, #2c59ee);
 }
 .style-header {
   display: flex;
@@ -160,8 +158,8 @@ code.small {
   margin: 0;
 }
 .badge {
-  background: #e3f2fd;
-  color: #1976d2;
+  background: #e8eeff;
+  color: var(--gin-primary, #2c59ee);
   padding: 0.25rem 0.5rem;
   border-radius: 4px;
   font-size: 0.75rem;
@@ -224,5 +222,3 @@ code.small {
   border-top: 1px solid #eee;
 }
 </style>
-
-{{> admin-footer}}

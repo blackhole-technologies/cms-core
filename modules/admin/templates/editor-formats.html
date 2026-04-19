@@ -1,5 +1,3 @@
-{{> admin-header title="Editor Formats"}}
-
 <div class="admin-content">
   <div class="page-header">
     <h1>Editor Formats</h1>
@@ -15,24 +13,20 @@
 
   <div class="formats-grid">
     {{#each formats}}
-    <div class="format-card {{#if (eq source "builtin")}}builtin{{/if}}">
+    <div class="format-card {{#if isBuiltin}}builtin{{/if}}">
       <div class="format-header">
         <h3>{{label}}</h3>
-        {{#if (eq source "builtin")}}
+        {{#if isBuiltin}}
         <span class="badge">Built-in</span>
         {{/if}}
       </div>
-      
+
       <p class="format-description">{{description}}</p>
-      
+
       <div class="format-details">
         <div class="detail">
           <span class="detail-label">ID:</span>
           <code>{{id}}</code>
-        </div>
-        <div class="detail">
-          <span class="detail-label">Toolbar Rows:</span>
-          <span>{{toolbar.length}}</span>
         </div>
         <div class="detail">
           <span class="detail-label">Text Format:</span>
@@ -43,22 +37,16 @@
       <div class="format-toolbar-preview">
         <span class="preview-label">Toolbar Preview:</span>
         <div class="toolbar-icons">
-          {{#each toolbar.[0]}}
-          {{#if (eq this "|")}}
-          <span class="separator">|</span>
-          {{else}}
-          <span class="button-icon" title="{{this}}">{{this}}</span>
-          {{/if}}
-          {{/each}}
-          {{#if (gt toolbar.length 1)}}
-          <span class="more-rows">+{{subtract toolbar.length 1}} rows</span>
+          {{{toolbarPreviewHtml}}}
+          {{#if hasExtraRows}}
+          <span class="more-rows">+{{extraRows}} rows</span>
           {{/if}}
         </div>
       </div>
 
       <div class="format-actions">
         <a href="/admin/editor/config/{{id}}" class="btn btn-sm">View Config</a>
-        {{#unless (eq source "builtin")}}
+        {{#unless isBuiltin}}
         <a href="/admin/editor/{{id}}/edit" class="btn btn-sm">Edit</a>
         {{/unless}}
       </div>
@@ -94,7 +82,7 @@
   padding: 1.5rem;
 }
 .format-card.builtin {
-  border-left: 4px solid #1976d2;
+  border-left: 4px solid var(--gin-primary, #2c59ee);
 }
 .format-header {
   display: flex;
@@ -106,8 +94,8 @@
   margin: 0;
 }
 .badge {
-  background: #e3f2fd;
-  color: #1976d2;
+  background: #e8eeff;
+  color: var(--gin-primary, #2c59ee);
   padding: 0.25rem 0.5rem;
   border-radius: 4px;
   font-size: 0.75rem;
@@ -188,5 +176,3 @@
   background: #d0d0d0;
 }
 </style>
-
-{{> admin-footer}}

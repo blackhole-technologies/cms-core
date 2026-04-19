@@ -6369,6 +6369,18 @@ export function hook_routes(register, context) {
       const result = await transfer.importSite(data, { dryRun, overwrite, importConfig });
 
       // Render preview/result page
+      // Pre-compute config status badges — template engine doesn't support {{else if}}
+      const configBadge = (cfg) => {
+        if (cfg.imported) return '<span class="badge badge-success">Imported</span>';
+        if (cfg.wouldImport) return '<span class="badge badge-info">Would Import</span>';
+        return '<span class="badge badge-secondary">Skipped</span>';
+      };
+      const siteBadgeHtml = configBadge(result.config?.site || {});
+      const modulesBadgeHtml = configBadge(result.config?.modules || {});
+      if (result.config?.modules?.imported) {
+        modulesBadgeHtml.replace('Imported', 'Imported (restart required)');
+      }
+
       const html = renderAdmin('import-preview.html', {
         pageTitle: dryRun ? 'Import Preview' : 'Import Complete',
         isPreview: dryRun,
@@ -6380,6 +6392,10 @@ export function hook_routes(register, context) {
         hasErrors: result.content.errors.length > 0,
         overwrite,
         importConfig,
+        siteBadgeHtml,
+        modulesBadgeHtml: result.config?.modules?.imported
+          ? '<span class="badge badge-success">Imported (restart required)</span>'
+          : modulesBadgeHtml,
         // Format details for template
         typeDetails: Object.entries(result.content.details).map(([type, stats]) => ({
           type,
@@ -9876,7 +9892,7 @@ export function hook_routes(register, context) {
     const user = ctx.session?.user;
 
     if (!user) {
-      redirect(res, '/admin/users/login?error=' + encodeURIComponent('Please log in to view favorites'));
+      redirect(res, '/login?error=' + encodeURIComponent('Please log in to view favorites'));
       return;
     }
 
@@ -9975,7 +9991,7 @@ export function hook_routes(register, context) {
     const { type, id } = params;
 
     if (!user) {
-      redirect(res, '/admin/users/login');
+      redirect(res, '/login');
       return;
     }
 
@@ -10005,7 +10021,7 @@ export function hook_routes(register, context) {
         res.writeHead(401, { 'Content-Type': 'application/json' });
         res.end(JSON.stringify({ error: 'Not authenticated' }));
       } else {
-        redirect(res, '/admin/users/login');
+        redirect(res, '/login');
       }
       return;
     }
@@ -10051,7 +10067,7 @@ export function hook_routes(register, context) {
     const { type, id } = params;
 
     if (!user) {
-      redirect(res, '/admin/users/login');
+      redirect(res, '/login');
       return;
     }
 
@@ -10206,19 +10222,43 @@ export function hook_routes(register, context) {
     }
 
     // Build field comparison data for template
-    const fields = Object.entries(comparison.fields).map(([name, data]) => ({
-      name,
-      status: data.status,
-      valueA: data.status === 'removed' || data.status === 'modified' ? formatValue(data.a) : null,
-      valueB: data.status === 'added' || data.status === 'modified' ? formatValue(data.b) : null,
-      value: data.status === 'unchanged' ? formatValue(data.value) : null,
-      isUnchanged: data.status === 'unchanged',
-      isModified: data.status === 'modified',
-      isAdded: data.status === 'added',
-      isRemoved: data.status === 'removed',
-      diff: data.diff ? data.diff.changes : null,
-      hasDiff: data.diff && data.diff.changes && data.diff.changes.length > 0,
-    }));
+    // WHY pre-compute cellHtml: template engine doesn't support {{else if}} chains
+    const esc = (s) => String(s || '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+    const fields = Object.entries(comparison.fields).map(([name, data]) => {
+      const fmtA = formatValue(data.a);
+      const fmtB = formatValue(data.b);
+      const fmtV = formatValue(data.value);
+      let leftCellHtml, rightCellHtml;
+      if (data.status === 'unchanged') {
+        leftCellHtml = `<span class="unchanged-value">${esc(fmtV)}</span>`;
+        rightCellHtml = leftCellHtml;
+      } else if (data.status === 'removed') {
+        leftCellHtml = `<span class="removed-value">${esc(fmtA)}</span>`;
+        rightCellHtml = '<span class="empty-value">—</span>';
+      } else if (data.status === 'added') {
+        leftCellHtml = '<span class="empty-value">—</span>';
+        rightCellHtml = `<span class="added-value">${esc(fmtB)}</span>`;
+      } else if (data.status === 'modified') {
+        leftCellHtml = `<span class="old-value">${esc(fmtA)}</span>`;
+        rightCellHtml = `<span class="new-value">${esc(fmtB)}</span>`;
+      } else {
+        leftCellHtml = '<span class="empty-value">—</span>';
+        rightCellHtml = '<span class="empty-value">—</span>';
+      }
+      // Pre-compute diff line prefixes
+      const diffLines = data.diff && data.diff.changes ? data.diff.changes.map(c => ({
+        ...c,
+        prefix: c.type === 'added' ? '+' : c.type === 'removed' ? '-' : ' ',
+      })) : null;
+      return {
+        name,
+        status: data.status,
+        leftCellHtml,
+        rightCellHtml,
+        diff: diffLines,
+        hasDiff: diffLines && diffLines.length > 0,
+      };
+    });
 
     const flash = getFlashMessage(req.url);
 
@@ -10411,8 +10451,7 @@ export function hook_routes(register, context) {
 
     const totalPages = Math.ceil(result.total / limit);
 
-    const templateContent = loadTemplate('activity-feed.html');
-    const html = template.renderWithLayout(templateContent, {
+    const html = renderAdmin('activity-feed.html', {
       pageTitle: 'Activity Feed',
       hasFlash: !!flash,
       flash,
@@ -10438,8 +10477,8 @@ export function hook_routes(register, context) {
           count,
         })),
       },
-      csrfField: auth.getCsrfField(req),
-    });
+      csrfToken: auth.getCSRFToken ? auth.getCSRFToken(req) : '',
+    }, ctx, req);
 
     res.writeHead(200, { 'Content-Type': 'text/html' });
     res.end(html);
@@ -10491,7 +10530,7 @@ export function hook_routes(register, context) {
       hasPrevPage: page > 1,
       nextPage: page + 1,
       prevPage: page - 1,
-      csrfField: auth.getCsrfField(req),
+      csrfToken: auth.getCSRFToken ? auth.getCSRFToken(req) : '',
     });
 
     res.writeHead(200, { 'Content-Type': 'text/html' });
@@ -10542,7 +10581,7 @@ export function hook_routes(register, context) {
       activities,
       hasActivities: activities.length > 0,
       total: result.total,
-      csrfField: auth.getCsrfField(req),
+      csrfToken: auth.getCSRFToken ? auth.getCSRFToken(req) : '',
     });
 
     res.writeHead(200, { 'Content-Type': 'text/html' });
@@ -10605,8 +10644,7 @@ export function hook_routes(register, context) {
     const moduleTypes = types.filter(t => t.source === 'module' || (!t.isSystem && t.source !== 'archetype'));
     const systemTypes = types.filter(t => t.isSystem);
 
-    const templateContent = loadTemplate('archetypes-list.html');
-    const html = template.renderWithLayout(templateContent, {
+    const html = renderAdmin('archetypes-list.html', {
       pageTitle: 'Content Types',
       hasFlash: !!flash,
       flash,
@@ -10617,8 +10655,8 @@ export function hook_routes(register, context) {
       systemTypes,
       hasSystemTypes: systemTypes.length > 0,
       totalTypes: types.length,
-      csrfField: auth.getCsrfField(req),
-    });
+      csrfToken: auth.getCSRFToken ? auth.getCSRFToken(req) : '',
+    }, ctx, req);
 
     res.writeHead(200, { 'Content-Type': 'text/html' });
     res.end(html);
@@ -10644,7 +10682,7 @@ export function hook_routes(register, context) {
       flash,
       fieldTypes,
       referenceTargets,
-      csrfField: auth.getCsrfField(req),
+      csrfToken: auth.getCSRFToken ? auth.getCSRFToken(req) : '',
     });
 
     res.writeHead(200, { 'Content-Type': 'text/html' });
@@ -10784,7 +10822,7 @@ export function hook_routes(register, context) {
       fieldTypes,
       referenceTargets,
       itemCount: content.list(name).total,
-      csrfField: auth.getCsrfField(req),
+      csrfToken: auth.getCSRFToken ? auth.getCSRFToken(req) : '',
     });
 
     res.writeHead(200, { 'Content-Type': 'text/html' });
@@ -10958,7 +10996,7 @@ export function hook_routes(register, context) {
       ...ctx._viewData,
     };
 
-    const html = renderAdmin('api-docs', data, ctx, req);
+    const html = renderAdmin('api-docs.html', data, ctx, req);
     res.writeHead(200, { 'Content-Type': 'text/html' });
     res.end(html);
   }, 'API documentation page');
@@ -11000,7 +11038,7 @@ export function hook_routes(register, context) {
       ...ctx._viewData,
     };
 
-    const html = renderAdmin('api-versions', data, ctx, req);
+    const html = renderAdmin('api-versions.html', data, ctx, req);
     res.writeHead(200, { 'Content-Type': 'text/html' });
     res.end(html);
   }, 'API versions status page');
@@ -11213,7 +11251,7 @@ export function hook_routes(register, context) {
       ...ctx._viewData,
     };
 
-    const html = renderAdmin('graphql-explorer', data, ctx, req);
+    const html = renderAdmin('graphql-explorer.html', data, ctx, req);
     res.writeHead(200, { 'Content-Type': 'text/html' });
     res.end(html);
   }, 'Admin GraphQL Explorer');
@@ -11318,7 +11356,7 @@ export function hook_routes(register, context) {
       ...ctx._viewData,
     };
 
-    const html = renderAdmin('feeds', data, ctx, req);
+    const html = renderAdmin('feeds.html', data, ctx, req);
     res.writeHead(200, { 'Content-Type': 'text/html' });
     res.end(html);
   }, 'Feed management');
@@ -14812,20 +14850,44 @@ export function hook_routes(register, context) {
     const limit = 24;
 
     const result = mediaLibrary.list({ mediaType, page, limit });
-    const types = mediaLibrary.listMediaTypes();
+    const rawTypes = mediaLibrary.listMediaTypes();
     const stats = mediaLibrary.getStats();
+    // Pre-compute active state for type filter tabs
+    const types = rawTypes.map(t => ({ ...t, active: t.id === mediaType }));
 
-    const html = template.renderWithLayout('admin/media-library.html', {
-      items: result.items,
+    // Pre-compute preview HTML and pagination values for each item
+    // WHY: The template engine doesn't support {{else if}} chains or {{add}}/{{subtract}} helpers.
+    // Instead of adding Handlebars features to the engine, we compute these in the handler.
+    const enrichedItems = result.items.map(item => {
+      let previewHtml;
+      if (item.mediaType === 'image') {
+        const altText = (item.name || '').replace(/"/g, '&quot;');
+        previewHtml = `<img src="/media/${item.path}" alt="${altText}" loading="lazy" />`;
+      } else {
+        const icons = { video: '🎬', audio: '🎵', document: '📄', remote_video: '🔗' };
+        previewHtml = `<div class="media-icon">${icons[item.mediaType] || '📁'}</div>`;
+      }
+      return { ...item, previewHtml };
+    });
+
+    const hasNext = page * limit < result.total;
+    const hasPrev = page > 1;
+    const typeParam = mediaType ? `&type=${mediaType}` : '';
+
+    const html = renderAdmin('media-library.html', {
+      pageTitle: 'Media Library',
+      items: enrichedItems,
       total: result.total,
       page,
       limit,
       types,
       stats,
       currentType: mediaType,
-      hasNext: page * limit < result.total,
-      hasPrev: page > 1,
-    });
+      hasNext,
+      hasPrev,
+      nextPageUrl: hasNext ? `/admin/media/library?page=${page + 1}${typeParam}` : '',
+      prevPageUrl: hasPrev ? `/admin/media/library?page=${page - 1}${typeParam}` : '',
+    }, ctx, req);
 
     server.html(res, html);
   }, 'Media library browser');
@@ -14874,12 +14936,44 @@ export function hook_routes(register, context) {
     const url = mediaLibrary.getUrl(item);
     const thumbnailUrl = mediaLibrary.getThumbnailUrl(item);
 
-    const html = template.renderWithLayout('admin/media-detail.html', {
+    // Pre-compute preview HTML — template engine doesn't support {{else if}} chains
+    let previewHtml;
+    if (item.mediaType === 'image') {
+      const altText = (item.alt || item.name || '').replace(/"/g, '&quot;');
+      previewHtml = `<img src="${url}" alt="${altText}" />`;
+    } else if (item.mediaType === 'remote_video') {
+      const embedUrl = item.metadata?.embedUrl || '';
+      previewHtml = `<div class="video-embed"><iframe src="${embedUrl}" frameborder="0" allowfullscreen></iframe></div>`;
+    } else {
+      const icons = { video: '🎬', audio: '🎵', document: '📄' };
+      const icon = icons[item.mediaType] || '📁';
+      previewHtml = `<div class="media-placeholder"><span class="media-icon-large">${icon}</span><a href="${url}" class="btn" target="_blank">Download File</a></div>`;
+    }
+
+    // Pre-compute formatted metadata values
+    const formatBytes = (bytes) => {
+      if (!bytes) return '';
+      const units = ['B', 'KB', 'MB', 'GB'];
+      let i = 0;
+      let size = bytes;
+      while (size >= 1024 && i < units.length - 1) { size /= 1024; i++; }
+      return `${size.toFixed(i > 0 ? 1 : 0)} ${units[i]}`;
+    };
+    const formatDate = (d) => d ? new Date(d).toLocaleString() : '';
+
+    const html = renderAdmin('media-detail.html', {
+      pageTitle: item.name || 'Media Detail',
       item,
       usage,
+      hasUsage: usage && usage.length > 0,
       url,
       thumbnailUrl,
-    });
+      previewHtml,
+      formattedSize: formatBytes(item.size),
+      formattedCreated: formatDate(item.created),
+      formattedUpdated: formatDate(item.updated),
+      tagsDisplay: item.tags && item.tags.length ? item.tags.join(', ') : '',
+    }, ctx, req);
 
     server.html(res, html);
   }, 'View media item details');
@@ -14901,13 +14995,26 @@ export function hook_routes(register, context) {
       return;
     }
 
-    const formats = editor.listFormats();
+    const rawFormats = editor.listFormats();
     const categories = editor.listButtonCategories();
 
-    const html = template.renderWithLayout('admin/editor-formats.html', {
+    // Pre-compute toolbar preview data — template engine can't do array indexing or arithmetic helpers
+    const formats = rawFormats.map(f => {
+      const firstRow = Array.isArray(f.toolbar) && f.toolbar[0] ? f.toolbar[0] : [];
+      const toolbarPreviewHtml = firstRow.map(btn => {
+        if (btn === '|') return '<span class="separator">|</span>';
+        return `<span class="button-icon" title="${btn}">${btn}</span>`;
+      }).join('');
+      const extraRows = Array.isArray(f.toolbar) && f.toolbar.length > 1 ? f.toolbar.length - 1 : 0;
+      const isBuiltin = f.source === 'builtin';
+      return { ...f, toolbarPreviewHtml, extraRows, hasExtraRows: extraRows > 0, isBuiltin };
+    });
+
+    const html = renderAdmin('editor-formats.html', {
+      pageTitle: 'Editor Formats',
       formats,
       categories,
-    });
+    }, ctx, req);
 
     server.html(res, html);
   }, 'Editor formats management');
@@ -14950,13 +15057,25 @@ export function hook_routes(register, context) {
       return;
     }
 
-    const styles = responsiveImages.listResponsiveStyles();
+    const rawStyles = responsiveImages.listResponsiveStyles();
     const breakpoints = responsiveImages.listBreakpoints();
 
-    const html = template.renderWithLayout('admin/responsive-images.html', {
+    // Pre-compute template values — engine doesn't support {{join}}, {{@key}}, or {{#unless (eq ...)}}
+    const styles = rawStyles.map(s => {
+      const isBuiltin = s.source === 'builtin';
+      const sizesDisplay = Array.isArray(s.sizes) && s.sizes.length ? s.sizes.join(', ') : '';
+      // Convert mappings object to array for {{#each}}
+      const mappingsList = s.mappings
+        ? Object.entries(s.mappings).map(([bp, style]) => ({ breakpoint: bp, style }))
+        : [];
+      return { ...s, isBuiltin, sizesDisplay, mappingsList, hasSizes: !!sizesDisplay };
+    });
+
+    const html = renderAdmin('responsive-images.html', {
+      pageTitle: 'Responsive Images',
       styles,
       breakpoints,
-    });
+    }, ctx, req);
 
     server.html(res, html);
   }, 'Responsive image styles');
@@ -14982,11 +15101,12 @@ export function hook_routes(register, context) {
     const config = jsonapi.getConfig();
     const types = content.listTypes();
 
-    const html = template.renderWithLayout('admin/jsonapi.html', {
+    const html = renderAdmin('jsonapi.html', {
+      pageTitle: 'JSON:API Explorer',
       config,
       types,
       basePath: config.basePath,
-    });
+    }, ctx, req);
 
     server.html(res, html);
   }, 'JSON:API explorer');
@@ -15654,10 +15774,20 @@ export function hook_routes(register, context) {
       .slice(0, 6) // Show first 6 columns max in table
       .map(el => ({ key: el.key, label: el.label || el.key }));
 
+    // Pre-compute cell values since template engine doesn't support {{lookup}}
+    const enrichedItems = (submissions.items || []).map(sub => {
+      const cells = columns.map(col => {
+        const val = sub.data && sub.data[col.key];
+        return { value: val != null ? String(val) : '' };
+      });
+      return { ...sub, cells };
+    });
+    const enrichedSubmissions = { ...submissions, items: enrichedItems };
+
     const html = renderAdmin('webform-submissions.html', {
       pageTitle: 'Submissions: ' + form.title,
       form,
-      submissions,
+      submissions: enrichedSubmissions,
       columns,
       hasPrev: page > 0,
       hasNext: (page + 1) * limit < submissions.total,
@@ -16730,10 +16860,19 @@ export function hook_routes(register, context) {
 
     const flash = getFlashMessage(req.url);
 
+    // Pre-compute transition numbers — template engine doesn't support {{add @index 1}}
+    const enrichedWorkflow = { ...workflow };
+    if (enrichedWorkflow.transitions) {
+      enrichedWorkflow.transitions = enrichedWorkflow.transitions.map((t, i) => ({
+        ...t,
+        transitionNumber: i + 1,
+      }));
+    }
+
     const html = renderAdmin('workflows-edit.html', {
       pageTitle: 'Edit Workflow: ' + (workflow.label || id),
       isNew: false,
-      workflow,
+      workflow: enrichedWorkflow,
       flash,
       hasFlash: !!flash,
     }, ctx, req);

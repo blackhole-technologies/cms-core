@@ -95,27 +95,11 @@
       <tbody>
         <tr>
           <td>site.json</td>
-          <td>
-            {{#if result.config.site.imported}}
-            <span class="badge badge-success">Imported</span>
-            {{else if result.config.site.wouldImport}}
-            <span class="badge badge-info">Would Import</span>
-            {{else}}
-            <span class="badge badge-secondary">Skipped</span>
-            {{/if}}
-          </td>
+          <td>{{{siteBadgeHtml}}}</td>
         </tr>
         <tr>
           <td>modules.json</td>
-          <td>
-            {{#if result.config.modules.imported}}
-            <span class="badge badge-success">Imported (restart required)</span>
-            {{else if result.config.modules.wouldImport}}
-            <span class="badge badge-info">Would Import</span>
-            {{else}}
-            <span class="badge badge-secondary">Skipped</span>
-            {{/if}}
-          </td>
+          <td>{{{modulesBadgeHtml}}}</td>
         </tr>
       </tbody>
     </table>

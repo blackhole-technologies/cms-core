@@ -1,5 +1,3 @@
-{{> admin-header title="Media Library"}}
-
 <div class="admin-content">
   <div class="page-header">
     <h1>Media Library</h1>
@@ -23,7 +21,7 @@
     <div class="filter-tabs">
       <a href="/admin/media/library" class="tab {{#unless currentType}}active{{/unless}}">All</a>
       {{#each types}}
-      <a href="/admin/media/library?type={{id}}" class="tab {{#if (eq id ../currentType)}}active{{/if}}">{{label}}</a>
+      <a href="/admin/media/library?type={{id}}" class="tab {{#if active}}active{{/if}}">{{label}}</a>
       {{/each}}
     </div>
   </div>
@@ -33,19 +31,7 @@
     {{#each items}}
     <a href="/admin/media/library/{{id}}" class="media-item">
       <div class="media-preview">
-        {{#if (eq mediaType "image")}}
-        <img src="/media/{{path}}" alt="{{name}}" loading="lazy" />
-        {{else if (eq mediaType "video")}}
-        <div class="media-icon">🎬</div>
-        {{else if (eq mediaType "audio")}}
-        <div class="media-icon">🎵</div>
-        {{else if (eq mediaType "document")}}
-        <div class="media-icon">📄</div>
-        {{else if (eq mediaType "remote_video")}}
-        <div class="media-icon">🔗</div>
-        {{else}}
-        <div class="media-icon">📁</div>
-        {{/if}}
+        {{{previewHtml}}}
       </div>
       <div class="media-info">
         <span class="media-name">{{name}}</span>
@@ -61,16 +47,21 @@
   </div>
   {{/if}}
 
-  {{#if (or hasPrev hasNext)}}
+  {{#if hasPrev}}
   <div class="pagination">
-    {{#if hasPrev}}
-    <a href="/admin/media/library?page={{subtract page 1}}{{#if currentType}}&type={{currentType}}{{/if}}" class="btn">← Previous</a>
-    {{/if}}
+    <a href="{{prevPageUrl}}" class="btn">← Previous</a>
     <span class="page-info">Page {{page}}</span>
     {{#if hasNext}}
-    <a href="/admin/media/library?page={{add page 1}}{{#if currentType}}&type={{currentType}}{{/if}}" class="btn">Next →</a>
+    <a href="{{nextPageUrl}}" class="btn">Next →</a>
     {{/if}}
   </div>
+  {{else}}
+  {{#if hasNext}}
+  <div class="pagination">
+    <span class="page-info">Page {{page}}</span>
+    <a href="{{nextPageUrl}}" class="btn">Next →</a>
+  </div>
+  {{/if}}
   {{/if}}
 </div>
 
@@ -110,7 +101,7 @@
   color: #333;
 }
 .tab.active {
-  background: #1976d2;
+  background: var(--gin-primary, #2c59ee);
   color: white;
 }
 .media-grid {
@@ -159,6 +150,11 @@
   font-size: 0.75rem;
   color: #666;
 }
+.pagination {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  justify-content: center;
+  margin-top: 1.5rem;
+}
 </style>
-
-{{> admin-footer}}
