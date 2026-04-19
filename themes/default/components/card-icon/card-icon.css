@@ -1,0 +1,20 @@
+.sdc-card-icon {
+  padding: 1.5rem;
+  border-radius: 0.75rem;
+  transition: transform 0.2s;
+}
+.sdc-card-icon:hover { transform: scale(1.02); }
+.sdc-card-icon--primary { background: var(--gin-primary, #2c59ee); color: #fff; }
+.sdc-card-icon--secondary { background: var(--gin-bg-secondary, #f0f4ff); color: var(--gin-text, #1f2937); }
+.sdc-card-icon--accent { background: var(--gin-accent, #fbbf24); color: var(--gin-text, #1f2937); }
+.sdc-card-icon--muted { background: var(--gin-bg-muted, #f3f4f6); color: var(--gin-text, #1f2937); }
+
+.sdc-card-icon__icon { margin-bottom: 1rem; font-size: 2rem; }
+.sdc-card-icon__icon--small { font-size: 1.5rem; }
+.sdc-card-icon__icon--large { font-size: 3rem; }
+.sdc-card-icon__icon--extra-large { font-size: 4rem; }
+
+.sdc-card-icon__title { font-size: 1.125rem; font-weight: 600; margin: 0 0 0.5rem; }
+.sdc-card-icon__title a { color: inherit; text-decoration: none; }
+.sdc-card-icon__title a:hover { text-decoration: underline; }
+.sdc-card-icon__desc { font-size: 0.875rem; line-height: 1.5; opacity: 0.85; }

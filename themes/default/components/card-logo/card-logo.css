@@ -1,0 +1,16 @@
+.sdc-card-logo {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 10%;
+  border-radius: 0.25rem;
+  min-height: 80px;
+  aspect-ratio: 4/3;
+  transition: transform 0.2s;
+}
+.sdc-card-logo:hover { transform: scale(1.03); }
+.sdc-card-logo--primary { background: var(--gin-primary, #2c59ee); }
+.sdc-card-logo--secondary { background: var(--gin-bg-secondary, #f0f4ff); }
+.sdc-card-logo--accent { background: var(--gin-accent, #fbbf24); }
+.sdc-card-logo--muted { background: var(--gin-bg-muted, #f3f4f6); }
+.sdc-card-logo__img { max-width: 100%; max-height: 100%; object-fit: contain; }

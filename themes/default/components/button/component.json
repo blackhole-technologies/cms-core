@@ -1,0 +1,12 @@
+{
+  "name": "button",
+  "description": "Styled button or link with variant, size, and optional icon",
+  "props": {
+    "label": { "type": "string", "required": true },
+    "variant": { "type": "string", "default": "primary", "enum": ["primary", "secondary", "primary-inverted", "secondary-inverted"] },
+    "size": { "type": "string", "default": "medium", "enum": ["small", "medium", "large"] },
+    "href": { "type": "string", "description": "If set, renders as <a> link instead of <button>" },
+    "icon": { "type": "string", "enum": ["arrow-right", "arrow-left", "download", "caret-right"] },
+    "disabled": { "type": "boolean", "default": false }
+  }
+}

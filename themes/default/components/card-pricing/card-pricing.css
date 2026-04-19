@@ -1,0 +1,42 @@
+.sdc-card-pricing {
+  display: flex;
+  flex-direction: column;
+  gap: 1.5rem;
+  padding: 1.5rem;
+  border-radius: 0.25rem;
+  box-shadow: 0 4px 6px -1px rgba(0,0,0,0.1);
+  background: var(--gin-bg, #fff);
+  color: var(--gin-text, #1f2937);
+}
+
+.sdc-card-pricing--promoted {
+  background: var(--gin-primary, #2c59ee);
+  color: #fff;
+  transform: scale(1.05);
+}
+
+.sdc-card-pricing__title { font-size: 1.25rem; font-weight: 700; margin: 0; }
+.sdc-card-pricing__desc { font-size: 0.875rem; opacity: 0.8; margin: 0.25rem 0 0; }
+
+.sdc-card-pricing__price { display: flex; align-items: baseline; gap: 0.25rem; }
+.sdc-card-pricing__amount { font-size: 2.5rem; font-weight: 800; line-height: 1; }
+.sdc-card-pricing__currency { font-size: 1.25rem; font-weight: 600; }
+
+.sdc-card-pricing__features { font-size: 0.875rem; line-height: 1.8; }
+.sdc-card-pricing__features li { list-style: none; padding-left: 1.5rem; position: relative; }
+.sdc-card-pricing__features li::before { content: "\2713"; position: absolute; left: 0; color: #03713c; }
+.sdc-card-pricing--promoted .sdc-card-pricing__features li::before { color: #a7f3d0; }
+
+.sdc-card-pricing__cta {
+  display: block;
+  text-align: center;
+  padding: 0.75rem 1.5rem;
+  border-radius: 0.5rem;
+  font-weight: 600;
+  text-decoration: none;
+  background: var(--gin-text, #1f2937);
+  color: #fff;
+  transition: opacity 0.2s;
+}
+.sdc-card-pricing__cta:hover { opacity: 0.85; }
+.sdc-card-pricing--promoted .sdc-card-pricing__cta { background: #fff; color: var(--gin-primary, #2c59ee); }

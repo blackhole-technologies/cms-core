@@ -1,0 +1,8 @@
+{
+  "name": "navbar",
+  "description": "Responsive navigation bar with logo, menu, and CTA links. Includes mobile hamburger toggle.",
+  "props": {
+    "menu_align": { "type": "string", "default": "center", "enum": ["left", "center", "right"] }
+  },
+  "slots": ["logo", "navigation", "links"]
+}

@@ -1,0 +1,12 @@
+<figure class="sdc-blockquote">
+  <svg class="sdc-blockquote__mark" aria-hidden="true" viewBox="0 0 24 24" width="64" height="64"><path fill="currentColor" d="M6 17h3l2-4V7H5v6h3l-2 4zm8 0h3l2-4V7h-6v6h3l-2 4z"/></svg>
+  <blockquote {{#if cite_url}}cite="{{cite_url}}"{{/if}}>
+    <p class="sdc-blockquote__text">{{text}}</p>
+  </blockquote>
+  {{#if cite_name}}
+  <figcaption class="sdc-blockquote__footer">
+    <strong>{{cite_name}}</strong>
+    {{#if cite_text}}<span>{{cite_text}}</span>{{/if}}
+  </figcaption>
+  {{/if}}
+</figure>

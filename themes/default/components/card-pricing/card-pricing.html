@@ -1,0 +1,15 @@
+<div class="sdc-card-pricing {{#if promote}}sdc-card-pricing--promoted{{/if}}">
+  <div class="sdc-card-pricing__header">
+    <h3 class="sdc-card-pricing__title">{{heading_text}}</h3>
+    {{#if description}}<p class="sdc-card-pricing__desc">{{description}}</p>{{/if}}
+  </div>
+  <div class="sdc-card-pricing__price">
+    {{#if (eq symbol_position "before")}}<span class="sdc-card-pricing__currency">{{currency_symbol}}</span>{{/if}}
+    <span class="sdc-card-pricing__amount">{{price}}</span>
+    {{#if (eq symbol_position "after")}}<span class="sdc-card-pricing__currency">{{currency_symbol}}</span>{{/if}}
+  </div>
+  {{#if features}}<div class="sdc-card-pricing__features">{{{features}}}</div>{{/if}}
+  {{#if button_url}}
+  <a href="{{button_url}}" class="sdc-card-pricing__cta">{{button_label}}</a>
+  {{/if}}
+</div>

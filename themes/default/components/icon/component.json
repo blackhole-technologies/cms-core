@@ -1,0 +1,10 @@
+{
+  "name": "icon",
+  "description": "Icon display component with configurable size and color",
+  "props": {
+    "icon": { "type": "string", "required": true, "description": "Icon name or Unicode character" },
+    "icon_size": { "type": "string", "default": "medium", "enum": ["extra-small", "small", "medium", "large", "extra-large"] },
+    "icon_color": { "type": "string", "description": "CSS color value (defaults to currentColor)" },
+    "alt": { "type": "string", "description": "Accessible text (empty = decorative)" }
+  }
+}

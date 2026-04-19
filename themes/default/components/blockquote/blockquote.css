@@ -1,0 +1,38 @@
+.sdc-blockquote {
+  position: relative;
+  margin: 1.5rem 0;
+  padding-left: 2.5rem;
+}
+
+.sdc-blockquote__mark {
+  position: absolute;
+  left: 0;
+  top: 0;
+  width: 2rem;
+  height: 2rem;
+  color: var(--gin-primary, #2c59ee);
+  opacity: 0.3;
+}
+
+.sdc-blockquote__text {
+  font-size: 1.25rem;
+  line-height: 1.6;
+  font-style: italic;
+  color: var(--gin-text, #1f2937);
+}
+
+.sdc-blockquote__footer {
+  margin-top: 0.75rem;
+  font-size: 0.875rem;
+  color: var(--gin-text-muted, #71727a);
+}
+
+.sdc-blockquote__footer strong {
+  display: block;
+  color: var(--gin-text, #1f2937);
+  font-style: normal;
+}
+
+.sdc-blockquote__footer span {
+  font-style: normal;
+}

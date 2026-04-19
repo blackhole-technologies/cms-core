@@ -1,0 +1,11 @@
+{{#if href}}
+<a href="{{href}}" class="sdc-button sdc-button--{{variant}} sdc-button--{{size}} {{#if disabled}}sdc-button--disabled{{/if}}">
+  <span>{{label}}</span>
+  {{#if icon}}<span class="sdc-button__icon" aria-hidden="true">{{icon}}</span>{{/if}}
+</a>
+{{else}}
+<button class="sdc-button sdc-button--{{variant}} sdc-button--{{size}}" {{#if disabled}}disabled{{/if}}>
+  <span>{{label}}</span>
+  {{#if icon}}<span class="sdc-button__icon" aria-hidden="true">{{icon}}</span>{{/if}}
+</button>
+{{/if}}

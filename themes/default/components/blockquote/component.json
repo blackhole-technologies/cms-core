@@ -1,0 +1,10 @@
+{
+  "name": "blockquote",
+  "description": "Styled quotation block with optional citation",
+  "props": {
+    "text": { "type": "string", "required": true, "description": "Quotation text" },
+    "cite_name": { "type": "string", "description": "Citation author name" },
+    "cite_text": { "type": "string", "description": "Citation description or title" },
+    "cite_url": { "type": "string", "description": "Citation link URL" }
+  }
+}

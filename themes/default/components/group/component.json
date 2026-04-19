@@ -1,0 +1,13 @@
+{
+  "name": "group",
+  "description": "Flexible layout container with direction, gap, alignment, and background controls",
+  "props": {
+    "flex_direction": { "type": "string", "default": "column", "enum": ["column", "row"] },
+    "flex_gap": { "type": "string", "default": "md", "enum": ["sm", "md", "lg", "xl"] },
+    "items_align": { "type": "string", "default": "start", "enum": ["start", "center", "end"] },
+    "flex_align": { "type": "string", "default": "start", "enum": ["start", "center", "end"] },
+    "radius": { "type": "string", "enum": ["sm", "md", "lg", "xl"] },
+    "padding": { "type": "string", "enum": ["sm", "md", "lg", "xl"] },
+    "background": { "type": "string", "enum": ["primary", "secondary", "accent"] }
+  }
+}

@@ -1,0 +1,8 @@
+<section class="sdc-cta sdc-cta--{{background_color}}" style="text-align:{{text_align}}">
+  {{#if image_url}}<div class="sdc-cta__bg" style="background-image:url('{{image_url}}')"></div>{{/if}}
+  <div class="sdc-cta__content">
+    <h{{level}} class="sdc-cta__heading">{{heading_text}}</h{{level}}>
+    {{#if text}}<p class="sdc-cta__text">{{text}}</p>{{/if}}
+    <div class="sdc-cta__actions">{{{content}}}</div>
+  </div>
+</section>

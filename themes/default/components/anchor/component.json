@@ -1,0 +1,7 @@
+{
+  "name": "anchor",
+  "description": "Invisible in-page anchor point for deep linking",
+  "props": {
+    "id": { "type": "string", "required": true, "description": "URL fragment identifier" }
+  }
+}

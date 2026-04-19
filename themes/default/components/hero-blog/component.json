@@ -1,0 +1,13 @@
+{
+  "name": "hero-blog",
+  "description": "Blog post hero with date, heading, author byline, and featured image",
+  "props": {
+    "heading_text": { "type": "string", "required": true },
+    "level": { "type": "number", "default": 1, "enum": [1, 2, 3] },
+    "date": { "type": "string", "description": "Publication date string" },
+    "author": { "type": "string" },
+    "author_url": { "type": "string" },
+    "image_url": { "type": "string", "description": "Featured image URL" },
+    "image_alt": { "type": "string", "default": "" }
+  }
+}

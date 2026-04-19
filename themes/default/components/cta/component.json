@@ -1,0 +1,12 @@
+{
+  "name": "cta",
+  "description": "Call-to-action section with heading, text, and action buttons",
+  "props": {
+    "heading_text": { "type": "string", "required": true },
+    "level": { "type": "number", "default": 2, "enum": [1, 2, 3, 4, 5, 6] },
+    "text": { "type": "string", "description": "Description text" },
+    "text_align": { "type": "string", "default": "center", "enum": ["center", "left", "right"] },
+    "background_color": { "type": "string", "default": "primary", "enum": ["primary", "secondary", "accent", "muted", "inverted"] },
+    "image_url": { "type": "string", "description": "Optional background image" }
+  }
+}

@@ -1,0 +1,67 @@
+.sdc-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  border-radius: 0.5rem;
+  font-weight: 500;
+  text-decoration: none;
+  cursor: pointer;
+  border: 2px solid transparent;
+  transition: background-color 0.2s, transform 0.2s;
+  line-height: 1.25;
+}
+
+.sdc-button:hover { transform: translateY(-1px); }
+.sdc-button:active { transform: translateY(0); }
+
+/* Sizes */
+.sdc-button--small { padding: 0.375rem 0.75rem; font-size: 0.875rem; }
+.sdc-button--medium { padding: 0.625rem 1.25rem; font-size: 1rem; }
+.sdc-button--large { padding: 0.75rem 1.5rem; font-size: 1.125rem; }
+
+/* Variants */
+.sdc-button--primary {
+  background: var(--gin-primary, #2c59ee);
+  color: #fff;
+}
+.sdc-button--primary:hover { opacity: 0.9; }
+
+.sdc-button--secondary {
+  background: transparent;
+  border-color: var(--gin-primary, #2c59ee);
+  color: var(--gin-primary, #2c59ee);
+}
+.sdc-button--secondary:hover {
+  background: var(--gin-primary, #2c59ee);
+  color: #fff;
+}
+
+.sdc-button--primary-inverted {
+  background: #fff;
+  color: var(--gin-primary, #2c59ee);
+}
+
+.sdc-button--secondary-inverted {
+  background: transparent;
+  border-color: #fff;
+  color: #fff;
+}
+.sdc-button--secondary-inverted:hover {
+  background: rgba(255,255,255,0.15);
+}
+
+.sdc-button--disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+  pointer-events: none;
+}
+
+.sdc-button__icon {
+  font-size: 0.875em;
+  transition: transform 0.2s;
+}
+
+.sdc-button:hover .sdc-button__icon {
+  transform: translateX(2px);
+}

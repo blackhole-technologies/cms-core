@@ -1,0 +1,11 @@
+<div class="sdc-card-testimonial sdc-card-testimonial--{{style}} sdc-card-testimonial--{{align}}">
+  <svg class="sdc-card-testimonial__mark" aria-hidden="true" viewBox="0 0 24 24" width="32" height="32"><path fill="currentColor" d="M6 17h3l2-4V7H5v6h3l-2 4zm8 0h3l2-4V7h-6v6h3l-2 4z"/></svg>
+  <blockquote class="sdc-card-testimonial__quote">{{text}}</blockquote>
+  <footer class="sdc-card-testimonial__footer">
+    {{#if image_url}}<img src="{{image_url}}" alt="{{cite_name}}" class="sdc-card-testimonial__avatar" loading="lazy">{{/if}}
+    <div>
+      {{#if cite_name}}<strong>{{#if cite_url}}<a href="{{cite_url}}">{{cite_name}}</a>{{else}}{{cite_name}}{{/if}}</strong>{{/if}}
+      {{#if cite_text}}<span>{{cite_text}}</span>{{/if}}
+    </div>
+  </footer>
+</div>
