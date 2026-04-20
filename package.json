@@ -9,7 +9,13 @@
     "start:raw": "node index.js",
     "build": "node build.js",
     "build:watch": "node build.js --watch",
-    "typecheck": "tsc"
+    "typecheck": "tsc",
+    "lint": "biome lint .",
+    "lint:fix": "biome lint --write .",
+    "format": "biome format --write .",
+    "test": "node --test --test-reporter=spec tests/unit/ tests/integration/",
+    "test:watch": "node --test --watch tests/unit/ tests/integration/",
+    "check": "npm run typecheck && npm run lint && npm test"
   },
   "keywords": [
     "cms",
@@ -34,6 +40,7 @@
     "sharp": "^0.33.0"
   },
   "devDependencies": {
+    "@biomejs/biome": "2.4.12",
     "@types/node": "^22.19.11",
     "esbuild": "^0.24.0",
     "typescript": "^5.9.3"
