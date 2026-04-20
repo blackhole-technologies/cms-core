@@ -1,0 +1,63 @@
+{
+  "$schema": "https://biomejs.dev/schemas/2.4.12/schema.json",
+  "vcs": {
+    "enabled": true,
+    "clientKind": "git",
+    "useIgnoreFile": true
+  },
+  "files": {
+    "includes": [
+      "**/*.js",
+      "**/*.ts",
+      "**/*.cjs",
+      "**/*.mjs",
+      "**/*.json",
+      "!**/node_modules/**",
+      "!**/public/**",
+      "!**/themes/**",
+      "!**/content/**",
+      "!**/.autoforge/**",
+      "!**/docs/archive/**"
+    ]
+  },
+  "formatter": {
+    "enabled": true,
+    "indentStyle": "space",
+    "indentWidth": 2,
+    "lineWidth": 100,
+    "lineEnding": "lf"
+  },
+  "linter": {
+    "enabled": true,
+    "rules": {
+      "recommended": true,
+      "suspicious": {
+        "noExplicitAny": "warn",
+        "noConsole": "off",
+        "noAssignInExpressions": "warn",
+        "useIterableCallbackReturn": "warn",
+        "noDoubleEquals": "warn",
+        "noImplicitAnyLet": "warn",
+        "noAsyncPromiseExecutor": "warn"
+      },
+      "style": {
+        "noNonNullAssertion": "warn",
+        "useImportType": "warn"
+      },
+      "correctness": {
+        "noUnusedVariables": "warn",
+        "noUnusedImports": "warn",
+        "noSwitchDeclarations": "warn",
+        "useYield": "warn"
+      }
+    }
+  },
+  "javascript": {
+    "formatter": {
+      "quoteStyle": "single",
+      "semicolons": "always",
+      "trailingCommas": "es5",
+      "arrowParentheses": "always"
+    }
+  }
+}
