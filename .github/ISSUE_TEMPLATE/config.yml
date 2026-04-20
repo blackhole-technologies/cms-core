@@ -1,0 +1,8 @@
+blank_issues_enabled: false
+contact_links:
+  - name: Security vulnerability
+    url: https://github.com/blackhole-technologies/cms-core/security/policy
+    about: Please report security vulnerabilities privately, not via public issues.
+  - name: Question or discussion
+    url: https://github.com/blackhole-technologies/cms-core/discussions
+    about: For open-ended questions, use Discussions instead of Issues.
