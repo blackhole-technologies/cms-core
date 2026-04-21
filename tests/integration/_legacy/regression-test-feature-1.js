@@ -18,8 +18,8 @@
 
 import { fileURLToPath } from 'node:url';
 import { dirname } from 'node:path';
-import { boot } from './core/boot.js';
-import * as pluginTypeManager from './core/plugin-type-manager.js';
+import { boot } from '../../core/boot.js';
+import * as pluginTypeManager from '../../core/plugin-type-manager.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);

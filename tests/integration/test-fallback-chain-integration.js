@@ -7,8 +7,8 @@
  * 3. All providers fail -> throws error with all failure reasons
  */
 
-import { FallbackChain, createFallbackChain } from './modules/ai/core/fallback-chain.js';
-import providerManager from './modules/ai/core/provider-manager.js';
+import { FallbackChain, createFallbackChain } from '../../modules/ai/core/fallback-chain.js';
+import providerManager from '../../modules/ai/core/provider-manager.js';
 
 console.log('\n=== Integration Test: Feature #20 Fallback Chains ===\n');
 

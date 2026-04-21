@@ -2,7 +2,7 @@
  * Test suite for entity-view-builder.js
  */
 
-import * as entityViewBuilder from './core/entity-view-builder.js';
+import * as entityViewBuilder from '../../core/entity-view-builder.ts';
 
 // Mock services and container for registration
 const mockServices = {

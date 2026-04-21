@@ -2,9 +2,9 @@
  * Test script for icon template function (Feature 6)
  */
 
-import * as icons from './core/icons.js';
-import * as iconRenderer from './core/icon-renderer.js';
-import * as template from './core/template.js';
+import * as icons from '../../core/icons.js';
+import * as iconRenderer from '../../core/icon-renderer.ts';
+import * as template from '../../core/template.ts';
 import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';

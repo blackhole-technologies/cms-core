@@ -2,8 +2,8 @@
  * Comprehensive Test for Feature 6: Chat Operation with Streaming Support
  */
 
-import { executeChat, userMessage } from './modules/ai/operations/chat.js';
-import providerManager from './modules/ai/core/provider-manager.js';
+import { executeChat, userMessage } from '../../modules/ai/operations/chat.js';
+import providerManager from '../../modules/ai/core/provider-manager.js';
 
 console.log('🧪 Testing Feature 6: Chat Operation with Streaming Support\n');
 

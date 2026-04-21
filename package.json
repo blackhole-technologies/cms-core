@@ -13,8 +13,8 @@
     "lint": "biome lint .",
     "lint:fix": "biome lint --write .",
     "format": "biome format --write .",
-    "test": "node --test --test-reporter=spec tests/unit/ tests/integration/",
-    "test:watch": "node --test --watch tests/unit/ tests/integration/",
+    "test": "node --test --test-reporter=spec tests/unit/*.js tests/integration/*.js",
+    "test:watch": "node --test --watch tests/unit/*.js tests/integration/*.js",
     "check": "npm run typecheck && npm run lint && npm test"
   },
   "keywords": [

@@ -11,7 +11,7 @@
 
 import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
-import { boot } from './core/boot.js';
+import { boot } from '../../core/boot.js';
 import { writeFileSync, readFileSync, existsSync, mkdirSync } from 'node:fs';
 import { createServer } from 'node:http';
 

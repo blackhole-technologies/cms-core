@@ -7,7 +7,7 @@
  * - Feature #11: Text-to-Image operation
  */
 
-import { boot } from './core/boot.js';
+import { boot } from '../../core/boot.js';
 import { fileURLToPath } from 'node:url';
 import { dirname } from 'node:path';
 import fs from 'node:fs';

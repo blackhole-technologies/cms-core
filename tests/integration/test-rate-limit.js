@@ -8,7 +8,7 @@
  * 4. Verify error includes retry information
  */
 
-import { checkProviderLimit } from './core/ai-rate-limiter.js';
+import { checkProviderLimit } from '../../core/ai-rate-limiter.ts';
 
 console.log('=== AI Provider Rate Limiting Test ===\n');
 

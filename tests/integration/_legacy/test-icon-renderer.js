@@ -2,8 +2,8 @@
  * Test script for icon renderer service
  */
 
-import * as icons from './core/icons.js';
-import * as iconRenderer from './core/icon-renderer.js';
+import * as icons from '../../core/icons.js';
+import * as iconRenderer from '../../core/icon-renderer.ts';
 import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';

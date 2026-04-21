@@ -10,7 +10,7 @@ import {
   evaluateFallbackChain,
   replaceWithFallbacks,
   registerToken,
-} from '../../core/tokens.js';
+} from '../../core/tokens.ts';
 
 // Color helpers for terminal output
 const colors = {

@@ -11,9 +11,9 @@
  * 7. Test fallback logic only applies to compatible providers
  */
 
-import { FallbackChain, createFallbackChain } from './modules/ai/core/fallback-chain.js';
-import providerManager from './modules/ai/core/provider-manager.js';
-import AIProviderInterface from './modules/ai/core/provider-interface.js';
+import { FallbackChain, createFallbackChain } from '../../modules/ai/core/fallback-chain.js';
+import providerManager from '../../modules/ai/core/provider-manager.js';
+import AIProviderInterface from '../../modules/ai/core/provider-interface.js';
 
 // ANSI color codes for output
 const colors = {

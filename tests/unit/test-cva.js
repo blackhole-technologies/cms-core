@@ -3,8 +3,8 @@
  * Tests all three features: CVA function, schema validation, compound variants
  */
 
-import { applyCva, parseCvaHelper } from './core/lib/Twig/CvaExtension.js';
-import { validateCvaConfig, assertValidCvaConfig } from './core/lib/Twig/CvaSchema.js';
+import { applyCva, parseCvaHelper } from '../../core/lib/Twig/CvaExtension.js';
+import { validateCvaConfig, assertValidCvaConfig } from '../../core/lib/Twig/CvaSchema.js';
 
 console.log('='.repeat(60));
 console.log('CVA Feature Test Suite');

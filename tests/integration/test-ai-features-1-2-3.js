@@ -3,9 +3,9 @@
  * Tests the AI provider interface, provider manager, and OpenAI provider
  */
 
-import AIProviderInterface from './modules/ai/core/provider-interface.js';
-import providerManager from './modules/ai/core/provider-manager.js';
-import OpenAIProvider from './modules/ai/providers/openai.js';
+import AIProviderInterface from '../../modules/ai/core/provider-interface.js';
+import providerManager from '../../modules/ai/core/provider-manager.js';
+import OpenAIProvider from '../../modules/ai/providers/openai.js';
 
 console.log('🧪 Testing AI Features 1, 2, 3\n');
 

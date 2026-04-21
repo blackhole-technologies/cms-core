@@ -3,7 +3,7 @@
  * Test script for Typed Data Service (Feature #2)
  */
 
-import * as typedData from './core/typed-data.js';
+import * as typedData from '../../core/typed-data.ts';
 
 console.log('Testing Typed Data Service...\n');
 

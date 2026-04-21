@@ -6,9 +6,9 @@
 import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
-import AIProviderInterface from './modules/ai/core/provider-interface.js';
-import providerManager from './modules/ai/core/provider-manager.js';
-import OpenAIProvider from './modules/ai/providers/openai.js';
+import AIProviderInterface from '../../modules/ai/core/provider-interface.js';
+import providerManager from '../../modules/ai/core/provider-manager.js';
+import OpenAIProvider from '../../modules/ai/providers/openai.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);

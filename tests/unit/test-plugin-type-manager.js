@@ -3,7 +3,7 @@
  * Test script for Plugin Type Manager (Feature #1)
  */
 
-import * as pluginTypeManager from './core/plugin-type-manager.js';
+import * as pluginTypeManager from '../../core/plugin-type-manager.js';
 
 console.log('Testing Plugin Type Manager...\n');
 

@@ -2,7 +2,7 @@
  * Test suite for block variant system
  */
 
-import * as blocks from './core/blocks.js';
+import * as blocks from '../../core/blocks.ts';
 
 // Test counter
 let passed = 0;
