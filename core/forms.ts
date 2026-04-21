@@ -131,10 +131,17 @@ interface WidgetConfig {
   description: string;
 }
 
-/** Field with id added for rendering */
+/** Field with id added for rendering.
+ *
+ * Narrows `type` to a required string (the base `FieldDefinition.type` is
+ * optional because raw schema entries may omit it). Callers must supply a
+ * default (e.g. 'string') when building a FieldWithId so downstream
+ * renderers/parsers that expect `FieldDef` receive a non-undefined type.
+ */
 interface FieldWithId extends FieldDefinition {
   name: string;
   id: string;
+  type: string;
 }
 
 /** Form state for tracking server-side session */
@@ -471,7 +478,9 @@ function renderRegularForm(built: BuiltForm, errors: Record<string, string>, opt
     if (!groupedFields[group]) {
       groupedFields[group] = [];
     }
-    groupedFields[group]!.push({ name, ...field });
+    // Spread first so an explicit `name` (the map key) overrides any stale
+    // name that may have been written to the field definition earlier.
+    groupedFields[group]!.push({ ...field, name });
   }
 
   // Sort groups by weight
@@ -556,7 +565,9 @@ function renderFormField(field: BuiltFormField & { name: string }, error: string
 
   // Get widget renderer
   const widgetRenderer = widgets[widget];
-  const fieldWithId: FieldWithId = { ...definition, name, id: fieldId };
+  // Default `type` to 'string' when absent — matches the runtime fallback
+  // already used below in the form-field class name (`definition.type || 'string'`).
+  const fieldWithId: FieldWithId = { ...definition, type: definition.type || 'string', name, id: fieldId };
 
   let inputHtml: string;
   if (widgetRenderer && widgetRenderer.render) {
@@ -620,7 +631,9 @@ function renderMultiStepForm(built: BuiltForm, errors: Record<string, string>, o
       if (!field) continue;
 
       const error = errors[fieldName] || null;
-      html += renderFormField({ name: fieldName, ...field }, error, built.conditions);
+      // Spread first so `name: fieldName` (the map key) authoritatively
+      // overrides whatever `name` is already on the stored field.
+      html += renderFormField({ ...field, name: fieldName }, error, built.conditions);
     }
 
     html += '</div>';
@@ -702,12 +715,17 @@ export async function processForm(formId: string, data: Record<string, unknown>,
 
   const { schema = {}, content = null, contentService = null } = options;
 
-  // Parse form data using field parsers
+  // Parse form data using field parsers.
+  // `FieldDefinition.type` is optional (raw schemas may omit it), but
+  // `fields.parseField` requires `FieldDef.type: string`. Default missing
+  // types to 'string' so the parser takes the text-field code path —
+  // mirrors the form-render default used in `renderFormField`.
   const parsed: Record<string, unknown> = {};
   for (const [fieldName, fieldDef] of Object.entries(schema)) {
     if (fieldName.startsWith('_')) continue;
     if (fieldName in data) {
-      parsed[fieldName] = fields.parseField(fieldDef, data[fieldName]);
+      const typedFieldDef = { ...fieldDef, type: fieldDef.type || 'string' };
+      parsed[fieldName] = fields.parseField(typedFieldDef, data[fieldName]);
     }
   }
 

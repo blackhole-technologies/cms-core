@@ -556,7 +556,10 @@ export function renderElement(element: FormElement): string {
   }
 
   const type = element['#type'] as string | undefined;
-  const renderer = (type && RENDERERS[type]) || RENDERERS.default;
+  // `RENDERERS.default` is always defined at module load (see definition below),
+  // but tsc widens Record<string, …> access to include `undefined`.
+  // The `!` is a type-only assertion; the value is known-safe at runtime.
+  const renderer = (type && RENDERERS[type]) || RENDERERS.default!;
 
   return renderer(element);
 }
@@ -1084,7 +1087,10 @@ const RENDERERS: Record<string, (element: FormElement) => string> = {
 
   tableselect(element: FormElement): string {
     const header = (element['#header'] || []) as string[];
-    const options = (element['#options'] || {}) as Record<string, string[]>;
+    // Tableselect narrows the generic `#options: Record<string,string>` shape
+    // (declared on FormElement) to per-row cell arrays. Cast via `unknown`
+    // since the base and narrowed types do not structurally overlap.
+    const options = (element['#options'] || {}) as unknown as Record<string, string[]>;
     const selectedValues = (element['#value'] || element['#default_value'] || []) as string | string[];
 
     let html = '<table class="tableselect">';
@@ -1129,7 +1135,8 @@ const RENDERERS: Record<string, (element: FormElement) => string> = {
   },
 
   weight(element: FormElement): string {
-    return RENDERERS.select(element);
+    // `RENDERERS.select` is defined at module load; `!` is a type-only assertion.
+    return RENDERERS.select!(element);
   },
 
   machine_name(element: FormElement): string {
@@ -1141,7 +1148,8 @@ const RENDERERS: Record<string, (element: FormElement) => string> = {
   },
 
   language_select(element: FormElement): string {
-    return RENDERERS.select(element);
+    // `RENDERERS.select` is defined at module load; `!` is a type-only assertion.
+    return RENDERERS.select!(element);
   },
 
   default(element: FormElement): string {
