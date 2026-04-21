@@ -5,6 +5,17 @@
  */
 
 import fs from 'node:fs';
+import path from 'node:path';
+import { fileURLToPath, pathToFileURL } from 'node:url';
+
+// Repo root resolved relative to this test file so CI (Linux runners) and
+// local (macOS) both work. Prior version hard-coded /Users/Alchemy/... which
+// only exists on the author's machine.
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+const REPO_ROOT = path.resolve(__dirname, '..', '..');
+const repoPath = (...segments) => path.join(REPO_ROOT, ...segments);
+const repoImportUrl = (...segments) => pathToFileURL(repoPath(...segments)).href;
 
 // ANSI colors
 const colors = {
@@ -24,14 +35,14 @@ async function testFeature9() {
 
   try {
     // Step 1: File exists
-    const filePath = '/Users/Alchemy/Projects/experiments/cms-core/modules/ai/operations/text-to-speech.js';
+    const filePath = repoPath('modules', 'ai', 'operations', 'text-to-speech.js');
     if (!fs.existsSync(filePath)) {
       throw new Error('text-to-speech.js does not exist');
     }
     log('✓ modules/ai/operations/text-to-speech.js exists', 'green');
 
     // Step 2: Import and check exports
-    const module = await import('/Users/Alchemy/Projects/experiments/cms-core/modules/ai/operations/text-to-speech.js');
+    const module = await import(repoImportUrl('modules', 'ai', 'operations', 'text-to-speech.js'));
 
     if (typeof module.generateSpeech !== 'function') {
       throw new Error('generateSpeech is not exported');
@@ -90,14 +101,14 @@ async function testFeature10() {
 
   try {
     // Step 1: File exists
-    const filePath = '/Users/Alchemy/Projects/experiments/cms-core/modules/ai/operations/speech-to-text.js';
+    const filePath = repoPath('modules', 'ai', 'operations', 'speech-to-text.js');
     if (!fs.existsSync(filePath)) {
       throw new Error('speech-to-text.js does not exist');
     }
     log('✓ modules/ai/operations/speech-to-text.js exists', 'green');
 
     // Step 2: Import and check exports
-    const module = await import('/Users/Alchemy/Projects/experiments/cms-core/modules/ai/operations/speech-to-text.js');
+    const module = await import(repoImportUrl('modules', 'ai', 'operations', 'speech-to-text.js'));
 
     if (typeof module.transcribe !== 'function') {
       throw new Error('transcribe is not exported');
@@ -156,14 +167,14 @@ async function testFeature11() {
 
   try {
     // Step 1: File exists
-    const filePath = '/Users/Alchemy/Projects/experiments/cms-core/modules/ai/operations/text-to-image.js';
+    const filePath = repoPath('modules', 'ai', 'operations', 'text-to-image.js');
     if (!fs.existsSync(filePath)) {
       throw new Error('text-to-image.js does not exist');
     }
     log('✓ modules/ai/operations/text-to-image.js exists', 'green');
 
     // Step 2: Import and check exports
-    const module = await import('/Users/Alchemy/Projects/experiments/cms-core/modules/ai/operations/text-to-image.js');
+    const module = await import(repoImportUrl('modules', 'ai', 'operations', 'text-to-image.js'));
 
     if (typeof module.generateImage !== 'function') {
       throw new Error('generateImage is not exported');
