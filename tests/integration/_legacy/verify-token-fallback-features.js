@@ -9,7 +9,7 @@ import {
   parseTokenWithFallbacks,
   evaluateFallbackChain,
   registerToken,
-} from './core/tokens.js';
+} from '../../core/tokens.ts';
 
 // Color helpers
 const colors = {

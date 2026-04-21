@@ -1,6 +1,6 @@
-import * as icons from './core/icons.js';
-import * as iconRenderer from './core/icon-renderer.js';
-import * as template from './core/template.js';
+import * as icons from '../../core/icons.js';
+import * as iconRenderer from '../../core/icon-renderer.ts';
+import * as template from '../../core/template.ts';
 import { readFileSync } from 'node:fs';
 
 const iconConfig = JSON.parse(readFileSync('/Users/Alchemy/Projects/experiments/cms-core/config/icons.json', 'utf-8'));

@@ -11,8 +11,8 @@
  * 7. Test fallback logic only applies to compatible providers
  */
 
-import { FallbackChain, createFallbackChain } from './modules/ai/core/fallback-chain.js';
-import providerManager from './modules/ai/core/provider-manager.js';
+import { FallbackChain, createFallbackChain } from '../../modules/ai/core/fallback-chain.js';
+import providerManager from '../../modules/ai/core/provider-manager.js';
 
 console.log('\n=== Feature #20: Fallback Provider Chains Test ===\n');
 

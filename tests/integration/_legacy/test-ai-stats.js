@@ -13,7 +13,7 @@
  * 9-13. Verification tests
  */
 
-import * as aiStats from './core/ai-stats.js';
+import * as aiStats from '../../core/ai-stats.ts';
 import { existsSync, readFileSync, writeFileSync, unlinkSync, readdirSync } from 'node:fs';
 import { join } from 'node:path';
 

@@ -2,8 +2,8 @@
  * Debug streaming functionality
  */
 
-import { executeChat, userMessage } from './modules/ai/operations/chat.js';
-import providerManager from './modules/ai/core/provider-manager.js';
+import { executeChat, userMessage } from '../../modules/ai/operations/chat.js';
+import providerManager from '../../modules/ai/core/provider-manager.js';
 
 console.log('🔍 Debugging streaming functionality\n');
 

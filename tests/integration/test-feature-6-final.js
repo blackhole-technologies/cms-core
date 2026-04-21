@@ -3,8 +3,8 @@
  * Tests all 7 verification steps from the feature specification
  */
 
-import { executeChat, userMessage, systemMessage } from './modules/ai/operations/chat.js';
-import providerManager from './modules/ai/core/provider-manager.js';
+import { executeChat, userMessage, systemMessage } from '../../modules/ai/operations/chat.js';
+import providerManager from '../../modules/ai/core/provider-manager.js';
 import fs from 'fs';
 
 console.log('🧪 Feature 6: Chat Operation with Streaming Support - Final Verification\n');

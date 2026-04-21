@@ -2,7 +2,7 @@
  * Test suite for math-evaluator.js
  */
 
-import * as mathEvaluator from './core/math-evaluator.js';
+import * as mathEvaluator from '../../core/math-evaluator.js';
 
 // Test counter
 let passed = 0;

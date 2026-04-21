@@ -6,7 +6,7 @@
 
 import { fileURLToPath } from 'node:url';
 import { dirname } from 'node:path';
-import { boot } from './core/boot.js';
+import { boot } from '../../core/boot.js';
 import { exec } from 'node:child_process';
 import { promisify } from 'node:util';
 

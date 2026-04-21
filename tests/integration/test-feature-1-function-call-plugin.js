@@ -8,8 +8,8 @@
  * 4. Verify plugins can be registered and invoked programmatically
  */
 
-import { FunctionCallPlugin } from './core/lib/Plugin/FunctionCallPlugin.js';
-import { FunctionCallPluginManager } from './core/lib/Plugin/FunctionCallPluginManager.js';
+import { FunctionCallPlugin } from '../../core/lib/Plugin/FunctionCallPlugin.js';
+import { FunctionCallPluginManager } from '../../core/lib/Plugin/FunctionCallPluginManager.js';
 
 console.log('='.repeat(80));
 console.log('FEATURE #1: Function Call Plugin Interface Test');

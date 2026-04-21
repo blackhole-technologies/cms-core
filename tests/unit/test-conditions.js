@@ -3,7 +3,7 @@
  * Test script for Conditions Service (Feature #3)
  */
 
-import * as conditions from './core/conditions.js';
+import * as conditions from '../../core/conditions.ts';
 
 console.log('Testing Conditions Service...\n');
 
