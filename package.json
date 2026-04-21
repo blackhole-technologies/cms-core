@@ -2,6 +2,9 @@
   "name": "cms-core",
   "version": "0.0.80",
   "description": "Minimal TypeScript CMS core with modular architecture",
+  "engines": {
+    "node": ">=22.0.0"
+  },
   "type": "module",
   "main": "index.ts",
   "scripts": {
