@@ -1,7 +1,7 @@
 {
   "name": "cms-core",
   "version": "0.0.80",
-  "description": "Minimal TypeScript CMS core with modular architecture",
+  "description": "Drupal-inspired CMS in TypeScript. Zero runtime dependencies in the framework core. Flat-file storage, hook-based modules, ~95% Drupal CMS parity.",
   "engines": {
     "node": ">=22.0.0"
   },
