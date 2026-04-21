@@ -9,7 +9,7 @@ stability.
 
 ## [Unreleased]
 
-## [0.1.0] — 2026-MM-DD
+## [0.1.0] — 2026-04-20
 
 ### Added
 - `LICENSE` (MIT) at repo root.
