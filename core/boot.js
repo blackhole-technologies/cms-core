@@ -105,7 +105,7 @@ import * as aiStats from './ai-stats.ts';
 import * as aiProviderManager from './ai-provider-manager.ts';
 import * as functionCallPlugins from './function-call-plugins.ts';
 import * as honeypot from './honeypot.js';
-import * as captcha from './captcha.js';
+import * as captcha from './captcha.ts';
 import * as sdc from './sdc.ts';
 import * as aiAgents from './ai-agents.ts';
 import * as webform from './webform.js';
