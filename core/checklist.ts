@@ -1,15 +1,9 @@
 /**
- * checklist.js - Site Checklist / Status Checks
+ * checklist.ts - Site Checklist / Status Checks
  *
- * WHY THIS EXISTS:
  * Drupal's "Status report" page shows administrators whether their site
  * is configured correctly: cron running, security settings, search index
  * up-to-date, etc. This module provides the same for CMS Core.
- *
- * HOW IT WORKS:
- * Check functions are registered by name. Each check returns:
- *   { status: 'ok'|'warning'|'error', title, description }
- * Results are aggregated and can be fetched via API or rendered in the admin UI.
  *
  * Drupal parity: equivalent to system_status() + hook_requirements().
  */
@@ -17,18 +11,54 @@
 import { existsSync, readFileSync, writeFileSync, mkdirSync } from 'node:fs';
 import { join } from 'node:path';
 
-// Registry of check functions
-const checks = new Map();
+export type CheckStatus = 'ok' | 'warning' | 'error';
 
-// Service references
-let baseDir = null;
-let checklistDir = null;
+export interface CheckResult {
+  status?: CheckStatus;
+  description?: string;
+  value?: unknown;
+}
 
-/**
- * Initialize checklist system.
- * @param {string} baseDirPath - Project root
- */
-export function init(baseDirPath) {
+type CheckFn = () => Promise<CheckResult> | CheckResult;
+
+interface CheckEntry {
+  id: string;
+  title: string;
+  category: string;
+  check: CheckFn;
+}
+
+interface RegisterConfig {
+  title: string;
+  category?: string;
+  check: CheckFn;
+}
+
+export interface RanCheck {
+  id: string;
+  title: string;
+  category: string;
+  status: CheckStatus;
+  description: string;
+  value: unknown;
+}
+
+export interface ChecklistSummary {
+  timestamp: string;
+  total: number;
+  ok: number;
+  warnings: number;
+  errors: number;
+  categories: Record<string, RanCheck[]>;
+  results: RanCheck[];
+}
+
+const checks = new Map<string, CheckEntry>();
+
+let baseDir: string | null = null;
+let checklistDir: string | null = null;
+
+export function init(baseDirPath: string): void {
   baseDir = baseDirPath;
   checklistDir = join(baseDir, 'content', '.checklist');
 
@@ -40,16 +70,7 @@ export function init(baseDirPath) {
   console.log(`[checklist] Initialized (${checks.size} checks registered)`);
 }
 
-/**
- * Register a check function.
- *
- * @param {string} id - Unique check identifier
- * @param {Object} config
- * @param {string} config.title - Human-readable title
- * @param {string} config.category - Category grouping (e.g. 'security', 'performance')
- * @param {Function} config.check - Async function returning { status, description }
- */
-export function register(id, config) {
+export function register(id: string, config: RegisterConfig): void {
   checks.set(id, {
     id,
     title: config.title,
@@ -58,12 +79,8 @@ export function register(id, config) {
   });
 }
 
-/**
- * Run all checks and return results.
- * @returns {Promise<Object>} Categorized check results
- */
-export async function runAll() {
-  const results = [];
+export async function runAll(): Promise<ChecklistSummary> {
+  const results: RanCheck[] = [];
 
   for (const [id, entry] of checks) {
     try {
@@ -74,7 +91,7 @@ export async function runAll() {
         category: entry.category,
         status: result.status || 'ok',
         description: result.description || '',
-        value: result.value || null,
+        value: result.value ?? null,
       });
     } catch (err) {
       results.push({
@@ -82,64 +99,60 @@ export async function runAll() {
         title: entry.title,
         category: entry.category,
         status: 'error',
-        description: `Check failed: ${err.message}`,
+        description: `Check failed: ${(err as Error).message}`,
         value: null,
       });
     }
   }
 
-  // Group by category
-  const grouped = {};
+  const grouped: Record<string, RanCheck[]> = {};
   for (const r of results) {
-    if (!grouped[r.category]) grouped[r.category] = [];
-    grouped[r.category].push(r);
+    const bucket = grouped[r.category];
+    if (!bucket) {
+      grouped[r.category] = [r];
+    } else {
+      bucket.push(r);
+    }
   }
 
-  const summary = {
+  const summary: ChecklistSummary = {
     timestamp: new Date().toISOString(),
     total: results.length,
-    ok: results.filter(r => r.status === 'ok').length,
-    warnings: results.filter(r => r.status === 'warning').length,
-    errors: results.filter(r => r.status === 'error').length,
+    ok: results.filter((r) => r.status === 'ok').length,
+    warnings: results.filter((r) => r.status === 'warning').length,
+    errors: results.filter((r) => r.status === 'error').length,
     categories: grouped,
     results,
   };
 
-  // Cache results to disk
-  try {
-    writeFileSync(
-      join(checklistDir, 'last-run.json'),
-      JSON.stringify(summary, null, 2),
-      'utf-8'
-    );
-  } catch {
-    // Non-critical — cache write failure doesn't break checks
+  if (checklistDir) {
+    try {
+      writeFileSync(
+        join(checklistDir, 'last-run.json'),
+        JSON.stringify(summary, null, 2),
+        'utf-8'
+      );
+    } catch {
+      // Non-critical — cache write failure doesn't break checks
+    }
   }
 
   return summary;
 }
 
-/**
- * Get the last cached run results (without re-running checks).
- * @returns {Object|null}
- */
-export function getLastRun() {
+export function getLastRun(): ChecklistSummary | null {
+  if (!checklistDir) return null;
   const filePath = join(checklistDir, 'last-run.json');
   if (!existsSync(filePath)) return null;
 
   try {
-    return JSON.parse(readFileSync(filePath, 'utf-8'));
+    return JSON.parse(readFileSync(filePath, 'utf-8')) as ChecklistSummary;
   } catch {
     return null;
   }
 }
 
-/**
- * Run a single check by ID.
- * @param {string} id
- * @returns {Promise<Object|null>}
- */
-export async function runCheck(id) {
+export async function runCheck(id: string): Promise<RanCheck | null> {
   const entry = checks.get(id);
   if (!entry) return null;
 
@@ -151,7 +164,7 @@ export async function runCheck(id) {
       category: entry.category,
       status: result.status || 'ok',
       description: result.description || '',
-      value: result.value || null,
+      value: result.value ?? null,
     };
   } catch (err) {
     return {
@@ -159,18 +172,14 @@ export async function runCheck(id) {
       title: entry.title,
       category: entry.category,
       status: 'error',
-      description: `Check failed: ${err.message}`,
+      description: `Check failed: ${(err as Error).message}`,
       value: null,
     };
   }
 }
 
-/**
- * List all registered checks (without running them).
- * @returns {Array}
- */
-export function listChecks() {
-  return Array.from(checks.values()).map(c => ({
+export function listChecks(): Array<{ id: string; title: string; category: string }> {
+  return Array.from(checks.values()).map((c) => ({
     id: c.id,
     title: c.title,
     category: c.category,
@@ -181,7 +190,7 @@ export function listChecks() {
 // BUILT-IN CHECKS
 // ============================================
 
-function registerBuiltinChecks() {
+function registerBuiltinChecks(): void {
   register('node_version', {
     title: 'Node.js version',
     category: 'system',
@@ -190,10 +199,19 @@ function registerBuiltinChecks() {
       const major = parseInt(version.slice(1));
       if (major >= 20) {
         return { status: 'ok', description: `Node.js ${version}`, value: version };
-      } else if (major >= 18) {
-        return { status: 'warning', description: `Node.js ${version} — consider upgrading to 20+`, value: version };
       }
-      return { status: 'error', description: `Node.js ${version} — version 18+ required`, value: version };
+      if (major >= 18) {
+        return {
+          status: 'warning',
+          description: `Node.js ${version} — consider upgrading to 20+`,
+          value: version,
+        };
+      }
+      return {
+        status: 'error',
+        description: `Node.js ${version} — version 18+ required`,
+        value: version,
+      };
     },
   });
 
@@ -205,9 +223,17 @@ function registerBuiltinChecks() {
       const heapMB = Math.round(mem.heapUsed / 1024 / 1024);
       const rssMB = Math.round(mem.rss / 1024 / 1024);
       if (heapMB > 512) {
-        return { status: 'warning', description: `Heap: ${heapMB}MB, RSS: ${rssMB}MB — high memory usage`, value: heapMB };
+        return {
+          status: 'warning',
+          description: `Heap: ${heapMB}MB, RSS: ${rssMB}MB — high memory usage`,
+          value: heapMB,
+        };
       }
-      return { status: 'ok', description: `Heap: ${heapMB}MB, RSS: ${rssMB}MB`, value: heapMB };
+      return {
+        status: 'ok',
+        description: `Heap: ${heapMB}MB, RSS: ${rssMB}MB`,
+        value: heapMB,
+      };
     },
   });
 
@@ -226,7 +252,7 @@ function registerBuiltinChecks() {
     title: 'Content directory',
     category: 'storage',
     check: async () => {
-      const dir = join(baseDir, 'content');
+      const dir = join(baseDir ?? '.', 'content');
       if (existsSync(dir)) {
         return { status: 'ok', description: 'Content directory exists and is accessible' };
       }
@@ -238,7 +264,7 @@ function registerBuiltinChecks() {
     title: 'Configuration directory',
     category: 'storage',
     check: async () => {
-      const dir = join(baseDir, 'config');
+      const dir = join(baseDir ?? '.', 'config');
       if (existsSync(dir)) {
         return { status: 'ok', description: 'Config directory exists' };
       }
@@ -250,11 +276,14 @@ function registerBuiltinChecks() {
     title: 'Media directory',
     category: 'storage',
     check: async () => {
-      const dir = join(baseDir, 'media');
+      const dir = join(baseDir ?? '.', 'media');
       if (existsSync(dir)) {
         return { status: 'ok', description: 'Media directory exists' };
       }
-      return { status: 'warning', description: 'Media directory not yet created (will be created on first upload)' };
+      return {
+        status: 'warning',
+        description: 'Media directory not yet created (will be created on first upload)',
+      };
     },
   });
 
@@ -266,7 +295,11 @@ function registerBuiltinChecks() {
       if (env === 'production') {
         return { status: 'ok', description: 'Running in production mode', value: env };
       }
-      return { status: 'warning', description: `Running in ${env} mode — use NODE_ENV=production for live sites`, value: env };
+      return {
+        status: 'warning',
+        description: `Running in ${env} mode — use NODE_ENV=production for live sites`,
+        value: env,
+      };
     },
   });
 }

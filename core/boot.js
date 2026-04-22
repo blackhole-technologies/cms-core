@@ -98,7 +98,7 @@ import * as contextual from './contextual.ts';
 import * as help from './help.js';
 import * as contact from './contact.js';
 import * as ban from './ban.ts';
-import * as checklist from './checklist.js';
+import * as checklist from './checklist.ts';
 import * as history from './history.js';
 import * as aiRegistry from './ai-registry.ts';
 import * as aiStats from './ai-stats.ts';
