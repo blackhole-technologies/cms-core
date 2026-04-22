@@ -28,7 +28,7 @@
 import { join } from 'node:path';
 import * as config from './config.ts';
 import * as discovery from './discovery.ts';
-import * as dependencies from './dependencies.js';
+import * as dependencies from './dependencies.ts';
 import * as hooks from './hooks.ts';
 import * as services from './services.ts';
 import * as watcher from './watcher.js';
