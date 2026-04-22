@@ -27,7 +27,7 @@
 
 import { join } from 'node:path';
 import * as config from './config.ts';
-import * as discovery from './discovery.js';
+import * as discovery from './discovery.ts';
 import * as dependencies from './dependencies.js';
 import * as hooks from './hooks.ts';
 import * as services from './services.ts';
@@ -97,14 +97,14 @@ import * as status from './status.js';
 import * as contextual from './contextual.ts';
 import * as help from './help.js';
 import * as contact from './contact.js';
-import * as ban from './ban.js';
+import * as ban from './ban.ts';
 import * as checklist from './checklist.js';
 import * as history from './history.js';
 import * as aiRegistry from './ai-registry.ts';
 import * as aiStats from './ai-stats.ts';
 import * as aiProviderManager from './ai-provider-manager.ts';
 import * as functionCallPlugins from './function-call-plugins.ts';
-import * as honeypot from './honeypot.js';
+import * as honeypot from './honeypot.ts';
 import * as captcha from './captcha.ts';
 import * as sdc from './sdc.ts';
 import * as aiAgents from './ai-agents.ts';
