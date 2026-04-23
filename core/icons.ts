@@ -32,11 +32,75 @@
 import { readdirSync, statSync, existsSync, readFileSync } from 'node:fs';
 import { join, parse, relative } from 'node:path';
 
+// ============= Types =============
+
+/** Icon metadata record */
+interface IconMetadata {
+  id: string;
+  name: string;
+  packId: string;
+  packName: string;
+  path: string;
+  relativePath: string;
+  variant: string;
+  tags: string[];
+  aliases: string[];
+}
+
+/** Icon pack metadata */
+interface IconPack {
+  id: string;
+  name: string;
+  description: string;
+  version: string;
+  type: string;
+  path: string;
+  prefix: string;
+  enabled: boolean;
+  source: string;
+  iconCount: number;
+}
+
+/** Icon pack configuration input */
+interface IconPackConfig {
+  id: string;
+  name: string;
+  description?: string;
+  version?: string;
+  type?: string;
+  path: string;
+  prefix?: string;
+  enabled?: boolean;
+  source?: string;
+}
+
+/** Icon discovery configuration */
+interface IconDiscoveryConfig {
+  extensions?: string[];
+  excludePatterns?: string[];
+  scanOnBoot?: boolean;
+}
+
+/** Icon service configuration */
+interface IconConfig {
+  packs?: IconPackConfig[];
+  discovery?: IconDiscoveryConfig;
+}
+
+/** Search options for icons */
+interface IconSearchOptions {
+  packId?: string | null;
+  limit?: number;
+  variant?: string | null;
+}
+
+// ============= State =============
+
 /**
  * Service state
  */
-let config = null;
-let baseDir = null;
+let config: IconConfig | null = null;
+let baseDir: string | null = null;
 let initialized = false;
 
 /**
@@ -48,19 +112,19 @@ let initialized = false;
  * - Better iteration performance
  * - Can use any string as key without prototype issues
  */
-const registry = new Map();
+const registry = new Map<string, IconMetadata>();
 
 /**
  * Pack registry
  * Structure: Map<packId, packMetadata>
  */
-const packs = new Map();
+const packs = new Map<string, IconPack>();
 
 /**
  * Search index for faster queries
  * Structure: Map<searchTerm, Set<iconId>>
  */
-const searchIndex = new Map();
+const searchIndex = new Map<string, Set<string>>();
 
 /**
  * Initialize icon service
@@ -73,7 +137,7 @@ const searchIndex = new Map();
  * @param {Object} iconConfig - Icon configuration from config/icons.json
  * @param {string} baseDirPath - Base directory for icon files
  */
-export function init(iconConfig, baseDirPath) {
+export function init(iconConfig: IconConfig, baseDirPath: string): void {
   if (!iconConfig) {
     throw new Error('[icons] Configuration is required');
   }
@@ -103,7 +167,7 @@ export function init(iconConfig, baseDirPath) {
   // This allows module hooks to be wired first
 
   // Discover icons if configured
-  if (config.discovery?.scanOnBoot !== false) {
+  if (config!.discovery?.scanOnBoot !== false) {
     discoverIcons();
   }
 
@@ -124,7 +188,7 @@ export function init(iconConfig, baseDirPath) {
  *
  * @param {Function} hooksService - Hooks service for triggering plugin hook
  */
-export async function discoverPluginPacks(hooksService) {
+export async function discoverPluginPacks(hooksService: { trigger(event: string, ctx: unknown): Promise<unknown> } | null): Promise<void> {
   if (!initialized) {
     throw new Error('[icons] Service must be initialized before discovering plugin packs');
   }
@@ -135,11 +199,11 @@ export async function discoverPluginPacks(hooksService) {
 
   // Trigger hook to let modules register icon packs
   // Hook name: hook_icon_packs_info → 'icon:packs:info'
-  const context = { registerPack: registerPackExternal, baseDir };
+  const context = { registerPack: registerPackExternal, baseDir: baseDir as string };
   await hooksService.trigger('icon:packs:info', context);
 
   // Re-discover icons to include plugin packs
-  if (config.discovery?.scanOnBoot !== false) {
+  if (config!.discovery?.scanOnBoot !== false) {
     discoverIcons();
   }
 
@@ -158,7 +222,7 @@ export async function discoverPluginPacks(hooksService) {
  *
  * @param {Object} pack - Pack configuration
  */
-function registerPack(pack) {
+function registerPack(pack: IconPackConfig): void {
   // Validate required fields
   if (!pack.id) {
     throw new Error('[icons] Pack ID is required');
@@ -215,7 +279,7 @@ function registerPack(pack) {
  *
  * @param {Object} pack - Pack configuration
  */
-function registerPackExternal(pack) {
+function registerPackExternal(pack: IconPackConfig): void {
   // Add source tracking for plugin packs
   const packWithSource = {
     ...pack,
@@ -226,7 +290,7 @@ function registerPackExternal(pack) {
     registerPack(packWithSource);
     console.log(`[icons] Registered icon pack "${pack.id}" from plugin`);
   } catch (error) {
-    console.error(`[icons] Failed to register plugin pack "${pack.id}":`, error.message);
+    console.error(`[icons] Failed to register plugin pack "${pack.id}":`, (error as Error).message);
   }
 }
 
@@ -238,9 +302,9 @@ function registerPackExternal(pack) {
  * - Discovery at boot ensures registry is up-to-date
  * - Supports hot-reloading in development
  */
-function discoverIcons() {
+function discoverIcons(): void {
   for (const [packId, pack] of packs.entries()) {
-    const packPath = join(baseDir, pack.path);
+    const packPath = join(baseDir!, pack.path);
 
     // Check if pack directory exists
     if (!existsSync(packPath)) {
@@ -258,7 +322,7 @@ function discoverIcons() {
         registerIcon(icon);
       }
     } catch (error) {
-      console.error(`[icons] Failed to scan pack "${packId}":`, error.message);
+      console.error(`[icons] Failed to scan pack "${packId}":`, (error as Error).message);
     }
   }
 }
@@ -276,10 +340,10 @@ function discoverIcons() {
  * @param {string} relativePath - Relative path from pack root
  * @returns {Array} Array of icon metadata objects
  */
-function scanDirectory(dirPath, pack, relativePath = '') {
-  const icons = [];
-  const extensions = config.discovery?.extensions || ['.svg'];
-  const excludePatterns = config.discovery?.excludePatterns || [];
+function scanDirectory(dirPath: string, pack: IconPack, relativePath = ''): IconMetadata[] {
+  const icons: IconMetadata[] = [];
+  const extensions = config!.discovery?.extensions ?? ['.svg'];
+  const excludePatterns = config!.discovery?.excludePatterns ?? [];
 
   try {
     const entries = readdirSync(dirPath);
@@ -326,7 +390,7 @@ function scanDirectory(dirPath, pack, relativePath = '') {
       }
     }
   } catch (error) {
-    console.error(`[icons] Failed to read directory "${dirPath}":`, error.message);
+    console.error(`[icons] Failed to read directory "${dirPath}":`, (error as Error).message);
   }
 
   return icons;
@@ -342,7 +406,7 @@ function scanDirectory(dirPath, pack, relativePath = '') {
  *
  * @param {Object} icon - Icon metadata
  */
-function registerIcon(icon) {
+function registerIcon(icon: IconMetadata): void {
   // Store in registry
   registry.set(icon.id, icon);
 
@@ -360,7 +424,7 @@ function registerIcon(icon) {
  *
  * @param {Object} icon - Icon metadata
  */
-function indexIcon(icon) {
+function indexIcon(icon: IconMetadata): void {
   const terms = [
     icon.name,
     ...icon.tags,
@@ -374,7 +438,7 @@ function indexIcon(icon) {
       searchIndex.set(normalized, new Set());
     }
 
-    searchIndex.get(normalized).add(icon.id);
+    searchIndex.get(normalized)!.add(icon.id);
   }
 }
 
@@ -390,7 +454,7 @@ function indexIcon(icon) {
  * @param {string} path - Relative path in pack
  * @returns {string[]} Array of tags
  */
-function extractTags(name, path) {
+function extractTags(name: string, path: string): string[] {
   const tags = [];
 
   // Add variant as tag (e.g., "solid", "outline")
@@ -418,9 +482,9 @@ function extractTags(name, path) {
  * @param {string} name - Icon name
  * @returns {string[]} Array of aliases
  */
-function extractAliases(name) {
+function extractAliases(name: string): string[] {
   // Common alias mappings
-  const aliasMap = {
+  const aliasMap: Record<string, string[]> = {
     'trash': ['delete', 'bin', 'remove'],
     'user': ['person', 'account', 'profile'],
     'home': ['house', 'index'],
@@ -462,7 +526,7 @@ function extractAliases(name) {
  * @param {string} id - Icon ID (e.g., "hero:user" or "bi:house")
  * @returns {Object|null} Icon metadata or null if not found
  */
-export function getIcon(id) {
+export function getIcon(id: string): IconMetadata | null {
   checkInitialized();
   return registry.get(id) || null;
 }
@@ -479,7 +543,7 @@ export function getIcon(id) {
  * @param {Object} options - Search options
  * @returns {Array} Array of matching icons, ranked by relevance
  */
-export function searchIcons(query, options = {}) {
+export function searchIcons(query: string, options: IconSearchOptions = {}): IconMetadata[] {
   checkInitialized();
 
   const {
@@ -523,10 +587,10 @@ export function searchIcons(query, options = {}) {
   }
 
   // Convert to array and sort by score
-  let icons = Array.from(results.entries())
+  let icons: IconMetadata[] = Array.from(results.entries())
     .sort((a, b) => b[1] - a[1]) // Sort by score descending
     .map(([iconId]) => registry.get(iconId))
-    .filter(Boolean);
+    .filter((icon): icon is IconMetadata => icon !== undefined);
 
   // Apply filters
   if (packId) {
@@ -550,7 +614,7 @@ export function searchIcons(query, options = {}) {
  *
  * @returns {Array} Array of pack metadata objects
  */
-export function listPacks() {
+export function listPacks(): IconPack[] {
   checkInitialized();
   return Array.from(packs.values());
 }
@@ -561,7 +625,7 @@ export function listPacks() {
  * @param {string} packId - Pack ID
  * @returns {Array} Array of icon metadata objects
  */
-export function getIconsByPack(packId) {
+export function getIconsByPack(packId: string): IconMetadata[] {
   checkInitialized();
 
   const pack = packs.get(packId);
@@ -590,7 +654,7 @@ export function getIconsByPack(packId) {
  * @param {string} id - Icon ID
  * @returns {string|null} SVG content or null if not found
  */
-export function getIconSvg(id) {
+export function getIconSvg(id: string): string | null {
   checkInitialized();
 
   const icon = registry.get(id);
@@ -601,7 +665,7 @@ export function getIconSvg(id) {
   try {
     return readFileSync(icon.path, 'utf-8');
   } catch (error) {
-    console.error(`[icons] Failed to read icon "${id}":`, error.message);
+    console.error(`[icons] Failed to read icon "${id}":`, (error as Error).message);
     return null;
   }
 }
@@ -611,10 +675,10 @@ export function getIconSvg(id) {
  *
  * @returns {Object} Statistics about icon registry
  */
-export function getStats() {
+export function getStats(): { totalPacks: number; totalIcons: number; packs: Array<{ id: string; name: string; iconCount: number; enabled: boolean }> } {
   checkInitialized();
 
-  const stats = {
+  const stats: { totalPacks: number; totalIcons: number; packs: Array<{ id: string; name: string; iconCount: number; enabled: boolean }> } = {
     totalPacks: packs.size,
     totalIcons: registry.size,
     packs: [],
@@ -635,7 +699,7 @@ export function getStats() {
 /**
  * Check if service is initialized
  */
-function checkInitialized() {
+function checkInitialized(): void {
   if (!initialized) {
     throw new Error('[icons] Service not initialized. Call init() first.');
   }
@@ -646,8 +710,8 @@ function checkInitialized() {
  *
  * @param {Function} register - CLI register function
  */
-export function registerCli(register) {
-  register('icons:list', async (args, context) => {
+export function registerCli(register: (name: string, fn: (args: string[], context: unknown) => Promise<void>, description: string) => void): void {
+  register('icons:list', async (args: string[], _context: unknown) => {
     const stats = getStats();
 
     console.log('\nIcon Packs:');
@@ -663,7 +727,7 @@ export function registerCli(register) {
     console.log(`Total: ${stats.totalPacks} packs, ${stats.totalIcons} icons\n`);
   }, 'List all icon packs and statistics');
 
-  register('icons:search', async (args, context) => {
+  register('icons:search', async (args: string[], _context: unknown) => {
     const query = args[0];
 
     if (!query) {
@@ -692,7 +756,7 @@ export function registerCli(register) {
     console.log(`Found ${results.length} icons\n`);
   }, 'Search for icons by name or tag');
 
-  register('icons:packs', async (args, context) => {
+  register('icons:packs', async (args: string[], _context: unknown) => {
     const packsList = listPacks();
 
     console.log('\nInstalled Icon Packs:');
@@ -713,7 +777,7 @@ export function registerCli(register) {
     console.log(`Total: ${packsList.length} packs\n`);
   }, 'List all icon pack details');
 
-  register('icons:register-pack', async (args, context) => {
+  register('icons:register-pack', async (args: string[], _context: unknown) => {
     const [path, format = 'svg'] = args;
 
     if (!path) {
@@ -724,7 +788,7 @@ export function registerCli(register) {
 
     // Extract pack ID from path
     const pathParts = path.split('/');
-    const packId = pathParts[pathParts.length - 1];
+    const packId = pathParts[pathParts.length - 1]!;
 
     const packConfig = {
       id: packId,
@@ -747,7 +811,7 @@ export function registerCli(register) {
       console.log(`  Format: ${format}`);
       console.log(`  Icons found: ${packs.get(packId)?.iconCount || 0}\n`);
     } catch (error) {
-      console.error(`\n✗ Failed to register pack: ${error.message}\n`);
+      console.error(`\n✗ Failed to register pack: ${(error as Error).message}\n`);
     }
   }, 'Register a new icon pack from a directory');
 }

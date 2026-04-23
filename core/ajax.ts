@@ -7,19 +7,242 @@
  * @version 1.0.0
  */
 
+import type { IncomingMessage } from 'node:http';
+
+// ============================================================================
+// Types
+// ============================================================================
+
+/** Insert method variants for DOM insertion commands */
+type InsertMethod = 'replaceWith' | 'append' | 'prepend' | 'after' | 'before';
+
+/** Message type variants for display commands */
+type MessageType = 'status' | 'warning' | 'error' | 'info';
+
+/** Base shape for all AJAX commands — command discriminator is required */
+interface AjaxCommandBase {
+  command: string;
+}
+
+interface InsertCommand extends AjaxCommandBase {
+  command: 'insert';
+  selector: string;
+  data: string;
+  method: InsertMethod;
+}
+
+interface RemoveCommand extends AjaxCommandBase {
+  command: 'remove';
+  selector: string;
+}
+
+interface EmptyCommand extends AjaxCommandBase {
+  command: 'empty';
+  selector: string;
+}
+
+interface CssCommand extends AjaxCommandBase {
+  command: 'css';
+  selector: string;
+  property: string;
+  value: string;
+}
+
+interface AddClassCommand extends AjaxCommandBase {
+  command: 'addClass';
+  selector: string;
+  classes: string;
+}
+
+interface RemoveClassCommand extends AjaxCommandBase {
+  command: 'removeClass';
+  selector: string;
+  classes: string;
+}
+
+interface AttrCommand extends AjaxCommandBase {
+  command: 'attr';
+  selector: string;
+  attribute: string;
+  value: string;
+}
+
+interface RemoveAttrCommand extends AjaxCommandBase {
+  command: 'removeAttr';
+  selector: string;
+  attribute: string;
+}
+
+interface HtmlCommand extends AjaxCommandBase {
+  command: 'html';
+  selector: string;
+  data: string;
+}
+
+interface TextCommand extends AjaxCommandBase {
+  command: 'text';
+  selector: string;
+  data: string;
+}
+
+interface ValCommand extends AjaxCommandBase {
+  command: 'val';
+  selector: string;
+  value: string;
+}
+
+interface ShowCommand extends AjaxCommandBase {
+  command: 'show';
+  selector: string;
+}
+
+interface HideCommand extends AjaxCommandBase {
+  command: 'hide';
+  selector: string;
+}
+
+interface ToggleCommand extends AjaxCommandBase {
+  command: 'toggle';
+  selector: string;
+}
+
+interface FadeInCommand extends AjaxCommandBase {
+  command: 'fadeIn';
+  selector: string;
+  duration: number;
+}
+
+interface FadeOutCommand extends AjaxCommandBase {
+  command: 'fadeOut';
+  selector: string;
+  duration: number;
+}
+
+interface SlideDownCommand extends AjaxCommandBase {
+  command: 'slideDown';
+  selector: string;
+  duration: number;
+}
+
+interface SlideUpCommand extends AjaxCommandBase {
+  command: 'slideUp';
+  selector: string;
+  duration: number;
+}
+
+interface SetErrorCommand extends AjaxCommandBase {
+  command: 'setError';
+  selector: string;
+  message: string;
+}
+
+interface ClearErrorsCommand extends AjaxCommandBase {
+  command: 'clearErrors';
+  selector: string;
+}
+
+interface RedirectCommand extends AjaxCommandBase {
+  command: 'redirect';
+  url: string;
+}
+
+interface RefreshCommand extends AjaxCommandBase {
+  command: 'refresh';
+}
+
+interface ScrollToCommand extends AjaxCommandBase {
+  command: 'scrollTo';
+  selector: string;
+  options: Record<string, unknown>;
+}
+
+interface OpenDialogCommand extends AjaxCommandBase {
+  command: 'openDialog';
+  selector: string;
+  content: string;
+  options: Record<string, unknown>;
+}
+
+interface CloseDialogCommand extends AjaxCommandBase {
+  command: 'closeDialog';
+  selector: string;
+}
+
+interface SettingsCommand extends AjaxCommandBase {
+  command: 'settings';
+  settings: Record<string, unknown>;
+  merge: boolean;
+}
+
+interface MessageCommand extends AjaxCommandBase {
+  command: 'message';
+  text: string;
+  type: MessageType;
+}
+
+interface InvokeCommand extends AjaxCommandBase {
+  command: 'invoke';
+  selector: string;
+  method: string;
+  args: unknown[];
+}
+
+/** Union of all known typed AJAX commands */
+export type AjaxCommand =
+  | InsertCommand
+  | RemoveCommand
+  | EmptyCommand
+  | CssCommand
+  | AddClassCommand
+  | RemoveClassCommand
+  | AttrCommand
+  | RemoveAttrCommand
+  | HtmlCommand
+  | TextCommand
+  | ValCommand
+  | ShowCommand
+  | HideCommand
+  | ToggleCommand
+  | FadeInCommand
+  | FadeOutCommand
+  | SlideDownCommand
+  | SlideUpCommand
+  | SetErrorCommand
+  | ClearErrorsCommand
+  | RedirectCommand
+  | RefreshCommand
+  | ScrollToCommand
+  | OpenDialogCommand
+  | CloseDialogCommand
+  | SettingsCommand
+  | MessageCommand
+  | InvokeCommand;
+
+/** Options for createAjaxElement */
+interface AjaxElementOptions {
+  callback?: (form: Record<string, unknown>, formState: Record<string, unknown>, request: IncomingMessage) => AjaxResponse | Record<string, unknown>;
+  wrapper?: string;
+  method?: InsertMethod;
+  effect?: string;
+  speed?: string | number;
+  event?: string;
+  prevent?: string;
+  progress?: { type: string; message: string };
+  url?: string;
+  options?: Record<string, unknown>;
+  errorHandler?: (error: Error, response: AjaxResponse) => void;
+}
+
 /**
  * Server-side AJAX response builder
  */
 export class AjaxResponse {
-  constructor() {
-    this.commands = [];
-  }
+  commands: AjaxCommand[] = [];
 
   /**
    * Add a custom command
-   * @param {Object} command - Command object with at minimum a 'command' property
    */
-  addCommand(command) {
+  addCommand(command: AjaxCommand): this {
     if (!command || typeof command !== 'object') {
       throw new TypeError('Command must be an object');
     }
@@ -32,11 +255,8 @@ export class AjaxResponse {
 
   /**
    * Insert HTML at a selector with specified method
-   * @param {string} selector - CSS selector
-   * @param {string} html - HTML content
-   * @param {string} method - Insert method (replaceWith, append, prepend, after, before)
    */
-  insert(selector, html, method = 'replaceWith') {
+  insert(selector: string, html: string, method: InsertMethod = 'replaceWith'): this {
     return this.addCommand({
       command: 'insert',
       selector,
@@ -48,42 +268,42 @@ export class AjaxResponse {
   /**
    * Insert HTML after element
    */
-  after(selector, html) {
+  after(selector: string, html: string): this {
     return this.insert(selector, html, 'after');
   }
 
   /**
    * Insert HTML before element
    */
-  before(selector, html) {
+  before(selector: string, html: string): this {
     return this.insert(selector, html, 'before');
   }
 
   /**
    * Append HTML to element
    */
-  append(selector, html) {
+  append(selector: string, html: string): this {
     return this.insert(selector, html, 'append');
   }
 
   /**
    * Prepend HTML to element
    */
-  prepend(selector, html) {
+  prepend(selector: string, html: string): this {
     return this.insert(selector, html, 'prepend');
   }
 
   /**
    * Replace element with HTML
    */
-  replace(selector, html) {
+  replace(selector: string, html: string): this {
     return this.insert(selector, html, 'replaceWith');
   }
 
   /**
    * Remove element(s)
    */
-  remove(selector) {
+  remove(selector: string): this {
     return this.addCommand({
       command: 'remove',
       selector
@@ -93,7 +313,7 @@ export class AjaxResponse {
   /**
    * Empty element's contents
    */
-  empty(selector) {
+  empty(selector: string): this {
     return this.addCommand({
       command: 'empty',
       selector
@@ -103,7 +323,7 @@ export class AjaxResponse {
   /**
    * Set CSS property
    */
-  css(selector, property, value) {
+  css(selector: string, property: string, value: string): this {
     return this.addCommand({
       command: 'css',
       selector,
@@ -115,7 +335,7 @@ export class AjaxResponse {
   /**
    * Add CSS class(es)
    */
-  addClass(selector, classes) {
+  addClass(selector: string, classes: string): this {
     return this.addCommand({
       command: 'addClass',
       selector,
@@ -126,7 +346,7 @@ export class AjaxResponse {
   /**
    * Remove CSS class(es)
    */
-  removeClass(selector, classes) {
+  removeClass(selector: string, classes: string): this {
     return this.addCommand({
       command: 'removeClass',
       selector,
@@ -137,7 +357,7 @@ export class AjaxResponse {
   /**
    * Set attribute
    */
-  attr(selector, attribute, value) {
+  attr(selector: string, attribute: string, value: string): this {
     return this.addCommand({
       command: 'attr',
       selector,
@@ -149,7 +369,7 @@ export class AjaxResponse {
   /**
    * Remove attribute
    */
-  removeAttr(selector, attribute) {
+  removeAttr(selector: string, attribute: string): this {
     return this.addCommand({
       command: 'removeAttr',
       selector,
@@ -160,7 +380,7 @@ export class AjaxResponse {
   /**
    * Set HTML content
    */
-  html(selector, html) {
+  html(selector: string, html: string): this {
     return this.addCommand({
       command: 'html',
       selector,
@@ -171,7 +391,7 @@ export class AjaxResponse {
   /**
    * Set text content
    */
-  text(selector, text) {
+  text(selector: string, text: string): this {
     return this.addCommand({
       command: 'text',
       selector,
@@ -182,7 +402,7 @@ export class AjaxResponse {
   /**
    * Set form element value
    */
-  val(selector, value) {
+  val(selector: string, value: string): this {
     return this.addCommand({
       command: 'val',
       selector,
@@ -193,7 +413,7 @@ export class AjaxResponse {
   /**
    * Show element(s)
    */
-  show(selector) {
+  show(selector: string): this {
     return this.addCommand({
       command: 'show',
       selector
@@ -203,7 +423,7 @@ export class AjaxResponse {
   /**
    * Hide element(s)
    */
-  hide(selector) {
+  hide(selector: string): this {
     return this.addCommand({
       command: 'hide',
       selector
@@ -213,7 +433,7 @@ export class AjaxResponse {
   /**
    * Toggle element visibility
    */
-  toggle(selector) {
+  toggle(selector: string): this {
     return this.addCommand({
       command: 'toggle',
       selector
@@ -223,7 +443,7 @@ export class AjaxResponse {
   /**
    * Fade in element
    */
-  fadeIn(selector, duration = 400) {
+  fadeIn(selector: string, duration: number = 400): this {
     return this.addCommand({
       command: 'fadeIn',
       selector,
@@ -234,7 +454,7 @@ export class AjaxResponse {
   /**
    * Fade out element
    */
-  fadeOut(selector, duration = 400) {
+  fadeOut(selector: string, duration: number = 400): this {
     return this.addCommand({
       command: 'fadeOut',
       selector,
@@ -245,7 +465,7 @@ export class AjaxResponse {
   /**
    * Slide down element
    */
-  slideDown(selector, duration = 400) {
+  slideDown(selector: string, duration: number = 400): this {
     return this.addCommand({
       command: 'slideDown',
       selector,
@@ -256,7 +476,7 @@ export class AjaxResponse {
   /**
    * Slide up element
    */
-  slideUp(selector, duration = 400) {
+  slideUp(selector: string, duration: number = 400): this {
     return this.addCommand({
       command: 'slideUp',
       selector,
@@ -267,7 +487,7 @@ export class AjaxResponse {
   /**
    * Display form error
    */
-  setError(selector, message) {
+  setError(selector: string, message: string): this {
     return this.addCommand({
       command: 'setError',
       selector,
@@ -278,7 +498,7 @@ export class AjaxResponse {
   /**
    * Clear form errors
    */
-  clearErrors(selector) {
+  clearErrors(selector: string): this {
     return this.addCommand({
       command: 'clearErrors',
       selector
@@ -288,7 +508,7 @@ export class AjaxResponse {
   /**
    * Redirect to URL
    */
-  redirect(url) {
+  redirect(url: string): this {
     return this.addCommand({
       command: 'redirect',
       url
@@ -298,7 +518,7 @@ export class AjaxResponse {
   /**
    * Refresh page
    */
-  refresh() {
+  refresh(): this {
     return this.addCommand({
       command: 'refresh'
     });
@@ -307,7 +527,7 @@ export class AjaxResponse {
   /**
    * Scroll to element
    */
-  scrollTo(selector, options = {}) {
+  scrollTo(selector: string, options: Record<string, unknown> = {}): this {
     return this.addCommand({
       command: 'scrollTo',
       selector,
@@ -318,7 +538,7 @@ export class AjaxResponse {
   /**
    * Open dialog
    */
-  openDialog(selector, content, options = {}) {
+  openDialog(selector: string, content: string, options: Record<string, unknown> = {}): this {
     return this.addCommand({
       command: 'openDialog',
       selector,
@@ -330,7 +550,7 @@ export class AjaxResponse {
   /**
    * Close dialog
    */
-  closeDialog(selector) {
+  closeDialog(selector: string): this {
     return this.addCommand({
       command: 'closeDialog',
       selector
@@ -340,7 +560,7 @@ export class AjaxResponse {
   /**
    * Update client-side settings
    */
-  settings(settings, merge = true) {
+  settings(settings: Record<string, unknown>, merge: boolean = true): this {
     return this.addCommand({
       command: 'settings',
       settings,
@@ -351,7 +571,7 @@ export class AjaxResponse {
   /**
    * Display message
    */
-  message(text, type = 'status') {
+  message(text: string, type: MessageType = 'status'): this {
     return this.addCommand({
       command: 'message',
       text,
@@ -362,7 +582,7 @@ export class AjaxResponse {
   /**
    * Invoke method on element
    */
-  invoke(selector, method, args = []) {
+  invoke(selector: string, method: string, args: unknown[] = []): this {
     return this.addCommand({
       command: 'invoke',
       selector,
@@ -374,7 +594,7 @@ export class AjaxResponse {
   /**
    * Convert to JSON for response
    */
-  toJSON() {
+  toJSON(): AjaxCommand[] {
     return this.commands;
   }
 }
@@ -775,17 +995,17 @@ export function getClientScript() {
 
 /**
  * Process form AJAX callback
- * @param {Object} request - HTTP request object
- * @param {Object} form - Form array structure
- * @param {Object} formState - Form state object
- * @returns {AjaxResponse} AJAX response object
  */
-export function processFormAjax(request, form, formState) {
+export function processFormAjax(
+  request: IncomingMessage,
+  form: Record<string, unknown>,
+  formState: Record<string, unknown>
+): AjaxResponse {
   const response = new AjaxResponse();
 
   // Extract AJAX settings from form
-  const ajaxSettings = form['#ajax'] || {};
-  const callback = ajaxSettings.callback;
+  const ajaxSettings = (form['#ajax'] || {}) as Record<string, unknown>;
+  const callback = ajaxSettings['callback'];
 
   if (!callback || typeof callback !== 'function') {
     throw new Error('Form AJAX callback must be a function');
@@ -793,7 +1013,7 @@ export function processFormAjax(request, form, formState) {
 
   try {
     // Execute callback
-    const result = callback(form, formState, request);
+    const result = (callback as (form: Record<string, unknown>, formState: Record<string, unknown>, request: IncomingMessage) => unknown)(form, formState, request);
 
     // If callback returns AjaxResponse, use it
     if (result instanceof AjaxResponse) {
@@ -802,19 +1022,20 @@ export function processFormAjax(request, form, formState) {
 
     // If callback returns renderable array, insert it
     if (result && typeof result === 'object') {
-      const wrapper = ajaxSettings.wrapper || 'edit-wrapper';
-      const method = ajaxSettings.method || 'replaceWith';
-      const html = renderElement(result);
+      const wrapper = (ajaxSettings['wrapper'] as string | undefined) || 'edit-wrapper';
+      const method = (ajaxSettings['method'] as InsertMethod | undefined) || 'replaceWith';
+      const html = renderElement(result as Record<string, unknown>);
 
       response.insert(`#${wrapper}`, html, method);
     }
 
   } catch (error) {
     // Handle errors
-    response.message(error.message, 'error');
+    response.message((error as Error).message, 'error');
 
-    if (ajaxSettings.errorHandler) {
-      ajaxSettings.errorHandler(error, response);
+    const errorHandler = ajaxSettings['errorHandler'] as ((error: Error, response: AjaxResponse) => void) | undefined;
+    if (errorHandler) {
+      errorHandler(error as Error, response);
     }
   }
 
@@ -823,11 +1044,11 @@ export function processFormAjax(request, form, formState) {
 
 /**
  * Handle AJAX request routing
- * @param {Object} request - HTTP request object
- * @param {Function} callback - Callback function returning AjaxResponse
- * @returns {string} JSON string of commands
  */
-export function handleAjaxRequest(request, callback) {
+export function handleAjaxRequest(
+  request: IncomingMessage & { headers: Record<string, string | string[] | undefined> },
+  callback: (request: IncomingMessage) => AjaxResponse
+): string {
   // Verify this is an AJAX request
   const isAjax = request.headers['x-requested-with'] === 'XMLHttpRequest';
 
@@ -847,7 +1068,7 @@ export function handleAjaxRequest(request, callback) {
   } catch (error) {
     const errorResponse = new AjaxResponse();
     errorResponse.message(
-      error.message || 'An error occurred',
+      (error as Error).message || 'An error occurred',
       'error'
     );
     return JSON.stringify(errorResponse.toJSON());
@@ -856,10 +1077,8 @@ export function handleAjaxRequest(request, callback) {
 
 /**
  * Helper: Render element to HTML string
- * @param {Object} element - Renderable element
- * @returns {string} HTML string
  */
-function renderElement(element) {
+function renderElement(element: Record<string, unknown>): string {
   // This would integrate with your rendering system
   // Placeholder implementation
   if (typeof element === 'string') {
@@ -867,7 +1086,7 @@ function renderElement(element) {
   }
 
   if (element['#markup']) {
-    return element['#markup'];
+    return String(element['#markup']);
   }
 
   // Default: convert to string
@@ -876,10 +1095,8 @@ function renderElement(element) {
 
 /**
  * Create AJAX-enabled element configuration
- * @param {Object} options - AJAX configuration
- * @returns {Object} Element with AJAX settings
  */
-export function createAjaxElement(options = {}) {
+export function createAjaxElement(options: AjaxElementOptions = {}): Record<string, unknown> {
   return {
     '#ajax': {
       callback: options.callback,
@@ -901,10 +1118,8 @@ export function createAjaxElement(options = {}) {
 
 /**
  * Attach client script to HTML page
- * @param {string} html - HTML content
- * @returns {string} HTML with AJAX script attached
  */
-export function attachClientScript(html) {
+export function attachClientScript(html: string): string {
   const script = `<script>${getClientScript()}</script>`;
 
   // Insert before closing body tag

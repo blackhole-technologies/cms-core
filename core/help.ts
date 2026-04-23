@@ -1,5 +1,5 @@
 /**
- * help.js - Integrated Help System
+ * help.ts - Integrated Help System
  *
  * WHY THIS EXISTS:
  * Users need contextual help throughout the admin interface.
@@ -24,10 +24,58 @@
 import { existsSync, mkdirSync, readFileSync, readdirSync } from 'node:fs';
 import { join, basename } from 'node:path';
 
+// ============================================================================
+// Types
+// ============================================================================
+
+/** Help system configuration */
+interface HelpConfig {
+  enabled: boolean;
+  helpDir: string;
+  maxSearchResults: number;
+}
+
+/** A registered help topic */
+interface HelpTopic {
+  id: string;
+  title: string;
+  module: string | null;
+  route: string | null;
+  content: string;
+  related: string[];
+  keywords: string[];
+}
+
+/** A topic enriched with a relevance score for search results */
+interface ScoredTopic extends HelpTopic {
+  score: number;
+}
+
+/** Options for searchTopics */
+interface SearchOptions {
+  module?: string | null;
+  limit?: number;
+}
+
+/** Hooks service — only the `trigger` method is used here */
+interface HooksService {
+  trigger(event: string, context: Record<string, unknown>): void;
+}
+
+/** Index for grouped help output */
+interface HelpIndex {
+  modules: Record<string, { name: string; topics: Array<{ id: string; title: string; route: string | null }> }>;
+  ungrouped: Array<{ id: string; title: string; route: string | null }>;
+}
+
+// ============================================================================
+// Module state
+// ============================================================================
+
 /**
  * Configuration
  */
-let config = {
+let config: HelpConfig = {
   enabled: true,
   helpDir: 'config/help',
   maxSearchResults: 20,
@@ -36,41 +84,37 @@ let config = {
 /**
  * Base directory and service references
  */
-let baseDir = null;
-let hooksService = null;
+let baseDir: string | null = null;
+let hooksService: HooksService | null = null;
 
 /**
  * In-memory help registry
  * Structure: { topicId: { id, title, module, route, content, related, keywords, ... } }
  */
-const topics = {};
+const topics: Record<string, HelpTopic> = {};
 
 /**
  * Route to topic mapping
  * Structure: { route: topicId }
  */
-const routeMap = {};
+const routeMap: Record<string, string> = {};
 
 /**
  * Module to topics mapping
  * Structure: { module: [topicId, ...] }
  */
-const moduleMap = {};
+const moduleMap: Record<string, string[]> = {};
 
 /**
  * CLI command help registry
  * Structure: { command: helpText }
  */
-const cliHelp = {};
+const cliHelp: Record<string, string> = {};
 
 /**
  * Initialize help system
- *
- * @param {string} dir - Base directory
- * @param {Object} helpConfig - Help configuration
- * @param {Object} hooks - Hooks service reference
  */
-export function init(dir, helpConfig = {}, hooks = null) {
+export function init(dir: string, helpConfig: Partial<HelpConfig> = {}, hooks: HooksService | null = null): void {
   baseDir = dir;
   hooksService = hooks;
 
@@ -89,9 +133,9 @@ export function init(dir, helpConfig = {}, hooks = null) {
 
 /**
  * Load all help topic files from config/help
- * @private
  */
-function loadHelpTopics() {
+function loadHelpTopics(): void {
+  if (!baseDir) return;
   const helpPath = join(baseDir, config.helpDir);
   if (!existsSync(helpPath)) return;
 
@@ -106,7 +150,7 @@ function loadHelpTopics() {
       const topic = parseHelpFile(topicId, content);
       registerTopic(topicId, topic);
     } catch (error) {
-      console.warn(`[help] Failed to load topic ${topicId}: ${error.message}`);
+      console.warn(`[help] Failed to load topic ${topicId}: ${(error as Error).message}`);
     }
   }
 }
@@ -123,16 +167,11 @@ function loadHelpTopics() {
  * keywords: content, create, edit
  * ---
  * ## Content
- *
- * @param {string} id - Topic ID
- * @param {string} content - File content
- * @returns {Object} - Parsed topic
- * @private
  */
-function parseHelpFile(id, content) {
-  const topic = {
+function parseHelpFile(id: string, content: string): HelpTopic {
+  const topic: HelpTopic = {
     id,
-    title: id.replace(/-/g, ' ').replace(/\b\w/g, l => l.toUpperCase()),
+    title: id.replace(/-/g, ' ').replace(/\b\w/g, (l: string) => l.toUpperCase()),
     module: null,
     route: null,
     content: content,
@@ -145,15 +184,16 @@ function parseHelpFile(id, content) {
 
   if (frontmatterMatch) {
     const [, frontmatter, body] = frontmatterMatch;
-    topic.content = body.trim();
+    topic.content = (body ?? '').trim();
 
     // Parse frontmatter
-    const lines = frontmatter.split('\n');
+    const lines = (frontmatter ?? '').split('\n');
     for (const line of lines) {
       const match = line.match(/^(\w+):\s*(.+)$/);
       if (!match) continue;
 
-      const [, key, value] = match;
+      const key = match[1] as string;
+      const value = match[2] as string;
       switch (key) {
         case 'title':
           topic.title = value;
@@ -165,10 +205,10 @@ function parseHelpFile(id, content) {
           topic.route = value;
           break;
         case 'related':
-          topic.related = value.split(',').map(s => s.trim());
+          topic.related = value.split(',').map((s: string) => s.trim());
           break;
         case 'keywords':
-          topic.keywords = value.split(',').map(s => s.trim());
+          topic.keywords = value.split(',').map((s: string) => s.trim());
           break;
       }
     }
@@ -179,18 +219,9 @@ function parseHelpFile(id, content) {
 
 /**
  * Register a help topic
- *
- * @param {string} id - Unique topic ID
- * @param {Object} topicConfig - Topic configuration
- * @param {string} topicConfig.title - Topic title
- * @param {string} topicConfig.module - Module name
- * @param {string} topicConfig.route - Associated route
- * @param {string} topicConfig.content - Markdown content
- * @param {string[]} topicConfig.related - Related topic IDs
- * @param {string[]} topicConfig.keywords - Search keywords
  */
-export function registerTopic(id, topicConfig) {
-  const topic = {
+export function registerTopic(id: string, topicConfig: Partial<HelpTopic>): void {
+  const topic: HelpTopic = {
     id,
     title: topicConfig.title || id,
     module: topicConfig.module || null,
@@ -209,46 +240,35 @@ export function registerTopic(id, topicConfig) {
 
   // Build module mapping
   if (topic.module) {
-    if (!moduleMap[topic.module]) {
+    const modEntry = moduleMap[topic.module];
+    if (!modEntry) {
       moduleMap[topic.module] = [];
     }
-    if (!moduleMap[topic.module].includes(id)) {
-      moduleMap[topic.module].push(id);
+    if (!moduleMap[topic.module]!.includes(id)) {
+      moduleMap[topic.module]!.push(id);
     }
   }
 }
 
 /**
  * Get a help topic by ID
- *
- * @param {string} id - Topic ID
- * @returns {Object|null} - Topic data or null if not found
  */
-export function getTopic(id) {
-  return topics[id] || null;
+export function getTopic(id: string): HelpTopic | null {
+  return topics[id] ?? null;
 }
 
 /**
  * Get help topic for a specific route
- *
- * @param {string} route - Route path
- * @returns {Object|null} - Topic data or null if not found
  */
-export function getTopicForRoute(route) {
+export function getTopicForRoute(route: string): HelpTopic | null {
   const topicId = routeMap[route];
-  return topicId ? topics[topicId] : null;
+  return topicId ? (topics[topicId] ?? null) : null;
 }
 
 /**
  * Search help topics
- *
- * @param {string} query - Search query
- * @param {Object} options - Search options
- * @param {string} options.module - Filter by module
- * @param {number} options.limit - Max results
- * @returns {Array} - Matching topics with relevance scores
  */
-export function searchTopics(query, options = {}) {
+export function searchTopics(query: string, options: SearchOptions = {}): ScoredTopic[] {
   const { module = null, limit = config.maxSearchResults } = options;
 
   if (!query || typeof query !== 'string') {
@@ -262,7 +282,7 @@ export function searchTopics(query, options = {}) {
     return [];
   }
 
-  const results = [];
+  const results: ScoredTopic[] = [];
 
   for (const [id, topic] of Object.entries(topics)) {
     // Filter by module if specified
@@ -316,46 +336,35 @@ export function searchTopics(query, options = {}) {
 
 /**
  * List all help topics
- *
- * @returns {Array} - All topics
  */
-export function listTopics() {
+export function listTopics(): HelpTopic[] {
   return Object.values(topics).sort((a, b) => a.title.localeCompare(b.title));
 }
 
 /**
  * Get help topics for a specific module
- *
- * @param {string} module - Module name
- * @returns {Array} - Topics for this module
  */
-export function getTopicsByModule(module) {
+export function getTopicsByModule(module: string): HelpTopic[] {
   const topicIds = moduleMap[module] || [];
-  return topicIds.map(id => topics[id]).filter(Boolean);
+  return topicIds.map((id) => topics[id]).filter((t): t is HelpTopic => t !== undefined);
 }
 
 /**
  * Get related topics for a topic
- *
- * @param {string} id - Topic ID
- * @returns {Array} - Related topics
  */
-export function getRelatedTopics(id) {
+export function getRelatedTopics(id: string): HelpTopic[] {
   const topic = topics[id];
   if (!topic) return [];
 
   return topic.related
-    .map(relatedId => topics[relatedId])
-    .filter(Boolean);
+    .map((relatedId) => topics[relatedId])
+    .filter((t): t is HelpTopic => t !== undefined);
 }
 
 /**
  * Render help topic to HTML
- *
- * @param {string} id - Topic ID
- * @returns {string|null} - Rendered HTML or null if not found
  */
-export function renderTopic(id) {
+export function renderTopic(id: string): string | null {
   const topic = topics[id];
   if (!topic) return null;
 
@@ -364,9 +373,9 @@ export function renderTopic(id) {
 
   // Allow hooks to customize rendering
   if (hooksService) {
-    const context = { topic, html };
+    const context: Record<string, unknown> = { topic, html };
     hooksService.trigger('help:render', context);
-    html = context.html;
+    html = context['html'] as string;
   } else {
     // Basic markdown rendering
     html = markdownToHtml(html);
@@ -377,9 +386,8 @@ export function renderTopic(id) {
 
 /**
  * Simple markdown to HTML converter
- * @private
  */
-function markdownToHtml(markdown) {
+function markdownToHtml(markdown: string): string {
   let html = markdown;
 
   // Headers
@@ -425,11 +433,9 @@ function markdownToHtml(markdown) {
 /**
  * Get help index for admin page
  * Organized by module
- *
- * @returns {Object} - Structured help index
  */
-export function getHelpIndex() {
-  const index = {
+export function getHelpIndex(): HelpIndex {
+  const index: HelpIndex = {
     modules: {},
     ungrouped: [],
   };
@@ -442,7 +448,7 @@ export function getHelpIndex() {
           topics: [],
         };
       }
-      index.modules[topic.module].topics.push({
+      index.modules[topic.module]!.topics.push({
         id: topic.id,
         title: topic.title,
         route: topic.route,
@@ -468,48 +474,36 @@ export function getHelpIndex() {
 
 /**
  * Register CLI command help
- *
- * @param {string} command - Command name
- * @param {string} helpText - Help text for the command
  */
-export function registerCLIHelp(command, helpText) {
+export function registerCLIHelp(command: string, helpText: string): void {
   cliHelp[command] = helpText;
 }
 
 /**
  * Get CLI command help
- *
- * @param {string} command - Command name
- * @returns {string|null} - Help text or null if not found
  */
-export function getCLIHelp(command) {
-  return cliHelp[command] || null;
+export function getCLIHelp(command: string): string | null {
+  return cliHelp[command] ?? null;
 }
 
 /**
  * Get all CLI commands with help
- *
- * @returns {Object} - Command to help text mapping
  */
-export function listCLIHelp() {
+export function listCLIHelp(): Record<string, string> {
   return { ...cliHelp };
 }
 
 /**
  * Check if help system is enabled
- *
- * @returns {boolean}
  */
-export function isEnabled() {
+export function isEnabled(): boolean {
   return config.enabled;
 }
 
 /**
  * Get help system statistics
- *
- * @returns {Object}
  */
-export function getStats() {
+export function getStats(): Record<string, number | boolean> {
   return {
     enabled: config.enabled,
     totalTopics: Object.keys(topics).length,

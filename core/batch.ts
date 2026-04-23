@@ -26,24 +26,99 @@ import * as fs from 'fs';
 import * as path from 'path';
 import * as hooks from './hooks.ts';
 
+// ============= Types =============
+
+/** Status values for a batch */
+type BatchStatus = 'created' | 'processing' | 'paused' | 'completed' | 'failed' | 'cancelled';
+
+/** A single operation queued in a batch */
+interface BatchOperation {
+  callback: string;
+  args: unknown[];
+}
+
+/** Result of a completed operation */
+interface BatchOperationResult {
+  index: number;
+  result: unknown;
+  success: boolean;
+}
+
+/** Error record for a failed operation */
+interface BatchOperationError {
+  index: number;
+  operation: BatchOperation;
+  error: string;
+  timestamp: string;
+}
+
+/** Batch record stored in memory and on disk */
+interface Batch {
+  id: string;
+  title: string;
+  operations: BatchOperation[];
+  current: number;
+  total: number;
+  context: Record<string, unknown>;
+  status: BatchStatus;
+  continueOnError: boolean;
+  started: string | null;
+  completed: string | null;
+  errors: BatchOperationError[];
+  results: BatchOperationResult[];
+  createdBy: string;
+  createdAt: string;
+}
+
+/** Batch progress snapshot */
+interface BatchProgress {
+  current: number;
+  total: number;
+  percentage: number;
+  errors: number;
+  remaining: number;
+  status: BatchStatus;
+}
+
+/** Batch statistics */
+interface BatchStats {
+  total: number;
+  created: number;
+  processing: number;
+  paused: number;
+  completed: number;
+  failed: number;
+  cancelled: number;
+  active: number;
+  [key: string]: number;
+}
+
+/** Minimal hooks service interface */
+interface HooksService {
+  trigger(event: string, context: Record<string, unknown>): Promise<Record<string, unknown>>;
+  register(event: string, handler: (ctx: Record<string, unknown>) => Promise<void>, priority: number, source: string): void;
+}
+
+// ============= State =============
+
 // Configuration
 let baseDir = './content';
-let queue = null;
-let hooksInstance = null;
+let queue: unknown = null;
+let hooksInstance: HooksService | null = null;
 
 // Batch storage
-let batchDir = null;
+let batchDir: string | null = null;
 
 // In-memory batch storage
 // Map<batchId, batch>
-const batches = new Map();
+const batches = new Map<string, Batch>();
 
 // Registered callback handlers
 // Map<callbackName, handler>
-const callbacks = new Map();
+const callbacks = new Map<string, (...args: unknown[]) => Promise<unknown>>();
 
 // Active processing locks
-const processing = new Set();
+const processing = new Set<string>();
 
 /**
  * Generate unique batch ID
@@ -60,7 +135,7 @@ function generateBatchId() {
  * @param {object} queueService - Queue service reference
  * @param {object} hooksService - Hooks service reference
  */
-export function init(contentDir, queueService, hooksService) {
+export function init(contentDir: string, queueService: unknown, hooksService: HooksService | null): void {
   baseDir = contentDir;
   queue = queueService;
   hooksInstance = hooksService || hooks;
@@ -81,7 +156,7 @@ export function init(contentDir, queueService, hooksService) {
  * Load batches from persistence
  */
 function loadBatches() {
-  if (!batchDir || !fs.existsSync(batchDir)) {
+  if (!batchDir || !fs.existsSync(batchDir as string)) {
     return;
   }
 
@@ -102,7 +177,7 @@ function loadBatches() {
           loaded++;
         }
       } catch (error) {
-        console.error(`[batch] Failed to load ${file}:`, error.message);
+        console.error(`[batch] Failed to load ${file}:`, (error as Error).message);
       }
     }
 
@@ -110,7 +185,7 @@ function loadBatches() {
       console.log(`[batch] Loaded ${loaded} active batches`);
     }
   } catch (error) {
-    console.error('[batch] Failed to load batches:', error.message);
+    console.error('[batch] Failed to load batches:', (error as Error).message);
   }
 }
 
@@ -118,14 +193,14 @@ function loadBatches() {
  * Save batch to persistence
  * @param {object} batch - Batch object
  */
-function saveBatch(batch) {
+function saveBatch(batch: Batch): void {
   if (!batchDir) return;
 
   try {
     const filePath = path.join(batchDir, `${batch.id}.json`);
     fs.writeFileSync(filePath, JSON.stringify(batch, null, 2));
   } catch (error) {
-    console.error(`[batch] Failed to save batch ${batch.id}:`, error.message);
+    console.error(`[batch] Failed to save batch ${batch.id}:`, (error as Error).message);
   }
 }
 
@@ -133,7 +208,7 @@ function saveBatch(batch) {
  * Delete batch file
  * @param {string} batchId - Batch ID
  */
-function deleteBatchFile(batchId) {
+function deleteBatchFile(batchId: string): void {
   if (!batchDir) return;
 
   try {
@@ -142,7 +217,7 @@ function deleteBatchFile(batchId) {
       fs.unlinkSync(filePath);
     }
   } catch (error) {
-    console.error(`[batch] Failed to delete batch ${batchId}:`, error.message);
+    console.error(`[batch] Failed to delete batch ${batchId}:`, (error as Error).message);
   }
 }
 
@@ -153,10 +228,10 @@ function deleteBatchFile(batchId) {
  * @param {object} options - Batch options
  * @returns {object} - Created batch
  */
-export function createBatch(title, operations = [], options = {}) {
+export function createBatch(title: string, operations: BatchOperation[] = [], options: { context?: Record<string, unknown>; continueOnError?: boolean; userId?: string } = {}): Batch {
   const now = new Date().toISOString();
 
-  const batch = {
+  const batch: Batch = {
     id: generateBatchId(),
     title,
     operations,
@@ -177,7 +252,7 @@ export function createBatch(title, operations = [], options = {}) {
   saveBatch(batch);
 
   // Trigger hook
-  hooksInstance.trigger('batch:created', { batch });
+  hooksInstance?.trigger('batch:created', { batch: batch as unknown as Record<string, unknown> });
 
   return batch;
 }
@@ -189,7 +264,7 @@ export function createBatch(title, operations = [], options = {}) {
  * @param {Array} args - Operation arguments
  * @returns {boolean} - Success
  */
-export function addOperation(batchId, callback, args = []) {
+export function addOperation(batchId: string, callback: string, args: unknown[] = []): boolean {
   const batch = batches.get(batchId);
 
   if (!batch) {
@@ -213,7 +288,7 @@ export function addOperation(batchId, callback, args = []) {
  * @param {number} limit - Max operations to process (0 = all)
  * @returns {Promise<object>} - Batch result
  */
-export async function processBatch(batchId, limit = 0) {
+export async function processBatch(batchId: string, limit = 0): Promise<Batch> {
   const batch = batches.get(batchId);
 
   if (!batch) {
@@ -234,7 +309,7 @@ export async function processBatch(batchId, limit = 0) {
   saveBatch(batch);
 
   // Trigger start hook
-  await hooksInstance.trigger('batch:start', { batch });
+  await hooksInstance?.trigger('batch:start', { batch: batch as unknown as Record<string, unknown> });
 
   try {
     const operations = batch.operations;
@@ -244,7 +319,7 @@ export async function processBatch(batchId, limit = 0) {
 
     for (let i = 0; i < toProcess; i++) {
       const index = batch.current;
-      const operation = operations[index];
+      const operation = operations[index]!;
 
       try {
         // Execute operation
@@ -256,9 +331,9 @@ export async function processBatch(batchId, limit = 0) {
         saveBatch(batch);
 
         // Trigger progress hook
-        await hooksInstance.trigger('batch:progress', {
-          batch,
-          progress: getProgress(batchId),
+        await hooksInstance?.trigger('batch:progress', {
+          batch: batch as unknown as Record<string, unknown>,
+          progress: getProgress(batchId) as unknown as Record<string, unknown>,
         });
 
       } catch (error) {
@@ -266,7 +341,7 @@ export async function processBatch(batchId, limit = 0) {
         batch.errors.push({
           index,
           operation,
-          error: error.message,
+          error: (error as Error).message,
           timestamp: new Date().toISOString(),
         });
 
@@ -274,10 +349,10 @@ export async function processBatch(batchId, limit = 0) {
         saveBatch(batch);
 
         // Trigger error hook
-        await hooksInstance.trigger('batch:error', {
-          batch,
-          error,
-          operation,
+        await hooksInstance?.trigger('batch:error', {
+          batch: batch as unknown as Record<string, unknown>,
+          error: error as Record<string, unknown>,
+          operation: operation as unknown as Record<string, unknown>,
         });
 
         // Stop if not continuing on error
@@ -297,7 +372,7 @@ export async function processBatch(batchId, limit = 0) {
       batch.completed = new Date().toISOString();
 
       // Trigger finish hook
-      await hooksInstance.trigger('batch:finish', { batch });
+      await hooksInstance?.trigger('batch:finish', { batch: batch as unknown as Record<string, unknown> });
 
       // Clean up
       deleteBatchFile(batchId);
@@ -320,7 +395,7 @@ export async function processBatch(batchId, limit = 0) {
  * @param {object} batch - Batch context
  * @returns {Promise<*>} - Operation result
  */
-async function executeOperation(operation, batch) {
+async function executeOperation(operation: BatchOperation, batch: Batch): Promise<unknown> {
   const { callback, args } = operation;
   const handler = callbacks.get(callback);
 
@@ -337,7 +412,7 @@ async function executeOperation(operation, batch) {
  * @param {string} batchId - Batch ID
  * @returns {Promise<object>} - Batch result
  */
-export async function processAll(batchId) {
+export async function processAll(batchId: string): Promise<Batch> {
   return await processBatch(batchId, 0);
 }
 
@@ -346,7 +421,7 @@ export async function processAll(batchId) {
  * @param {string} batchId - Batch ID
  * @returns {object|null} - Batch or null
  */
-export function getBatchStatus(batchId) {
+export function getBatchStatus(batchId: string): Batch | null {
   return batches.get(batchId) || null;
 }
 
@@ -355,7 +430,7 @@ export function getBatchStatus(batchId) {
  * @param {string} batchId - Batch ID
  * @returns {boolean} - Success
  */
-export function cancelBatch(batchId) {
+export function cancelBatch(batchId: string): boolean {
   const batch = batches.get(batchId);
 
   if (!batch) {
@@ -375,7 +450,7 @@ export function cancelBatch(batchId) {
   saveBatch(batch);
 
   // Trigger hook
-  hooksInstance.trigger('batch:cancelled', { batch });
+  hooksInstance?.trigger('batch:cancelled', { batch: batch as unknown as Record<string, unknown> });
 
   // Clean up
   deleteBatchFile(batchId);
@@ -404,7 +479,7 @@ export function getActiveBatches() {
  * @param {string} name - Callback name (e.g., 'content:publish')
  * @param {Function} fn - Handler function
  */
-export function registerCallback(name, fn) {
+export function registerCallback(name: string, fn: (...args: unknown[]) => Promise<unknown>): void {
   callbacks.set(name, fn);
 }
 
@@ -413,7 +488,7 @@ export function registerCallback(name, fn) {
  * @param {string} batchId - Batch ID
  * @returns {object} - Progress data
  */
-export function getProgress(batchId) {
+export function getProgress(batchId: string): BatchProgress | null {
   const batch = batches.get(batchId);
 
   if (!batch) {
@@ -439,7 +514,7 @@ export function getProgress(batchId) {
  * @param {string} batchId - Batch ID
  * @param {Function} callback - Callback function
  */
-export function onFinish(batchId, callback) {
+export function onFinish(batchId: string, callback: (batch: Batch) => void): void {
   const batch = batches.get(batchId);
 
   if (!batch) {
@@ -454,9 +529,10 @@ export function onFinish(batchId, callback) {
 
   // Register one-time hook listener
   const hookName = `batch:finish:${batchId}`;
-  hooksInstance.register(hookName, async (context) => {
-    if (context.batch.id === batchId) {
-      callback(context.batch);
+  hooksInstance?.register(hookName, async (context) => {
+    const ctxBatch = context['batch'] as Batch | undefined;
+    if (ctxBatch && ctxBatch.id === batchId) {
+      callback(ctxBatch);
     }
   }, 10, 'batch:onFinish');
 }
@@ -466,8 +542,8 @@ export function onFinish(batchId, callback) {
  * @param {object} filter - Filter options
  * @returns {Array} - Array of batches
  */
-export function listBatches(filter = {}) {
-  const result = [];
+export function listBatches(filter: { status?: BatchStatus; userId?: string } = {}): Batch[] {
+  const result: Batch[] = [];
 
   for (const batch of batches.values()) {
     if (filter.status && batch.status !== filter.status) {
@@ -480,7 +556,7 @@ export function listBatches(filter = {}) {
   }
 
   // Sort by creation date (newest first)
-  result.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
+  result.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
 
   return result;
 }
@@ -489,8 +565,8 @@ export function listBatches(filter = {}) {
  * Get batch statistics
  * @returns {object} - Statistics
  */
-export function getStats() {
-  const stats = {
+export function getStats(): BatchStats {
+  const stats: BatchStats = {
     total: batches.size,
     created: 0,
     processing: 0,
@@ -521,7 +597,7 @@ export function cleanup(maxAge = 7) {
 
   for (const [id, batch] of batches) {
     if (batch.status === 'completed' || batch.status === 'failed' || batch.status === 'cancelled') {
-      const completedAt = new Date(batch.completed);
+      const completedAt = new Date(batch.completed ?? 0);
       if (completedAt < cutoff) {
         batches.delete(id);
         deleteBatchFile(id);
@@ -538,7 +614,7 @@ export function cleanup(maxAge = 7) {
  * @param {string} batchId - Batch ID
  * @returns {boolean} - Success
  */
-export function pauseBatch(batchId) {
+export function pauseBatch(batchId: string): boolean {
   const batch = batches.get(batchId);
 
   if (!batch) {
@@ -565,7 +641,7 @@ export function pauseBatch(batchId) {
  * @param {number} limit - Max operations to process (0 = all)
  * @returns {Promise<object>} - Batch result
  */
-export async function resumeBatch(batchId, limit = 0) {
+export async function resumeBatch(batchId: string, limit = 0): Promise<Batch> {
   const batch = batches.get(batchId);
 
   if (!batch) {
@@ -587,31 +663,36 @@ export async function resumeBatch(batchId, limit = 0) {
  * Register built-in batch callbacks
  * Called during boot to set up standard operations
  */
-export function registerBuiltinCallbacks(context) {
-  const content = context.services.get('content');
+export function registerBuiltinCallbacks(context: { services: Map<string, { update: (type: unknown, id: unknown, data: unknown) => Promise<unknown>; remove: (type: unknown, id: unknown) => Promise<unknown> }> }): void {
+  const content = context.services.get('content')!;
 
   // content:publish
-  registerCallback('content:publish', async (contentType, id, batchContext) => {
+  registerCallback('content:publish', async (...args: unknown[]) => {
+    const [contentType, id] = args;
     return await content.update(contentType, id, { status: 'published' });
   });
 
   // content:unpublish
-  registerCallback('content:unpublish', async (contentType, id, batchContext) => {
+  registerCallback('content:unpublish', async (...args: unknown[]) => {
+    const [contentType, id] = args;
     return await content.update(contentType, id, { status: 'draft' });
   });
 
   // content:archive
-  registerCallback('content:archive', async (contentType, id, batchContext) => {
+  registerCallback('content:archive', async (...args: unknown[]) => {
+    const [contentType, id] = args;
     return await content.update(contentType, id, { status: 'archived' });
   });
 
   // content:delete
-  registerCallback('content:delete', async (contentType, id, batchContext) => {
+  registerCallback('content:delete', async (...args: unknown[]) => {
+    const [contentType, id] = args;
     return await content.remove(contentType, id);
   });
 
   // content:update
-  registerCallback('content:update', async (contentType, id, data, batchContext) => {
+  registerCallback('content:update', async (...args: unknown[]) => {
+    const [contentType, id, data] = args;
     return await content.update(contentType, id, data);
   });
 

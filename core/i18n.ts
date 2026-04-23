@@ -1,5 +1,5 @@
 /**
- * i18n.js - Internationalization and Localization
+ * i18n.ts - Internationalization and Localization
  *
  * WHY THIS EXISTS:
  * Multi-language support enables:
@@ -28,11 +28,68 @@
 
 import { existsSync, mkdirSync, readFileSync, writeFileSync, readdirSync } from 'node:fs';
 import { join } from 'node:path';
+import type { IncomingMessage, ServerResponse } from 'node:http';
+
+// ============================================================================
+// Types
+// ============================================================================
+
+/** i18n configuration */
+interface I18nConfig {
+  enabled: boolean;
+  defaultLocale: string;
+  locales: string[];
+  /** Fall back to default locale if translation missing */
+  fallback: boolean;
+  /** Cookie name for locale preference */
+  cookieName: string;
+  /** Query param for locale override */
+  queryParam: string;
+}
+
+/** Statistics for a locale's translation coverage */
+export interface CompletionStats {
+  total: number;
+  translated: number;
+  percentage: number;
+}
+
+/** Available locale descriptor */
+export interface LocaleInfo {
+  code: string;
+  name: string;
+  keyCount: number;
+  isDefault: boolean;
+}
+
+/** Export envelope */
+export interface TranslationExport {
+  locale: string;
+  exported: string;
+  translations: Record<string, string>;
+}
+
+/** Import result */
+export interface ImportResult {
+  added: number;
+  updated: number;
+}
+
+/** Content service — only the methods consumed by i18n are described here */
+interface ContentService {
+  read(type: string, id: string): Record<string, unknown> | null;
+  getSchema(type: string): Record<string, { type: string; translatable?: boolean }> | null;
+  update(type: string, id: string, data: Record<string, unknown>): Promise<Record<string, unknown> | null>;
+}
+
+// ============================================================================
+// Module state
+// ============================================================================
 
 /**
  * Configuration
  */
-let config = {
+let config: I18nConfig = {
   enabled: true,
   defaultLocale: 'en',
   locales: ['en'],
@@ -44,28 +101,24 @@ let config = {
 /**
  * Base directory and locales path
  */
-let baseDir = null;
-let localesDir = null;
+let baseDir: string | null = null;
+let localesDir: string | null = null;
 
 /**
  * Loaded translations
  * Structure: { locale: { key: value } }
  */
-const translations = {};
+const translations: Record<string, Record<string, string>> = {};
 
 /**
  * Content service reference for content translations
  */
-let contentService = null;
+let contentService: ContentService | null = null;
 
 /**
  * Initialize i18n system
- *
- * @param {string} dir - Base directory
- * @param {Object} i18nConfig - i18n configuration
- * @param {Object} content - Content service reference
  */
-export function init(dir, i18nConfig = {}, content = null) {
+export function init(dir: string, i18nConfig: Partial<I18nConfig> = {}, content: ContentService | null = null): void {
   baseDir = dir;
   contentService = content;
 
@@ -86,11 +139,8 @@ export function init(dir, i18nConfig = {}, content = null) {
 
 /**
  * Load translation file for a locale
- *
- * @param {string} code - Locale code (e.g., 'en', 'es', 'fr')
- * @returns {boolean} - Success
  */
-export function loadLocale(code) {
+export function loadLocale(code: string): boolean {
   if (!localesDir) return false;
 
   const localePath = join(localesDir, `${code}.json`);
@@ -102,11 +152,11 @@ export function loadLocale(code) {
   }
 
   try {
-    const data = JSON.parse(readFileSync(localePath, 'utf-8'));
+    const data = JSON.parse(readFileSync(localePath, 'utf-8')) as Record<string, string>;
     translations[code] = data;
     return true;
   } catch (error) {
-    console.warn(`[i18n] Failed to load locale ${code}: ${error.message}`);
+    console.warn(`[i18n] Failed to load locale ${code}: ${(error as Error).message}`);
     translations[code] = {};
     return false;
   }
@@ -114,11 +164,8 @@ export function loadLocale(code) {
 
 /**
  * Save translations to file
- *
- * @param {string} code - Locale code
- * @returns {boolean} - Success
  */
-export function saveLocale(code) {
+export function saveLocale(code: string): boolean {
   if (!localesDir) return false;
 
   const localePath = join(localesDir, `${code}.json`);
@@ -127,23 +174,18 @@ export function saveLocale(code) {
     writeFileSync(localePath, JSON.stringify(translations[code] || {}, null, 2) + '\n');
     return true;
   } catch (error) {
-    console.error(`[i18n] Failed to save locale ${code}: ${error.message}`);
+    console.error(`[i18n] Failed to save locale ${code}: ${(error as Error).message}`);
     return false;
   }
 }
 
 /**
- * Translate a key with optional interpolation
- *
- * @param {string} key - Translation key (e.g., 'common.save')
- * @param {Object} params - Interpolation parameters
- * @param {string} locale - Locale to use (defaults to default locale)
- * @returns {string} - Translated string or key if not found
+ * Translate a key with optional interpolation.
  *
  * Interpolation uses {{param}} syntax:
  * t('content.created', { type: 'article' }) => "Created article successfully"
  */
-export function t(key, params = {}, locale = null) {
+export function t(key: string, params: Record<string, unknown> = {}, locale: string | null = null): string {
   const targetLocale = locale || config.defaultLocale;
 
   // Try target locale first
@@ -161,7 +203,7 @@ export function t(key, params = {}, locale = null) {
 
   // Interpolate parameters
   if (params && typeof params === 'object') {
-    value = value.replace(/\{\{(\w+)\}\}/g, (match, param) => {
+    value = value.replace(/\{\{(\w+)\}\}/g, (match: string, param: string) => {
       return params[param] !== undefined ? String(params[param]) : match;
     });
   }
@@ -171,10 +213,8 @@ export function t(key, params = {}, locale = null) {
 
 /**
  * Set the default locale
- *
- * @param {string} code - Locale code
  */
-export function setDefaultLocale(code) {
+export function setDefaultLocale(code: string): void {
   if (!config.locales.includes(code)) {
     throw new Error(`Locale '${code}' is not in the configured locales list`);
   }
@@ -183,21 +223,16 @@ export function setDefaultLocale(code) {
 
 /**
  * Get the default locale
- *
- * @returns {string}
  */
-export function getDefaultLocale() {
+export function getDefaultLocale(): string {
   return config.defaultLocale;
 }
 
 /**
  * Detect locale from HTTP request
  * Priority: query param > cookie > Accept-Language header > default
- *
- * @param {http.IncomingMessage} req - HTTP request
- * @returns {string} - Detected locale code
  */
-export function getLocale(req) {
+export function getLocale(req: IncomingMessage): string {
   // 1. Check query parameter
   if (req.url) {
     const url = new URL(req.url, 'http://localhost');
@@ -208,15 +243,16 @@ export function getLocale(req) {
   }
 
   // 2. Check cookie
-  const cookies = parseCookies(req.headers?.cookie || '');
+  const cookieHeader = (req.headers as Record<string, string | string[] | undefined>)['cookie'];
+  const cookies = parseCookies(typeof cookieHeader === 'string' ? cookieHeader : '');
   const cookieLocale = cookies[config.cookieName];
   if (cookieLocale && config.locales.includes(cookieLocale)) {
     return cookieLocale;
   }
 
   // 3. Check Accept-Language header
-  const acceptLanguage = req.headers?.['accept-language'];
-  if (acceptLanguage) {
+  const acceptLanguage = (req.headers as Record<string, string | string[] | undefined>)['accept-language'];
+  if (typeof acceptLanguage === 'string') {
     const preferred = parseAcceptLanguage(acceptLanguage);
     for (const lang of preferred) {
       // Check exact match
@@ -224,8 +260,8 @@ export function getLocale(req) {
         return lang;
       }
       // Check base language (e.g., 'en-US' -> 'en')
-      const base = lang.split('-')[0];
-      if (config.locales.includes(base)) {
+      const base = lang.split('-')[0] ?? '';
+      if (base && config.locales.includes(base)) {
         return base;
       }
     }
@@ -237,14 +273,16 @@ export function getLocale(req) {
 
 /**
  * Parse cookie header into object
- * @private
  */
-function parseCookies(cookieHeader) {
-  const cookies = {};
+function parseCookies(cookieHeader: string): Record<string, string> {
+  const cookies: Record<string, string> = {};
   if (!cookieHeader) return cookies;
 
-  cookieHeader.split(';').forEach(cookie => {
-    const [name, value] = cookie.trim().split('=');
+  cookieHeader.split(';').forEach((cookie: string) => {
+    const eqIdx = cookie.indexOf('=');
+    if (eqIdx === -1) return;
+    const name = cookie.slice(0, eqIdx).trim();
+    const value = cookie.slice(eqIdx + 1).trim();
     if (name && value) {
       cookies[name] = decodeURIComponent(value);
     }
@@ -255,29 +293,29 @@ function parseCookies(cookieHeader) {
 
 /**
  * Parse Accept-Language header into sorted list
- * @private
  */
-function parseAcceptLanguage(header) {
-  const languages = [];
+function parseAcceptLanguage(header: string): string[] {
+  const languages: Array<{ lang: string; q: number }> = [];
 
-  header.split(',').forEach(part => {
+  header.split(',').forEach((part: string) => {
     const [lang, qPart] = part.trim().split(';');
-    const q = qPart ? parseFloat(qPart.split('=')[1]) : 1;
-    languages.push({ lang: lang.trim(), q });
+    const qStr = qPart ? qPart.split('=')[1] : undefined;
+    const q = qStr ? parseFloat(qStr) : 1;
+    if (lang) {
+      languages.push({ lang: lang.trim(), q });
+    }
   });
 
   // Sort by quality value descending
   languages.sort((a, b) => b.q - a.q);
 
-  return languages.map(l => l.lang);
+  return languages.map((l) => l.lang);
 }
 
 /**
  * Get list of available locales
- *
- * @returns {Array<{ code: string, name: string, keyCount: number, isDefault: boolean }>}
  */
-export function getAvailableLocales() {
+export function getAvailableLocales(): LocaleInfo[] {
   return config.locales.map(code => ({
     code,
     name: getLocaleName(code),
@@ -288,10 +326,9 @@ export function getAvailableLocales() {
 
 /**
  * Get human-readable locale name
- * @private
  */
-function getLocaleName(code) {
-  const names = {
+function getLocaleName(code: string): string {
+  const names: Record<string, string> = {
     en: 'English',
     es: 'Español',
     fr: 'Français',
@@ -310,11 +347,8 @@ function getLocaleName(code) {
 
 /**
  * Add translations at runtime
- *
- * @param {string} locale - Locale code
- * @param {Object} newTranslations - Key-value pairs to add
  */
-export function addTranslations(locale, newTranslations) {
+export function addTranslations(locale: string, newTranslations: Record<string, string>): void {
   if (!translations[locale]) {
     translations[locale] = {};
   }
@@ -324,22 +358,15 @@ export function addTranslations(locale, newTranslations) {
 
 /**
  * Get all translations for a locale
- *
- * @param {string} locale - Locale code
- * @returns {Object} - All translations
  */
-export function getTranslations(locale) {
+export function getTranslations(locale: string): Record<string, string> {
   return { ...(translations[locale] || {}) };
 }
 
 /**
  * Set a single translation
- *
- * @param {string} locale - Locale code
- * @param {string} key - Translation key
- * @param {string} value - Translation value
  */
-export function setTranslation(locale, key, value) {
+export function setTranslation(locale: string, key: string, value: string): void {
   if (!translations[locale]) {
     translations[locale] = {};
   }
@@ -348,11 +375,8 @@ export function setTranslation(locale, key, value) {
 
 /**
  * Delete a translation
- *
- * @param {string} locale - Locale code
- * @param {string} key - Translation key
  */
-export function deleteTranslation(locale, key) {
+export function deleteTranslation(locale: string, key: string): void {
   if (translations[locale]) {
     delete translations[locale][key];
   }
@@ -360,14 +384,12 @@ export function deleteTranslation(locale, key) {
 
 /**
  * Get all unique keys across all locales
- *
- * @returns {string[]} - All translation keys
  */
-export function getAllKeys() {
-  const keys = new Set();
+export function getAllKeys(): string[] {
+  const keys = new Set<string>();
 
   for (const locale of Object.keys(translations)) {
-    for (const key of Object.keys(translations[locale])) {
+    for (const key of Object.keys(translations[locale] ?? {})) {
       keys.add(key);
     }
   }
@@ -377,11 +399,8 @@ export function getAllKeys() {
 
 /**
  * Get missing translations for a locale
- *
- * @param {string} locale - Locale to check
- * @returns {string[]} - Keys missing in this locale
  */
-export function getMissingKeys(locale) {
+export function getMissingKeys(locale: string): string[] {
   const allKeys = getAllKeys();
   const localeKeys = new Set(Object.keys(translations[locale] || {}));
 
@@ -390,11 +409,8 @@ export function getMissingKeys(locale) {
 
 /**
  * Get translation completion stats for a locale
- *
- * @param {string} locale - Locale code
- * @returns {{ total: number, translated: number, percentage: number }}
  */
-export function getCompletionStats(locale) {
+export function getCompletionStats(locale: string): CompletionStats {
   const allKeys = getAllKeys();
   const translated = Object.keys(translations[locale] || {}).length;
 
@@ -407,11 +423,8 @@ export function getCompletionStats(locale) {
 
 /**
  * Create a new locale
- *
- * @param {string} code - Locale code
- * @returns {boolean} - Success
  */
-export function createLocale(code) {
+export function createLocale(code: string): boolean {
   if (!/^[a-z]{2}(-[A-Z]{2})?$/.test(code)) {
     throw new Error('Invalid locale code format. Use "xx" or "xx-XX" format.');
   }
@@ -435,11 +448,8 @@ export function createLocale(code) {
 
 /**
  * Export translations for a locale
- *
- * @param {string} locale - Locale code
- * @returns {Object} - Translations object
  */
-export function exportTranslations(locale) {
+export function exportTranslations(locale: string): TranslationExport {
   return {
     locale,
     exported: new Date().toISOString(),
@@ -449,15 +459,10 @@ export function exportTranslations(locale) {
 
 /**
  * Import translations for a locale
- *
- * @param {string} locale - Locale code
- * @param {Object} data - Import data
- * @param {boolean} merge - Merge with existing (true) or replace (false)
- * @returns {{ added: number, updated: number }}
  */
-export function importTranslations(locale, data, merge = true) {
+export function importTranslations(locale: string, data: TranslationExport | Record<string, string>, merge: boolean = true): ImportResult {
   const existing = translations[locale] || {};
-  const incoming = data.translations || data;
+  const incoming = (data as TranslationExport).translations ?? (data as Record<string, string>);
 
   let added = 0;
   let updated = 0;
@@ -467,13 +472,16 @@ export function importTranslations(locale, data, merge = true) {
   }
 
   for (const [key, value] of Object.entries(incoming)) {
-    if (existing[key] === undefined) {
+    const existingVal = existing[key];
+    if (existingVal === undefined) {
       added++;
-    } else if (existing[key] !== value) {
+    } else if (existingVal !== value) {
       updated++;
     }
-    translations[locale] = translations[locale] || {};
-    translations[locale][key] = value;
+    if (!translations[locale]) {
+      translations[locale] = {};
+    }
+    translations[locale]![key] = String(value);
   }
 
   saveLocale(locale);
@@ -487,13 +495,8 @@ export function importTranslations(locale, data, merge = true) {
 
 /**
  * Get translated content item
- *
- * @param {string} type - Content type
- * @param {string} id - Content ID
- * @param {string} locale - Target locale
- * @returns {Object|null} - Translated content or null
  */
-export function getContentTranslation(type, id, locale) {
+export function getContentTranslation(type: string, id: string, locale: string): Record<string, unknown> | null {
   if (!contentService) return null;
 
   const item = contentService.read(type, id);
@@ -505,7 +508,7 @@ export function getContentTranslation(type, id, locale) {
   }
 
   // Check for translations
-  const itemTranslations = item._translations?.[locale];
+  const itemTranslations = (item['_translations'] as Record<string, Record<string, unknown>> | undefined)?.[locale];
   if (!itemTranslations) {
     // Return original with fallback flag if fallback enabled
     if (config.fallback) {
@@ -515,28 +518,27 @@ export function getContentTranslation(type, id, locale) {
   }
 
   // Merge translated fields with original
-  const translated = { ...item };
+  const translated: Record<string, unknown> = { ...item };
   for (const [field, value] of Object.entries(itemTranslations)) {
     translated[field] = value;
   }
-  translated._locale = locale;
+  translated['_locale'] = locale;
 
   // Remove _translations from output
-  delete translated._translations;
+  delete translated['_translations'];
 
   return translated;
 }
 
 /**
  * Set content translation
- *
- * @param {string} type - Content type
- * @param {string} id - Content ID
- * @param {string} locale - Target locale
- * @param {Object} data - Translated field values
- * @returns {Object|null} - Updated content or null
  */
-export async function setContentTranslation(type, id, locale, data) {
+export async function setContentTranslation(
+  type: string,
+  id: string,
+  locale: string,
+  data: Record<string, unknown>
+): Promise<Record<string, unknown> | null> {
   if (!contentService) return null;
 
   const item = contentService.read(type, id);
@@ -552,7 +554,7 @@ export async function setContentTranslation(type, id, locale, data) {
   const translatableFields = getTranslatableFields(schema);
 
   // Filter data to only include translatable fields
-  const translationData = {};
+  const translationData: Record<string, unknown> = {};
   for (const field of translatableFields) {
     if (data[field] !== undefined) {
       translationData[field] = data[field];
@@ -560,7 +562,7 @@ export async function setContentTranslation(type, id, locale, data) {
   }
 
   // Update _translations
-  const existingTranslations = item._translations || {};
+  const existingTranslations: Record<string, Record<string, unknown>> = (item['_translations'] as Record<string, Record<string, unknown>> | undefined) ?? {};
   existingTranslations[locale] = translationData;
 
   // Update content with new translations
@@ -573,19 +575,15 @@ export async function setContentTranslation(type, id, locale, data) {
 
 /**
  * Delete content translation
- *
- * @param {string} type - Content type
- * @param {string} id - Content ID
- * @param {string} locale - Locale to delete
- * @returns {boolean} - Success
  */
-export async function deleteContentTranslation(type, id, locale) {
+export async function deleteContentTranslation(type: string, id: string, locale: string): Promise<boolean> {
   if (!contentService) return false;
 
   const item = contentService.read(type, id);
-  if (!item || !item._translations?.[locale]) return false;
+  const existingTrans = item ? (item['_translations'] as Record<string, unknown> | undefined) : undefined;
+  if (!item || !existingTrans?.[locale]) return false;
 
-  const existingTranslations = { ...item._translations };
+  const existingTranslations: Record<string, unknown> = { ...existingTrans };
   delete existingTranslations[locale];
 
   await contentService.update(type, id, {
@@ -597,14 +595,11 @@ export async function deleteContentTranslation(type, id, locale) {
 
 /**
  * Get translatable fields from schema
- *
- * @param {Object} schema - Content type schema
- * @returns {string[]} - Field names that are translatable
  */
-export function getTranslatableFields(schema) {
+export function getTranslatableFields(schema: Record<string, { type: string; translatable?: boolean }> | null | undefined): string[] {
   if (!schema) return [];
 
-  const fields = [];
+  const fields: string[] = [];
   for (const [field, def] of Object.entries(schema)) {
     // String fields with translatable: true (or by default for common fields)
     if (def.type === 'string' && def.translatable !== false) {
@@ -621,12 +616,8 @@ export function getTranslatableFields(schema) {
 
 /**
  * Get content translation status
- *
- * @param {string} type - Content type
- * @param {string} id - Content ID
- * @returns {Object} - Translation status per locale
  */
-export function getContentTranslationStatus(type, id) {
+export function getContentTranslationStatus(type: string, id: string): Record<string, { translated: number; total: number; percentage: number; isDefault: boolean }> {
   if (!contentService) return {};
 
   const item = contentService.read(type, id);
@@ -636,7 +627,7 @@ export function getContentTranslationStatus(type, id) {
   const translatableFields = getTranslatableFields(schema);
   const totalFields = translatableFields.length;
 
-  const status = {};
+  const status: Record<string, { translated: number; total: number; percentage: number; isDefault: boolean }> = {};
 
   for (const locale of config.locales) {
     if (locale === config.defaultLocale) {
@@ -644,8 +635,8 @@ export function getContentTranslationStatus(type, id) {
       continue;
     }
 
-    const translation = item._translations?.[locale] || {};
-    const translatedFields = translatableFields.filter(f => translation[f] !== undefined).length;
+    const localeTransMap = (item['_translations'] as Record<string, Record<string, unknown>> | undefined)?.[locale] ?? {};
+    const translatedFields = translatableFields.filter((f) => localeTransMap[f] !== undefined).length;
 
     status[locale] = {
       translated: translatedFields,
@@ -660,28 +651,21 @@ export function getContentTranslationStatus(type, id) {
 
 /**
  * Get i18n configuration
- *
- * @returns {Object}
  */
-export function getConfig() {
+export function getConfig(): I18nConfig {
   return { ...config };
 }
 
 /**
  * Check if i18n is enabled
- *
- * @returns {boolean}
  */
-export function isEnabled() {
+export function isEnabled(): boolean {
   return config.enabled;
 }
 
 /**
  * Set locale cookie in response
- *
- * @param {http.ServerResponse} res - HTTP response
- * @param {string} locale - Locale code
  */
-export function setLocaleCookie(res, locale) {
+export function setLocaleCookie(res: ServerResponse, locale: string): void {
   res.setHeader('Set-Cookie', `${config.cookieName}=${locale}; Path=/; Max-Age=31536000; SameSite=Lax`);
 }

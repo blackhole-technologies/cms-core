@@ -33,7 +33,7 @@
  *   const svg = renderIcon('bi:house', { class: 'icon-house', title: 'Home' });
  */
 
-import * as icons from './icons.js';
+import * as icons from './icons.ts';
 
 // ============================================================================
 // Types

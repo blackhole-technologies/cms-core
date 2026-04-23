@@ -1,5 +1,5 @@
 /**
- * api-version.js - API Versioning and Deprecation
+ * api-version.ts - API Versioning and Deprecation
  *
  * WHY THIS EXISTS:
  * Manage API versions to support backwards compatibility:
@@ -17,11 +17,99 @@
 
 import { existsSync, readFileSync, writeFileSync, mkdirSync } from 'node:fs';
 import { join } from 'node:path';
+import type { IncomingMessage, ServerResponse } from 'node:http';
+
+// ============================================================================
+// Types
+// ============================================================================
+
+/** Version status constants */
+const VERSION_STATUS = {
+  BETA: 'beta',
+  STABLE: 'stable',
+  DEPRECATED: 'deprecated',
+  SUNSET: 'sunset',
+} as const;
+
+type VersionStatus = typeof VERSION_STATUS[keyof typeof VERSION_STATUS];
+
+/** API version configuration object */
+interface VersionConfig {
+  version: string;
+  status: VersionStatus;
+  releasedAt: string | null;
+  deprecatedAt: string | null;
+  sunsetAt: string | null;
+  changes: string[];
+  description: string;
+}
+
+/** Input for registerVersion */
+interface VersionConfigInput {
+  status?: VersionStatus;
+  releasedAt?: string | null;
+  deprecatedAt?: string | null;
+  sunsetAt?: string | null;
+  changes?: string[];
+  description?: string;
+}
+
+/** Transformer functions for a version */
+interface VersionTransformer {
+  list?: (data: Record<string, unknown>) => Record<string, unknown>;
+  item?: (data: Record<string, unknown>) => Record<string, unknown>;
+  error?: (error: Record<string, unknown>) => Record<string, unknown>;
+}
+
+/** Deprecation info returned to callers */
+interface DeprecationInfo {
+  version: string;
+  deprecatedAt: string | null;
+  sunsetAt: string | null;
+  message: string;
+}
+
+/** Endpoint deprecation record */
+interface EndpointDeprecation {
+  version: string;
+  endpoint: string;
+  deprecatedAt: string;
+  sunsetAt: string | null;
+  alternative: string | null;
+  message: string;
+}
+
+/** API versioning configuration */
+interface ApiVersionConfig {
+  enabled: boolean;
+  defaultVersion: string;
+  versions: Record<string, VersionConfigInput>;
+  trackUsage: boolean;
+}
+
+/** Analytics service — only the `track` method is used */
+interface AnalyticsService {
+  track(event: string, data: Record<string, unknown>): void;
+}
+
+/** Express-compatible request with apiVersion injected by middleware */
+interface VersionedRequest extends IncomingMessage {
+  apiVersion?: string;
+  url: string;
+  query?: Record<string, string>;
+  searchParams?: { get(name: string): string | null };
+  headers: Record<string, string | string[] | undefined>;
+  method?: string;
+}
+
+// ============================================================================
+// Module state
+// ============================================================================
 
 /**
  * Configuration
  */
-let config = {
+let config: ApiVersionConfig = {
   enabled: true,
   defaultVersion: 'v1',
   versions: {},
@@ -31,43 +119,31 @@ let config = {
 /**
  * Storage
  */
-let baseDir = null;
-let usageDir = null;
-let analyticsService = null;
+let baseDir: string | null = null;
+let usageDir: string | null = null;
+let analyticsService: AnalyticsService | null = null;
 
 /**
  * Registered versions
  */
-const versions = new Map();
+const versions = new Map<string, VersionConfig>();
 
 /**
  * Response transformers per version
  */
-const transformers = new Map();
+const transformers = new Map<string, VersionTransformer>();
 
 /**
  * Endpoint deprecations
  */
-const endpointDeprecations = new Map();
+const endpointDeprecations = new Map<string, EndpointDeprecation>();
 
-/**
- * Version status types
- */
-const VERSION_STATUS = {
-  BETA: 'beta',
-  STABLE: 'stable',
-  DEPRECATED: 'deprecated',
-  SUNSET: 'sunset',
-};
+
 
 /**
  * Initialize API versioning
- *
- * @param {string} dir - Base directory
- * @param {Object} analytics - Analytics service (optional)
- * @param {Object} apiConfig - Configuration
  */
-export function init(dir, analytics = null, apiConfig = {}) {
+export function init(dir: string, analytics: AnalyticsService | null = null, apiConfig: Partial<ApiVersionConfig> = {}): void {
   baseDir = dir;
   analyticsService = analytics;
 
@@ -91,11 +167,8 @@ export function init(dir, analytics = null, apiConfig = {}) {
 
 /**
  * Register an API version
- *
- * @param {string} version - Version identifier (e.g., "v1", "v2")
- * @param {Object} versionConfig - Version configuration
  */
-export function registerVersion(version, versionConfig = {}) {
+export function registerVersion(version: string, versionConfig: VersionConfigInput = {}): void {
   const normalizedVersion = normalizeVersion(version);
 
   versions.set(normalizedVersion, {
@@ -112,96 +185,100 @@ export function registerVersion(version, versionConfig = {}) {
 /**
  * Register default response transformers
  */
-function registerDefaultTransformers() {
+function registerDefaultTransformers(): void {
+  // Helper: safely read a sub-object field from Record<string,unknown>
+  const meta = (d: Record<string, unknown>) => (d['meta'] as Record<string, unknown> | undefined) ?? {};
+  const links = (d: Record<string, unknown>) => (d['links'] as Record<string, unknown> | undefined) ?? {};
+
   // v1 transformer: legacy format
   transformers.set('v1', {
-    list: (data) => ({
-      items: data.items || data.data || [],
-      total: data.total ?? data.meta?.total ?? 0,
+    list: (data): Record<string, unknown> => ({
+      items: data['items'] || data['data'] || [],
+      total: (data['total'] ?? meta(data)['total']) ?? 0,
     }),
-    item: (data) => data.data || data,
-    error: (error) => ({
-      error: error.message || error.error || 'Unknown error',
-      code: error.code || error.statusCode || 500,
+    item: (data): Record<string, unknown> => (data['data'] as Record<string, unknown> | undefined) ?? data,
+    error: (error): Record<string, unknown> => ({
+      error: error['message'] || error['error'] || 'Unknown error',
+      code: error['code'] || error['statusCode'] || 500,
     }),
   });
 
   // v2 transformer: modern format with metadata
   transformers.set('v2', {
-    list: (data) => ({
-      data: data.items || data.data || [],
+    list: (data): Record<string, unknown> => ({
+      data: data['items'] || data['data'] || [],
       meta: {
-        total: data.total ?? data.meta?.total ?? 0,
-        page: data.page ?? data.meta?.page ?? 1,
-        limit: data.limit ?? data.meta?.limit ?? 20,
-        pages: data.pages ?? data.meta?.pages ?? Math.ceil((data.total || 0) / (data.limit || 20)),
+        total: (data['total'] ?? meta(data)['total']) ?? 0,
+        page: (data['page'] ?? meta(data)['page']) ?? 1,
+        limit: (data['limit'] ?? meta(data)['limit']) ?? 20,
+        pages: (data['pages'] ?? meta(data)['pages']) ?? Math.ceil(((data['total'] as number) || 0) / ((data['limit'] as number) || 20)),
       },
     }),
-    item: (data) => ({
-      data: data.data || data,
+    item: (data): Record<string, unknown> => ({
+      data: data['data'] || data,
       meta: {
-        version: data.version || data._version || 1,
-        updatedAt: data.updatedAt || data.updated || null,
+        version: data['version'] || data['_version'] || 1,
+        updatedAt: data['updatedAt'] || data['updated'] || null,
       },
     }),
-    error: (error) => ({
+    error: (error): Record<string, unknown> => ({
       error: {
-        message: error.message || 'Unknown error',
-        code: error.code || 'UNKNOWN_ERROR',
-        details: error.details || null,
+        message: error['message'] || 'Unknown error',
+        code: error['code'] || 'UNKNOWN_ERROR',
+        details: error['details'] || null,
       },
       meta: {
         timestamp: new Date().toISOString(),
-        requestId: error.requestId || null,
+        requestId: error['requestId'] || null,
       },
     }),
   });
 
   // v3 transformer: extended format
   transformers.set('v3', {
-    list: (data) => ({
-      data: data.items || data.data || [],
+    list: (data): Record<string, unknown> => ({
+      data: data['items'] || data['data'] || [],
       meta: {
         pagination: {
-          total: data.total ?? data.meta?.total ?? 0,
-          page: data.page ?? data.meta?.page ?? 1,
-          limit: data.limit ?? data.meta?.limit ?? 20,
-          pages: data.pages ?? data.meta?.pages ?? 1,
-          hasMore: (data.page || 1) < (data.pages || 1),
+          total: (data['total'] ?? meta(data)['total']) ?? 0,
+          page: (data['page'] ?? meta(data)['page']) ?? 1,
+          limit: (data['limit'] ?? meta(data)['limit']) ?? 20,
+          pages: (data['pages'] ?? meta(data)['pages']) ?? 1,
+          hasMore: ((data['page'] as number) || 1) < ((data['pages'] as number) || 1),
         },
-        filters: data.filters || {},
-        sort: data.sort || null,
+        filters: data['filters'] || {},
+        sort: data['sort'] || null,
       },
       links: {
-        self: data.links?.self || null,
-        next: data.links?.next || null,
-        prev: data.links?.prev || null,
+        self: links(data)['self'] || null,
+        next: links(data)['next'] || null,
+        prev: links(data)['prev'] || null,
       },
     }),
-    item: (data) => ({
-      data: data.data || data,
+    item: (data): Record<string, unknown> => ({
+      data: data['data'] || data,
       meta: {
-        version: data.version || data._version || 1,
-        createdAt: data.createdAt || data.created || null,
-        updatedAt: data.updatedAt || data.updated || null,
-        createdBy: data.createdBy || null,
-        updatedBy: data.updatedBy || null,
+        version: data['version'] || data['_version'] || 1,
+        createdAt: data['createdAt'] || data['created'] || null,
+        updatedAt: data['updatedAt'] || data['updated'] || null,
+        createdBy: data['createdBy'] || null,
+        updatedBy: data['updatedBy'] || null,
       },
       links: {
-        self: data.links?.self || null,
+        self: links(data)['self'] || null,
       },
     }),
-    error: (error) => ({
+    error: (error): Record<string, unknown> => ({
       errors: [{
-        status: String(error.statusCode || error.code || 500),
-        code: error.code || 'UNKNOWN_ERROR',
-        title: error.title || 'Error',
-        detail: error.message || 'An unknown error occurred',
-        source: error.source || null,
+        status: String(error['statusCode'] || error['code'] || 500),
+        code: error['code'] || 'UNKNOWN_ERROR',
+        title: error['title'] || 'Error',
+        detail: error['message'] || 'An unknown error occurred',
+        source: error['source'] || null,
       }],
       meta: {
         timestamp: new Date().toISOString(),
-        requestId: error.requestId || null,
+        requestId: error['requestId'] || null,
       },
     }),
   });
@@ -209,11 +286,8 @@ function registerDefaultTransformers() {
 
 /**
  * Normalize version string
- *
- * @param {string} version
- * @returns {string}
  */
-function normalizeVersion(version) {
+function normalizeVersion(version: string | null | undefined): string {
   if (!version) return config.defaultVersion;
 
   const v = String(version).toLowerCase().trim();
@@ -235,11 +309,8 @@ function normalizeVersion(version) {
  * Get version from request
  *
  * Priority: URL prefix > Header > Query param > Default
- *
- * @param {Object} req - Request object
- * @returns {string}
  */
-export function getVersion(req) {
+export function getVersion(req: VersionedRequest): string {
   // 1. URL prefix: /api/v1/...
   const urlMatch = req.url?.match(/\/api\/(v\d+)\//);
   if (urlMatch) {
@@ -247,14 +318,14 @@ export function getVersion(req) {
   }
 
   // 2. X-API-Version header
-  const headerVersion = req.headers?.['x-api-version'];
-  if (headerVersion) {
+  const headerVersion = req.headers['x-api-version'];
+  if (typeof headerVersion === 'string') {
     return normalizeVersion(headerVersion);
   }
 
   // 3. Accept header: application/vnd.cms.v1+json
-  const acceptHeader = req.headers?.accept;
-  if (acceptHeader) {
+  const acceptHeader = req.headers['accept'];
+  if (typeof acceptHeader === 'string') {
     const acceptMatch = acceptHeader.match(/application\/vnd\.cms\.(v\d+)\+json/);
     if (acceptMatch) {
       return normalizeVersion(acceptMatch[1]);
@@ -262,7 +333,7 @@ export function getVersion(req) {
   }
 
   // 4. Query parameter: ?api_version=1
-  const queryVersion = req.query?.api_version || req.searchParams?.get?.('api_version');
+  const queryVersion = req.query?.['api_version'] ?? req.searchParams?.get('api_version');
   if (queryVersion) {
     return normalizeVersion(queryVersion);
   }
@@ -273,11 +344,8 @@ export function getVersion(req) {
 
 /**
  * Check if a version is deprecated
- *
- * @param {string} version
- * @returns {boolean}
  */
-export function isDeprecated(version) {
+export function isDeprecated(version: string): boolean {
   const v = versions.get(normalizeVersion(version));
   if (!v) return false;
 
@@ -286,11 +354,8 @@ export function isDeprecated(version) {
 
 /**
  * Check if a version is sunset (no longer supported)
- *
- * @param {string} version
- * @returns {boolean}
  */
-export function isSunset(version) {
+export function isSunset(version: string): boolean {
   const v = versions.get(normalizeVersion(version));
   if (!v) return false;
 
@@ -305,11 +370,8 @@ export function isSunset(version) {
 
 /**
  * Get deprecation info for a version
- *
- * @param {string} version
- * @returns {Object|null}
  */
-export function getDeprecationInfo(version) {
+export function getDeprecationInfo(version: string): DeprecationInfo | null {
   const v = versions.get(normalizeVersion(version));
   if (!v || !isDeprecated(version)) return null;
 
@@ -323,27 +385,25 @@ export function getDeprecationInfo(version) {
 
 /**
  * Get all deprecations (versions and endpoints)
- *
- * @returns {Array}
  */
-export function getDeprecations() {
-  const deprecations = [];
+export function getDeprecations(): Array<Record<string, unknown>> {
+  const deprecations: Array<Record<string, unknown>> = [];
 
   // Version deprecations
-  for (const [version, config] of versions) {
+  for (const [version, versionConfig] of versions) {
     if (isDeprecated(version)) {
       deprecations.push({
         type: 'version',
         version,
-        deprecatedAt: config.deprecatedAt,
-        sunsetAt: config.sunsetAt,
+        deprecatedAt: versionConfig.deprecatedAt,
+        sunsetAt: versionConfig.sunsetAt,
         message: `API version ${version} is deprecated`,
       });
     }
   }
 
   // Endpoint deprecations
-  for (const [key, deprecation] of endpointDeprecations) {
+  for (const [, deprecation] of endpointDeprecations) {
     deprecations.push({
       type: 'endpoint',
       ...deprecation,
@@ -353,20 +413,24 @@ export function getDeprecations() {
   return deprecations;
 }
 
+/** Input for deprecateEndpoint */
+interface DeprecateEndpointInfo {
+  deprecatedAt?: string;
+  sunsetAt?: string | null;
+  alternative?: string | null;
+  message?: string;
+}
+
 /**
  * Register an endpoint deprecation
- *
- * @param {string} version
- * @param {string} endpoint
- * @param {Object} info
  */
-export function deprecateEndpoint(version, endpoint, info = {}) {
+export function deprecateEndpoint(version: string, endpoint: string, info: DeprecateEndpointInfo = {}): void {
   const key = `${normalizeVersion(version)}:${endpoint}`;
 
   endpointDeprecations.set(key, {
     version: normalizeVersion(version),
     endpoint,
-    deprecatedAt: info.deprecatedAt || new Date().toISOString().split('T')[0],
+    deprecatedAt: info.deprecatedAt ?? new Date().toISOString().split('T')[0] ?? '',
     sunsetAt: info.sunsetAt || null,
     alternative: info.alternative || null,
     message: info.message || `Endpoint ${endpoint} is deprecated in ${version}`,
@@ -375,37 +439,28 @@ export function deprecateEndpoint(version, endpoint, info = {}) {
 
 /**
  * Check if an endpoint is deprecated
- *
- * @param {string} version
- * @param {string} endpoint
- * @returns {Object|null}
  */
-export function getEndpointDeprecation(version, endpoint) {
+export function getEndpointDeprecation(version: string, endpoint: string): EndpointDeprecation | null {
   const key = `${normalizeVersion(version)}:${endpoint}`;
   return endpointDeprecations.get(key) || null;
 }
 
 /**
  * Get version info
- *
- * @param {string} version
- * @returns {Object|null}
  */
-export function getVersionInfo(version) {
+export function getVersionInfo(version: string): VersionConfig | null {
   return versions.get(normalizeVersion(version)) || null;
 }
 
 /**
  * List all versions
- *
- * @returns {Array}
  */
-export function listVersions() {
-  const result = [];
+export function listVersions(): Array<VersionConfig & { isDefault: boolean; isCurrent: boolean }> {
+  const result: Array<VersionConfig & { isDefault: boolean; isCurrent: boolean }> = [];
 
-  for (const [version, config] of versions) {
+  for (const [version, versionConfig] of versions) {
     result.push({
-      ...config,
+      ...versionConfig,
       isDefault: version === config.defaultVersion,
       isCurrent: version === getLatestStableVersion(),
     });
@@ -423,12 +478,10 @@ export function listVersions() {
 
 /**
  * Get latest stable version
- *
- * @returns {string}
  */
-export function getLatestStableVersion() {
-  for (const [version, config] of versions) {
-    if (config.status === VERSION_STATUS.STABLE) {
+export function getLatestStableVersion(): string {
+  for (const [version, versionConfig] of versions) {
+    if (versionConfig.status === VERSION_STATUS.STABLE) {
       return version;
     }
   }
@@ -437,13 +490,8 @@ export function getLatestStableVersion() {
 
 /**
  * Transform response for a specific version
- *
- * @param {Object} data - Response data
- * @param {string} version - Target version
- * @param {string} type - Response type: 'list', 'item', 'error'
- * @returns {Object}
  */
-export function transformResponse(data, version, type = 'item') {
+export function transformResponse(data: Record<string, unknown>, version: string, type: 'list' | 'item' | 'error' = 'item'): Record<string, unknown> {
   const normalizedVersion = normalizeVersion(version);
   const transformer = transformers.get(normalizedVersion);
 
@@ -457,21 +505,16 @@ export function transformResponse(data, version, type = 'item') {
 
 /**
  * Register a custom transformer for a version
- *
- * @param {string} version
- * @param {Object} transformer
  */
-export function registerTransformer(version, transformer) {
+export function registerTransformer(version: string, transformer: VersionTransformer): void {
   transformers.set(normalizeVersion(version), transformer);
 }
 
 /**
  * Create version middleware
- *
- * @returns {Function}
  */
-export function versionMiddleware() {
-  return (req, res, next) => {
+export function versionMiddleware(): (req: VersionedRequest, res: ServerResponse, next: () => void) => void {
+  return (req: VersionedRequest, res: ServerResponse, next: () => void) => {
     // Detect version
     const version = getVersion(req);
     req.apiVersion = version;
@@ -513,22 +556,18 @@ export function versionMiddleware() {
 
 /**
  * Track API version usage
- *
- * @param {string} version
- * @param {string} endpoint
- * @param {string} method
  */
-function trackUsage(version, endpoint, method = 'GET') {
+function trackUsage(version: string, endpoint: string, method: string = 'GET'): void {
   if (!usageDir) return;
 
   const today = new Date().toISOString().split('T')[0];
   const usageFile = join(usageDir, `${today}.json`);
 
-  let usage = {};
+  let usage: Record<string, { total: number; endpoints: Record<string, number> }> = {};
   if (existsSync(usageFile)) {
     try {
-      usage = JSON.parse(readFileSync(usageFile, 'utf-8'));
-    } catch (e) {
+      usage = JSON.parse(readFileSync(usageFile, 'utf-8')) as Record<string, { total: number; endpoints: Record<string, number> }>;
+    } catch {
       usage = {};
     }
   }
@@ -537,14 +576,15 @@ function trackUsage(version, endpoint, method = 'GET') {
     usage[version] = { total: 0, endpoints: {} };
   }
 
-  usage[version].total++;
+  usage[version]!.total++;
 
-  const endpointKey = `${method} ${endpoint.split('?')[0]}`;
-  usage[version].endpoints[endpointKey] = (usage[version].endpoints[endpointKey] || 0) + 1;
+  const endpointKey = `${method} ${endpoint.split('?')[0] ?? ''}`;
+  const versionUsage = usage[version]!;
+  versionUsage.endpoints[endpointKey] = (versionUsage.endpoints[endpointKey] ?? 0) + 1;
 
   try {
     writeFileSync(usageFile, JSON.stringify(usage, null, 2) + '\n');
-  } catch (e) {
+  } catch {
     // Ignore write errors
   }
 
@@ -558,28 +598,40 @@ function trackUsage(version, endpoint, method = 'GET') {
   }
 }
 
+/** Options for getUsageStats */
+interface UsageStatsOptions {
+  days?: number;
+}
+
+/** Usage stats result */
+interface UsageStats {
+  period: { days: number; start: string | null; end: string | null };
+  versions: Record<string, { total: number; endpoints: Record<string, number>; byDay: Record<string, number> }>;
+  total: number;
+}
+
 /**
  * Get usage stats
- *
- * @param {Object} options
- * @returns {Object}
  */
-export function getUsageStats(options = {}) {
+export function getUsageStats(options: UsageStatsOptions = {}): UsageStats {
   const { days = 7 } = options;
 
-  const stats = {
+  const stats: UsageStats = {
     period: { days, start: null, end: null },
     versions: {},
     total: 0,
   };
 
+  // usageDir is null when no analytics path is configured; nothing to aggregate
+  if (!usageDir) return stats;
+
   const now = new Date();
-  stats.period.end = now.toISOString().split('T')[0];
+  stats.period.end = now.toISOString().split('T')[0] ?? null;
 
   for (let i = 0; i < days; i++) {
     const date = new Date(now);
     date.setDate(date.getDate() - i);
-    const dateStr = date.toISOString().split('T')[0];
+    const dateStr = date.toISOString().split('T')[0] ?? '';
 
     if (i === days - 1) {
       stats.period.start = dateStr;
@@ -588,7 +640,7 @@ export function getUsageStats(options = {}) {
     const usageFile = join(usageDir, `${dateStr}.json`);
     if (existsSync(usageFile)) {
       try {
-        const dayUsage = JSON.parse(readFileSync(usageFile, 'utf-8'));
+        const dayUsage = JSON.parse(readFileSync(usageFile, 'utf-8')) as Record<string, { total?: number; endpoints?: Record<string, number> }>;
 
         for (const [version, data] of Object.entries(dayUsage)) {
           if (!stats.versions[version]) {
@@ -599,16 +651,18 @@ export function getUsageStats(options = {}) {
             };
           }
 
-          stats.versions[version].total += data.total || 0;
-          stats.versions[version].byDay[dateStr] = data.total || 0;
-          stats.total += data.total || 0;
+          const vStats = stats.versions[version]!;
+          vStats.total += data.total ?? 0;
+          if (dateStr) {
+            vStats.byDay[dateStr] = data.total ?? 0;
+          }
+          stats.total += data.total ?? 0;
 
-          for (const [endpoint, count] of Object.entries(data.endpoints || {})) {
-            stats.versions[version].endpoints[endpoint] =
-              (stats.versions[version].endpoints[endpoint] || 0) + count;
+          for (const [endpoint, count] of Object.entries(data.endpoints ?? {})) {
+            vStats.endpoints[endpoint] = (vStats.endpoints[endpoint] ?? 0) + count;
           }
         }
-      } catch (e) {
+      } catch {
         // Ignore parse errors
       }
     }
@@ -619,19 +673,17 @@ export function getUsageStats(options = {}) {
 
 /**
  * Get changelog for all versions
- *
- * @returns {Array}
  */
-export function getChangelog() {
-  const changelog = [];
+export function getChangelog(): Array<{ version: string; releasedAt: string | null; status: VersionStatus; changes: string[] }> {
+  const changelog: Array<{ version: string; releasedAt: string | null; status: VersionStatus; changes: string[] }> = [];
 
-  for (const [version, config] of versions) {
-    if (config.changes && config.changes.length > 0) {
+  for (const [version, versionConfig] of versions) {
+    if (versionConfig.changes && versionConfig.changes.length > 0) {
       changelog.push({
         version,
-        releasedAt: config.releasedAt,
-        status: config.status,
-        changes: config.changes,
+        releasedAt: versionConfig.releasedAt,
+        status: versionConfig.status,
+        changes: versionConfig.changes,
       });
     }
   }
@@ -644,10 +696,8 @@ export function getChangelog() {
 
 /**
  * Get API documentation structure
- *
- * @returns {Object}
  */
-export function getApiDocs() {
+export function getApiDocs(): Record<string, unknown> {
   return {
     versions: listVersions(),
     currentVersion: getLatestStableVersion(),
@@ -659,10 +709,8 @@ export function getApiDocs() {
 
 /**
  * Get endpoint documentation
- *
- * @returns {Array}
  */
-function getEndpointDocs() {
+function getEndpointDocs(): Array<Record<string, unknown>> {
   // Return standard API endpoints
   return [
     {
@@ -739,27 +787,21 @@ function getEndpointDocs() {
 
 /**
  * Get configuration
- *
- * @returns {Object}
  */
-export function getConfig() {
+export function getConfig(): ApiVersionConfig {
   return { ...config };
 }
 
 /**
  * Check if API versioning is enabled
- *
- * @returns {boolean}
  */
-export function isEnabled() {
+export function isEnabled(): boolean {
   return config.enabled;
 }
 
 /**
  * Get version status constants
- *
- * @returns {Object}
  */
-export function getVersionStatuses() {
+export function getVersionStatuses(): typeof VERSION_STATUS {
   return { ...VERSION_STATUS };
 }

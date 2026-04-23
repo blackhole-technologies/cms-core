@@ -25,33 +25,61 @@
  */
 
 import { watch, existsSync, mkdirSync, appendFileSync, readFileSync } from 'node:fs';
+import type { FSWatcher } from 'node:fs';
 import { join, basename, dirname, relative } from 'node:path';
 import * as config from './config.ts';
+
+// ============= Types =============
+
+/** A watcher log event */
+interface WatcherEvent {
+  timestamp: string;
+  type: string;
+  path: string;
+  message: string | null;
+}
+
+/** Plugin change notification */
+interface PluginChangeEvent {
+  pluginName: string;
+  changeType: string;
+  path: string;
+  timestamp: string;
+}
+
+/** Site config shape needed by watcher */
+interface SiteConfig {
+  env?: string;
+  plugins?: { directory?: string };
+  [key: string]: unknown;
+}
+
+// ============= State =============
 
 /**
  * Active watchers (so we can stop them later)
  */
-const watchers = [];
+const watchers: FSWatcher[] = [];
 
 /**
  * Recent events log (circular buffer, last 50)
  */
-const recentEvents = [];
+const recentEvents: WatcherEvent[] = [];
 const MAX_EVENTS = 50;
 
 /**
  * Debounce tracking to prevent duplicate events
  * WHY: fs.watch often fires 2-3 times for one file change
  */
-const debounceMap = new Map();
+const debounceMap = new Map<string, ReturnType<typeof setTimeout>>();
 const DEBOUNCE_MS = 100;
 
 /**
  * Base directory and config reference
  */
-let baseDir = null;
-let siteConfig = null;
-let logFilePath = null;
+let baseDir: string | null = null;
+let siteConfig: SiteConfig | null = null;
+let logFilePath: string | null = null;
 
 /**
  * Track known modules/themes/plugins for change detection
@@ -66,7 +94,7 @@ const knownPlugins = new Set();
  * Allows plugin system to react to file changes without tight coupling.
  * Boot.js wires this up to trigger reload prompts.
  */
-const pluginChangeCallbacks = [];
+const pluginChangeCallbacks: Array<(event: PluginChangeEvent) => void> = [];
 
 /**
  * Format timestamp for logging
@@ -83,7 +111,7 @@ function timestamp() {
  * @param {string} path - Relative path that changed
  * @param {string} message - Optional additional message
  */
-function logEvent(eventType, path, message = null) {
+function logEvent(eventType: string, path: string, message: string | null = null): void {
   const ts = timestamp();
   const paddedType = eventType.padEnd(8);
   const logLine = `[watcher] ${ts} | ${paddedType} | ${path}`;
@@ -113,7 +141,7 @@ function logEvent(eventType, path, message = null) {
       // WHY SILENT FAIL:
       // Log file errors shouldn't crash the system.
       // Console output still works.
-      console.error(`[watcher] Failed to write log file: ${error.message}`);
+      console.error(`[watcher] Failed to write log file: ${(error as Error).message}`);
     }
   }
 }
@@ -125,7 +153,7 @@ function logEvent(eventType, path, message = null) {
  * @param {string} key - Unique key for this event (path + type)
  * @param {Function} callback - Function to call after debounce
  */
-function debounce(key, callback) {
+function debounce(key: string, callback: () => void): void {
   if (debounceMap.has(key)) {
     clearTimeout(debounceMap.get(key));
   }
@@ -138,8 +166,8 @@ function debounce(key, callback) {
 /**
  * Handle changes in /modules directory
  */
-function handleModuleChange(eventType, filename, fullPath) {
-  const relativePath = relative(baseDir, fullPath);
+function handleModuleChange(eventType: string, filename: string, fullPath: string): void {
+  const relativePath = relative(baseDir!, fullPath);
 
   // New manifest.json = new module detected
   if (filename === 'manifest.json') {
@@ -198,8 +226,8 @@ function handleModuleChange(eventType, filename, fullPath) {
 /**
  * Handle changes in /themes directory
  */
-function handleThemeChange(eventType, filename, fullPath) {
-  const relativePath = relative(baseDir, fullPath);
+function handleThemeChange(eventType: string, filename: string, fullPath: string): void {
+  const relativePath = relative(baseDir!, fullPath);
 
   // New manifest.json in themes = new theme
   if (filename === 'manifest.json') {
@@ -245,8 +273,8 @@ function handleThemeChange(eventType, filename, fullPath) {
  * - Detecting changes enables prompt-for-reload workflow
  * - Development mode can auto-reload on change
  */
-function handlePluginChange(eventType, filename, fullPath) {
-  const relativePath = relative(baseDir, fullPath);
+function handlePluginChange(eventType: string, filename: string, fullPath: string): void {
+  const relativePath = relative(baseDir!, fullPath);
   const pathParts = relativePath.split('/');
 
   // Plugin name is the directory under plugins/
@@ -339,12 +367,12 @@ function handlePluginChange(eventType, filename, fullPath) {
  * @param {string} path - Relative path that changed
  * @private
  */
-function notifyPluginChange(pluginName, changeType, path) {
+function notifyPluginChange(pluginName: string, changeType: string, path: string): void {
   for (const callback of pluginChangeCallbacks) {
     try {
       callback({ pluginName, changeType, path, timestamp: timestamp() });
     } catch (error) {
-      console.error(`[watcher] Plugin change callback error: ${error.message}`);
+      console.error(`[watcher] Plugin change callback error: ${(error as Error).message}`);
     }
   }
 }
@@ -359,7 +387,7 @@ function notifyPluginChange(pluginName, changeType, path) {
  * Allows callers to clean up when they no longer need notifications.
  * Important for hot-swap scenarios where listeners may come and go.
  */
-export function onPluginChange(callback) {
+export function onPluginChange(callback: (event: PluginChangeEvent) => void): () => void {
   pluginChangeCallbacks.push(callback);
   return () => {
     const index = pluginChangeCallbacks.indexOf(callback);
@@ -385,8 +413,8 @@ export function getRecentPluginChanges(limit = 10) {
 /**
  * Handle changes in /config directory
  */
-function handleConfigChange(eventType, filename, fullPath) {
-  const relativePath = relative(baseDir, fullPath);
+function handleConfigChange(eventType: string, filename: string, fullPath: string): void {
+  const relativePath = relative(baseDir!, fullPath);
 
   // Only care about .json files
   if (!filename.endsWith('.json')) {
@@ -408,7 +436,7 @@ function handleConfigChange(eventType, filename, fullPath) {
           `Config reloaded: ${filename}`);
       } catch (error) {
         logEvent('ERROR', relativePath,
-          `Config reload failed: ${error.message}`);
+          `Config reload failed: ${(error as Error).message}`);
       }
     }
   } else if (eventType === 'rename') {
@@ -428,7 +456,7 @@ function handleConfigChange(eventType, filename, fullPath) {
  * @param {string} dir - Directory to watch
  * @param {string} type - 'modules', 'themes', or 'config'
  */
-function watchDirectory(dir, type) {
+function watchDirectory(dir: string, type: string): FSWatcher | null {
   if (!existsSync(dir)) {
     console.warn(`[watcher] Directory not found, skipping: ${dir}`);
     return null;
@@ -468,7 +496,7 @@ function watchDirectory(dir, type) {
 
     return watcher;
   } catch (error) {
-    console.error(`[watcher] Failed to watch ${type}: ${error.message}`);
+    console.error(`[watcher] Failed to watch ${type}: ${(error as Error).message}`);
     return null;
   }
 }
@@ -479,12 +507,12 @@ function watchDirectory(dir, type) {
  * @param {string} dir - Base directory (project root)
  * @param {Object} cfg - Site configuration (for env check)
  */
-export function start(dir, cfg) {
+export function start(dir: string, cfg: SiteConfig): boolean {
   baseDir = dir;
   siteConfig = cfg;
 
   // Setup log directory and file
-  const logsDir = join(baseDir, 'logs');
+  const logsDir = join(dir, 'logs');
   if (!existsSync(logsDir)) {
     mkdirSync(logsDir, { recursive: true });
   }
@@ -492,13 +520,13 @@ export function start(dir, cfg) {
 
   // Directories to watch
   const pluginsDir = cfg?.plugins?.directory
-    ? join(baseDir, cfg.plugins.directory)
-    : join(baseDir, 'plugins');
+    ? join(dir, cfg.plugins.directory)
+    : join(dir, 'plugins');
 
   const watchDirs = [
-    { path: join(baseDir, 'modules'), type: 'modules' },
-    { path: join(baseDir, 'themes'), type: 'themes' },
-    { path: join(baseDir, 'config'), type: 'config' },
+    { path: join(dir, 'modules'), type: 'modules' },
+    { path: join(dir, 'themes'), type: 'themes' },
+    { path: join(dir, 'config'), type: 'config' },
     { path: pluginsDir, type: 'plugins' },
   ];
 

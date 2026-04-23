@@ -61,22 +61,58 @@
 import { readFile, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import * as hooks from './hooks.ts';
+
+// ============= Types =============
+
+/** A single permission definition */
+interface PermissionDef {
+  label: string;
+  module: string;
+  custom?: boolean;
+}
+
+/** A role configuration */
+interface RoleConfig {
+  label: string;
+  inherits?: string[];
+  permissions?: string[];
+}
+
+/** The full permissions configuration stored on disk */
+interface PermissionsConfig {
+  permissions: Record<string, PermissionDef>;
+  roles: Record<string, RoleConfig>;
+}
+
+/** A user object with at least a role and id */
+interface UserRecord {
+  role?: string;
+  id?: string | number;
+  [key: string]: unknown;
+}
+
+/** A content item with optional author_id */
+interface ContentRecord {
+  author_id?: string | number;
+  [key: string]: unknown;
+}
+
 // ============================================================================
 // State
 // ============================================================================
 /**
  * Base directory (set by init)
  */
-let baseDir = null;
+let baseDir: string | null = null;
 /**
  * Auth module reference (set by init)
  */
-let authModule = null;
+let authModule: unknown = null;
 /**
  * Permissions configuration
  * Loaded from config/permissions.json
  */
-let permissionsConfig = {
+let permissionsConfig: PermissionsConfig = {
     permissions: {},
     roles: {},
 };
@@ -85,7 +121,7 @@ let permissionsConfig = {
  * Map<role, Set<permission>>
  * Includes inherited permissions
  */
-const resolvedPermissionsCache = new Map();
+const resolvedPermissionsCache = new Map<string, Set<string>>();
 // ============================================================================
 // Initialization
 // ============================================================================
@@ -96,7 +132,7 @@ const resolvedPermissionsCache = new Map();
  * Permissions build on auth's role system.
  * We need to access user roles from auth.
  */
-export async function init(dir, auth) {
+export async function init(dir: string, auth: unknown): Promise<void> {
     baseDir = dir;
     authModule = auth;
     await loadPermissions();
@@ -107,24 +143,25 @@ export async function init(dir, auth) {
 /**
  * Load permissions from config file
  */
-async function loadPermissions() {
-    const configPath = join(baseDir, 'config', 'permissions.json');
+async function loadPermissions(): Promise<void> {
+    const configPath = join(baseDir!, 'config', 'permissions.json');
     try {
         const data = await readFile(configPath, 'utf-8');
-        permissionsConfig = JSON.parse(data);
+        permissionsConfig = JSON.parse(data) as PermissionsConfig;
         // Clear cache on reload
         resolvedPermissionsCache.clear();
         console.log('[permissions] Loaded permissions config');
     }
     catch (err) {
-        if (err.code === 'ENOENT') {
+        const nodeErr = err as NodeJS.ErrnoException;
+        if (nodeErr.code === 'ENOENT') {
             // Create default config
             permissionsConfig = createDefaultConfig();
             await savePermissions();
             console.log('[permissions] Created default permissions config');
         }
         else {
-            console.error('[permissions] Failed to load config:', err.message);
+            console.error('[permissions] Failed to load config:', nodeErr.message);
             throw err;
         }
     }
@@ -132,22 +169,22 @@ async function loadPermissions() {
 /**
  * Save permissions to config file
  */
-async function savePermissions() {
-    const configPath = join(baseDir, 'config', 'permissions.json');
+async function savePermissions(): Promise<void> {
+    const configPath = join(baseDir!, 'config', 'permissions.json');
     try {
         await writeFile(configPath, JSON.stringify(permissionsConfig, null, 2), 'utf-8');
         // Clear cache when saving
         resolvedPermissionsCache.clear();
     }
     catch (err) {
-        console.error('[permissions] Failed to save config:', err.message);
+        console.error('[permissions] Failed to save config:', (err as Error).message);
         throw err;
     }
 }
 /**
  * Create default permissions configuration
  */
-function createDefaultConfig() {
+function createDefaultConfig(): PermissionsConfig {
     return {
         permissions: {
             // Content permissions
@@ -255,7 +292,7 @@ function createDefaultConfig() {
 /**
  * Define a new permission
  */
-export function definePermission(name, label, module = 'custom') {
+export function definePermission(name: string, label: string, module = 'custom'): void {
     if (!name || typeof name !== 'string') {
         throw new TypeError('Permission name must be a non-empty string');
     }
@@ -269,14 +306,14 @@ export function definePermission(name, label, module = 'custom') {
 /**
  * Get all defined permissions
  */
-export function getPermissions() {
+export function getPermissions(): Record<string, PermissionDef> {
     return { ...permissionsConfig.permissions };
 }
 /**
  * Get permissions by module
  */
-export function getPermissionsByModule(module) {
-    const result = {};
+export function getPermissionsByModule(module: string): Record<string, PermissionDef> {
+    const result: Record<string, PermissionDef> = {};
     for (const [name, def] of Object.entries(permissionsConfig.permissions)) {
         if (def.module === module) {
             result[name] = def;
@@ -290,11 +327,11 @@ export function getPermissionsByModule(module) {
 /**
  * Assign permission to a role
  */
-export async function assignPermission(role, permission) {
+export async function assignPermission(role: string, permission: string): Promise<void> {
     if (!permissionsConfig.roles[role]) {
         throw new Error(`Role not found: ${role}`);
     }
-    const roleConfig = permissionsConfig.roles[role];
+    const roleConfig = permissionsConfig.roles[role]!;
     if (!roleConfig.permissions) {
         roleConfig.permissions = [];
     }
@@ -306,11 +343,11 @@ export async function assignPermission(role, permission) {
 /**
  * Remove permission from a role
  */
-export async function removePermission(role, permission) {
+export async function removePermission(role: string, permission: string): Promise<void> {
     if (!permissionsConfig.roles[role]) {
         throw new Error(`Role not found: ${role}`);
     }
-    const roleConfig = permissionsConfig.roles[role];
+    const roleConfig = permissionsConfig.roles[role]!;
     if (roleConfig.permissions) {
         const index = roleConfig.permissions.indexOf(permission);
         if (index !== -1) {
@@ -322,7 +359,7 @@ export async function removePermission(role, permission) {
 /**
  * Create a new role
  */
-export async function createRole(name, config) {
+export async function createRole(name: string, config: { label?: string; inherits?: string[]; permissions?: string[] }): Promise<void> {
     if (!name || typeof name !== 'string') {
         throw new TypeError('Role name must be a non-empty string');
     }
@@ -339,13 +376,13 @@ export async function createRole(name, config) {
 /**
  * Get role configuration
  */
-export function getRole(role) {
-    return permissionsConfig.roles[role] || null;
+export function getRole(role: string): RoleConfig | null {
+    return permissionsConfig.roles[role] ?? null;
 }
 /**
  * Get all roles
  */
-export function getRoles() {
+export function getRoles(): Record<string, RoleConfig> {
     return { ...permissionsConfig.roles };
 }
 // ============================================================================
@@ -364,10 +401,10 @@ export function getRoles() {
  * If role A inherits from B, and B inherits from A, we detect
  * this and skip to prevent infinite recursion.
  */
-function resolveRolePermissions(role, visited = new Set()) {
+function resolveRolePermissions(role: string, visited = new Set<string>()): Set<string> {
     // Check cache
     if (resolvedPermissionsCache.has(role)) {
-        return resolvedPermissionsCache.get(role);
+        return resolvedPermissionsCache.get(role)!;
     }
     const roleConfig = permissionsConfig.roles[role];
     if (!roleConfig) {
@@ -379,7 +416,7 @@ function resolveRolePermissions(role, visited = new Set()) {
         return new Set();
     }
     visited.add(role);
-    const permissions = new Set();
+    const permissions = new Set<string>();
     // Add direct permissions
     if (roleConfig.permissions) {
         for (const perm of roleConfig.permissions) {
@@ -402,7 +439,7 @@ function resolveRolePermissions(role, visited = new Set()) {
 /**
  * Get all permissions for a role (including inherited)
  */
-export function getRolePermissions(role) {
+export function getRolePermissions(role: string): string[] {
     const permissions = resolveRolePermissions(role);
     return Array.from(permissions);
 }
@@ -414,7 +451,7 @@ export function getRolePermissions(role) {
  * - "content.*" matches "content.article.view", "content.page.edit", etc.
  * - "content.article.*" matches "content.article.view", "content.article.edit", etc.
  */
-function matchPermission(permission, pattern) {
+function matchPermission(permission: string, pattern: string): boolean {
     // Exact match
     if (permission === pattern) {
         return true;
@@ -443,7 +480,7 @@ function matchPermission(permission, pattern) {
  * 4. Check if any permission matches (including wildcards)
  * 5. If denied, emit permission:denied hook
  */
-export async function hasPermission(user, permission) {
+export async function hasPermission(user: UserRecord | null | undefined, permission: string): Promise<boolean> {
     // Hook: allow override
     // The trigger returns the context — handlers can set `granted` on it
     const hookResult = await hooks.trigger('permission:check', {
@@ -479,7 +516,7 @@ export async function hasPermission(user, permission) {
 /**
  * Check if user has any of the given permissions
  */
-export async function hasAnyPermission(user, permissions) {
+export async function hasAnyPermission(user: UserRecord | null | undefined, permissions: string[]): Promise<boolean> {
     for (const permission of permissions) {
         if (await hasPermission(user, permission)) {
             return true;
@@ -490,7 +527,7 @@ export async function hasAnyPermission(user, permissions) {
 /**
  * Check if user has all of the given permissions
  */
-export async function hasAllPermissions(user, permissions) {
+export async function hasAllPermissions(user: UserRecord | null | undefined, permissions: string[]): Promise<boolean> {
     for (const permission of permissions) {
         if (!await hasPermission(user, permission)) {
             return false;
@@ -507,7 +544,7 @@ export async function hasAllPermissions(user, permissions) {
  *
  * If no content provided (creating new), only check general permission.
  */
-export async function checkContentAccess(user, type, operation, content = null) {
+export async function checkContentAccess(user: UserRecord | null | undefined, type: string, operation: string, content: ContentRecord | null = null): Promise<boolean> {
     // Check if operation supports own/any
     const hasOwnership = ['edit', 'delete', 'publish'].includes(operation);
     if (!hasOwnership || !content) {
@@ -516,7 +553,7 @@ export async function checkContentAccess(user, type, operation, content = null) 
         return await hasPermission(user, permission);
     }
     // Check ownership
-    const isOwner = content.author_id === user.id;
+    const isOwner = content.author_id === user?.id;
     if (isOwner) {
         // Check .own permission
         const ownPermission = `content.${type}.${operation}.own`;
@@ -553,7 +590,7 @@ export function getPermissionMatrix() {
         label: def.label,
         module: def.module,
     }));
-    const matrix = {};
+    const matrix: Record<string, Record<string, boolean>> = {};
     for (const role of roles) {
         matrix[role] = {};
         const rolePerms = resolveRolePermissions(role);
@@ -578,7 +615,6 @@ export function getPermissionMatrix() {
 /**
  * Check if permissions system is initialized
  */
-export function isInitialized() {
+export function isInitialized(): boolean {
     return baseDir !== null;
 }
-//# sourceMappingURL=permissions.js.map

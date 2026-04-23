@@ -21,16 +21,60 @@ import { existsSync, accessSync, statfsSync, constants as fsConstants } from 'no
 import { join } from 'node:path';
 import { readFileSync } from 'node:fs';
 
+// ============= Types =============
+
+/** Valid status level for a check */
+type CheckStatus = 'ok' | 'warning' | 'error' | 'info';
+
+/** Result returned by a check function */
+interface CheckResult {
+  status: CheckStatus;
+  message: string;
+  details: Record<string, unknown>;
+}
+
+/** Full status report */
+interface StatusReport {
+  generated: string;
+  overall: CheckStatus;
+  checks: Record<string, CheckResult>;
+}
+
+/** Formatted check entry for admin UI */
+interface FormattedCheck {
+  name: string;
+  status: CheckStatus;
+  message: string;
+  details: Record<string, unknown>;
+}
+
+/** Formatted status for admin UI */
+interface AdminStatus {
+  overall: CheckStatus;
+  generated: string;
+  summary: { total: number; ok: number; warning: number; error: number };
+  checks: FormattedCheck[];
+  recommendations: Array<{ priority: string; check: string; action: string }>;
+}
+
+/** Minimal services map */
+interface ServicesMap {
+  has(key: string): boolean;
+  get(key: string): { trigger?(event: string, ctx: unknown): Promise<unknown>; stats?(): { hitRate: string; size: number; hits: number; misses: number }; getStats?(): { failed: number; pending: number; running: number; enabled?: boolean; totalDocs?: number; totalTerms?: number }; listTypes?(): Array<{ type: string }>; listAll?(type: string): unknown[] } | undefined;
+}
+
+// ============= State =============
+
 // Configuration
-let baseDir = null;
-let services = null;
+let baseDir: string | null = null;
+let services: ServicesMap | null = null;
 
 // Registered checks
-const checks = new Map();
+const checks = new Map<string, () => Promise<CheckResult>>();
 
 // Cached check results
-let lastCheckResults = null;
-let lastCheckTime = null;
+let lastCheckResults: StatusReport | null = null;
+let lastCheckTime: number | null = null;
 const checkCacheTTL = 60000; // 1 minute
 
 // Built-in check names
@@ -51,7 +95,7 @@ const BUILTIN_CHECKS = [
  * @param {string} dir - Base directory
  * @param {Map} serviceMap - Services map
  */
-export function init(dir, serviceMap = null) {
+export function init(dir: string, serviceMap: ServicesMap | null = null): void {
   baseDir = dir;
   services = serviceMap;
 
@@ -72,7 +116,7 @@ export function init(dir, serviceMap = null) {
  *   details: {} // Optional additional data
  * }
  */
-export function registerCheck(name, checkFn) {
+export function registerCheck(name: string, checkFn: () => Promise<CheckResult>): void {
   if (checks.has(name)) {
     console.warn(`[status] Overwriting existing check: ${name}`);
   }
@@ -85,7 +129,7 @@ export function registerCheck(name, checkFn) {
  * @param {boolean} useCache - Use cached results if available
  * @returns {Promise<Object>} Complete status report
  */
-export async function runAllChecks(useCache = true) {
+export async function runAllChecks(useCache = true): Promise<StatusReport> {
   // Use cache if valid
   if (useCache && lastCheckResults && lastCheckTime) {
     const age = Date.now() - lastCheckTime;
@@ -94,7 +138,7 @@ export async function runAllChecks(useCache = true) {
     }
   }
 
-  const report = {
+  const report: StatusReport = {
     generated: new Date().toISOString(),
     overall: 'ok',
     checks: {},
@@ -121,7 +165,7 @@ export async function runAllChecks(useCache = true) {
 
   // Trigger hook
   if (services?.has('hooks')) {
-    await services.get('hooks').trigger('status:report', { report });
+    await services.get('hooks')?.trigger?.('status:report', { report });
   }
 
   return report;
@@ -133,7 +177,7 @@ export async function runAllChecks(useCache = true) {
  * @param {string} name - Check name
  * @returns {Promise<Object>} Check result
  */
-export async function runCheck(name) {
+export async function runCheck(name: string): Promise<CheckResult> {
   const checkFn = checks.get(name);
   if (!checkFn) {
     return {
@@ -147,7 +191,7 @@ export async function runCheck(name) {
 
   // Trigger hook
   if (services?.has('hooks')) {
-    await services.get('hooks').trigger('status:check', { name, result });
+    await services.get('hooks')?.trigger?.('status:check', { name, result });
   }
 
   return result;
@@ -161,7 +205,7 @@ export async function runCheck(name) {
  * @returns {Promise<Object>} Check result
  * @private
  */
-async function runSingleCheck(name, checkFn) {
+async function runSingleCheck(name: string, checkFn: () => Promise<CheckResult>): Promise<CheckResult> {
   try {
     const result = await checkFn();
 
@@ -182,10 +226,11 @@ async function runSingleCheck(name, checkFn) {
     return result;
 
   } catch (error) {
+    const err = error as Error;
     return {
-      status: 'error',
-      message: `Check failed: ${error.message}`,
-      details: { error: error.stack },
+      status: 'error' as CheckStatus,
+      message: `Check failed: ${err.message}`,
+      details: { error: err.stack },
     };
   }
 }
@@ -197,7 +242,7 @@ async function runSingleCheck(name, checkFn) {
  * @returns {string} 'ok', 'warning', or 'error'
  * @private
  */
-function getOverallStatusFromChecks(checkResults) {
+function getOverallStatusFromChecks(checkResults: Record<string, CheckResult>): CheckStatus {
   let hasError = false;
   let hasWarning = false;
 
@@ -239,9 +284,9 @@ export async function getOverallStatus() {
  * @param {string} status - Filter by status ('ok', 'warning', 'error')
  * @returns {Promise<Object>} Filtered checks
  */
-export async function getChecksByStatus(status) {
+export async function getChecksByStatus(status: CheckStatus): Promise<Record<string, CheckResult>> {
   const report = await getStatus();
-  const filtered = {};
+  const filtered: Record<string, CheckResult> = {};
 
   for (const [name, result] of Object.entries(report.checks)) {
     if (result.status === status) {
@@ -270,16 +315,21 @@ export async function formatForCLI() {
   lines.push('');
 
   // Group checks by status
-  const groups = { error: [], warning: [], ok: [] };
+  type CheckGroup = Array<{ name: string; result: CheckResult }>;
+  const groupError: CheckGroup = [];
+  const groupWarning: CheckGroup = [];
+  const groupOk: CheckGroup = [];
   for (const [name, result] of Object.entries(report.checks)) {
-    groups[result.status].push({ name, result });
+    if (result.status === 'error') groupError.push({ name, result });
+    else if (result.status === 'warning') groupWarning.push({ name, result });
+    else groupOk.push({ name, result });
   }
 
   // Display errors first
-  if (groups.error.length > 0) {
+  if (groupError.length > 0) {
     lines.push('ERRORS:');
     lines.push('-'.repeat(60));
-    for (const { name, result } of groups.error) {
+    for (const { name, result } of groupError) {
       lines.push(`[X] ${name}`);
       lines.push(`    ${result.message}`);
       if (Object.keys(result.details).length > 0) {
@@ -290,10 +340,10 @@ export async function formatForCLI() {
   }
 
   // Display warnings
-  if (groups.warning.length > 0) {
+  if (groupWarning.length > 0) {
     lines.push('WARNINGS:');
     lines.push('-'.repeat(60));
-    for (const { name, result } of groups.warning) {
+    for (const { name, result } of groupWarning) {
       lines.push(`[!] ${name}`);
       lines.push(`    ${result.message}`);
       if (Object.keys(result.details).length > 0) {
@@ -304,10 +354,10 @@ export async function formatForCLI() {
   }
 
   // Display OK checks (condensed)
-  if (groups.ok.length > 0) {
+  if (groupOk.length > 0) {
     lines.push('OK:');
     lines.push('-'.repeat(60));
-    for (const { name, result } of groups.ok) {
+    for (const { name, result } of groupOk) {
       lines.push(`[✓] ${name}: ${result.message}`);
     }
   }
@@ -323,10 +373,10 @@ export async function formatForCLI() {
  *
  * @returns {Promise<Object>} Structured data for UI
  */
-export async function formatForAdmin() {
+export async function formatForAdmin(): Promise<AdminStatus> {
   const report = await getStatus();
 
-  const formatted = {
+  const formatted: AdminStatus = {
     overall: report.overall,
     generated: report.generated,
     summary: {
@@ -341,7 +391,7 @@ export async function formatForAdmin() {
 
   // Count and structure checks
   for (const [name, result] of Object.entries(report.checks)) {
-    formatted.summary[result.status]++;
+    formatted.summary[result.status as 'ok' | 'warning' | 'error']++;
     formatted.checks.push({
       name,
       status: result.status,
@@ -352,8 +402,8 @@ export async function formatForAdmin() {
 
   // Sort checks: errors, warnings, ok
   formatted.checks.sort((a, b) => {
-    const priority = { error: 0, warning: 1, ok: 2 };
-    return priority[a.status] - priority[b.status];
+    const priority: Record<string, number> = { error: 0, warning: 1, ok: 2 };
+    return (priority[a.status] ?? 3) - (priority[b.status] ?? 3);
   });
 
   return formatted;
@@ -364,14 +414,14 @@ export async function formatForAdmin() {
  *
  * @returns {Promise<Array>} List of recommendations
  */
-export async function getRecommendations() {
+export async function getRecommendations(): Promise<Array<{ priority: string; check: string; action: string }>> {
   const report = await getStatus();
-  const recommendations = [];
+  const recommendations: Array<{ priority: string; check: string; action: string }> = [];
 
   for (const [name, result] of Object.entries(report.checks)) {
     if (result.status === 'error' || result.status === 'warning') {
       // Extract action from details if available
-      const action = result.details.action || getDefaultRecommendation(name, result);
+      const action = (result.details['action'] as string | undefined) || getDefaultRecommendation(name, result);
       if (action) {
         recommendations.push({
           priority: result.status === 'error' ? 'high' : 'medium',
@@ -393,8 +443,8 @@ export async function getRecommendations() {
  * @returns {string} Recommendation
  * @private
  */
-function getDefaultRecommendation(name, result) {
-  const recommendations = {
+function getDefaultRecommendation(name: string, _result: CheckResult): string {
+  const recommendations: Record<string, string> = {
     security_basics: 'Review security configuration in config file',
     filesystem_permissions: 'Check directory permissions and ownership',
     cache_status: 'Clear cache or check cache configuration',
@@ -403,7 +453,7 @@ function getDefaultRecommendation(name, result) {
     content_integrity: 'Check for orphaned files or corrupted content',
   };
 
-  return recommendations[name] || 'Review system logs for more details';
+  return recommendations[name] ?? 'Review system logs for more details';
 }
 
 // ============================================================
@@ -418,7 +468,7 @@ function registerBuiltinChecks() {
   // Core version check
   registerCheck('core_version', async () => {
     try {
-      const pkgPath = join(baseDir, 'package.json');
+      const pkgPath = join(baseDir!, 'package.json');
       const pkg = JSON.parse(readFileSync(pkgPath, 'utf-8'));
       return {
         status: 'ok',
@@ -427,9 +477,9 @@ function registerBuiltinChecks() {
       };
     } catch (error) {
       return {
-        status: 'error',
+        status: 'error' as CheckStatus,
         message: 'Unable to read package.json',
-        details: { error: error.message },
+        details: { error: (error as Error).message },
       };
     }
   });
@@ -440,7 +490,7 @@ function registerBuiltinChecks() {
     const issues = [];
 
     for (const dir of dirs) {
-      const fullPath = join(baseDir, dir);
+      const fullPath = join(baseDir!, dir);
       try {
         if (existsSync(fullPath)) {
           // Check write access
@@ -463,7 +513,7 @@ function registerBuiltinChecks() {
 
     // Check disk space
     try {
-      const contentPath = join(baseDir, 'content');
+      const contentPath = join(baseDir!, 'content');
       if (existsSync(contentPath)) {
         const stats = statfsSync(contentPath);
         const freeGB = (stats.bavail * stats.bsize) / (1024 ** 3);
@@ -490,7 +540,7 @@ function registerBuiltinChecks() {
   // Configuration validation check
   registerCheck('config_valid', async () => {
     try {
-      const configPath = join(baseDir, 'content/config.json');
+      const configPath = join(baseDir!, 'content/config.json');
 
       if (!existsSync(configPath)) {
         return {
@@ -518,20 +568,20 @@ function registerBuiltinChecks() {
       };
     } catch (error) {
       return {
-        status: 'error',
-        message: `Configuration error: ${error.message}`,
-        details: { error: error.message },
+        status: 'error' as CheckStatus,
+        message: `Configuration error: ${(error as Error).message}`,
+        details: { error: (error as Error).message },
       };
     }
   });
 
   // Security basics check
   registerCheck('security_basics', async () => {
-    const issues = [];
-    let status = 'ok';
+    const issues: string[] = [];
+    let status: CheckStatus = 'ok';
 
     try {
-      const configPath = join(baseDir, 'content/config.json');
+      const configPath = join(baseDir!, 'content/config.json');
 
       if (existsSync(configPath)) {
         const config = JSON.parse(readFileSync(configPath, 'utf-8'));
@@ -574,8 +624,8 @@ function registerBuiltinChecks() {
     } catch (error) {
       return {
         status: 'error',
-        message: `Security check failed: ${error.message}`,
-        details: { error: error.message },
+        message: `Security check failed: ${(error as Error).message}`,
+        details: { error: (error as Error).message },
       };
     }
   });
@@ -592,7 +642,7 @@ function registerBuiltinChecks() {
         };
       }
 
-      const stats = cache.stats();
+      const stats = cache.stats!();
       const hitRate = parseFloat(stats.hitRate) || 0;
 
       if (hitRate < 30 && stats.hits + stats.misses > 100) {
@@ -611,8 +661,8 @@ function registerBuiltinChecks() {
     } catch (error) {
       return {
         status: 'error',
-        message: `Cache check failed: ${error.message}`,
-        details: { error: error.message },
+        message: `Cache check failed: ${(error as Error).message}`,
+        details: { error: (error as Error).message },
       };
     }
   });
@@ -629,7 +679,7 @@ function registerBuiltinChecks() {
         };
       }
 
-      const stats = queue.getStats();
+      const stats = queue.getStats!();
 
       if (stats.failed > 10) {
         return {
@@ -655,8 +705,8 @@ function registerBuiltinChecks() {
     } catch (error) {
       return {
         status: 'error',
-        message: `Queue check failed: ${error.message}`,
-        details: { error: error.message },
+        message: `Queue check failed: ${(error as Error).message}`,
+        details: { error: (error as Error).message },
       };
     }
   });
@@ -673,7 +723,7 @@ function registerBuiltinChecks() {
         };
       }
 
-      const stats = search.getStats();
+      const stats = search.getStats!();
 
       if (!stats.enabled) {
         return {
@@ -699,8 +749,8 @@ function registerBuiltinChecks() {
     } catch (error) {
       return {
         status: 'error',
-        message: `Search check failed: ${error.message}`,
-        details: { error: error.message },
+        message: `Search check failed: ${(error as Error).message}`,
+        details: { error: (error as Error).message },
       };
     }
   });
@@ -721,11 +771,11 @@ function registerBuiltinChecks() {
       // (Implementation would scan filesystem vs. content index)
       // Simplified for this implementation
 
-      const types = content.listTypes();
+      const types = content.listTypes!();
       let totalItems = 0;
 
       for (const { type } of types) {
-        const items = content.listAll(type);
+        const items = content.listAll!(type);
         totalItems += items.length;
       }
 
@@ -737,8 +787,8 @@ function registerBuiltinChecks() {
     } catch (error) {
       return {
         status: 'error',
-        message: `Content integrity check failed: ${error.message}`,
-        details: { error: error.message },
+        message: `Content integrity check failed: ${(error as Error).message}`,
+        details: { error: (error as Error).message },
       };
     }
   });

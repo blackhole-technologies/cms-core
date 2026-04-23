@@ -18,10 +18,75 @@
 import { existsSync, mkdirSync, readFileSync, writeFileSync, readdirSync, unlinkSync } from 'node:fs';
 import { join, basename } from 'node:path';
 
+// ============= Types =============
+
+/** Field definition as stored in an archetype schema */
+interface ArchetypeField {
+  type: string;
+  options?: unknown[];
+  target?: string;
+  from?: string;
+  [key: string]: unknown;
+}
+
+/** In-memory archetype record (includes internal _path) */
+interface ArchetypeRecord {
+  name: string;
+  label: string;
+  description: string;
+  icon: string;
+  fields: Record<string, ArchetypeField>;
+  workflow: { enabled: boolean };
+  revisions: { enabled: boolean; max: number };
+  comments: { enabled: boolean };
+  search: { enabled: boolean; fields: string[] };
+  createdAt: string;
+  updatedAt: string;
+  isSystem: boolean;
+  source?: string;
+  _path?: string;
+  itemCount?: number;
+  [key: string]: unknown;
+}
+
+/** Schema shape for validation */
+interface ArchetypeSchema {
+  fields?: Record<string, ArchetypeField>;
+  label?: string;
+  description?: string;
+  icon?: string;
+  workflow?: { enabled: boolean };
+  revisions?: { enabled: boolean; max: number };
+  comments?: { enabled: boolean };
+  search?: { enabled: boolean; fields: string[] };
+  name?: string;
+  [key: string]: unknown;
+}
+
+/** Minimal content service interface */
+interface ContentService {
+  listTypes(): Array<{ type: string; schema: unknown; source?: string }>;
+  register(type: string, fields: unknown, source: string): void;
+  list(type: string): { total: number };
+}
+
+/** Minimal fields service interface */
+interface FieldsService {
+  listTypes(): string[];
+}
+
+/** Archetype config */
+interface ArchetypeConfig {
+  enabled?: boolean;
+  directory?: string;
+}
+
+// ============= State =============
+
 /**
  * Configuration
  */
-let config = {
+let config: ArchetypeConfig & { enabled: boolean; directory: string } = {
   enabled: true,
   directory: './config/archetypes',
 };
@@ -29,15 +94,15 @@ let config = {
 /**
  * Storage
  */
-let baseDir = null;
-let archetypesDir = null;
-let contentService = null;
-let fieldsService = null;
+let baseDir: string | null = null;
+let archetypesDir: string | null = null;
+let contentService: ContentService | null = null;
+let fieldsService: FieldsService | null = null;
 
 /**
  * Loaded archetypes
  */
-const archetypes = new Map();
+const archetypes = new Map<string, ArchetypeRecord>();
 
 /**
  * System type names (not editable via UI)
@@ -56,7 +121,7 @@ const SYSTEM_TYPES = new Set([
 /**
  * Default icons for common content types
  */
-const DEFAULT_ICONS = {
+const DEFAULT_ICONS: Record<string, string> = {
   article: '📝',
   page: '📄',
   post: '📰',
@@ -83,14 +148,14 @@ const DEFAULT_ICONS = {
  * @param {Object} fieldsSvc - Fields service
  * @param {Object} archetypeConfig - Configuration
  */
-export function init(dir, contentSvc, fieldsSvc, archetypeConfig = {}) {
+export function init(dir: string, contentSvc: ContentService | null, fieldsSvc: FieldsService | null, archetypeConfig: ArchetypeConfig = {}): void {
   baseDir = dir;
   contentService = contentSvc;
   fieldsService = fieldsSvc;
 
   config = { ...config, ...archetypeConfig };
 
-  archetypesDir = join(baseDir, config.directory.replace('./', ''));
+  archetypesDir = join(dir, config.directory.replace('./', ''));
   if (!existsSync(archetypesDir)) {
     mkdirSync(archetypesDir, { recursive: true });
   }
@@ -105,13 +170,13 @@ export function init(dir, contentSvc, fieldsSvc, archetypeConfig = {}) {
 function loadAll() {
   archetypes.clear();
 
-  if (!existsSync(archetypesDir)) return;
+  if (!existsSync(archetypesDir!)) return;
 
-  const files = readdirSync(archetypesDir).filter(f => f.endsWith('.json'));
+  const files = readdirSync(archetypesDir!).filter((f: string) => f.endsWith('.json'));
 
   for (const file of files) {
     try {
-      const path = join(archetypesDir, file);
+      const path = join(archetypesDir!, file);
       const data = JSON.parse(readFileSync(path, 'utf-8'));
       const name = basename(file, '.json');
 
@@ -122,7 +187,7 @@ function loadAll() {
         _path: path,
       });
     } catch (error) {
-      console.warn(`[archetypes] Failed to load ${file}: ${error.message}`);
+      console.warn(`[archetypes] Failed to load ${file}: ${(error as Error).message}`);
     }
   }
 }
@@ -133,8 +198,8 @@ function loadAll() {
  * @param {string} name
  * @returns {string}
  */
-function getPath(name) {
-  return join(archetypesDir, `${name}.json`);
+function getPath(name: string): string {
+  return join(archetypesDir!, `${name}.json`);
 }
 
 /**
@@ -143,7 +208,7 @@ function getPath(name) {
  * @param {string} name
  * @returns {{ valid: boolean, error?: string }}
  */
-function validateName(name) {
+function validateName(name: string): { valid: boolean; error?: string } {
   if (!name || typeof name !== 'string') {
     return { valid: false, error: 'Name is required' };
   }
@@ -169,7 +234,7 @@ function validateName(name) {
  * @param {Object} schema
  * @returns {{ valid: boolean, errors: string[] }}
  */
-export function validateSchema(schema) {
+export function validateSchema(schema: ArchetypeSchema | null | undefined): { valid: boolean; errors: string[] } {
   const errors = [];
 
   if (!schema || typeof schema !== 'object') {
@@ -190,7 +255,7 @@ export function validateSchema(schema) {
       'select', 'multiselect', 'reference', 'file', 'image', 'json', 'array',
     ];
 
-  for (const [fieldName, fieldDef] of Object.entries(schema.fields)) {
+  for (const [fieldName, fieldDef] of Object.entries(schema.fields as Record<string, ArchetypeField>)) {
     // Validate field name
     if (!/^[a-zA-Z][a-zA-Z0-9_]*$/.test(fieldName)) {
       errors.push(`Field "${fieldName}": invalid name format`);
@@ -237,7 +302,7 @@ export function validateSchema(schema) {
  * @param {Object} definition
  * @returns {{ success: boolean, error?: string, archetype?: Object }}
  */
-export function createArchetype(name, definition) {
+export function createArchetype(name: string, definition: ArchetypeSchema): { success: boolean; error?: string; archetype?: ArchetypeRecord } {
   // Validate name
   const nameCheck = validateName(name);
   if (!nameCheck.valid) {
@@ -252,7 +317,7 @@ export function createArchetype(name, definition) {
   // Check if content type already exists from module
   if (contentService) {
     const types = contentService.listTypes();
-    if (types.find(t => t.type === name)) {
+    if (types.find((t: { type: string }) => t.type === name)) {
       return { success: false, error: `Content type "${name}" already exists (from module)` };
     }
   }
@@ -264,16 +329,18 @@ export function createArchetype(name, definition) {
   }
 
   const now = new Date().toISOString();
-  const archetype = {
+  // fields is guaranteed non-undefined here because validateSchema passed
+  const fields = definition.fields as Record<string, ArchetypeField>;
+  const archetype: ArchetypeRecord = {
     name,
     label: definition.label || name.charAt(0).toUpperCase() + name.slice(1),
     description: definition.description || '',
-    icon: definition.icon || DEFAULT_ICONS[name] || DEFAULT_ICONS.default,
-    fields: definition.fields,
+    icon: definition.icon || DEFAULT_ICONS[name] || DEFAULT_ICONS['default'] || '📁',
+    fields,
     workflow: definition.workflow || { enabled: false },
     revisions: definition.revisions || { enabled: true, max: 10 },
     comments: definition.comments || { enabled: false },
-    search: definition.search || { enabled: true, fields: Object.keys(definition.fields).slice(0, 3) },
+    search: definition.search || { enabled: true, fields: Object.keys(fields).slice(0, 3) },
     createdAt: now,
     updatedAt: now,
     isSystem: false,
@@ -284,7 +351,7 @@ export function createArchetype(name, definition) {
   try {
     writeFileSync(path, JSON.stringify(archetype, null, 2) + '\n');
   } catch (error) {
-    return { success: false, error: `Failed to save: ${error.message}` };
+    return { success: false, error: `Failed to save: ${(error as Error).message}` };
   }
 
   // Store in memory
@@ -305,7 +372,7 @@ export function createArchetype(name, definition) {
  * @param {Object} updates
  * @returns {{ success: boolean, error?: string, archetype?: Object }}
  */
-export function updateArchetype(name, updates) {
+export function updateArchetype(name: string, updates: ArchetypeSchema): { success: boolean; error?: string; archetype?: ArchetypeRecord } {
   const existing = archetypes.get(name);
   if (!existing) {
     return { success: false, error: `Archetype "${name}" not found` };
@@ -337,9 +404,9 @@ export function updateArchetype(name, updates) {
 
   // Save to file
   try {
-    writeFileSync(existing._path, JSON.stringify(toSave, null, 2) + '\n');
+    writeFileSync(existing._path!, JSON.stringify(toSave, null, 2) + '\n');
   } catch (error) {
-    return { success: false, error: `Failed to save: ${error.message}` };
+    return { success: false, error: `Failed to save: ${(error as Error).message}` };
   }
 
   // Update in memory
@@ -355,7 +422,7 @@ export function updateArchetype(name, updates) {
  * @param {Object} options
  * @returns {{ success: boolean, error?: string }}
  */
-export function deleteArchetype(name, options = {}) {
+export function deleteArchetype(name: string, options: { force?: boolean } = {}): { success: boolean; error?: string } {
   const existing = archetypes.get(name);
   if (!existing) {
     return { success: false, error: `Archetype "${name}" not found` };
@@ -375,11 +442,11 @@ export function deleteArchetype(name, options = {}) {
 
   // Delete file
   try {
-    if (existsSync(existing._path)) {
-      unlinkSync(existing._path);
+    if (existsSync(existing._path!)) {
+      unlinkSync(existing._path!);
     }
   } catch (error) {
-    return { success: false, error: `Failed to delete: ${error.message}` };
+    return { success: false, error: `Failed to delete: ${(error as Error).message}` };
   }
 
   // Remove from memory
@@ -394,7 +461,7 @@ export function deleteArchetype(name, options = {}) {
  * @param {string} name
  * @returns {Object|null}
  */
-export function getArchetype(name) {
+export function getArchetype(name: string): ArchetypeRecord | null {
   return archetypes.get(name) || null;
 }
 
@@ -404,7 +471,7 @@ export function getArchetype(name) {
  * @param {Object} options
  * @returns {Array}
  */
-export function listArchetypes(options = {}) {
+export function listArchetypes(options: { includeSystem?: boolean; includeModules?: boolean } = {}): Array<Record<string, unknown>> {
   const { includeSystem = true, includeModules = true } = options;
 
   const result = [];
@@ -458,7 +525,7 @@ export function listArchetypes(options = {}) {
  * @param {string} name
  * @returns {{ success: boolean, data?: Object, error?: string }}
  */
-export function exportArchetype(name) {
+export function exportArchetype(name: string): { success: boolean; data?: Record<string, unknown>; error?: string } {
   const archetype = archetypes.get(name);
   if (!archetype) {
     // Try to get from content types
@@ -496,7 +563,7 @@ export function exportArchetype(name) {
  * @param {Object} options
  * @returns {{ success: boolean, archetype?: Object, error?: string }}
  */
-export function importArchetype(data, options = {}) {
+export function importArchetype(data: ArchetypeSchema | null | undefined, options: { overwrite?: boolean; rename?: string | null } = {}): { success: boolean; archetype?: ArchetypeRecord; error?: string } {
   const { overwrite = false, rename = null } = options;
 
   if (!data || typeof data !== 'object') {
@@ -573,8 +640,8 @@ export function getFieldTypes() {
  * @param {string} type
  * @returns {Object}
  */
-function getFieldTypeInfo(type) {
-  const info = {
+function getFieldTypeInfo(type: string): Record<string, unknown> {
+  const info: Record<string, Record<string, unknown>> = {
     string: { description: 'Short text input', hasMaxLength: true },
     text: { description: 'Multi-line text', hasMaxLength: true },
     markdown: { description: 'Markdown editor', hasMaxLength: true },
@@ -606,7 +673,7 @@ function getFieldTypeInfo(type) {
  *
  * @returns {Array}
  */
-export function getReferenceTargets() {
+export function getReferenceTargets(): Array<{ name: string; source: string }> {
   const targets = [];
 
   // From archetypes
@@ -632,7 +699,7 @@ export function getReferenceTargets() {
  * @param {string} name
  * @returns {boolean}
  */
-export function isSystemType(name) {
+export function isSystemType(name: string): boolean {
   return SYSTEM_TYPES.has(name);
 }
 
