@@ -21,6 +21,12 @@ backups/
 # Runtime state (not source of truth)
 content/.search/
 content/.sessions/
+content/.cache/
+content/.locks/
+content/.queue/
+content/.previews/
+content/.notifications/
+content/.activity/
 content/taskrun/
 content/history/
 content/ban/
@@ -29,6 +35,9 @@ content/**/.revisions/
 config/.registry.json
 .autoforge/*.db
 .autoforge/*.db-journal
+
+# Tooling session state (MCP, browser-automation, etc.)
+.playwright-mcp/
 
 # Admin user record — churns lastLogin/updated on every login.
 # Untracked in Task 0.6 (ce24f2e); ignored here to keep it out of `git status`.
@@ -43,3 +52,8 @@ content/user/1769870756954-jymy1.json
 # Build artifacts (none today, future-proof)
 dist/
 build/
+
+# Archived historical artifacts (handoffs, session logs, backup DBs, screenshots).
+# Untracked in PR 0.5a (2026-04-24); historical SHAs still carry these — a later
+# `git filter-repo` pass in PR 0.5b can purge them from history if desired.
+.archive/
