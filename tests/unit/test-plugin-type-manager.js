@@ -3,7 +3,7 @@
  * Test script for Plugin Type Manager (Feature #1)
  */
 
-import * as pluginTypeManager from '../../core/plugin-type-manager.js';
+import * as pluginTypeManager from '../../core/plugin-type-manager.ts';
 
 console.log('Testing Plugin Type Manager...\n');
 
@@ -56,8 +56,8 @@ test('listPluginTypes() returns all types', () => {
   const types = pluginTypeManager.listPluginTypes();
   if (types.length < 2) throw new Error('Expected at least 2 types');
 
-  const fieldType = types.find(t => t.name === 'field_type');
-  const blockType = types.find(t => t.name === 'block_type');
+  const fieldType = types.find((t) => t.name === 'field_type');
+  const blockType = types.find((t) => t.name === 'block_type');
   if (!fieldType || !blockType) throw new Error('Types missing from list');
 });
 
@@ -95,7 +95,7 @@ test('validatePluginType() rejects invalid instance', () => {
 test('validatePluginType() handles unknown type', () => {
   const result = pluginTypeManager.validatePluginType('nonexistent', {});
   if (result.valid) throw new Error('Should have failed for unknown type');
-  if (!result.errors.some(e => e.includes('Unknown plugin type'))) {
+  if (!result.errors.some((e) => e.includes('Unknown plugin type'))) {
     throw new Error('Expected unknown type error');
   }
 });
@@ -156,7 +156,7 @@ test('validatePluginType() validates required fields', () => {
   const result = pluginTypeManager.validatePluginType('strict_type', invalidInstance);
 
   if (result.valid) throw new Error('Should fail validation for missing required field');
-  if (!result.errors.some(e => e.includes('label'))) {
+  if (!result.errors.some((e) => e.includes('label'))) {
     throw new Error('Should mention missing label field');
   }
 });
@@ -177,7 +177,7 @@ test('validatePluginType() validates field types', () => {
   const result = pluginTypeManager.validatePluginType('typed_type', invalidInstance);
 
   if (result.valid) throw new Error('Should fail validation for wrong type');
-  if (!result.errors.some(e => e.includes('count'))) {
+  if (!result.errors.some((e) => e.includes('count'))) {
     throw new Error('Should mention count field type error');
   }
 });

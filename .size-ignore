@@ -1,0 +1,186 @@
+# File-size exceptions — grandfathered at Phase 0 PR 0.1 (2026-04-24).
+#
+# Each entry below exceeds the ceiling stated in Invariant #3 of
+# docs/plans/2026-04-24-top-tier-roadmap.md:
+#   - src/core (and current core/):    500 lines
+#   - src/modules (and current modules/): 800 lines
+#   - Root-level entry points:         500 lines
+#
+# Every file here is scheduled for refactor in a named roadmap phase. New files
+# MUST respect the ceiling at creation time — .size-ignore is not a place to
+# add new entries; it only grandfathers what already exists on 2026-04-24.
+#
+# Maintenance rule: when a phase completes, its files here should have dropped
+# below the ceiling and be removed from this file. If a file remains after its
+# target phase is "done," the refactor is incomplete.
+#
+# Format: <path>  # <lines> lines — <target phase / rationale>
+
+#
+# === Phase 1 — TS port + file split (boot, workspaces, cli, remaining core .js) ===
+#
+core/boot.js                              # 4463 lines — splits to src/core/boot/{init,discover,register,run}.ts in PR 1.6
+core/workspaces.js                        # 3951 lines — splits to src/core/workspaces/ subpackage in PR 1.7
+core/cli.js                               # 2479 lines — splits to src/core/cli/commands/*.ts in PR 1.8
+core/plugins.js                           # 1250 lines — ports and splits in PR 1.9
+core/graphql.js                           # 1171 lines — ports in PR 1.9; extracted to @cms-core/plugin-graphql in Phase 14
+core/backup.js                            # 994 lines — ports and splits in PR 1.9
+core/webform.js                           # 987 lines — ports and splits in PR 1.9
+core/jsonapi.js                           # 974 lines — ports in PR 1.9
+core/cache-backend.js                     # 909 lines — ports in PR 1.9; replaced by PG-backed cache in Phase 3
+core/contact.js                           # 886 lines — ports in PR 1.9
+core/transfer.js                          # 862 lines — ports in PR 1.9
+core/constraints.js                       # 832 lines — ports in PR 1.9
+core/user-fields.js                       # 804 lines — ports in PR 1.9; coordinates with Phase 10 auth rewrite
+core/notifications.js                     # 749 lines — ports in PR 1.9
+core/favorites.js                         # 610 lines — ports in PR 1.9
+core/history.js                           # 526 lines — ports in PR 1.9
+core/lib/Hook/HookManager.js              # 613 lines — ports in PR 1.9; replaced by hook rewrite in Phase 5
+core/lib/Config/ConfigEntityStorage.js    # 602 lines — ports in PR 1.9; replaced by Phase 4 config management
+core/lib/Entity/EntityTypeManager.js      # 542 lines — ports in PR 1.9; replaced by Phase 2 entity system
+core/lib/DependencyInjection/Container.js # 503 lines — ports in PR 1.9
+
+#
+# === Phase 2 — Postgres foundation + Field API ===
+#
+core/content.ts                           # 4992 lines — replaced by operations layer + repositories (PR 2.10)
+core/fields.ts                            # 1781 lines — replaced by Field API registries (PR 2.11–2.13)
+core/field-storage.ts                     # 1161 lines — replaced by FieldStorageSchemaBuilder (PR 2.5)
+core/database.ts                          # 1247 lines — replaced by DatabaseAdapter + Drizzle (PR 2.8)
+core/pg-client.ts                         # 1108 lines — replaced by Drizzle connection factory (PR 2.1)
+core/content-types.ts                     # 927 lines — replaced by EntityTypeSchemaBuilder + schema config (PR 2.4)
+core/entity.ts                            # 736 lines — split across repositories (PR 2.10)
+core/entity-types.ts                      # 657 lines — replaced by entity_type_definitions metadata (PR 2.3)
+core/entity-reference.ts                  # 813 lines — absorbed into relationship field type (PR 2.11)
+core/entity-view-builder.ts               # 638 lines — replaced by FieldFormatter (PR 2.13)
+core/display-modes.ts                     # 744 lines — replaced by FieldFormatter + display-mode config (PR 2.13)
+core/archetypes.ts                        # 733 lines — overlap-with-content-types resolved per ADR in Phase 4 config work
+core/blueprints.ts                        # 539 lines — resolved by Phase 4 config management
+core/typed-data.ts                        # 615 lines — superseded by Zod-based field validation (Phase 2)
+core/menu.ts                              # 1249 lines — menu is an entity type; split during Phase 2
+core/taxonomy.ts                          # 1102 lines — taxonomy is an entity type; split during Phase 2
+core/comments.ts                          # 620 lines — comments is an entity type; split during Phase 2
+core/i18n.ts                              # 671 lines — field-level localization integration in Phase 2; remainder Phase 16
+core/regions.ts                           # 810 lines — replaced by nested-entity blocks (PR 2.6)
+core/form.ts                              # 1517 lines — form field rendering moves to FieldWidget (PR 2.12)
+core/forms.ts                             # 1010 lines — merges/splits with form.ts during Phase 2
+core/validation.ts                        # 998 lines — replaced by Zod-per-field validators registered with FieldType (Phase 2)
+core/blocks.ts                            # 1365 lines — replaced by nested-entity blocks (PR 2.6)
+core/layout-builder.ts                    # 1438 lines — refactored around nested-entity blocks (Phase 2)
+
+#
+# === Phase 3 — Cache Tags ===
+#
+core/render.ts                            # 1234 lines — replaced by CacheableRenderContext + tagged invalidation
+
+#
+# === Phase 4 — Config Management with UUIDs + dependencies ===
+#
+core/config-management.ts                 # 861 lines — rewritten for UUIDs + dependency graph
+core/compare.ts                           # 722 lines — config-compare absorbed into Phase 4 config:diff
+
+#
+# === Phase 5 — Access control + hooks + plugins ===
+#
+core/auth.ts                              # 1212 lines — access-filter path refactors in Phase 5; session work moves to Phase 10
+core/permissions.ts                       # 620 lines — refactored to support Where-returning Access functions
+core/actions.ts                           # 1565 lines — split during hook/action unification in Phase 5
+core/csrf.ts                              # 519 lines — minor refactor during Phase 5 permission middleware work (19 LOC over)
+
+#
+# === Phase 6 — Admin module split + template modernization + a11y ===
+#
+modules/admin/index.js                    # 17545 lines — split into 7 feature routers (PR 6.2–6.8)
+core/template.ts                          # 886 lines — partials added PR 6.10; layout split PR 6.11
+core/theme-system.ts                      # 1271 lines — split during admin modernization
+core/theme-engine.ts                      # 646 lines — split during admin modernization
+core/theme-settings.ts                    # 638 lines — split during admin modernization
+core/accessibility.ts                     # 1214 lines — a11y pass (PR 6.15)
+core/contextual.ts                        # 629 lines — admin contextual links
+core/icons.ts                             # 820 lines — admin icon work
+
+#
+# === Phase 7 — Security hardening ===
+#
+core/ratelimit.ts                         # 646 lines — replaced by rate-limiter-flexible + PG adapter
+core/update.ts                            # 1252 lines — security-sensitive (registry downloads); hardened in Phase 7
+
+#
+# === Phase 8 — Media + image transforms ===
+#
+core/media.ts                             # 786 lines — split behind UploadAdapter interface (PR 8.1)
+core/media-library.ts                     # 1110 lines — split across upload adapters (Phase 8)
+core/image-styles.ts                      # 886 lines — replaced by URL-transform route (PR 8.6)
+core/responsive-images.ts                 # 866 lines — absorbed into URL-transform route (PR 8.6)
+core/oembed.ts                            # 862 lines — split; SSRF guard integration in Phase 7
+
+#
+# === Phase 9 — Rich text + islands ===
+#
+core/editor.ts                            # 1442 lines — reduced to thin TipTap island host
+core/text-formats.ts                      # 690 lines — refactored around ProseMirror JSON
+core/tokens.ts                            # 637 lines — token replacement during rich text work
+
+#
+# === Phase 10 — Auth modernization ===
+#
+modules/users/index.js                    # 1615 lines — split + ported during Phase 10 auth rewrite
+
+#
+# === Phase 11 — Revisions + releases + live preview ===
+#
+core/preview.ts                           # 807 lines — refactored around Craft-style signed tokens
+core/workflow-advanced.ts                 # 776 lines — workflow superseded by releases; cleanup in Phase 16
+
+#
+# === Phase 13 — Jobs + search ===
+#
+core/queue.ts                             # 1037 lines — replaced by graphile-worker
+core/scheduler.ts                         # 824 lines — replaced by graphile-worker scheduled actions
+core/cron.ts                              # 824 lines — replaced by graphile-worker
+core/batch.ts                             # 700 lines — replaced by graphile-worker batch runner
+core/search.ts                            # 1066 lines — split behind SearchProvider interface
+core/email.ts                             # 854 lines — replaced by nodemailer + adapter interface
+
+#
+# === Phase 14 — API tiering ===
+#
+core/api-version.ts                       # 807 lines — absorbed into operations layer + OpenAPI generator
+core/ajax.ts                              # 1132 lines — split during admin router migration (Phase 6) + API tiering
+core/router.ts                            # 555 lines — reorganized around three route tiers
+core/feeds.ts                             # 818 lines — part of delivery API surface
+core/sitemap.ts                           # 819 lines — part of delivery API surface
+
+#
+# === Phase 15 — Observability ===
+#
+core/analytics.ts                         # 1075 lines — replaced by /metrics Prometheus endpoint + pino logs
+core/activity.ts                          # 1067 lines — rolled into structured audit_log + pino
+core/audit.ts                             # 1066 lines — refactored around audit_log tamper-chain (Phase 7 + 15)
+core/status.ts                            # 804 lines — reduced to /health endpoint
+core/watcher.ts                           # 594 lines — split during observability pass
+core/locks.ts                             # 573 lines — replaced by PG advisory locks (Phase 2); cleanup Phase 15
+
+#
+# === Phase 16 — Cleanup sweep (no dedicated earlier phase) ===
+#
+core/seo.ts                               # 1597 lines — standalone subsystem; split in Phase 16 or as its own mini-phase
+core/views.ts                             # 896 lines — orphan per prior audit; Phase 16 cleanup
+core/path-aliases.ts                      # 796 lines — URL alias; touched during Phase 14 API tiering
+core/help.ts                              # 514 lines — minor refactor (14 LOC over)
+
+#
+# === AI subsystem — over-built for stage; candidate for separate package post-1.0 ===
+#
+core/ai-stats.ts                          # 882 lines — refactored during Phase 15 observability
+core/ai-agents.ts                         # 652 lines — AI subsystem refactor (post-1.0 extraction candidate)
+modules/ai_dashboard/index.js             # 2449 lines — AI subsystem refactor (post-1.0 extraction candidate)
+modules/ai_image_alt/index.js             # 1687 lines — AI subsystem refactor (post-1.0 extraction candidate)
+
+#
+# === Smaller modules — split/port opportunistically during Phase 1 ports ===
+#
+modules/linkit/index.js                   # 1122 lines — ports in PR 1.10; split during its feature touch
+modules/tagify-widget/index.js            # 1039 lines — ports in PR 1.10; widget work in Phase 2 may split it
+modules/field-group/field-storage.js      # 1058 lines — refactored during Phase 2 Field API work
+modules/conscious/index.js                # 848 lines — 48 LOC over; minor split in Phase 1 or 6

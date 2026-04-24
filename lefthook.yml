@@ -1,0 +1,46 @@
+# Git hooks — managed by lefthook (github.com/evilmartians/lefthook).
+#
+# WHY these hooks exist:
+#   Invariant #6 of the top-tier roadmap ("CI is the truth") means CI must never
+#   see a regression that a local check could have caught. Hooks are the local
+#   mirror of CI: commits run the cheap checks, pushes run the expensive ones.
+#   A push that goes red in CI is a push that should have been red on your laptop.
+#
+# DESIGN split — fast commits, rigorous pushes:
+#   pre-commit  — Biome check (format + lint) on staged files only. Sub-second.
+#   pre-push    — Full `npm run check` (typecheck + lint + test + size + layers
+#                 + drift). This takes ~10–30s today and will grow; acceptable
+#                 because push is a less-frequent boundary than commit.
+#
+# See: docs/plans/2026-04-24-top-tier-roadmap.md (Phase 0 PR 0.4).
+
+pre-commit:
+  parallel: true
+  jobs:
+    # Biome `check` combines formatting + lint in one pass. `--write` auto-fixes
+    # trivially fixable issues and `stage_fixed: true` re-stages the fixes, so
+    # the resulting commit is clean without developer intervention.
+    #
+    # WHY the shell guard: running `lefthook run pre-commit` manually with no
+    # staged files expands `{staged_files}` to empty, and biome without file
+    # args falls back to scanning the whole project — which is both slow AND
+    # can clobber un-staged work in flight (learned the hard way). The guard
+    # short-circuits the job when there's nothing staged that matches glob.
+    - name: biome
+      glob: "*.{ts,tsx,js,mjs,cjs,json,jsonc}"
+      run: |
+        if [ -z "{staged_files}" ]; then exit 0; fi
+        npx biome check --write {staged_files}
+      stage_fixed: true
+
+pre-push:
+  jobs:
+    # The composite runs the same sequence CI runs (typecheck → lint → test →
+    # file-size → layer-boundaries → schema-drift). A local failure means the
+    # push would go red in CI anyway.
+    - name: full-check
+      run: npm run check
+
+# Skipping hooks (e.g. `git commit --no-verify`) is allowed by git itself; lefthook
+# doesn't fight that. Project convention: never use --no-verify unless explicitly
+# requested. See CLAUDE.md.

@@ -1,41 +1,102 @@
+# WHY this workflow is split into separate jobs:
+#   Each check is its own job so it can be individually required as a branch-
+#   protection status check (see .github/BRANCH-PROTECTION.md). A single-job
+#   structure forces all-or-nothing protection and hides which check blocked.
+#
+# WHY version-independent checks run only on Node 25.x:
+#   typecheck, lint, size, layers, and drift are deterministic on Node version —
+#   the matrix tax only buys signal for `test`, which exercises runtime behavior.
+#   Running typecheck 3 times to cover the matrix wastes 2 minutes per PR.
+#
+# Node version policy:
+#   engines.node = >=22.0.0. `test` matrix covers the three LTS-adjacent lines
+#   (22 current LTS, 24, 25). Other jobs use 25.x as "newest we support."
+
 name: ci
 
 on:
   push:
-    branches: [main]
+    branches: [main, next]
   pull_request:
-    branches: [main]
+    branches: [main, next]
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
 
 jobs:
-  check:
-    name: typecheck + lint + test (Node ${{ matrix.node }})
+  typecheck:
+    name: typecheck
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 25.x
+          cache: npm
+      - run: npm ci
+      - run: npm run typecheck
+
+  lint:
+    name: lint
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 25.x
+          cache: npm
+      - run: npm ci
+      - run: npm run lint
+
+  test:
+    name: test (Node ${{ matrix.node }})
     runs-on: ubuntu-latest
     strategy:
       fail-fast: false
       matrix:
         node: ['22.x', '24.x', '25.x']
     steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-
-      - name: Set up Node.js
-        uses: actions/setup-node@v4
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
         with:
           node-version: ${{ matrix.node }}
-          cache: 'npm'
+          cache: npm
+      - run: npm ci
+      - run: npm test
 
-      - name: Install dependencies
-        run: npm ci
+  file-size:
+    name: file-size
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 25.x
+          cache: npm
+      - run: npm ci
+      - run: npm run check:size
 
-      - name: Typecheck
-        run: npm run typecheck
+  layer-boundaries:
+    name: layer-boundaries
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 25.x
+          cache: npm
+      - run: npm ci
+      - run: npm run check:layers
 
-      - name: Lint
-        run: npm run lint
-
-      - name: Test
-        run: npm test
+  schema-drift:
+    name: schema-drift
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 25.x
+          cache: npm
+      - run: npm ci
+      - run: npm run check:drift

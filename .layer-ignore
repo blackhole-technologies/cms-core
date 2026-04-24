@@ -1,0 +1,18 @@
+# Layer-boundary exceptions — grandfathered edges that violate the rules in
+# scripts/check-layer-boundaries.ts.
+#
+# This file is intentionally empty on creation (2026-04-24): the current codebase
+# has ZERO core -> modules imports, which is the only rule active today. Other
+# rules (e.g. src/core/security -> src/core/rendering) activate as Phase 1 of
+# the roadmap creates those subfolders. New violations introduced then should
+# be fixed in the PR that introduces them; add an entry here only if the fix
+# depends on a named later phase.
+#
+# Format:
+#   <source-path> -> <target-path>  # <reason + phase>
+#
+# Paths are normalized (no extension, no trailing /index). Match the format
+# emitted by `npm run check:layers -- list-violations`.
+#
+# Maintenance rule: when a phase completes, entries for work that phase
+# resolved should be removed. If an entry remains, the refactor is incomplete.
