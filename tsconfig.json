@@ -15,14 +15,10 @@
   "include": [
     "core/**/*.ts",
     "modules/**/*.ts",
+    "src/**/*.ts",
     "index.ts",
     "server.ts",
     "build.ts"
   ],
-  "exclude": [
-    "node_modules",
-    "public",
-    "themes",
-    "content"
-  ]
+  "exclude": ["node_modules", "public", "themes", "content"]
 }
