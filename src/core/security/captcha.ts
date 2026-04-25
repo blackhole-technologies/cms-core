@@ -29,7 +29,7 @@
  * Drupal parity: equivalent to `captcha` + `friendlycaptcha` contrib modules.
  */
 
-import { createHmac, createHash, randomBytes } from 'node:crypto';
+import { createHash, createHmac, randomBytes } from 'node:crypto';
 
 // ============================================================================
 // Types
@@ -83,7 +83,9 @@ export function init(
     config = { ...config, ...captchaConfig };
   }
   secret = context?.sessionSecret || 'captcha-fallback-secret';
-  console.log(`[captcha] Initialized (enabled: ${config.enabled}, difficulty: ${config.difficulty})`);
+  console.log(
+    `[captcha] Initialized (enabled: ${config.enabled}, difficulty: ${config.difficulty})`
+  );
 }
 
 /**
@@ -140,11 +142,13 @@ export function generateField(): string {
   const sig = signAnswer(answer, timestamp);
   const token = `${timestamp}.${sig}`;
 
-  return `<div class="captcha-group">` +
+  return (
+    `<div class="captcha-group">` +
     `<label for="captcha_answer">${question}</label>` +
     `<input type="number" name="captcha_answer" id="captcha_answer" required autocomplete="off" class="form-input" style="max-width:120px;">` +
     `<input type="hidden" name="captcha_token" value="${token}">` +
-    `</div>`;
+    `</div>`
+  );
 }
 
 /**
@@ -177,7 +181,9 @@ function signPowEnvelope(challenge: string, bits: number, timestamp: number): st
  */
 export function verifyPow(challenge: string, nonce: string, bits: number): boolean {
   // Plain SHA-256, matching the client's `crypto.subtle.digest("SHA-256", …)`.
-  const hash = createHash('sha256').update(challenge + nonce, 'utf8').digest();
+  const hash = createHash('sha256')
+    .update(challenge + nonce, 'utf8')
+    .digest();
   const fullBytes = Math.floor(bits / 8);
   const remainBits = bits % 8;
 
@@ -187,7 +193,7 @@ export function verifyPow(challenge: string, nonce: string, bits: number): boole
   if (remainBits > 0 && fullBytes < hash.length) {
     const byte = hash[fullBytes];
     if (byte === undefined) return false;
-    if ((byte >> (8 - remainBits)) !== 0) return false;
+    if (byte >> (8 - remainBits) !== 0) return false;
   }
   return true;
 }
@@ -206,7 +212,8 @@ function generatePowField(): string {
 
   // Inline JS that computes the proof-of-work using SubtleCrypto (async, non-blocking).
   // The client and server MUST agree on the hash: plain SHA-256 of (challenge || nonce).
-  return `<div class="captcha-group captcha-pow" data-difficulty="${bits}">` +
+  return (
+    `<div class="captcha-group captcha-pow" data-difficulty="${bits}">` +
     `<input type="hidden" name="captcha_token" value="${powToken}">` +
     `<input type="hidden" name="captcha_nonce" id="captcha_nonce" value="">` +
     `<span class="captcha-pow-status">Verifying you are human...</span>` +
@@ -231,7 +238,8 @@ function generatePowField(): string {
     `break;}}` +
     `})();` +
     `</script>` +
-    `</div>`;
+    `</div>`
+  );
 }
 
 /**

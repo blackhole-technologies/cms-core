@@ -43,25 +43,27 @@ await test('restructure moves files and rewrites cross-file imports', async () =
     assert.equal(existsSync(join(tmp, 'src/foo.ts')), true, 'new path should exist');
 
     // bar.ts is in the root and imported foo via './foo.ts'; should now point
-    // into ./src/foo
+    // to './src/foo.ts' — extension MUST be preserved (Node ESM runtime
+    // requirement for cms-core; see preserveImportExtensions in the codemod).
     const barContent = readFileSync(join(tmp, 'bar.ts'), 'utf-8');
-    assert.match(barContent, /from\s+['"]\.\/src\/foo/, `bar.ts:\n${barContent}`);
+    assert.match(barContent, /from\s+['"]\.\/src\/foo\.ts['"]/, `bar.ts:\n${barContent}`);
 
-    // baz/baz.ts is in a subdir and imported foo via '../foo.ts'; should now
-    // point to '../src/foo'
+    // baz/baz.ts is in a subdir; should now point to '../src/foo.ts'
     const bazContent = readFileSync(join(tmp, 'baz/baz.ts'), 'utf-8');
-    assert.match(bazContent, /from\s+['"]\.\.\/src\/foo/, `baz/baz.ts:\n${bazContent}`);
+    assert.match(bazContent, /from\s+['"]\.\.\/src\/foo\.ts['"]/, `baz/baz.ts:\n${bazContent}`);
 
-    // Both bar.ts and baz/baz.ts should be reported as having had imports
-    // updated.
-    assert.ok(
-      report.filesWithImportUpdates.some((p) => p.endsWith('bar.ts')),
-      `bar.ts not reported as updated: ${JSON.stringify(report.filesWithImportUpdates)}`
-    );
-    assert.ok(
-      report.filesWithImportUpdates.some((p) => p.endsWith('baz/baz.ts')),
-      `baz/baz.ts not reported as updated: ${JSON.stringify(report.filesWithImportUpdates)}`
-    );
+    // js-importer.js (a plain .js file) imports './foo.ts' — verifies allowJs
+    // loaded the JS layer into the project so its imports got rewritten.
+    const jsContent = readFileSync(join(tmp, 'js-importer.js'), 'utf-8');
+    assert.match(jsContent, /from\s+['"]\.\/src\/foo\.ts['"]/, `js-importer.js:\n${jsContent}`);
+
+    // All three importers should be reported as updated.
+    for (const expected of ['bar.ts', 'baz/baz.ts', 'js-importer.js']) {
+      assert.ok(
+        report.filesWithImportUpdates.some((p) => p.endsWith(expected)),
+        `${expected} not reported as updated: ${JSON.stringify(report.filesWithImportUpdates)}`
+      );
+    }
   } finally {
     rmSync(tmp, { recursive: true, force: true });
   }
@@ -118,12 +120,13 @@ await test('restructure dry-run does not write changes to disk', async () => {
     assert.equal(existsSync(join(tmp, 'foo.ts')), true, 'old path must still exist');
     assert.equal(existsSync(join(tmp, 'src/foo.ts')), false, 'new path must not exist');
 
-    // bar.ts on disk should not have been rewritten either
+    // bar.ts on disk should not have been rewritten either — must still
+    // contain the original './foo.ts' import (with extension preserved).
     const barContent = readFileSync(join(tmp, 'bar.ts'), 'utf-8');
     assert.match(
       barContent,
-      /from\s+['"]\.\/foo/,
-      `bar.ts should still import './foo':\n${barContent}`
+      /from\s+['"]\.\/foo\.ts['"]/,
+      `bar.ts should still import './foo.ts':\n${barContent}`
     );
   } finally {
     rmSync(tmp, { recursive: true, force: true });
@@ -147,10 +150,10 @@ await test('restructure handles multiple mappings in one call', async () => {
     assert.equal(existsSync(join(tmp, 'src/foo.ts')), true);
     assert.equal(existsSync(join(tmp, 'src/bar.ts')), true);
 
-    // bar.ts moved to src/bar.ts and its import to foo (also moved to src/foo.ts)
-    // should be a same-directory './foo' reference now.
+    // bar.ts moved to src/bar.ts and its import to foo (also moved to
+    // src/foo.ts) should be a same-directory './foo.ts' reference now.
     const movedBar = readFileSync(join(tmp, 'src/bar.ts'), 'utf-8');
-    assert.match(movedBar, /from\s+['"]\.\/foo/, `src/bar.ts:\n${movedBar}`);
+    assert.match(movedBar, /from\s+['"]\.\/foo\.ts['"]/, `src/bar.ts:\n${movedBar}`);
   } finally {
     rmSync(tmp, { recursive: true, force: true });
   }

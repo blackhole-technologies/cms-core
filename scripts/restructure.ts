@@ -27,7 +27,7 @@
  */
 
 import { existsSync, readFileSync } from 'node:fs';
-import { relative, resolve } from 'node:path';
+import { dirname, relative, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { parseArgs } from 'node:util';
 
@@ -79,13 +79,18 @@ export function restructure(options: RestructureOptions): RestructureReport {
   // rewriting needs only the source-file graph. If a tsconfig exists at the
   // root, we use it (slightly faster initial parse), otherwise we set up a
   // bare Project.
+  // `allowJs` makes ts-morph load `.js` files into the project graph so their
+  // imports can be tracked alongside `.ts` files. cms-core has many `.js`
+  // files importing `.ts` files (the in-flight TS port is mid-rename), so
+  // every restructure must walk both layers.
   const tsConfigPath = resolve(projectRoot, 'tsconfig.json');
   const project = existsSync(tsConfigPath)
     ? new Project({
         tsConfigFilePath: tsConfigPath,
         skipAddingFilesFromTsConfig: true,
+        compilerOptions: { allowJs: true },
       })
-    : new Project();
+    : new Project({ compilerOptions: { allowJs: true } });
 
   // Walk the project and add every TS/JS source file. Excludes are aligned
   // with what's gitignored or otherwise non-source.
@@ -130,7 +135,15 @@ export function restructure(options: RestructureOptions): RestructureReport {
     report.filesMoved.push(mapping);
   }
 
-  // Snapshot AFTER moves; diff to find files whose imports changed.
+  // After moves, ts-morph's default specifier-rewriter strips file extensions
+  // (it emits TS-conventional `'./csrf'` rather than `'./csrf.ts'`). cms-core
+  // runs under Node ESM with `--experimental-strip-types`, which requires
+  // explicit extensions, so we re-add them here. Idempotent: imports that
+  // already have an extension are left alone.
+  preserveImportExtensions(project);
+
+  // Snapshot AFTER moves + extension fix; diff to find files whose imports
+  // changed.
   const afterSnapshot = snapshotImports(project);
   const movedToPaths = new Set(report.filesMoved.map((m) => resolve(projectRoot, m.to)));
   for (const [path, afterImports] of afterSnapshot) {
@@ -147,6 +160,39 @@ export function restructure(options: RestructureOptions): RestructureReport {
   }
 
   return report;
+}
+
+/**
+ * Walks every source file's imports and re-attaches a file extension to any
+ * relative module specifier that doesn't have one, when a real `.ts`/`.tsx`/
+ * `.js`/`.mjs`/`.cjs` file exists at the resolved location. Required because
+ * ts-morph's `SourceFile.move()` strips extensions from rewritten imports
+ * (TS-conventional output), which breaks Node ESM's runtime resolver.
+ *
+ * Idempotent — running on already-extensionful imports is a no-op.
+ */
+function preserveImportExtensions(project: Project): void {
+  const candidateExts = ['.ts', '.tsx', '.js', '.mjs', '.cjs'] as const;
+  const extRegex = /\.(ts|tsx|js|mjs|cjs|jsx|json)$/;
+
+  for (const sf of project.getSourceFiles()) {
+    const sfDir = dirname(sf.getFilePath());
+    for (const imp of sf.getImportDeclarations()) {
+      const spec = imp.getModuleSpecifierValue();
+      if (!spec.startsWith('./') && !spec.startsWith('../')) continue;
+      if (extRegex.test(spec)) continue;
+      // Check the in-memory project graph rather than the file system —
+      // moves performed via SourceFile.move() are not flushed to disk until
+      // project.saveSync(), and this function runs before that flush.
+      for (const ext of candidateExts) {
+        const candidate = resolve(sfDir, spec + ext);
+        if (project.getSourceFile(candidate)) {
+          imp.setModuleSpecifier(spec + ext);
+          break;
+        }
+      }
+    }
+  }
 }
 
 function snapshotImports(project: Project): Map<string, string[]> {
