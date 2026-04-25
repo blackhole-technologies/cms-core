@@ -57,8 +57,37 @@ await test('restructure moves files and rewrites cross-file imports', async () =
     const jsContent = readFileSync(join(tmp, 'js-importer.js'), 'utf-8');
     assert.match(jsContent, /from\s+['"]\.\/src\/foo\.ts['"]/, `js-importer.js:\n${jsContent}`);
 
-    // All three importers should be reported as updated.
-    for (const expected of ['bar.ts', 'baz/baz.ts', 'js-importer.js']) {
+    // dynamic-importer.js loads foo via `await import('./foo.ts')`. After the
+    // move, the dynamic-import argument must STILL carry the .ts extension
+    // (Node ESM runtime resolver requires it). PR 1.3 added this case to
+    // preserveImportExtensions after the cms-core PR 1.3 move surfaced a
+    // boot.js dynamic import losing its extension.
+    const dynamicContent = readFileSync(join(tmp, 'dynamic-importer.js'), 'utf-8');
+    assert.match(
+      dynamicContent,
+      /import\s*\(\s*['"]\.\/src\/foo\.ts['"]\s*\)/,
+      `dynamic-importer.js:\n${dynamicContent}`
+    );
+
+    // jsdoc-importer.js references foo via `@type {import('./foo.ts')}`. After
+    // the move, the JSDoc `import()` argument must still carry the .ts
+    // extension (tsc with allowJs + checkJs and TypeScript-aware IDEs need
+    // it to resolve the type). Same gap as dynamic imports — fixed together.
+    const jsdocContent = readFileSync(join(tmp, 'jsdoc-importer.js'), 'utf-8');
+    assert.match(
+      jsdocContent,
+      /import\(['"]\.\/src\/foo\.ts['"]\)/,
+      `jsdoc-importer.js:\n${jsdocContent}`
+    );
+
+    // All five importers should be reported as updated.
+    for (const expected of [
+      'bar.ts',
+      'baz/baz.ts',
+      'js-importer.js',
+      'dynamic-importer.js',
+      'jsdoc-importer.js',
+    ]) {
       assert.ok(
         report.filesWithImportUpdates.some((p) => p.endsWith(expected)),
         `${expected} not reported as updated: ${JSON.stringify(report.filesWithImportUpdates)}`

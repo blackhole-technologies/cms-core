@@ -39,7 +39,7 @@
 
 import { promises as fs } from 'node:fs';
 import { join } from 'node:path';
-import * as fields from './fields.ts';
+import * as fields from '../src/core/entities/fields.ts';
 import * as hooks from './hooks.ts';
 
 /**
@@ -121,7 +121,7 @@ async function loadFieldDefinitions() {
 async function saveFieldDefinitions() {
   const config = {
     fields: userFields,
-    categories: categories
+    categories: categories,
   };
 
   try {
@@ -146,7 +146,7 @@ function getDefaultFields() {
       visibility: 'public',
       registration: false,
       user_editable: true,
-      settings: { rows: 5, maxlength: 500 }
+      settings: { rows: 5, maxlength: 500 },
     },
     location: {
       label: 'Location',
@@ -155,7 +155,7 @@ function getDefaultFields() {
       weight: 10,
       visibility: 'authenticated',
       registration: false,
-      user_editable: true
+      user_editable: true,
     },
     avatar: {
       label: 'Profile Picture',
@@ -165,8 +165,8 @@ function getDefaultFields() {
       visibility: 'public',
       registration: true,
       user_editable: true,
-      settings: { max_size: '2MB', dimensions: '200x200' }
-    }
+      settings: { max_size: '2MB', dimensions: '200x200' },
+    },
   };
 }
 
@@ -178,7 +178,7 @@ function getDefaultCategories() {
     about: { label: 'About', weight: 0 },
     contact: { label: 'Contact Info', weight: 10 },
     social: { label: 'Social Links', weight: 20 },
-    preferences: { label: 'Preferences', weight: 30 }
+    preferences: { label: 'Preferences', weight: 30 },
   };
 }
 
@@ -223,7 +223,7 @@ export async function defineField(name, config) {
     required: config.required || false,
     settings: config.settings || {},
     default: config.default,
-    validate: config.validate
+    validate: config.validate,
   };
 
   // Save to config file
@@ -268,7 +268,7 @@ export async function updateField(name, updates) {
 
   userFields[name] = {
     ...userFields[name],
-    ...updates
+    ...updates,
   };
 
   await saveFieldDefinitions();
@@ -428,7 +428,7 @@ export async function validateProfileData(data) {
       label: field.label,
       required: field.required,
       validate: field.validate,
-      ...field.settings
+      ...field.settings,
     };
   }
 
@@ -447,14 +447,14 @@ export async function validateProfileData(data) {
     if (!result.valid) {
       errors.push({
         field: name,
-        message: result.error
+        message: result.error,
       });
     }
   }
 
   return {
     valid: errors.length === 0,
-    errors
+    errors,
   };
 }
 
@@ -486,7 +486,7 @@ export async function saveProfile(userId, data) {
   const profile = {
     userId,
     data: profileData,
-    updatedAt: new Date().toISOString()
+    updatedAt: new Date().toISOString(),
   };
 
   // Trigger before hook
@@ -558,7 +558,8 @@ export async function renderProfileForm(userId, viewer) {
   }
 
   // Render form
-  let html = '<form method="POST" action="/profile/save" enctype="multipart/form-data" class="profile-form">';
+  let html =
+    '<form method="POST" action="/profile/save" enctype="multipart/form-data" class="profile-form">';
 
   // Trigger form hook
   const hookContext = { userId, html };
@@ -736,7 +737,7 @@ export async function defineCategory(name, config) {
 
   categories[name] = {
     label: config.label || name,
-    weight: config.weight !== undefined ? config.weight : 0
+    weight: config.weight !== undefined ? config.weight : 0,
   };
 
   await saveFieldDefinitions();
@@ -777,7 +778,7 @@ export async function updateCategory(name, updates) {
 
   categories[name] = {
     ...categories[name],
-    ...updates
+    ...updates,
   };
 
   await saveFieldDefinitions();

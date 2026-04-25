@@ -2,7 +2,7 @@
  * Test suite for entity-view-builder.js
  */
 
-import * as entityViewBuilder from '../../core/entity-view-builder.ts';
+import * as entityViewBuilder from '../../src/core/entities/entity-view-builder.ts';
 
 // Mock services and container for registration
 const mockServices = {
@@ -192,7 +192,7 @@ const testEntityLongBody = {
   },
 };
 const teaserView = entityViewBuilder.buildView(testEntityLongBody, 'teaser');
-const bodyField = teaserView.fields.find(f => f.name === 'body');
+const bodyField = teaserView.fields.find((f) => f.name === 'body');
 assert(bodyField !== undefined, 'Body field exists in teaser');
 assert(bodyField.formatted.length < 300, 'Body is truncated in teaser mode');
 

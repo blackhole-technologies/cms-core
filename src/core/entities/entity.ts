@@ -35,7 +35,7 @@
  */
 
 import { randomUUID } from 'node:crypto';
-import * as hooks from './hooks.ts';
+import * as hooks from '../../../core/hooks.ts';
 
 // ============================================
 // TYPE DEFINITIONS
@@ -51,7 +51,11 @@ interface StorageBackend {
  * Storage backends are untyped (come from JS modules with dynamic dispatch),
  * so we use this helper to safely invoke methods without noUncheckedIndexedAccess issues.
  */
-function callStorage(storage: StorageBackend | null, method: string, ...args: unknown[]): Promise<unknown> {
+function callStorage(
+  storage: StorageBackend | null,
+  method: string,
+  ...args: unknown[]
+): Promise<unknown> {
   const fn = (storage as Record<string, unknown>)?.[method];
   if (typeof fn !== 'function') {
     throw new Error(`Storage backend does not implement method: ${method}`);
@@ -147,7 +151,7 @@ export function init(storage: StorageConfig = {}): void {
     labelField: 'title',
     bundleField: 'type',
     idField: 'id',
-    hooks: true
+    hooks: true,
   });
 
   registerEntityType('user', {
@@ -155,7 +159,7 @@ export function init(storage: StorageConfig = {}): void {
     labelField: 'username',
     bundleField: null,
     idField: 'id',
-    hooks: true
+    hooks: true,
   });
 
   registerEntityType('term', {
@@ -163,7 +167,7 @@ export function init(storage: StorageConfig = {}): void {
     labelField: 'name',
     bundleField: 'vocabulary',
     idField: 'id',
-    hooks: true
+    hooks: true,
   });
 
   registerEntityType('media', {
@@ -171,7 +175,7 @@ export function init(storage: StorageConfig = {}): void {
     labelField: 'filename',
     bundleField: 'type',
     idField: 'id',
-    hooks: true
+    hooks: true,
   });
 
   registerEntityType('block', {
@@ -179,7 +183,7 @@ export function init(storage: StorageConfig = {}): void {
     labelField: 'title',
     bundleField: 'type',
     idField: 'id',
-    hooks: true
+    hooks: true,
   });
 
   registerEntityType('menu_link', {
@@ -187,7 +191,7 @@ export function init(storage: StorageConfig = {}): void {
     labelField: 'title',
     bundleField: 'menu',
     idField: 'id',
-    hooks: true
+    hooks: true,
   });
 }
 
@@ -202,7 +206,10 @@ export function init(storage: StorageConfig = {}): void {
  * @param {string} config.idField - Field containing entity ID
  * @param {boolean} config.hooks - Enable hooks for this entity type
  */
-export function registerEntityType(type: string, config: Partial<EntityTypeConfig> & { storage: StorageBackend | null }): void {
+export function registerEntityType(
+  type: string,
+  config: Partial<EntityTypeConfig> & { storage: StorageBackend | null }
+): void {
   if (!config.storage && type !== 'menu_link') {
     throw new Error(`Entity type "${type}" requires storage backend`);
   }
@@ -212,7 +219,7 @@ export function registerEntityType(type: string, config: Partial<EntityTypeConfi
     labelField: config.labelField || 'title',
     bundleField: config.bundleField ?? null,
     idField: config.idField || 'id',
-    hooks: config.hooks !== false
+    hooks: config.hooks !== false,
   });
 }
 
@@ -243,7 +250,11 @@ export function listEntityTypes(): string[] {
  * @param {Object} data - Entity data
  * @returns {Promise<Object>} Created entity
  */
-export async function create(entityType: string, bundle: string, data: Record<string, unknown>): Promise<Entity> {
+export async function create(
+  entityType: string,
+  bundle: string,
+  data: Record<string, unknown>
+): Promise<Entity> {
   const typeConfig = getEntityType(entityType);
   if (!typeConfig) {
     throw new Error(`Unknown entity type: ${entityType}`);
@@ -257,7 +268,7 @@ export async function create(entityType: string, bundle: string, data: Record<st
     uuid: randomUUID(),
     created: new Date().toISOString(),
     updated: new Date().toISOString(),
-    ...data
+    ...data,
   };
 
   // Validate entity
@@ -273,19 +284,24 @@ export async function create(entityType: string, bundle: string, data: Record<st
   let savedEntity: Entity;
   switch (entityType) {
     case 'content':
-      savedEntity = await callStorage(typeConfig.storage, 'create', bundle, entity) as Entity;
+      savedEntity = (await callStorage(typeConfig.storage, 'create', bundle, entity)) as Entity;
       break;
     case 'user':
-      savedEntity = await callStorage(typeConfig.storage, 'createUser', entity) as Entity;
+      savedEntity = (await callStorage(typeConfig.storage, 'createUser', entity)) as Entity;
       break;
     case 'term':
-      savedEntity = await callStorage(typeConfig.storage, 'createTerm', (entity as Record<string, unknown>).vocabulary, entity) as Entity;
+      savedEntity = (await callStorage(
+        typeConfig.storage,
+        'createTerm',
+        (entity as Record<string, unknown>).vocabulary,
+        entity
+      )) as Entity;
       break;
     case 'media':
-      savedEntity = await callStorage(typeConfig.storage, 'create', entity) as Entity;
+      savedEntity = (await callStorage(typeConfig.storage, 'create', entity)) as Entity;
       break;
     case 'block':
-      savedEntity = await callStorage(typeConfig.storage, 'create', entity) as Entity;
+      savedEntity = (await callStorage(typeConfig.storage, 'create', entity)) as Entity;
       break;
     default:
       throw new Error(`Entity type "${entityType}" does not support create()`);
@@ -359,10 +375,8 @@ export async function load(entityType: string, id: string): Promise<Entity | nul
  * @returns {Promise<Array<Object>>} Array of entities
  */
 export async function loadMultiple(entityType: string, ids: string[]): Promise<Entity[]> {
-  const entities = await Promise.all(
-    ids.map(id => load(entityType, id))
-  );
-  return entities.filter(entity => entity !== null);
+  const entities = await Promise.all(ids.map((id) => load(entityType, id)));
+  return entities.filter((entity) => entity !== null);
 }
 
 /**
@@ -403,29 +417,44 @@ export async function save(entity: Entity): Promise<Entity> {
   let savedEntity: Entity;
   switch (entity.entityType) {
     case 'content':
-      savedEntity = (isNew
-        ? await callStorage(typeConfig.storage, 'create', entity.bundle, entity)
-        : await callStorage(typeConfig.storage, 'update', entity.id, entity)) as Entity;
+      savedEntity = (
+        isNew
+          ? await callStorage(typeConfig.storage, 'create', entity.bundle, entity)
+          : await callStorage(typeConfig.storage, 'update', entity.id, entity)
+      ) as Entity;
       break;
     case 'user':
-      savedEntity = (isNew
-        ? await callStorage(typeConfig.storage, 'createUser', entity)
-        : await callStorage(typeConfig.storage, 'updateUser', entity.id, entity)) as Entity;
+      savedEntity = (
+        isNew
+          ? await callStorage(typeConfig.storage, 'createUser', entity)
+          : await callStorage(typeConfig.storage, 'updateUser', entity.id, entity)
+      ) as Entity;
       break;
     case 'term':
-      savedEntity = (isNew
-        ? await callStorage(typeConfig.storage, 'createTerm', (entity as Record<string, unknown>).vocabulary, entity)
-        : await callStorage(typeConfig.storage, 'updateTerm', entity.id, entity)) as Entity;
+      savedEntity = (
+        isNew
+          ? await callStorage(
+              typeConfig.storage,
+              'createTerm',
+              (entity as Record<string, unknown>).vocabulary,
+              entity
+            )
+          : await callStorage(typeConfig.storage, 'updateTerm', entity.id, entity)
+      ) as Entity;
       break;
     case 'media':
-      savedEntity = (isNew
-        ? await callStorage(typeConfig.storage, 'create', entity)
-        : await callStorage(typeConfig.storage, 'update', entity.id, entity)) as Entity;
+      savedEntity = (
+        isNew
+          ? await callStorage(typeConfig.storage, 'create', entity)
+          : await callStorage(typeConfig.storage, 'update', entity.id, entity)
+      ) as Entity;
       break;
     case 'block':
-      savedEntity = (isNew
-        ? await callStorage(typeConfig.storage, 'create', entity)
-        : await callStorage(typeConfig.storage, 'update', entity.id, entity)) as Entity;
+      savedEntity = (
+        isNew
+          ? await callStorage(typeConfig.storage, 'create', entity)
+          : await callStorage(typeConfig.storage, 'update', entity.id, entity)
+      ) as Entity;
       break;
     default:
       throw new Error(`Entity type "${entity.entityType}" does not support save()`);
@@ -536,37 +565,41 @@ export function query(entityType: string): EntityQueryBuilder {
 
       switch (entityType) {
         case 'content': {
-          const types = await callStorage(typeConfig.storage, 'listTypes') as string[];
+          const types = (await callStorage(typeConfig.storage, 'listTypes')) as string[];
           for (const type of types) {
-            const items = await callStorage(typeConfig.storage, 'list', type) as Entity[];
+            const items = (await callStorage(typeConfig.storage, 'list', type)) as Entity[];
             entities.push(...items.map((item: Entity) => ({ ...item, entityType, bundle: type })));
           }
           break;
         }
         case 'user': {
-          const users = await callStorage(typeConfig.storage, 'listUsers') as Entity[];
+          const users = (await callStorage(typeConfig.storage, 'listUsers')) as Entity[];
           entities = users.map((user: Entity) => ({ ...user, entityType, bundle: null }));
           break;
         }
         case 'term': {
-          const vocabs = await callStorage(typeConfig.storage, 'listVocabularies') as string[];
+          const vocabs = (await callStorage(typeConfig.storage, 'listVocabularies')) as string[];
           for (const vocab of vocabs) {
-            const terms = await callStorage(typeConfig.storage, 'listTerms', vocab) as Entity[];
+            const terms = (await callStorage(typeConfig.storage, 'listTerms', vocab)) as Entity[];
             entities.push(...terms.map((term: Entity) => ({ ...term, entityType, bundle: vocab })));
           }
           break;
         }
         case 'media':
-          entities = (await callStorage(typeConfig.storage, 'list') as Entity[]).map((item: Entity) => ({ ...item, entityType, bundle: item.type as string | null }));
+          entities = ((await callStorage(typeConfig.storage, 'list')) as Entity[]).map(
+            (item: Entity) => ({ ...item, entityType, bundle: item.type as string | null })
+          );
           break;
         case 'block':
-          entities = (await callStorage(typeConfig.storage, 'list') as Entity[]).map((item: Entity) => ({ ...item, entityType, bundle: item.type as string | null }));
+          entities = ((await callStorage(typeConfig.storage, 'list')) as Entity[]).map(
+            (item: Entity) => ({ ...item, entityType, bundle: item.type as string | null })
+          );
           break;
       }
 
       // Apply conditions
-      entities = entities.filter(entity => {
-        return conditions.every(cond => {
+      entities = entities.filter((entity) => {
+        return conditions.every((cond) => {
           const fieldValue = entity[cond.field];
 
           // Cast to comparable types for relational operators
@@ -617,7 +650,7 @@ export function query(entityType: string): EntityQueryBuilder {
       }
 
       return entities;
-    }
+    },
   };
 }
 
@@ -629,7 +662,11 @@ export function query(entityType: string): EntityQueryBuilder {
  * @param {Object} user - User to check access for
  * @returns {Promise<boolean>} True if access granted
  */
-export async function access(entity: Entity, operation: string, user: Record<string, unknown>): Promise<boolean> {
+export async function access(
+  entity: Entity,
+  operation: string,
+  user: Record<string, unknown>
+): Promise<boolean> {
   const context: Record<string, unknown> = { entity, operation, user, access: true };
 
   await hooks.trigger('entity:access', context);
@@ -678,7 +715,10 @@ export function getLabel(entity: Entity): string {
  * @param {Object} typeConfig - Entity type config (optional)
  * @returns {string|null} Bundle name
  */
-export function getBundle(entity: Record<string, unknown>, typeConfig: EntityTypeConfig | null = null): string | null {
+export function getBundle(
+  entity: Record<string, unknown>,
+  typeConfig: EntityTypeConfig | null = null
+): string | null {
   if (!typeConfig) {
     typeConfig = getEntityType(entity.entityType as string);
   }
@@ -707,12 +747,15 @@ export function toArray(entity: Entity): Record<string, unknown> {
  * @param {Object} data - Serialized data
  * @returns {Object} Entity object
  */
-export function fromArray(entityType: string, data: Record<string, unknown>): Record<string, unknown> {
+export function fromArray(
+  entityType: string,
+  data: Record<string, unknown>
+): Record<string, unknown> {
   const typeConfig = getEntityType(entityType);
   return {
     ...data,
     entityType,
-    bundle: getBundle(data, typeConfig)
+    bundle: getBundle(data, typeConfig),
   };
 }
 
@@ -732,5 +775,5 @@ export default {
   getLabel,
   getBundle,
   toArray,
-  fromArray
+  fromArray,
 };
