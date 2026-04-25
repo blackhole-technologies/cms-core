@@ -22,6 +22,7 @@
     "check:size": "node --experimental-strip-types scripts/check-file-size.ts",
     "check:layers": "node --experimental-strip-types scripts/check-layer-boundaries.ts",
     "check:drift": "node --experimental-strip-types scripts/check-schema-drift.ts",
+    "restructure": "node --experimental-strip-types scripts/restructure.ts",
     "check": "npm run typecheck && npm run lint && npm test && npm run check:size && npm run check:layers && npm run check:drift"
   },
   "keywords": [
@@ -51,6 +52,7 @@
     "@types/node": "^22.19.11",
     "esbuild": "^0.24.0",
     "lefthook": "^2.1.6",
+    "ts-morph": "^28.0.0",
     "typescript": "^5.9.3"
   }
 }
