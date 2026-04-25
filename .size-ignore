@@ -184,3 +184,21 @@ modules/linkit/index.js                   # 1122 lines — ports in PR 1.10; spl
 modules/tagify-widget/index.js            # 1039 lines — ports in PR 1.10; widget work in Phase 2 may split it
 modules/field-group/field-storage.js      # 1058 lines — refactored during Phase 2 Field API work
 modules/conscious/index.js                # 848 lines — 48 LOC over; minor split in Phase 1 or 6
+
+#
+# === Pre-existing in-flight TS port renames — both states grandfathered ===
+#
+# These files are mid-rename from .js → .ts in an uncommitted local workdir.
+# Until the rename commits (Phase 1 PRs 1.6–1.10), CI sees the .js versions
+# and contributors with the rebased rename see the .ts versions. Both states
+# need to grandfather, so the .ts entries above are paired with these .js
+# entries below. When the rename lands and the .js files are deleted from
+# HEAD, these entries should be removed.
+core/blueprints.js                        # 535 lines — superseded by core/blueprints.ts (above)
+core/compare.js                           # 634 lines — superseded by core/compare.ts (above)
+core/config-management.js                 # 803 lines — superseded by core/config-management.ts (above)
+core/email.js                             # 771 lines — superseded by core/email.ts (above)
+core/locks.js                             # 548 lines — superseded by core/locks.ts (above)
+core/preview.js                           # 772 lines — superseded by core/preview.ts (above)
+core/views.js                             # 793 lines — superseded by core/views.ts (above)
+core/workflow-advanced.js                 # 742 lines — superseded by core/workflow-advanced.ts (above)
