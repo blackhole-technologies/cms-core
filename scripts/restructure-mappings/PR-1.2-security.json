@@ -1,0 +1,8 @@
+[
+  { "from": "core/auth.ts", "to": "src/core/security/auth.ts" },
+  { "from": "core/ban.ts", "to": "src/core/security/ban.ts" },
+  { "from": "core/captcha.ts", "to": "src/core/security/captcha.ts" },
+  { "from": "core/csrf.ts", "to": "src/core/security/csrf.ts" },
+  { "from": "core/honeypot.ts", "to": "src/core/security/honeypot.ts" },
+  { "from": "core/permissions.ts", "to": "src/core/security/permissions.ts" }
+]

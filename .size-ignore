@@ -82,10 +82,10 @@ core/compare.ts                           # 722 lines — config-compare absorbe
 #
 # === Phase 5 — Access control + hooks + plugins ===
 #
-core/auth.ts                              # 1212 lines — access-filter path refactors in Phase 5; session work moves to Phase 10
-core/permissions.ts                       # 620 lines — refactored to support Where-returning Access functions
+src/core/security/auth.ts                 # 1212 lines — access-filter path refactors in Phase 5; session work moves to Phase 10
+src/core/security/permissions.ts          # 620 lines — refactored to support Where-returning Access functions
 core/actions.ts                           # 1565 lines — split during hook/action unification in Phase 5
-core/csrf.ts                              # 519 lines — minor refactor during Phase 5 permission middleware work (19 LOC over)
+src/core/security/csrf.ts                 # 519 lines — minor refactor during Phase 5 permission middleware work (19 LOC over)
 
 #
 # === Phase 6 — Admin module split + template modernization + a11y ===

@@ -56,10 +56,7 @@ export function init(
  * Sign a timestamp so bots can't forge it.
  */
 function signTimestamp(timestamp: number): string {
-  return createHmac('sha256', secret)
-    .update(String(timestamp))
-    .digest('hex')
-    .substring(0, 16);
+  return createHmac('sha256', secret).update(String(timestamp)).digest('hex').substring(0, 16);
 }
 
 /**
@@ -72,11 +69,13 @@ export function generateFields(): string {
   const sig = signTimestamp(now);
 
   // Hidden field styled to be invisible to humans, visible to bots
-  return `<div style="position:absolute;left:-9999px;top:-9999px;" aria-hidden="true">` +
+  return (
+    `<div style="position:absolute;left:-9999px;top:-9999px;" aria-hidden="true">` +
     `<label for="${honeypotFieldName}">Leave this blank</label>` +
     `<input type="text" name="${honeypotFieldName}" id="${honeypotFieldName}" value="" tabindex="-1" autocomplete="off">` +
     `</div>` +
-    `<input type="hidden" name="${timestampFieldName}" value="${now}.${sig}">`;
+    `<input type="hidden" name="${timestampFieldName}" value="${now}.${sig}">`
+  );
 }
 
 /**

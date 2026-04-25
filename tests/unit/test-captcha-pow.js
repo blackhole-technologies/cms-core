@@ -12,7 +12,7 @@
  */
 
 import { createHash } from 'node:crypto';
-import { verifyPow, difficultyBits } from '../../core/captcha.ts';
+import { difficultyBits, verifyPow } from '../../src/core/security/captcha.ts';
 
 let passed = 0;
 let failed = 0;
@@ -38,13 +38,18 @@ function findNonce(challenge, bits, maxTries = 1_000_000) {
   const remainBits = bits % 8;
   for (let n = 0; n < maxTries; n++) {
     const nonce = n.toString(36);
-    const hash = createHash('sha256').update(challenge + nonce, 'utf8').digest();
+    const hash = createHash('sha256')
+      .update(challenge + nonce, 'utf8')
+      .digest();
     let ok = true;
     for (let i = 0; i < fullBytes; i++) {
-      if (hash[i] !== 0) { ok = false; break; }
+      if (hash[i] !== 0) {
+        ok = false;
+        break;
+      }
     }
     if (ok && remainBits > 0 && fullBytes < hash.length) {
-      if ((hash[fullBytes] >> (8 - remainBits)) !== 0) ok = false;
+      if (hash[fullBytes] >> (8 - remainBits) !== 0) ok = false;
     }
     if (ok) return nonce;
   }

@@ -8,9 +8,9 @@
  * - Zero dependencies (Node.js built-in only)
  */
 
-import { existsSync, readFileSync, writeFileSync, mkdirSync } from 'node:fs';
-import { join } from 'node:path';
+import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import type { IncomingMessage, ServerResponse } from 'node:http';
+import { join } from 'node:path';
 
 interface BanEntry {
   ip: string;

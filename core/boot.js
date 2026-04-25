@@ -26,89 +26,89 @@
  */
 
 import { join } from 'node:path';
-import * as config from './config.ts';
-import * as discovery from './discovery.ts';
-import * as dependencies from './dependencies.ts';
-import * as hooks from './hooks.ts';
-import * as services from './services.ts';
-import * as watcher from './watcher.ts';
-import * as cli from './cli.js';
-import * as router from './router.ts';
-import * as server from './server.ts';
-import * as content from './content.ts';
-import * as template from './template.ts';
-import * as auth from './auth.ts';
-import * as cache from './cache.ts';
-import * as media from './media.ts';
-import * as scheduler from './scheduler.ts';
-import * as transfer from './transfer.js';
-import * as ratelimit from './ratelimit.ts';
-import * as plugins from './plugins.js';
-import * as search from './search.ts';
-import * as i18n from './i18n.ts';
-import * as comments from './comments.ts';
-import * as audit from './audit.ts';
-import * as queue from './queue.ts';
-import * as oembed from './oembed.ts';
-import * as fields from './fields.ts';
-import * as validation from './validation.ts';
-import * as preview from './preview.js';
-import * as email from './email.js';
-import * as notifications from './notifications.js';
-import * as backup from './backup.js';
-import * as analytics from './analytics.ts';
-import * as blueprints from './blueprints.js';
-import * as favorites from './favorites.js';
-import * as compare from './compare.js';
-import * as activity from './activity.ts';
-import * as archetypes from './archetypes.ts';
-import * as apiVersion from './api-version.ts';
-import * as graphql from './graphql.js';
-import * as feeds from './feeds.ts';
-import * as sitemap from './sitemap.ts';
-import * as taxonomy from './taxonomy.ts';
-import * as menu from './menu.ts';
-import * as blocks from './blocks.ts';
-import * as views from './views.js';
-import * as regions from './regions.ts';
-import * as layoutBuilder from './layout-builder.ts';
-import * as mediaLibrary from './media-library.ts';
-import * as editor from './editor.ts';
-import * as responsiveImages from './responsive-images.ts';
-import * as jsonapi from './jsonapi.js';
-import * as workflowAdvanced from './workflow-advanced.js';
-import * as entityReference from './entity-reference.ts';
-import * as permissions from './permissions.ts';
-import * as forms from './forms.ts';
-import * as pathAliases from './path-aliases.ts';
-import * as imageStyles from './image-styles.ts';
-import * as cron from './cron.ts';
-import * as configManagement from './config-management.js';
-import * as tokens from './tokens.ts';
-import * as textFormats from './text-formats.ts';
-import * as entity from './entity.ts';
+import * as auth from '../src/core/security/auth.ts';
+import * as ban from '../src/core/security/ban.ts';
+import * as captcha from '../src/core/security/captcha.ts';
+import * as honeypot from '../src/core/security/honeypot.ts';
+import * as permissions from '../src/core/security/permissions.ts';
 import * as actions from './actions.ts';
-import * as userFields from './user-fields.js';
-import * as themeSettings from './theme-settings.ts';
-import * as contentTypes from './content-types.ts';
-import * as displayModes from './display-modes.ts';
-import * as batch from './batch.ts';
-import * as status from './status.ts';
-import * as contextual from './contextual.ts';
-import * as help from './help.ts';
-import * as contact from './contact.js';
-import * as ban from './ban.ts';
-import * as checklist from './checklist.ts';
-import * as history from './history.js';
+import * as activity from './activity.ts';
+import * as aiAgents from './ai-agents.ts';
+import * as aiProviderManager from './ai-provider-manager.ts';
 import * as aiRegistry from './ai-registry.ts';
 import * as aiStats from './ai-stats.ts';
-import * as aiProviderManager from './ai-provider-manager.ts';
+import * as analytics from './analytics.ts';
+import * as apiVersion from './api-version.ts';
+import * as archetypes from './archetypes.ts';
+import * as audit from './audit.ts';
+import * as backup from './backup.js';
+import * as batch from './batch.ts';
+import * as blocks from './blocks.ts';
+import * as blueprints from './blueprints.js';
+import * as cache from './cache.ts';
+import * as checklist from './checklist.ts';
+import * as cli from './cli.js';
+import * as comments from './comments.ts';
+import * as compare from './compare.js';
+import * as config from './config.ts';
+import * as configManagement from './config-management.js';
+import * as contact from './contact.js';
+import * as content from './content.ts';
+import * as contentTypes from './content-types.ts';
+import * as contextual from './contextual.ts';
+import * as cron from './cron.ts';
+import * as dependencies from './dependencies.ts';
+import * as discovery from './discovery.ts';
+import * as displayModes from './display-modes.ts';
+import * as editor from './editor.ts';
+import * as email from './email.js';
+import * as entity from './entity.ts';
+import * as entityReference from './entity-reference.ts';
+import * as favorites from './favorites.js';
+import * as feeds from './feeds.ts';
+import * as fields from './fields.ts';
+import * as forms from './forms.ts';
 import * as functionCallPlugins from './function-call-plugins.ts';
-import * as honeypot from './honeypot.ts';
-import * as captcha from './captcha.ts';
+import * as graphql from './graphql.js';
+import * as help from './help.ts';
+import * as history from './history.js';
+import * as hooks from './hooks.ts';
+import * as i18n from './i18n.ts';
+import * as imageStyles from './image-styles.ts';
+import * as jsonapi from './jsonapi.js';
+import * as layoutBuilder from './layout-builder.ts';
+import * as media from './media.ts';
+import * as mediaLibrary from './media-library.ts';
+import * as menu from './menu.ts';
+import * as notifications from './notifications.js';
+import * as oembed from './oembed.ts';
+import * as pathAliases from './path-aliases.ts';
+import * as plugins from './plugins.js';
+import * as preview from './preview.js';
+import * as queue from './queue.ts';
+import * as ratelimit from './ratelimit.ts';
+import * as regions from './regions.ts';
+import * as responsiveImages from './responsive-images.ts';
+import * as router from './router.ts';
+import * as scheduler from './scheduler.ts';
 import * as sdc from './sdc.ts';
-import * as aiAgents from './ai-agents.ts';
+import * as search from './search.ts';
+import * as server from './server.ts';
+import * as services from './services.ts';
+import * as sitemap from './sitemap.ts';
+import * as status from './status.ts';
+import * as taxonomy from './taxonomy.ts';
+import * as template from './template.ts';
+import * as textFormats from './text-formats.ts';
+import * as themeSettings from './theme-settings.ts';
+import * as tokens from './tokens.ts';
+import * as transfer from './transfer.js';
+import * as userFields from './user-fields.js';
+import * as validation from './validation.ts';
+import * as views from './views.js';
+import * as watcher from './watcher.ts';
 import * as webform from './webform.js';
+import * as workflowAdvanced from './workflow-advanced.js';
 
 /**
  * Boot phase definitions
@@ -118,11 +118,11 @@ import * as webform from './webform.js';
  * Exporting as const object prevents typos (IDE autocomplete).
  */
 export const PHASES = {
-  INIT: 'INIT',           // Load configuration
-  DISCOVER: 'DISCOVER',   // Find modules and themes
-  REGISTER: 'REGISTER',   // Register services and hooks
-  BOOT: 'BOOT',           // Initialize modules
-  READY: 'READY',         // System ready for requests
+  INIT: 'INIT', // Load configuration
+  DISCOVER: 'DISCOVER', // Find modules and themes
+  REGISTER: 'REGISTER', // Register services and hooks
+  BOOT: 'BOOT', // Initialize modules
+  READY: 'READY', // System ready for requests
 };
 
 /**
@@ -213,7 +213,11 @@ export async function boot(baseDir, options = {}) {
     // The database must be ready before content.init() in REGISTER phase.
     // Migrations run here so all tables exist before services start.
     let dbConfig = null;
-    try { dbConfig = config.load('database'); } catch { /* no database.json — flat-file mode */ }
+    try {
+      dbConfig = config.load('database');
+    } catch {
+      /* no database.json — flat-file mode */
+    }
     if (dbConfig && dbConfig.enabled) {
       try {
         const { createPool } = await import('./pg-client.ts');
@@ -279,7 +283,7 @@ export async function boot(baseDir, options = {}) {
     const enabledModules = context.config.modules.enabled || [];
 
     // Filter to only enabled and discovered modules
-    const enabledDiscovered = context.modules.filter(m => enabledModules.includes(m.name));
+    const enabledDiscovered = context.modules.filter((m) => enabledModules.includes(m.name));
 
     if (enabledDiscovered.length > 0) {
       // Check for circular dependencies
@@ -300,7 +304,9 @@ export async function boot(baseDir, options = {}) {
 
       if (!validation.valid) {
         for (const err of validation.errors) {
-          console.error(`[boot] ERROR: Module '${err.module}' requires '${err.missing}' which is ${err.reason}`);
+          console.error(
+            `[boot] ERROR: Module '${err.module}' requires '${err.missing}' which is ${err.reason}`
+          );
         }
         const first = validation.errors[0];
         throw new Error(`Missing dependency: '${first.module}' requires '${first.missing}'`);
@@ -311,7 +317,7 @@ export async function boot(baseDir, options = {}) {
       // Dependencies must be loaded before dependents.
       // Topological sort ensures this order.
       const sortedModules = dependencies.topologicalSort(enabledDiscovered);
-      const loadOrder = sortedModules.map(m => m.name);
+      const loadOrder = sortedModules.map((m) => m.name);
 
       log(`[boot] Module load order: ${loadOrder.join(', ')}`);
 
@@ -419,8 +425,14 @@ export async function boot(baseDir, options = {}) {
     // Modules need access to content CRUD operations.
     // Content types are registered via hook_content.
     const revisionsConfig = context.config.site.revisions || { enabled: true, maxPerItem: 10 };
-    const workflowConfig = context.config.site.workflow || { enabled: false, defaultStatus: 'draft' };
-    const contentConfig = context.config.site.content || { computedFields: true, cacheComputed: false };
+    const workflowConfig = context.config.site.workflow || {
+      enabled: false,
+      defaultStatus: 'draft',
+    };
+    const contentConfig = context.config.site.content || {
+      computedFields: true,
+      cacheComputed: false,
+    };
     content.init(baseDir, cacheConfig, revisionsConfig, workflowConfig);
 
     // Content storage uses flat-file JSON natively via content.init().
@@ -449,7 +461,9 @@ export async function boot(baseDir, options = {}) {
     }
 
     if (slugsConfig.enabled !== false) {
-      log(`[boot] Slugs enabled (separator: ${slugsConfig.separator || '-'}, max: ${slugsConfig.maxLength || 100})`);
+      log(
+        `[boot] Slugs enabled (separator: ${slugsConfig.separator || '-'}, max: ${slugsConfig.maxLength || 100})`
+      );
     }
 
     // Initialize trash system
@@ -457,7 +471,9 @@ export async function boot(baseDir, options = {}) {
     content.initTrash(trashConfig);
 
     if (trashConfig.enabled !== false) {
-      log(`[boot] Trash enabled (retention: ${trashConfig.retention || 30} days, auto-purge: ${trashConfig.autoPurge !== false})`);
+      log(
+        `[boot] Trash enabled (retention: ${trashConfig.retention || 30} days, auto-purge: ${trashConfig.autoPurge !== false})`
+      );
     }
 
     // Initialize clone system
@@ -473,7 +489,9 @@ export async function boot(baseDir, options = {}) {
     }
 
     if (locksConfig.enabled !== false) {
-      log(`[boot] Content locking enabled (timeout: ${locksConfig.timeout || 1800}s, grace: ${locksConfig.gracePeriod || 60}s)`);
+      log(
+        `[boot] Content locking enabled (timeout: ${locksConfig.timeout || 1800}s, grace: ${locksConfig.gracePeriod || 60}s)`
+      );
     }
 
     // Initialize queue system
@@ -492,7 +510,9 @@ export async function boot(baseDir, options = {}) {
     services.register('queue', () => queue);
 
     if (queueConfig.enabled !== false) {
-      log(`[boot] Queue enabled (concurrency: ${queueConfig.concurrency || 5}, retries: ${queueConfig.maxRetries || 3})`);
+      log(
+        `[boot] Queue enabled (concurrency: ${queueConfig.concurrency || 5}, retries: ${queueConfig.maxRetries || 3})`
+      );
     }
 
     // Initialize oEmbed system
@@ -506,7 +526,9 @@ export async function boot(baseDir, options = {}) {
     services.register('oembed', () => oembed);
 
     if (oembedConfig.enabled !== false) {
-      log(`[boot] oEmbed enabled (cache TTL: ${oembedConfig.cacheTtl || 604800}s, providers: ${oembed.getProviders().length})`);
+      log(
+        `[boot] oEmbed enabled (cache TTL: ${oembedConfig.cacheTtl || 604800}s, providers: ${oembed.getProviders().length})`
+      );
     }
 
     // Initialize fields system
@@ -563,7 +585,9 @@ export async function boot(baseDir, options = {}) {
     services.register('comments', () => comments);
 
     if (commentsConfig.enabled !== false) {
-      log(`[boot] Comments enabled (default: ${commentsConfig.defaultStatus || 'pending'}, auto-approve: ${commentsConfig.autoApproveUsers !== false})`);
+      log(
+        `[boot] Comments enabled (default: ${commentsConfig.defaultStatus || 'pending'}, auto-approve: ${commentsConfig.autoApproveUsers !== false})`
+      );
     }
 
     // Initialize content history tracking
@@ -623,7 +647,9 @@ export async function boot(baseDir, options = {}) {
     services.register('i18n', () => i18n);
 
     if (i18nConfig.enabled) {
-      log(`[boot] i18n enabled (default: ${i18nConfig.defaultLocale || 'en'}, locales: ${(i18nConfig.locales || ['en']).join(', ')})`);
+      log(
+        `[boot] i18n enabled (default: ${i18nConfig.defaultLocale || 'en'}, locales: ${(i18nConfig.locales || ['en']).join(', ')})`
+      );
     }
 
     // Initialize audit logging system
@@ -640,7 +666,9 @@ export async function boot(baseDir, options = {}) {
     }
 
     if (auditConfig.enabled) {
-      log(`[boot] Audit logging enabled (retention: ${auditConfig.retention || 90} days, level: ${auditConfig.logLevel || 'info'})`);
+      log(
+        `[boot] Audit logging enabled (retention: ${auditConfig.retention || 90} days, level: ${auditConfig.logLevel || 'info'})`
+      );
     }
 
     // Initialize AI registry system
@@ -670,7 +698,7 @@ export async function boot(baseDir, options = {}) {
     aiProviderManager.init({
       services,
       hooks,
-      modulePaths: context.modules.map(m => ({ name: m.name, path: m.path }))
+      modulePaths: context.modules.map((m) => ({ name: m.name, path: m.path })),
     });
     services.register('ai-provider-manager', () => aiProviderManager);
     log('[boot] AI provider manager initialized');
@@ -695,7 +723,9 @@ export async function boot(baseDir, options = {}) {
 
     // Initialize honeypot anti-spam
     // WHY HERE: Must be available before any form rendering.
-    honeypot.init(context.config.site.honeypot, { sessionSecret: context.config.site.sessionSecret });
+    honeypot.init(context.config.site.honeypot, {
+      sessionSecret: context.config.site.sessionSecret,
+    });
     services.register('honeypot', () => honeypot);
     log('[boot] Honeypot anti-spam initialized');
 
@@ -1119,7 +1149,7 @@ export async function boot(baseDir, options = {}) {
     // Modules need to render themed templates.
     // Template system needs to know the active theme location.
     const themeName = context.config.site.theme || 'default';
-    const themeInfo = context.themes.find(t => t.name === themeName);
+    const themeInfo = context.themes.find((t) => t.name === themeName);
 
     if (themeInfo) {
       template.init(themeInfo.path);
@@ -1145,9 +1175,13 @@ export async function boot(baseDir, options = {}) {
       console.warn(`[boot] Theme "${themeName}" not found, templates disabled`);
       // Register a no-op template service
       services.register('template', () => ({
-        render: () => { throw new Error('No theme loaded'); },
+        render: () => {
+          throw new Error('No theme loaded');
+        },
         renderString: template.renderString,
-        renderWithLayout: () => { throw new Error('No theme loaded'); },
+        renderWithLayout: () => {
+          throw new Error('No theme loaded');
+        },
         escapeHtml: template.escapeHtml,
       }));
     }
@@ -1182,7 +1216,9 @@ export async function boot(baseDir, options = {}) {
     services.register('ratelimit', () => ratelimit);
 
     if (rateLimitConfig.enabled) {
-      log(`[boot] Rate limiting enabled (login: ${rateLimitConfig.login?.points || 5}/min, api: ${rateLimitConfig.api?.points || 100}/min)`);
+      log(
+        `[boot] Rate limiting enabled (login: ${rateLimitConfig.login?.points || 5}/min, api: ${rateLimitConfig.api?.points || 100}/min)`
+      );
     }
 
     log(`[boot] Registered core services: ${services.list().join(', ')}`);
@@ -1243,7 +1279,6 @@ export async function boot(baseDir, options = {}) {
         // Store module exports for later use
         moduleInfo.exports = moduleExports;
         moduleInfo.wiredHooks = wiredHooks;
-
       } catch (error) {
         // WHY LOG AND CONTINUE:
         // One broken module shouldn't prevent others from loading.
@@ -1266,14 +1301,18 @@ export async function boot(baseDir, options = {}) {
         const moduleRegister = cli.createModuleRegister(moduleName);
         await moduleInfo.exports.hook_cli(moduleRegister, context);
       } catch (error) {
-        console.error(`[boot] Failed to register CLI commands for "${moduleName}": ${error.message}`);
+        console.error(
+          `[boot] Failed to register CLI commands for "${moduleName}": ${error.message}`
+        );
       }
     }
 
     // Log CLI registration if any module commands were added
     const moduleCommands = cli.listModule();
     if (moduleCommands.length > 0) {
-      log(`[boot] CLI commands registered from modules: ${moduleCommands.map(c => c.name).join(', ')}`);
+      log(
+        `[boot] CLI commands registered from modules: ${moduleCommands.map((c) => c.name).join(', ')}`
+      );
     }
 
     // Discover AI modules
@@ -1289,124 +1328,149 @@ export async function boot(baseDir, options = {}) {
     // WHY HERE (not in server.js):
     // Boot.js knows about the CMS context and what routes make sense.
     // Server.js is generic HTTP infrastructure.
-    router.register('GET', '/', async (req, res, params, ctx) => {
-      server.json(res, {
-        name: ctx.config.site.name,
-        version: ctx.config.site.version,
-        env: ctx.config.site.env,
-        modules: ctx.config.modules.enabled || [],
-      });
-    }, 'Site information');
+    router.register(
+      'GET',
+      '/',
+      async (req, res, params, ctx) => {
+        server.json(res, {
+          name: ctx.config.site.name,
+          version: ctx.config.site.version,
+          env: ctx.config.site.env,
+          modules: ctx.config.modules.enabled || [],
+        });
+      },
+      'Site information'
+    );
 
-    router.register('GET', '/health', async (req, res, params, ctx) => {
-      server.json(res, {
-        status: 'ok',
-        uptime: process.uptime(),
-      });
-    }, 'Health check');
+    router.register(
+      'GET',
+      '/health',
+      async (req, res, params, ctx) => {
+        server.json(res, {
+          status: 'ok',
+          uptime: process.uptime(),
+        });
+      },
+      'Health check'
+    );
 
     // Prometheus-compatible metrics endpoint for monitoring
-    router.register('GET', '/metrics', async (req, res, params, ctx) => {
-      const lines = [];
-      const now = Date.now();
+    router.register(
+      'GET',
+      '/metrics',
+      async (req, res, params, ctx) => {
+        const lines = [];
+        const now = Date.now();
 
-      // System metrics
-      const mem = process.memoryUsage();
-      lines.push('# HELP process_uptime_seconds Process uptime in seconds');
-      lines.push('# TYPE process_uptime_seconds gauge');
-      lines.push(`process_uptime_seconds ${process.uptime().toFixed(1)}`);
+        // System metrics
+        const mem = process.memoryUsage();
+        lines.push('# HELP process_uptime_seconds Process uptime in seconds');
+        lines.push('# TYPE process_uptime_seconds gauge');
+        lines.push(`process_uptime_seconds ${process.uptime().toFixed(1)}`);
 
-      lines.push('# HELP process_heap_bytes Process heap size in bytes');
-      lines.push('# TYPE process_heap_bytes gauge');
-      lines.push(`process_heap_bytes{type="used"} ${mem.heapUsed}`);
-      lines.push(`process_heap_bytes{type="total"} ${mem.heapTotal}`);
+        lines.push('# HELP process_heap_bytes Process heap size in bytes');
+        lines.push('# TYPE process_heap_bytes gauge');
+        lines.push(`process_heap_bytes{type="used"} ${mem.heapUsed}`);
+        lines.push(`process_heap_bytes{type="total"} ${mem.heapTotal}`);
 
-      lines.push('# HELP process_rss_bytes Resident set size in bytes');
-      lines.push('# TYPE process_rss_bytes gauge');
-      lines.push(`process_rss_bytes ${mem.rss}`);
+        lines.push('# HELP process_rss_bytes Resident set size in bytes');
+        lines.push('# TYPE process_rss_bytes gauge');
+        lines.push(`process_rss_bytes ${mem.rss}`);
 
-      // AI stats metrics (if available)
-      try {
-        const aiStats = ctx.services.get('ai-stats');
-        if (aiStats) {
-          const today = new Date().toISOString().split('T')[0];
-          const daily = aiStats.getDaily(today);
+        // AI stats metrics (if available)
+        try {
+          const aiStats = ctx.services.get('ai-stats');
+          if (aiStats) {
+            const today = new Date().toISOString().split('T')[0];
+            const daily = aiStats.getDaily(today);
 
-          lines.push('# HELP cms_ai_requests_total Total AI requests today');
-          lines.push('# TYPE cms_ai_requests_total gauge');
-          lines.push(`cms_ai_requests_total ${daily.totalEvents}`);
+            lines.push('# HELP cms_ai_requests_total Total AI requests today');
+            lines.push('# TYPE cms_ai_requests_total gauge');
+            lines.push(`cms_ai_requests_total ${daily.totalEvents}`);
 
-          lines.push('# HELP cms_ai_tokens_total Total AI tokens today');
-          lines.push('# TYPE cms_ai_tokens_total gauge');
-          lines.push(`cms_ai_tokens_total{direction="in"} ${daily.totalTokensIn}`);
-          lines.push(`cms_ai_tokens_total{direction="out"} ${daily.totalTokensOut}`);
+            lines.push('# HELP cms_ai_tokens_total Total AI tokens today');
+            lines.push('# TYPE cms_ai_tokens_total gauge');
+            lines.push(`cms_ai_tokens_total{direction="in"} ${daily.totalTokensIn}`);
+            lines.push(`cms_ai_tokens_total{direction="out"} ${daily.totalTokensOut}`);
 
-          lines.push('# HELP cms_ai_cost_dollars Total AI cost today in dollars');
-          lines.push('# TYPE cms_ai_cost_dollars gauge');
-          lines.push(`cms_ai_cost_dollars ${daily.totalCost.toFixed(6)}`);
+            lines.push('# HELP cms_ai_cost_dollars Total AI cost today in dollars');
+            lines.push('# TYPE cms_ai_cost_dollars gauge');
+            lines.push(`cms_ai_cost_dollars ${daily.totalCost.toFixed(6)}`);
 
-          lines.push('# HELP cms_ai_avg_response_ms Average AI response time in ms');
-          lines.push('# TYPE cms_ai_avg_response_ms gauge');
-          lines.push(`cms_ai_avg_response_ms ${daily.avgResponseTime.toFixed(1)}`);
+            lines.push('# HELP cms_ai_avg_response_ms Average AI response time in ms');
+            lines.push('# TYPE cms_ai_avg_response_ms gauge');
+            lines.push(`cms_ai_avg_response_ms ${daily.avgResponseTime.toFixed(1)}`);
 
-          lines.push('# HELP cms_ai_requests_by_status AI requests by status today');
-          lines.push('# TYPE cms_ai_requests_by_status gauge');
-          for (const [status, count] of Object.entries(daily.byStatus)) {
-            lines.push(`cms_ai_requests_by_status{status="${status}"} ${count}`);
+            lines.push('# HELP cms_ai_requests_by_status AI requests by status today');
+            lines.push('# TYPE cms_ai_requests_by_status gauge');
+            for (const [status, count] of Object.entries(daily.byStatus)) {
+              lines.push(`cms_ai_requests_by_status{status="${status}"} ${count}`);
+            }
+
+            // Per-provider breakdown
+            lines.push('# HELP cms_ai_requests_by_provider AI requests by provider today');
+            lines.push('# TYPE cms_ai_requests_by_provider gauge');
+            for (const [provider, stats] of Object.entries(daily.byProvider)) {
+              lines.push(`cms_ai_requests_by_provider{provider="${provider}"} ${stats.count}`);
+            }
           }
+        } catch {
+          // AI stats service not available — skip
+        }
 
-          // Per-provider breakdown
-          lines.push('# HELP cms_ai_requests_by_provider AI requests by provider today');
-          lines.push('# TYPE cms_ai_requests_by_provider gauge');
-          for (const [provider, stats] of Object.entries(daily.byProvider)) {
-            lines.push(`cms_ai_requests_by_provider{provider="${provider}"} ${stats.count}`);
+        // Content metrics
+        try {
+          const contentSvc = ctx.services.get('content');
+          if (contentSvc) {
+            const types = contentSvc.listTypes?.() || [];
+            lines.push('# HELP cms_content_types_total Number of content types');
+            lines.push('# TYPE cms_content_types_total gauge');
+            lines.push(`cms_content_types_total ${types.length}`);
           }
+        } catch {
+          // Content service not available — skip
         }
-      } catch {
-        // AI stats service not available — skip
-      }
 
-      // Content metrics
-      try {
-        const contentSvc = ctx.services.get('content');
-        if (contentSvc) {
-          const types = contentSvc.listTypes?.() || [];
-          lines.push('# HELP cms_content_types_total Number of content types');
-          lines.push('# TYPE cms_content_types_total gauge');
-          lines.push(`cms_content_types_total ${types.length}`);
-        }
-      } catch {
-        // Content service not available — skip
-      }
-
-      res.writeHead(200, { 'Content-Type': 'text/plain; version=0.0.4; charset=utf-8' });
-      res.end(lines.join('\n') + '\n');
-    }, 'Prometheus metrics endpoint');
+        res.writeHead(200, { 'Content-Type': 'text/plain; version=0.0.4; charset=utf-8' });
+        res.end(lines.join('\n') + '\n');
+      },
+      'Prometheus metrics endpoint'
+    );
 
     // Checklist API — runs site status checks
-    router.register('GET', '/api/checklist', async (req, res, params, ctx) => {
-      try {
-        const checklistSvc = ctx.services.get('checklist');
-        const results = await checklistSvc.runAll();
-        server.json(res, results);
-      } catch (err) {
-        server.json(res, { error: err.message }, 500);
-      }
-    }, 'Run site checklist');
-
-    router.register('GET', '/api/checklist/last', async (req, res, params, ctx) => {
-      try {
-        const checklistSvc = ctx.services.get('checklist');
-        const last = checklistSvc.getLastRun();
-        if (!last) {
-          server.json(res, { error: 'No previous check run found' }, 404);
-          return;
+    router.register(
+      'GET',
+      '/api/checklist',
+      async (req, res, params, ctx) => {
+        try {
+          const checklistSvc = ctx.services.get('checklist');
+          const results = await checklistSvc.runAll();
+          server.json(res, results);
+        } catch (err) {
+          server.json(res, { error: err.message }, 500);
         }
-        server.json(res, last);
-      } catch (err) {
-        server.json(res, { error: err.message }, 500);
-      }
-    }, 'Get last checklist results');
+      },
+      'Run site checklist'
+    );
+
+    router.register(
+      'GET',
+      '/api/checklist/last',
+      async (req, res, params, ctx) => {
+        try {
+          const checklistSvc = ctx.services.get('checklist');
+          const last = checklistSvc.getLastRun();
+          if (!last) {
+            server.json(res, { error: 'No previous check run found' }, 404);
+            return;
+          }
+          server.json(res, last);
+        } catch (err) {
+          server.json(res, { error: err.message }, 500);
+        }
+      },
+      'Get last checklist results'
+    );
 
     // Invoke routes hook to let modules register routes
     // WHY AFTER CLI HOOK:
@@ -1426,7 +1490,9 @@ export async function boot(baseDir, options = {}) {
     // Log route registration
     const moduleRoutes = router.listModule();
     if (moduleRoutes.length > 0) {
-      log(`[boot] Routes registered from modules: ${moduleRoutes.map(r => `${r.method} ${r.path}`).join(', ')}`);
+      log(
+        `[boot] Routes registered from modules: ${moduleRoutes.map((r) => `${r.method} ${r.path}`).join(', ')}`
+      );
     }
 
     // Invoke middleware hook to let modules register middleware
@@ -1448,7 +1514,9 @@ export async function boot(baseDir, options = {}) {
     // Log middleware registration from modules
     const pathMiddleware = router.listPathMiddleware();
     if (pathMiddleware.length > 0) {
-      log(`[boot] Middleware registered from modules: ${pathMiddleware.map(m => `${m.name}:${m.path}`).join(', ')}`);
+      log(
+        `[boot] Middleware registered from modules: ${pathMiddleware.map((m) => `${m.name}:${m.path}`).join(', ')}`
+      );
     }
 
     // Invoke content hook to let modules register content types
@@ -1463,12 +1531,14 @@ export async function boot(baseDir, options = {}) {
         const moduleRegister = content.createModuleRegister(moduleName);
         await moduleInfo.exports.hook_content(moduleRegister, context);
       } catch (error) {
-        console.error(`[boot] Failed to register content types for "${moduleName}": ${error.message}`);
+        console.error(
+          `[boot] Failed to register content types for "${moduleName}": ${error.message}`
+        );
       }
     }
 
     // Register built-in content types (comments)
-    if ((context.config.site.comments?.enabled) !== false) {
+    if (context.config.site.comments?.enabled !== false) {
       const commentsRegister = content.createModuleRegister('core:comments');
       comments.registerContentType(commentsRegister);
     }
@@ -1476,7 +1546,7 @@ export async function boot(baseDir, options = {}) {
     // Log content type registration
     const registeredTypes = content.listTypes();
     if (registeredTypes.length > 0) {
-      log(`[boot] Content types registered: ${registeredTypes.map(t => t.type).join(', ')}`);
+      log(`[boot] Content types registered: ${registeredTypes.map((t) => t.type).join(', ')}`);
     }
 
     // Now that all content types are registered (from config AND modules),
@@ -1498,7 +1568,9 @@ export async function boot(baseDir, options = {}) {
         const moduleRegister = content.createComputedRegister(moduleName);
         await moduleInfo.exports.hook_computed(moduleRegister, context);
       } catch (error) {
-        console.error(`[boot] Failed to register computed fields for "${moduleName}": ${error.message}`);
+        console.error(
+          `[boot] Failed to register computed fields for "${moduleName}": ${error.message}`
+        );
       }
     }
 
@@ -1524,14 +1596,16 @@ export async function boot(baseDir, options = {}) {
         const moduleScheduler = scheduler.createModuleScheduler(moduleName);
         await moduleInfo.exports.hook_schedule(moduleScheduler, context);
       } catch (error) {
-        console.error(`[boot] Failed to register scheduled tasks for "${moduleName}": ${error.message}`);
+        console.error(
+          `[boot] Failed to register scheduled tasks for "${moduleName}": ${error.message}`
+        );
       }
     }
 
     // Log scheduled task registration
     const registeredTasks = scheduler.list();
     if (registeredTasks.length > 0) {
-      log(`[boot] Scheduled tasks registered: ${registeredTasks.map(t => t.name).join(', ')}`);
+      log(`[boot] Scheduled tasks registered: ${registeredTasks.map((t) => t.name).join(', ')}`);
     }
 
     // ========================================
@@ -1552,9 +1626,9 @@ export async function boot(baseDir, options = {}) {
       log(`[boot] Loaded ${pluginResults.loaded} plugin(s), activated ${pluginResults.activated}`);
 
       // Log active plugins
-      const activePlugins = plugins.listPlugins().filter(p => p.status === 'active');
+      const activePlugins = plugins.listPlugins().filter((p) => p.status === 'active');
       if (activePlugins.length > 0) {
-        log(`[boot] Active plugins: ${activePlugins.map(p => p.name).join(', ')}`);
+        log(`[boot] Active plugins: ${activePlugins.map((p) => p.name).join(', ')}`);
       }
 
       // Log plugin errors
@@ -1581,96 +1655,70 @@ export async function boot(baseDir, options = {}) {
     // These routes work with any registered content type.
 
     // GET /content - List all content types
-    router.register('GET', '/content', async (req, res, params, ctx) => {
-      const types = content.listTypes().map(({ type, schema, source }) => ({
-        type,
-        source,
-        fields: Object.entries(schema).map(([name, def]) => ({
-          name,
-          type: def.type,
-          required: def.required || false,
-        })),
-      }));
-      server.json(res, types);
-    }, 'List all content types');
+    router.register(
+      'GET',
+      '/content',
+      async (req, res, params, ctx) => {
+        const types = content.listTypes().map(({ type, schema, source }) => ({
+          type,
+          source,
+          fields: Object.entries(schema).map(([name, def]) => ({
+            name,
+            type: def.type,
+            required: def.required || false,
+          })),
+        }));
+        server.json(res, types);
+      },
+      'List all content types'
+    );
 
     // GET /content/:type - List content with pagination, search, and filters
     // Query params: ?page=1&limit=20&search=hello&sort=created&order=desc&field=value&field__gt=10
-    router.register('GET', '/content/:type', async (req, res, params, ctx) => {
-      const { type } = params;
+    router.register(
+      'GET',
+      '/content/:type',
+      async (req, res, params, ctx) => {
+        const { type } = params;
 
-      if (!content.hasType(type)) {
-        server.json(res, { error: 'Unknown content type', type }, 404);
-        return;
-      }
+        if (!content.hasType(type)) {
+          server.json(res, { error: 'Unknown content type', type }, 404);
+          return;
+        }
 
-      // Parse query parameters
-      const url = new URL(req.url, 'http://localhost');
-      const schema = content.getSchema(type);
+        // Parse query parameters
+        const url = new URL(req.url, 'http://localhost');
+        const schema = content.getSchema(type);
 
-      const options = {
-        page: parseInt(url.searchParams.get('page')) || 1,
-        limit: parseInt(url.searchParams.get('limit')) || 20,
-        search: url.searchParams.get('search') || null,
-        sortBy: url.searchParams.get('sort') || 'created',
-        sortOrder: url.searchParams.get('order') || 'desc',
-        // Parse field filters from query params
-        filters: content.parseFiltersFromQuery(url.searchParams, schema),
-      };
+        const options = {
+          page: parseInt(url.searchParams.get('page')) || 1,
+          limit: parseInt(url.searchParams.get('limit')) || 20,
+          search: url.searchParams.get('search') || null,
+          sortBy: url.searchParams.get('sort') || 'created',
+          sortOrder: url.searchParams.get('order') || 'desc',
+          // Parse field filters from query params
+          filters: content.parseFiltersFromQuery(url.searchParams, schema),
+        };
 
-      const result = content.list(type, options);
-      server.json(res, result);
-    }, 'List content with pagination and filters');
+        const result = content.list(type, options);
+        server.json(res, result);
+      },
+      'List content with pagination and filters'
+    );
 
     // GET /content/:type/:id - Get single content item
-    router.register('GET', '/content/:type/:id', async (req, res, params, ctx) => {
-      const { type, id } = params;
+    router.register(
+      'GET',
+      '/content/:type/:id',
+      async (req, res, params, ctx) => {
+        const { type, id } = params;
 
-      if (!content.hasType(type)) {
-        server.json(res, { error: 'Unknown content type', type }, 404);
-        return;
-      }
+        if (!content.hasType(type)) {
+          server.json(res, { error: 'Unknown content type', type }, 404);
+          return;
+        }
 
-      const item = content.read(type, id);
-
-      if (!item) {
-        server.json(res, { error: 'Content not found', type, id }, 404);
-        return;
-      }
-
-      server.json(res, item);
-    }, 'Get single content item');
-
-    // POST /content/:type - Create content
-    router.register('POST', '/content/:type', async (req, res, params, ctx) => {
-      const { type } = params;
-
-      if (!content.hasType(type)) {
-        server.json(res, { error: 'Unknown content type', type }, 404);
-        return;
-      }
-
-      try {
-        const data = await content.parseBody(req);
-        const item = await content.create(type, data);
-        server.json(res, item, 201);
-      } catch (error) {
-        server.json(res, { error: error.message }, 400);
-      }
-    }, 'Create content');
-
-    // PUT /content/:type/:id - Update content
-    router.register('PUT', '/content/:type/:id', async (req, res, params, ctx) => {
-      const { type, id } = params;
-
-      if (!content.hasType(type)) {
-        server.json(res, { error: 'Unknown content type', type }, 404);
-        return;
-      }
-
-      try {
-        const data = await content.parseBody(req);
-        const item = await content.update(type, id, data);
+        const item = content.read(type, id);
 
         if (!item) {
           server.json(res, { error: 'Content not found', type, id }, 404);
@@ -1678,115 +1726,193 @@ export async function boot(baseDir, options = {}) {
         }
 
         server.json(res, item);
-      } catch (error) {
-        server.json(res, { error: error.message }, 400);
-      }
-    }, 'Update content');
+      },
+      'Get single content item'
+    );
+
+    // POST /content/:type - Create content
+    router.register(
+      'POST',
+      '/content/:type',
+      async (req, res, params, ctx) => {
+        const { type } = params;
+
+        if (!content.hasType(type)) {
+          server.json(res, { error: 'Unknown content type', type }, 404);
+          return;
+        }
+
+        try {
+          const data = await content.parseBody(req);
+          const item = await content.create(type, data);
+          server.json(res, item, 201);
+        } catch (error) {
+          server.json(res, { error: error.message }, 400);
+        }
+      },
+      'Create content'
+    );
+
+    // PUT /content/:type/:id - Update content
+    router.register(
+      'PUT',
+      '/content/:type/:id',
+      async (req, res, params, ctx) => {
+        const { type, id } = params;
+
+        if (!content.hasType(type)) {
+          server.json(res, { error: 'Unknown content type', type }, 404);
+          return;
+        }
+
+        try {
+          const data = await content.parseBody(req);
+          const item = await content.update(type, id, data);
+
+          if (!item) {
+            server.json(res, { error: 'Content not found', type, id }, 404);
+            return;
+          }
+
+          server.json(res, item);
+        } catch (error) {
+          server.json(res, { error: error.message }, 400);
+        }
+      },
+      'Update content'
+    );
 
     // DELETE /content/:type/:id - Delete content
-    router.register('DELETE', '/content/:type/:id', async (req, res, params, ctx) => {
-      const { type, id } = params;
+    router.register(
+      'DELETE',
+      '/content/:type/:id',
+      async (req, res, params, ctx) => {
+        const { type, id } = params;
 
-      if (!content.hasType(type)) {
-        server.json(res, { error: 'Unknown content type', type }, 404);
-        return;
-      }
+        if (!content.hasType(type)) {
+          server.json(res, { error: 'Unknown content type', type }, 404);
+          return;
+        }
 
-      const deleted = await content.remove(type, id);
+        const deleted = await content.remove(type, id);
 
-      if (!deleted) {
-        server.json(res, { error: 'Content not found', type, id }, 404);
-        return;
-      }
+        if (!deleted) {
+          server.json(res, { error: 'Content not found', type, id }, 404);
+          return;
+        }
 
-      server.json(res, { deleted: true, type, id });
-    }, 'Delete content');
+        server.json(res, { deleted: true, type, id });
+      },
+      'Delete content'
+    );
 
     // GET /content/:type/by-slug/:slug - Get content by slug (with redirect support)
-    router.register('GET', '/content/:type/by-slug/:slug', async (req, res, params, ctx) => {
-      const { type, slug } = params;
+    router.register(
+      'GET',
+      '/content/:type/by-slug/:slug',
+      async (req, res, params, ctx) => {
+        const { type, slug } = params;
 
-      if (!content.hasType(type)) {
-        server.json(res, { error: 'Unknown content type', type }, 404);
-        return;
-      }
+        if (!content.hasType(type)) {
+          server.json(res, { error: 'Unknown content type', type }, 404);
+          return;
+        }
 
-      const result = content.resolvePermalink(type, slug);
+        const result = content.resolvePermalink(type, slug);
 
-      if (!result.found) {
-        server.json(res, { error: 'Content not found', type, slug }, 404);
-        return;
-      }
+        if (!result.found) {
+          server.json(res, { error: 'Content not found', type, slug }, 404);
+          return;
+        }
 
-      // Handle redirect for old slugs
-      if (result.redirect) {
-        res.writeHead(301, {
-          'Location': `/content/${type}/by-slug/${result.currentSlug}`,
-          'Content-Type': 'application/json',
-        });
-        res.end(JSON.stringify({
-          redirect: true,
-          currentSlug: result.currentSlug,
-          location: `/content/${type}/by-slug/${result.currentSlug}`,
-        }));
-        return;
-      }
+        // Handle redirect for old slugs
+        if (result.redirect) {
+          res.writeHead(301, {
+            Location: `/content/${type}/by-slug/${result.currentSlug}`,
+            'Content-Type': 'application/json',
+          });
+          res.end(
+            JSON.stringify({
+              redirect: true,
+              currentSlug: result.currentSlug,
+              location: `/content/${type}/by-slug/${result.currentSlug}`,
+            })
+          );
+          return;
+        }
 
-      server.json(res, result.item);
-    }, 'Get content by slug with redirect support');
+        server.json(res, result.item);
+      },
+      'Get content by slug with redirect support'
+    );
 
     // Register search API routes
     // GET /api/search?q=query&type=article&limit=20&highlight=true
-    router.register('GET', '/api/search', async (req, res, params, ctx) => {
-      const url = new URL(req.url, 'http://localhost');
-      const query = url.searchParams.get('q') || '';
-      const type = url.searchParams.get('type');
-      const limit = parseInt(url.searchParams.get('limit')) || 20;
-      const offset = parseInt(url.searchParams.get('offset')) || 0;
-      const highlight = url.searchParams.get('highlight') !== 'false';
+    router.register(
+      'GET',
+      '/api/search',
+      async (req, res, params, ctx) => {
+        const url = new URL(req.url, 'http://localhost');
+        const query = url.searchParams.get('q') || '';
+        const type = url.searchParams.get('type');
+        const limit = parseInt(url.searchParams.get('limit')) || 20;
+        const offset = parseInt(url.searchParams.get('offset')) || 0;
+        const highlight = url.searchParams.get('highlight') !== 'false';
 
-      if (!query) {
-        server.json(res, { error: 'Query parameter "q" is required' }, 400);
-        return;
-      }
+        if (!query) {
+          server.json(res, { error: 'Query parameter "q" is required' }, 400);
+          return;
+        }
 
-      const types = type ? [type] : null;
-      const facetsParam = url.searchParams.get('facets');
-      const facets = facetsParam ? facetsParam.split(',') : null;
+        const types = type ? [type] : null;
+        const facetsParam = url.searchParams.get('facets');
+        const facets = facetsParam ? facetsParam.split(',') : null;
 
-      const result = search.search(query, { types, limit, offset, highlight, facets });
+        const result = search.search(query, { types, limit, offset, highlight, facets });
 
-      server.json(res, result);
-    }, 'Search content via API');
+        server.json(res, result);
+      },
+      'Search content via API'
+    );
 
     // GET /api/search/facets?fields=status,_type&type=article
-    router.register('GET', '/api/search/facets', async (req, res, params, ctx) => {
-      const url = new URL(req.url, 'http://localhost');
-      const fieldsParam = url.searchParams.get('fields') || '_type,status';
-      const type = url.searchParams.get('type');
-      const facetFields = fieldsParam.split(',').map(f => f.trim());
-      const types = type ? [type] : null;
+    router.register(
+      'GET',
+      '/api/search/facets',
+      async (req, res, params, ctx) => {
+        const url = new URL(req.url, 'http://localhost');
+        const fieldsParam = url.searchParams.get('fields') || '_type,status';
+        const type = url.searchParams.get('type');
+        const facetFields = fieldsParam.split(',').map((f) => f.trim());
+        const types = type ? [type] : null;
 
-      const facets = search.getFacets(facetFields, { types });
-      server.json(res, { facets });
-    }, 'Get facet counts for content filtering');
+        const facets = search.getFacets(facetFields, { types });
+        server.json(res, { facets });
+      },
+      'Get facet counts for content filtering'
+    );
 
     // GET /api/search/semantic?q=query&type=article&limit=10
-    router.register('GET', '/api/search/semantic', async (req, res, params, ctx) => {
-      const url = new URL(req.url, 'http://localhost');
-      const query = url.searchParams.get('q') || '';
-      const type = url.searchParams.get('type');
-      const limit = parseInt(url.searchParams.get('limit')) || 10;
+    router.register(
+      'GET',
+      '/api/search/semantic',
+      async (req, res, params, ctx) => {
+        const url = new URL(req.url, 'http://localhost');
+        const query = url.searchParams.get('q') || '';
+        const type = url.searchParams.get('type');
+        const limit = parseInt(url.searchParams.get('limit')) || 10;
 
-      if (!query) {
-        server.json(res, { error: 'Query parameter "q" is required' }, 400);
-        return;
-      }
+        if (!query) {
+          server.json(res, { error: 'Query parameter "q" is required' }, 400);
+          return;
+        }
 
-      const types = type ? [type] : null;
-      const result = await search.semanticSearch(query, { types, limit });
-      server.json(res, result);
-    }, 'Semantic/vector search via API');
+        const types = type ? [type] : null;
+        const result = await search.semanticSearch(query, { types, limit });
+        server.json(res, result);
+      },
+      'Semantic/vector search via API'
+    );
 
     // Register content CLI commands
     // WHY HERE (not in cli.js):
@@ -1794,2257 +1920,2541 @@ export async function boot(baseDir, options = {}) {
     // Boot.js coordinates initialization order.
 
     // content:types - List registered content types
-    cli.register('content:types', async (args, ctx) => {
-      const types = content.listTypes();
-
-      if (types.length === 0) {
-        console.log('\nNo content types registered.');
-        console.log('Modules can register types via hook_content.\n');
-        return;
-      }
-
-      console.log('\nContent types:');
-
-      for (const { type, schema, source } of types) {
-        const computedFields = content.getComputedFields(type);
-        const computedCount = Object.keys(computedFields).length;
-        const computedInfo = computedCount > 0 ? ` [${computedCount} computed]` : '';
-
-        console.log(`  ${type} (from: ${source})${computedInfo}`);
-
-        for (const [fieldName, fieldDef] of Object.entries(schema)) {
-          if (fieldDef.type === 'computed') {
-            const asyncMarker = fieldDef.async ? ' async' : '';
-            console.log(`    - ${fieldName}: computed${asyncMarker}`);
-          } else {
-            const required = fieldDef.required ? ' (required)' : '';
-            console.log(`    - ${fieldName}: ${fieldDef.type}${required}`);
-          }
-        }
-
-        // Show hook-registered computed fields
-        for (const [fieldName, fieldDef] of Object.entries(computedFields)) {
-          if (fieldDef.source !== 'schema') {
-            const asyncMarker = fieldDef.async ? ' async' : '';
-            console.log(`    - ${fieldName}: computed${asyncMarker} (via hook)`);
-          }
-        }
-      }
-
-      console.log('');
-    }, 'List registered content types');
-
-    // content:computed <type> - List computed fields for a type
-    cli.register('content:computed', async (args, ctx) => {
-      if (args.length === 0) {
-        // Show all computed fields across all types
+    cli.register(
+      'content:types',
+      async (args, ctx) => {
         const types = content.listTypes();
-        let hasAny = false;
 
-        console.log('\nComputed fields by type:');
+        if (types.length === 0) {
+          console.log('\nNo content types registered.');
+          console.log('Modules can register types via hook_content.\n');
+          return;
+        }
 
-        for (const { type } of types) {
-          const fields = content.getComputedFields(type);
-          const fieldNames = Object.keys(fields);
+        console.log('\nContent types:');
 
-          if (fieldNames.length > 0) {
-            hasAny = true;
-            console.log(`\n  ${type}:`);
-            for (const [name, def] of Object.entries(fields)) {
-              const asyncMarker = def.async ? ' (async)' : '';
-              const source = def.source || 'unknown';
-              console.log(`    - ${name}${asyncMarker} [${source}]`);
+        for (const { type, schema, source } of types) {
+          const computedFields = content.getComputedFields(type);
+          const computedCount = Object.keys(computedFields).length;
+          const computedInfo = computedCount > 0 ? ` [${computedCount} computed]` : '';
+
+          console.log(`  ${type} (from: ${source})${computedInfo}`);
+
+          for (const [fieldName, fieldDef] of Object.entries(schema)) {
+            if (fieldDef.type === 'computed') {
+              const asyncMarker = fieldDef.async ? ' async' : '';
+              console.log(`    - ${fieldName}: computed${asyncMarker}`);
+            } else {
+              const required = fieldDef.required ? ' (required)' : '';
+              console.log(`    - ${fieldName}: ${fieldDef.type}${required}`);
+            }
+          }
+
+          // Show hook-registered computed fields
+          for (const [fieldName, fieldDef] of Object.entries(computedFields)) {
+            if (fieldDef.source !== 'schema') {
+              const asyncMarker = fieldDef.async ? ' async' : '';
+              console.log(`    - ${fieldName}: computed${asyncMarker} (via hook)`);
             }
           }
         }
 
-        if (!hasAny) {
-          console.log('\n  No computed fields registered.');
-          console.log('  Modules can register via hook_computed or in schema with type: "computed".');
+        console.log('');
+      },
+      'List registered content types'
+    );
+
+    // content:computed <type> - List computed fields for a type
+    cli.register(
+      'content:computed',
+      async (args, ctx) => {
+        if (args.length === 0) {
+          // Show all computed fields across all types
+          const types = content.listTypes();
+          let hasAny = false;
+
+          console.log('\nComputed fields by type:');
+
+          for (const { type } of types) {
+            const fields = content.getComputedFields(type);
+            const fieldNames = Object.keys(fields);
+
+            if (fieldNames.length > 0) {
+              hasAny = true;
+              console.log(`\n  ${type}:`);
+              for (const [name, def] of Object.entries(fields)) {
+                const asyncMarker = def.async ? ' (async)' : '';
+                const source = def.source || 'unknown';
+                console.log(`    - ${name}${asyncMarker} [${source}]`);
+              }
+            }
+          }
+
+          if (!hasAny) {
+            console.log('\n  No computed fields registered.');
+            console.log(
+              '  Modules can register via hook_computed or in schema with type: "computed".'
+            );
+          }
+
+          console.log('');
+          return;
+        }
+
+        const type = args[0];
+
+        if (!content.hasType(type)) {
+          console.error(`Unknown content type: "${type}"`);
+          throw new Error('Unknown content type');
+        }
+
+        const fields = content.getComputedFields(type);
+        const fieldNames = Object.keys(fields);
+
+        console.log(`\nComputed fields for ${type}:`);
+
+        if (fieldNames.length === 0) {
+          console.log('  No computed fields defined.\n');
+          return;
+        }
+
+        for (const [name, def] of Object.entries(fields)) {
+          const asyncMarker = def.async ? ' (async)' : '';
+          const source = def.source || 'unknown';
+
+          // Get first line of compute function for preview
+          const fnStr = def.compute.toString();
+          const preview = fnStr.length > 60 ? fnStr.slice(0, 60) + '...' : fnStr;
+
+          console.log(`  ${name}${asyncMarker} [${source}]`);
+          console.log(`    ${preview}`);
         }
 
         console.log('');
-        return;
-      }
-
-      const type = args[0];
-
-      if (!content.hasType(type)) {
-        console.error(`Unknown content type: "${type}"`);
-        throw new Error('Unknown content type');
-      }
-
-      const fields = content.getComputedFields(type);
-      const fieldNames = Object.keys(fields);
-
-      console.log(`\nComputed fields for ${type}:`);
-
-      if (fieldNames.length === 0) {
-        console.log('  No computed fields defined.\n');
-        return;
-      }
-
-      for (const [name, def] of Object.entries(fields)) {
-        const asyncMarker = def.async ? ' (async)' : '';
-        const source = def.source || 'unknown';
-
-        // Get first line of compute function for preview
-        const fnStr = def.compute.toString();
-        const preview = fnStr.length > 60 ? fnStr.slice(0, 60) + '...' : fnStr;
-
-        console.log(`  ${name}${asyncMarker} [${source}]`);
-        console.log(`    ${preview}`);
-      }
-
-      console.log('');
-    }, 'List computed fields for a content type');
+      },
+      'List computed fields for a content type'
+    );
 
     // content:test-computed <type> <id> - Test computed values for a content item
-    cli.register('content:test-computed', async (args, ctx) => {
-      if (args.length < 2) {
-        console.error('Usage: content:test-computed <type> <id>');
-        console.error('Example: content:test-computed article abc123');
-        throw new Error('Type and ID required');
-      }
-
-      const [type, id] = args;
-
-      if (!content.hasType(type)) {
-        console.error(`Unknown content type: "${type}"`);
-        throw new Error('Unknown content type');
-      }
-
-      const fields = content.getComputedFields(type);
-
-      if (Object.keys(fields).length === 0) {
-        console.log(`\nNo computed fields for type "${type}".\n`);
-        return;
-      }
-
-      // Read item without computed fields first
-      const item = content.read(type, id, { computed: false });
-
-      if (!item) {
-        console.error(`Content not found: ${type}/${id}`);
-        throw new Error('Content not found');
-      }
-
-      console.log(`\nComputed values for ${type}/${id}:`);
-
-      for (const [name, def] of Object.entries(fields)) {
-        try {
-          let value;
-          if (def.async) {
-            value = await def.compute(item, context);
-          } else {
-            value = def.compute(item, context);
-          }
-
-          const displayValue = typeof value === 'object'
-            ? JSON.stringify(value)
-            : String(value);
-
-          console.log(`  ${name}: ${displayValue}`);
-        } catch (error) {
-          console.log(`  ${name}: [ERROR] ${error.message}`);
+    cli.register(
+      'content:test-computed',
+      async (args, ctx) => {
+        if (args.length < 2) {
+          console.error('Usage: content:test-computed <type> <id>');
+          console.error('Example: content:test-computed article abc123');
+          throw new Error('Type and ID required');
         }
-      }
 
-      console.log('');
-    }, 'Test computed values for a content item');
+        const [type, id] = args;
+
+        if (!content.hasType(type)) {
+          console.error(`Unknown content type: "${type}"`);
+          throw new Error('Unknown content type');
+        }
+
+        const fields = content.getComputedFields(type);
+
+        if (Object.keys(fields).length === 0) {
+          console.log(`\nNo computed fields for type "${type}".\n`);
+          return;
+        }
+
+        // Read item without computed fields first
+        const item = content.read(type, id, { computed: false });
+
+        if (!item) {
+          console.error(`Content not found: ${type}/${id}`);
+          throw new Error('Content not found');
+        }
+
+        console.log(`\nComputed values for ${type}/${id}:`);
+
+        for (const [name, def] of Object.entries(fields)) {
+          try {
+            let value;
+            if (def.async) {
+              value = await def.compute(item, context);
+            } else {
+              value = def.compute(item, context);
+            }
+
+            const displayValue = typeof value === 'object' ? JSON.stringify(value) : String(value);
+
+            console.log(`  ${name}: ${displayValue}`);
+          } catch (error) {
+            console.log(`  ${name}: [ERROR] ${error.message}`);
+          }
+        }
+
+        console.log('');
+      },
+      'Test computed values for a content item'
+    );
 
     // content:slug <type> <id> - Show slug and history for item
-    cli.register('content:slug', async (args, ctx) => {
-      if (args.length < 2) {
-        console.error('Usage: content:slug <type> <id>');
-        console.error('Example: content:slug article abc123');
-        throw new Error('Type and ID required');
-      }
+    cli.register(
+      'content:slug',
+      async (args, ctx) => {
+        if (args.length < 2) {
+          console.error('Usage: content:slug <type> <id>');
+          console.error('Example: content:slug article abc123');
+          throw new Error('Type and ID required');
+        }
 
-      const [type, id] = args;
-      const content = ctx.services.get('content');
+        const [type, id] = args;
+        const content = ctx.services.get('content');
 
-      if (!content.hasType(type)) {
-        throw new Error(`Unknown content type: ${type}`);
-      }
+        if (!content.hasType(type)) {
+          throw new Error(`Unknown content type: ${type}`);
+        }
 
-      const slugInfo = content.getSlugInfo(type, id);
-      if (!slugInfo) {
-        throw new Error(`Content not found: ${type}/${id}`);
-      }
+        const slugInfo = content.getSlugInfo(type, id);
+        if (!slugInfo) {
+          throw new Error(`Content not found: ${type}/${id}`);
+        }
 
-      console.log(`\nSlug for ${type}/${id}:`);
-      console.log(`  current: ${slugInfo.slug || '(none)'}`);
-      if (slugInfo.history.length > 0) {
-        console.log(`  history: ${slugInfo.history.join(', ')}`);
-      } else {
-        console.log('  history: (none)');
-      }
-      console.log('');
-    }, 'Show slug and history for a content item');
+        console.log(`\nSlug for ${type}/${id}:`);
+        console.log(`  current: ${slugInfo.slug || '(none)'}`);
+        if (slugInfo.history.length > 0) {
+          console.log(`  history: ${slugInfo.history.join(', ')}`);
+        } else {
+          console.log('  history: (none)');
+        }
+        console.log('');
+      },
+      'Show slug and history for a content item'
+    );
 
     // slugs:list <type> - List all slugs for a type
-    cli.register('slugs:list', async (args, ctx) => {
-      if (args.length === 0) {
-        console.error('Usage: slugs:list <type>');
-        console.error('Example: slugs:list article');
-        throw new Error('Type required');
-      }
+    cli.register(
+      'slugs:list',
+      async (args, ctx) => {
+        if (args.length === 0) {
+          console.error('Usage: slugs:list <type>');
+          console.error('Example: slugs:list article');
+          throw new Error('Type required');
+        }
 
-      const type = args[0];
-      const content = ctx.services.get('content');
+        const type = args[0];
+        const content = ctx.services.get('content');
 
-      if (!content.hasType(type)) {
-        throw new Error(`Unknown content type: ${type}`);
-      }
+        if (!content.hasType(type)) {
+          throw new Error(`Unknown content type: ${type}`);
+        }
 
-      const slugs = content.listSlugs(type);
+        const slugs = content.listSlugs(type);
 
-      console.log(`\nSlugs for ${type}:`);
-      if (slugs.length === 0) {
-        console.log('  No slugs found (type may not have slug field)');
-      } else {
-        for (const { slug, id, history } of slugs) {
-          if (history.length > 0) {
-            console.log(`  ${slug} → ${id} (history: ${history.join(', ')})`);
-          } else {
-            console.log(`  ${slug} → ${id}`);
+        console.log(`\nSlugs for ${type}:`);
+        if (slugs.length === 0) {
+          console.log('  No slugs found (type may not have slug field)');
+        } else {
+          for (const { slug, id, history } of slugs) {
+            if (history.length > 0) {
+              console.log(`  ${slug} → ${id} (history: ${history.join(', ')})`);
+            } else {
+              console.log(`  ${slug} → ${id}`);
+            }
           }
         }
-      }
-      console.log('');
-    }, 'List all slugs for a content type');
+        console.log('');
+      },
+      'List all slugs for a content type'
+    );
 
     // slugs:fix [type] - Regenerate missing slugs
-    cli.register('slugs:fix', async (args, ctx) => {
-      const content = ctx.services.get('content');
-      const types = args.length > 0 ? [args[0]] : content.listTypes().map(t => t.type);
+    cli.register(
+      'slugs:fix',
+      async (args, ctx) => {
+        const content = ctx.services.get('content');
+        const types = args.length > 0 ? [args[0]] : content.listTypes().map((t) => t.type);
 
-      console.log('\nRegenerating missing slugs...\n');
+        console.log('\nRegenerating missing slugs...\n');
 
-      let totalFixed = 0;
-      let totalErrors = 0;
+        let totalFixed = 0;
+        let totalErrors = 0;
 
-      for (const type of types) {
-        if (!content.hasSlugField(type)) {
-          continue;
+        for (const type of types) {
+          if (!content.hasSlugField(type)) {
+            continue;
+          }
+
+          const result = await content.regenerateMissingSlugs(type);
+          totalFixed += result.fixed;
+          totalErrors += result.errors.length;
+
+          if (result.fixed > 0) {
+            console.log(`  ${type}: ${result.fixed} slug(s) generated`);
+          }
+          for (const err of result.errors) {
+            console.log(`  ${type}/${err.id}: ERROR - ${err.error}`);
+          }
         }
 
-        const result = await content.regenerateMissingSlugs(type);
-        totalFixed += result.fixed;
-        totalErrors += result.errors.length;
-
-        if (result.fixed > 0) {
-          console.log(`  ${type}: ${result.fixed} slug(s) generated`);
-        }
-        for (const err of result.errors) {
-          console.log(`  ${type}/${err.id}: ERROR - ${err.error}`);
-        }
-      }
-
-      console.log(`\nTotal: ${totalFixed} fixed, ${totalErrors} errors\n`);
-    }, 'Regenerate missing slugs for content types');
+        console.log(`\nTotal: ${totalFixed} fixed, ${totalErrors} errors\n`);
+      },
+      'Regenerate missing slugs for content types'
+    );
 
     // slugs:check [type] - Find duplicate or invalid slugs
-    cli.register('slugs:check', async (args, ctx) => {
-      const content = ctx.services.get('content');
-      const type = args.length > 0 ? args[0] : null;
+    cli.register(
+      'slugs:check',
+      async (args, ctx) => {
+        const content = ctx.services.get('content');
+        const type = args.length > 0 ? args[0] : null;
 
-      console.log('\nChecking slugs...\n');
+        console.log('\nChecking slugs...\n');
 
-      const result = content.checkSlugs(type);
+        const result = content.checkSlugs(type);
 
-      if (result.duplicates.length === 0 && result.invalid.length === 0) {
-        console.log('  All slugs are valid and unique.\n');
-        return;
-      }
-
-      if (result.duplicates.length > 0) {
-        console.log('Duplicate slugs:');
-        for (const dup of result.duplicates) {
-          console.log(`  ${dup.type}/${dup.slug}: ${dup.count} items (${dup.ids.join(', ')})`);
+        if (result.duplicates.length === 0 && result.invalid.length === 0) {
+          console.log('  All slugs are valid and unique.\n');
+          return;
         }
-        console.log('');
-      }
 
-      if (result.invalid.length > 0) {
-        console.log('Invalid slugs:');
-        for (const inv of result.invalid) {
-          console.log(`  ${inv.type}/${inv.id}: "${inv.slug}" - ${inv.errors.join(', ')}`);
+        if (result.duplicates.length > 0) {
+          console.log('Duplicate slugs:');
+          for (const dup of result.duplicates) {
+            console.log(`  ${dup.type}/${dup.slug}: ${dup.count} items (${dup.ids.join(', ')})`);
+          }
+          console.log('');
         }
-        console.log('');
-      }
-    }, 'Find duplicate or invalid slugs');
+
+        if (result.invalid.length > 0) {
+          console.log('Invalid slugs:');
+          for (const inv of result.invalid) {
+            console.log(`  ${inv.type}/${inv.id}: "${inv.slug}" - ${inv.errors.join(', ')}`);
+          }
+          console.log('');
+        }
+      },
+      'Find duplicate or invalid slugs'
+    );
 
     // trash:list [type] [--days=N] - List trashed items
-    cli.register('trash:list', async (args, ctx) => {
-      const content = ctx.services.get('content');
-      const type = args.find(a => !a.startsWith('--')) || null;
+    cli.register(
+      'trash:list',
+      async (args, ctx) => {
+        const content = ctx.services.get('content');
+        const type = args.find((a) => !a.startsWith('--')) || null;
 
-      let olderThanDays = 0;
-      for (const arg of args) {
-        if (arg.startsWith('--days=')) {
-          olderThanDays = parseInt(arg.slice(7)) || 0;
+        let olderThanDays = 0;
+        for (const arg of args) {
+          if (arg.startsWith('--days=')) {
+            olderThanDays = parseInt(arg.slice(7)) || 0;
+          }
         }
-      }
 
-      const items = content.listTrash(type, { olderThanDays });
-      const trashConfig = content.getTrashConfig();
+        const items = content.listTrash(type, { olderThanDays });
+        const trashConfig = content.getTrashConfig();
 
-      console.log('\nTrashed items:');
-      if (items.length === 0) {
-        console.log('  (none)\n');
-        return;
-      }
-
-      for (const item of items) {
-        const trashedDate = new Date(item._trashedAt).toLocaleDateString();
-        const title = item.title || item.name || item.id;
-        const by = item._trashedBy || 'unknown';
-        console.log(`  ${item.type}/${item.id} - "${title}" - trashed ${trashedDate} by ${by} (${item._daysInTrash} days ago)`);
-        if (item._daysRemaining <= 5 && trashConfig.autoPurge) {
-          console.log(`    ⚠ Auto-purge in ${item._daysRemaining} days`);
+        console.log('\nTrashed items:');
+        if (items.length === 0) {
+          console.log('  (none)\n');
+          return;
         }
-      }
-      console.log('');
-    }, 'List trashed items');
+
+        for (const item of items) {
+          const trashedDate = new Date(item._trashedAt).toLocaleDateString();
+          const title = item.title || item.name || item.id;
+          const by = item._trashedBy || 'unknown';
+          console.log(
+            `  ${item.type}/${item.id} - "${title}" - trashed ${trashedDate} by ${by} (${item._daysInTrash} days ago)`
+          );
+          if (item._daysRemaining <= 5 && trashConfig.autoPurge) {
+            console.log(`    ⚠ Auto-purge in ${item._daysRemaining} days`);
+          }
+        }
+        console.log('');
+      },
+      'List trashed items'
+    );
 
     // trash:restore <type> <id> - Restore item from trash
-    cli.register('trash:restore', async (args, ctx) => {
-      if (args.length < 2) {
-        console.error('Usage: trash:restore <type> <id>');
-        console.error('Example: trash:restore article abc123');
-        throw new Error('Type and ID required');
-      }
+    cli.register(
+      'trash:restore',
+      async (args, ctx) => {
+        if (args.length < 2) {
+          console.error('Usage: trash:restore <type> <id>');
+          console.error('Example: trash:restore article abc123');
+          throw new Error('Type and ID required');
+        }
 
-      const [type, id] = args;
-      const content = ctx.services.get('content');
+        const [type, id] = args;
+        const content = ctx.services.get('content');
 
-      const item = await content.restore(type, id);
-      if (!item) {
-        throw new Error(`Item not found in trash: ${type}/${id}`);
-      }
+        const item = await content.restore(type, id);
+        if (!item) {
+          throw new Error(`Item not found in trash: ${type}/${id}`);
+        }
 
-      console.log(`\nRestored ${type}/${id}\n`);
-    }, 'Restore item from trash');
+        console.log(`\nRestored ${type}/${id}\n`);
+      },
+      'Restore item from trash'
+    );
 
     // trash:purge <type> <id> - Permanently delete from trash
-    cli.register('trash:purge', async (args, ctx) => {
-      if (args.length < 2) {
-        console.error('Usage: trash:purge <type> <id>');
-        console.error('Example: trash:purge article abc123');
-        throw new Error('Type and ID required');
-      }
+    cli.register(
+      'trash:purge',
+      async (args, ctx) => {
+        if (args.length < 2) {
+          console.error('Usage: trash:purge <type> <id>');
+          console.error('Example: trash:purge article abc123');
+          throw new Error('Type and ID required');
+        }
 
-      const [type, id] = args;
-      const content = ctx.services.get('content');
+        const [type, id] = args;
+        const content = ctx.services.get('content');
 
-      const success = await content.purge(type, id);
-      if (!success) {
-        throw new Error(`Item not found in trash: ${type}/${id}`);
-      }
+        const success = await content.purge(type, id);
+        if (!success) {
+          throw new Error(`Item not found in trash: ${type}/${id}`);
+        }
 
-      console.log(`\nPermanently deleted ${type}/${id}\n`);
-    }, 'Permanently delete item from trash');
+        console.log(`\nPermanently deleted ${type}/${id}\n`);
+      },
+      'Permanently delete item from trash'
+    );
 
     // trash:empty [type] [--older-than=N] - Empty trash
-    cli.register('trash:empty', async (args, ctx) => {
-      const content = ctx.services.get('content');
-      const type = args.find(a => !a.startsWith('--')) || null;
+    cli.register(
+      'trash:empty',
+      async (args, ctx) => {
+        const content = ctx.services.get('content');
+        const type = args.find((a) => !a.startsWith('--')) || null;
 
-      let olderThanDays = 0;
-      for (const arg of args) {
-        if (arg.startsWith('--older-than=')) {
-          olderThanDays = parseInt(arg.slice(13)) || 0;
+        let olderThanDays = 0;
+        for (const arg of args) {
+          if (arg.startsWith('--older-than=')) {
+            olderThanDays = parseInt(arg.slice(13)) || 0;
+          }
         }
-      }
 
-      const result = await content.emptyTrash(type, { olderThanDays });
+        const result = await content.emptyTrash(type, { olderThanDays });
 
-      if (olderThanDays > 0) {
-        console.log(`\nPurged ${result.purged} items older than ${olderThanDays} days`);
-      } else if (type) {
-        console.log(`\nPurged ${result.purged} ${type} items from trash`);
-      } else {
-        console.log(`\nPurged ${result.purged} items from trash`);
-      }
-
-      if (result.errors.length > 0) {
-        console.log(`Errors: ${result.errors.length}`);
-        for (const err of result.errors) {
-          console.log(`  ${err.type}/${err.id}: ${err.error}`);
+        if (olderThanDays > 0) {
+          console.log(`\nPurged ${result.purged} items older than ${olderThanDays} days`);
+        } else if (type) {
+          console.log(`\nPurged ${result.purged} ${type} items from trash`);
+        } else {
+          console.log(`\nPurged ${result.purged} items from trash`);
         }
-      }
-      console.log('');
-    }, 'Empty trash');
+
+        if (result.errors.length > 0) {
+          console.log(`Errors: ${result.errors.length}`);
+          for (const err of result.errors) {
+            console.log(`  ${err.type}/${err.id}: ${err.error}`);
+          }
+        }
+        console.log('');
+      },
+      'Empty trash'
+    );
 
     // trash:stats - Show trash statistics
-    cli.register('trash:stats', async (args, ctx) => {
-      const content = ctx.services.get('content');
-      const stats = content.getTrashStats();
+    cli.register(
+      'trash:stats',
+      async (args, ctx) => {
+        const content = ctx.services.get('content');
+        const stats = content.getTrashStats();
 
-      console.log('\nTrash statistics:');
-      console.log(`  Total items: ${stats.total}`);
+        console.log('\nTrash statistics:');
+        console.log(`  Total items: ${stats.total}`);
 
-      if (stats.total > 0) {
-        console.log('  By type:');
-        for (const [type, count] of Object.entries(stats.byType)) {
-          console.log(`    ${type}: ${count}`);
-        }
-        console.log(`  Oldest: ${stats.oldestDays} days ago`);
-        if (stats.autoPurgeEnabled && stats.autoPurgeIn !== null) {
-          if (stats.autoPurgeIn === 0) {
-            console.log('  Auto-purge: pending (oldest items ready for purge)');
-          } else {
-            console.log(`  Auto-purge in: ${stats.autoPurgeIn} days (for oldest items)`);
+        if (stats.total > 0) {
+          console.log('  By type:');
+          for (const [type, count] of Object.entries(stats.byType)) {
+            console.log(`    ${type}: ${count}`);
+          }
+          console.log(`  Oldest: ${stats.oldestDays} days ago`);
+          if (stats.autoPurgeEnabled && stats.autoPurgeIn !== null) {
+            if (stats.autoPurgeIn === 0) {
+              console.log('  Auto-purge: pending (oldest items ready for purge)');
+            } else {
+              console.log(`  Auto-purge in: ${stats.autoPurgeIn} days (for oldest items)`);
+            }
           }
         }
-      }
 
-      console.log(`  Retention: ${stats.retention} days`);
-      console.log(`  Auto-purge: ${stats.autoPurgeEnabled ? 'enabled' : 'disabled'}\n`);
-    }, 'Show trash statistics');
+        console.log(`  Retention: ${stats.retention} days`);
+        console.log(`  Auto-purge: ${stats.autoPurgeEnabled ? 'enabled' : 'disabled'}\n`);
+      },
+      'Show trash statistics'
+    );
 
     // content:clone <type> <id> [--prefix="Copy of "] [--deep] [--field.X=Y] - Clone content
-    cli.register('content:clone', async (args, ctx) => {
-      if (args.length < 2) {
-        console.error('Usage: content:clone <type> <id> [options]');
-        console.error('Options:');
-        console.error('  --prefix="Copy of "  Prefix for title/name');
-        console.error('  --suffix=""          Suffix for title/name');
-        console.error('  --deep               Clone referenced items');
-        console.error('  --field.X=Y          Override field X with value Y');
-        console.error('Example: content:clone article abc123 --prefix="" --field.title="New Title"');
-        throw new Error('Type and ID required');
-      }
+    cli.register(
+      'content:clone',
+      async (args, ctx) => {
+        if (args.length < 2) {
+          console.error('Usage: content:clone <type> <id> [options]');
+          console.error('Options:');
+          console.error('  --prefix="Copy of "  Prefix for title/name');
+          console.error('  --suffix=""          Suffix for title/name');
+          console.error('  --deep               Clone referenced items');
+          console.error('  --field.X=Y          Override field X with value Y');
+          console.error(
+            'Example: content:clone article abc123 --prefix="" --field.title="New Title"'
+          );
+          throw new Error('Type and ID required');
+        }
 
-      const content = ctx.services.get('content');
-      const type = args[0];
-      const id = args[1];
+        const content = ctx.services.get('content');
+        const type = args[0];
+        const id = args[1];
 
-      // Parse options
-      const options = { fields: {} };
-      for (const arg of args.slice(2)) {
-        if (arg.startsWith('--prefix=')) {
-          options.prefix = arg.slice(9).replace(/^["']|["']$/g, '');
-        } else if (arg.startsWith('--suffix=')) {
-          options.suffix = arg.slice(9).replace(/^["']|["']$/g, '');
-        } else if (arg === '--deep') {
-          options.deep = true;
-        } else if (arg === '--include-translations') {
-          options.includeTranslations = true;
-        } else if (arg.startsWith('--field.')) {
-          const match = arg.match(/^--field\.([^=]+)=(.*)$/);
-          if (match) {
-            options.fields[match[1]] = match[2].replace(/^["']|["']$/g, '');
+        // Parse options
+        const options = { fields: {} };
+        for (const arg of args.slice(2)) {
+          if (arg.startsWith('--prefix=')) {
+            options.prefix = arg.slice(9).replace(/^["']|["']$/g, '');
+          } else if (arg.startsWith('--suffix=')) {
+            options.suffix = arg.slice(9).replace(/^["']|["']$/g, '');
+          } else if (arg === '--deep') {
+            options.deep = true;
+          } else if (arg === '--include-translations') {
+            options.includeTranslations = true;
+          } else if (arg.startsWith('--field.')) {
+            const match = arg.match(/^--field\.([^=]+)=(.*)$/);
+            if (match) {
+              options.fields[match[1]] = match[2].replace(/^["']|["']$/g, '');
+            }
           }
         }
-      }
 
-      if (!content.hasType(type)) {
-        throw new Error(`Unknown content type: ${type}`);
-      }
-
-      const clone = await content.clone(type, id, options);
-
-      const titleField = clone.title || clone.name || clone.id;
-      console.log(`\nCloned ${type}/${id} → ${type}/${clone.id}`);
-      console.log(`  Title: "${titleField}"`);
-      if (clone.slug) {
-        console.log(`  Slug: ${clone.slug}`);
-      }
-      if (clone.status) {
-        console.log(`  Status: ${clone.status}`);
-      }
-
-      if (clone._clonedReferences && clone._clonedReferences.length > 0) {
-        console.log('  Also cloned:');
-        for (const ref of clone._clonedReferences) {
-          console.log(`    ${ref.type}/${ref.original} → ${ref.type}/${ref.clone}`);
+        if (!content.hasType(type)) {
+          throw new Error(`Unknown content type: ${type}`);
         }
-      }
-      console.log('');
-    }, 'Clone content item');
+
+        const clone = await content.clone(type, id, options);
+
+        const titleField = clone.title || clone.name || clone.id;
+        console.log(`\nCloned ${type}/${id} → ${type}/${clone.id}`);
+        console.log(`  Title: "${titleField}"`);
+        if (clone.slug) {
+          console.log(`  Slug: ${clone.slug}`);
+        }
+        if (clone.status) {
+          console.log(`  Status: ${clone.status}`);
+        }
+
+        if (clone._clonedReferences && clone._clonedReferences.length > 0) {
+          console.log('  Also cloned:');
+          for (const ref of clone._clonedReferences) {
+            console.log(`    ${ref.type}/${ref.original} → ${ref.type}/${ref.clone}`);
+          }
+        }
+        console.log('');
+      },
+      'Clone content item'
+    );
 
     // content:duplicate <type> <id> - Shorthand for clone with defaults
-    cli.register('content:duplicate', async (args, ctx) => {
-      if (args.length < 2) {
-        console.error('Usage: content:duplicate <type> <id>');
-        console.error('Shorthand for: content:clone <type> <id>');
-        throw new Error('Type and ID required');
-      }
+    cli.register(
+      'content:duplicate',
+      async (args, ctx) => {
+        if (args.length < 2) {
+          console.error('Usage: content:duplicate <type> <id>');
+          console.error('Shorthand for: content:clone <type> <id>');
+          throw new Error('Type and ID required');
+        }
 
-      const content = ctx.services.get('content');
-      const [type, id] = args;
+        const content = ctx.services.get('content');
+        const [type, id] = args;
 
-      if (!content.hasType(type)) {
-        throw new Error(`Unknown content type: ${type}`);
-      }
+        if (!content.hasType(type)) {
+          throw new Error(`Unknown content type: ${type}`);
+        }
 
-      const clone = await content.clone(type, id);
+        const clone = await content.clone(type, id);
 
-      const titleField = clone.title || clone.name || clone.id;
-      console.log(`\nDuplicated ${type}/${id} → ${type}/${clone.id}`);
-      console.log(`  Title: "${titleField}"`);
-      console.log('');
-    }, 'Duplicate content item (shorthand for clone)');
+        const titleField = clone.title || clone.name || clone.id;
+        console.log(`\nDuplicated ${type}/${id} → ${type}/${clone.id}`);
+        console.log(`  Title: "${titleField}"`);
+        console.log('');
+      },
+      'Duplicate content item (shorthand for clone)'
+    );
 
     // locks:list [type] - List all active locks
-    cli.register('locks:list', async (args, ctx) => {
-      const content = ctx.services.get('content');
-      const typeFilter = args[0] || null;
+    cli.register(
+      'locks:list',
+      async (args, ctx) => {
+        const content = ctx.services.get('content');
+        const typeFilter = args[0] || null;
 
-      const locks = content.listLocks(typeFilter);
+        const locks = content.listLocks(typeFilter);
 
-      if (locks.length === 0) {
-        console.log('\nNo active locks.');
-        if (typeFilter) {
-          console.log(`  (filtered by type: ${typeFilter})`);
+        if (locks.length === 0) {
+          console.log('\nNo active locks.');
+          if (typeFilter) {
+            console.log(`  (filtered by type: ${typeFilter})`);
+          }
+          console.log('');
+          return;
+        }
+
+        console.log('\nActive locks:');
+        for (const lock of locks) {
+          const acquiredDate = new Date(lock.acquiredAt);
+          const expiresMin = Math.ceil(lock.expiresIn / 60);
+          const status = lock.inGracePeriod ? ' (in grace period)' : '';
+          console.log(
+            `  ${lock.type}/${lock.id} - locked by ${lock.username} since ${acquiredDate.toLocaleTimeString()} (expires in ${expiresMin} min)${status}`
+          );
         }
         console.log('');
-        return;
-      }
-
-      console.log('\nActive locks:');
-      for (const lock of locks) {
-        const acquiredDate = new Date(lock.acquiredAt);
-        const expiresMin = Math.ceil(lock.expiresIn / 60);
-        const status = lock.inGracePeriod ? ' (in grace period)' : '';
-        console.log(`  ${lock.type}/${lock.id} - locked by ${lock.username} since ${acquiredDate.toLocaleTimeString()} (expires in ${expiresMin} min)${status}`);
-      }
-      console.log('');
-    }, 'List all active content locks');
+      },
+      'List all active content locks'
+    );
 
     // locks:check <type> <id> - Check lock status for item
-    cli.register('locks:check', async (args, ctx) => {
-      if (args.length < 2) {
-        console.error('Usage: locks:check <type> <id>');
-        throw new Error('Type and ID required');
-      }
-
-      const content = ctx.services.get('content');
-      const [type, id] = args;
-
-      const status = content.checkLock(type, id);
-
-      console.log(`\nLock status for ${type}/${id}:`);
-      if (!status.locked) {
-        console.log('  Locked: no');
-        if (status.wasExpired) {
-          console.log('  (Lock recently expired)');
+    cli.register(
+      'locks:check',
+      async (args, ctx) => {
+        if (args.length < 2) {
+          console.error('Usage: locks:check <type> <id>');
+          throw new Error('Type and ID required');
         }
-      } else {
-        console.log('  Locked: yes');
-        console.log(`  By: ${status.username} (user/${status.userId})`);
-        console.log(`  Since: ${status.acquiredAt}`);
-        console.log(`  Expires: ${status.expiresAt} (in ${Math.ceil(status.expiresIn / 60)} minutes)`);
-        if (status.inGracePeriod) {
-          console.log('  Status: In grace period');
+
+        const content = ctx.services.get('content');
+        const [type, id] = args;
+
+        const status = content.checkLock(type, id);
+
+        console.log(`\nLock status for ${type}/${id}:`);
+        if (!status.locked) {
+          console.log('  Locked: no');
+          if (status.wasExpired) {
+            console.log('  (Lock recently expired)');
+          }
+        } else {
+          console.log('  Locked: yes');
+          console.log(`  By: ${status.username} (user/${status.userId})`);
+          console.log(`  Since: ${status.acquiredAt}`);
+          console.log(
+            `  Expires: ${status.expiresAt} (in ${Math.ceil(status.expiresIn / 60)} minutes)`
+          );
+          if (status.inGracePeriod) {
+            console.log('  Status: In grace period');
+          }
         }
-      }
-      console.log('');
-    }, 'Check lock status for content item');
+        console.log('');
+      },
+      'Check lock status for content item'
+    );
 
     // locks:release <type> <id> - Force release lock
-    cli.register('locks:release', async (args, ctx) => {
-      if (args.length < 2) {
-        console.error('Usage: locks:release <type> <id>');
-        throw new Error('Type and ID required');
-      }
+    cli.register(
+      'locks:release',
+      async (args, ctx) => {
+        if (args.length < 2) {
+          console.error('Usage: locks:release <type> <id>');
+          throw new Error('Type and ID required');
+        }
 
-      const content = ctx.services.get('content');
-      const [type, id] = args;
+        const content = ctx.services.get('content');
+        const [type, id] = args;
 
-      const released = content.forceReleaseLock(type, id);
+        const released = content.forceReleaseLock(type, id);
 
-      if (released) {
-        console.log(`\nReleased lock on ${type}/${id}`);
-        console.log(`  Was held by: ${released.username}`);
-      } else {
-        console.log(`\nNo active lock on ${type}/${id}`);
-      }
-      console.log('');
-    }, 'Force release a content lock');
+        if (released) {
+          console.log(`\nReleased lock on ${type}/${id}`);
+          console.log(`  Was held by: ${released.username}`);
+        } else {
+          console.log(`\nNo active lock on ${type}/${id}`);
+        }
+        console.log('');
+      },
+      'Force release a content lock'
+    );
 
     // locks:cleanup - Remove all expired locks
-    cli.register('locks:cleanup', async (args, ctx) => {
-      const content = ctx.services.get('content');
-      const removed = content.cleanupExpiredLocks();
+    cli.register(
+      'locks:cleanup',
+      async (args, ctx) => {
+        const content = ctx.services.get('content');
+        const removed = content.cleanupExpiredLocks();
 
-      console.log(`\nCleaned up ${removed} expired lock(s).`);
-      console.log('');
-    }, 'Remove all expired locks');
+        console.log(`\nCleaned up ${removed} expired lock(s).`);
+        console.log('');
+      },
+      'Remove all expired locks'
+    );
 
     // locks:stats - Show lock statistics
-    cli.register('locks:stats', async (args, ctx) => {
-      const content = ctx.services.get('content');
-      const stats = content.getLockStats();
+    cli.register(
+      'locks:stats',
+      async (args, ctx) => {
+        const content = ctx.services.get('content');
+        const stats = content.getLockStats();
 
-      console.log('\nLock statistics:');
-      console.log(`  Total active: ${stats.total}`);
-      if (Object.keys(stats.byType).length > 0) {
-        console.log('  By type:');
-        for (const [type, count] of Object.entries(stats.byType)) {
-          console.log(`    ${type}: ${count}`);
+        console.log('\nLock statistics:');
+        console.log(`  Total active: ${stats.total}`);
+        if (Object.keys(stats.byType).length > 0) {
+          console.log('  By type:');
+          for (const [type, count] of Object.entries(stats.byType)) {
+            console.log(`    ${type}: ${count}`);
+          }
         }
-      }
-      if (stats.soonestExpiry) {
-        const expiresIn = Math.ceil((new Date(stats.soonestExpiry) - new Date()) / 60000);
-        console.log(`  Soonest expiry: in ${expiresIn} minutes`);
-      }
-      console.log(`  Timeout: ${stats.timeout} seconds`);
-      console.log(`  Grace period: ${stats.gracePeriod} seconds`);
-      console.log(`  Enabled: ${stats.enabled}`);
-      console.log('');
-    }, 'Show lock statistics');
+        if (stats.soonestExpiry) {
+          const expiresIn = Math.ceil((new Date(stats.soonestExpiry) - new Date()) / 60000);
+          console.log(`  Soonest expiry: in ${expiresIn} minutes`);
+        }
+        console.log(`  Timeout: ${stats.timeout} seconds`);
+        console.log(`  Grace period: ${stats.gracePeriod} seconds`);
+        console.log(`  Enabled: ${stats.enabled}`);
+        console.log('');
+      },
+      'Show lock statistics'
+    );
 
     // comments:list [--status=pending] [--type=article] - List comments
-    cli.register('comments:list', async (args, ctx) => {
-      const comments = ctx.services.get('comments');
+    cli.register(
+      'comments:list',
+      async (args, ctx) => {
+        const comments = ctx.services.get('comments');
 
-      // Parse options
-      const options = { status: null, contentType: null, limit: 20 };
-      for (const arg of args) {
-        if (arg.startsWith('--status=')) {
-          options.status = arg.slice(9);
-        } else if (arg.startsWith('--type=')) {
-          options.contentType = arg.slice(7);
-        } else if (arg.startsWith('--limit=')) {
-          options.limit = parseInt(arg.slice(8)) || 20;
+        // Parse options
+        const options = { status: null, contentType: null, limit: 20 };
+        for (const arg of args) {
+          if (arg.startsWith('--status=')) {
+            options.status = arg.slice(9);
+          } else if (arg.startsWith('--type=')) {
+            options.contentType = arg.slice(7);
+          } else if (arg.startsWith('--limit=')) {
+            options.limit = parseInt(arg.slice(8)) || 20;
+          }
         }
-      }
 
-      const result = comments.getAllComments(options);
+        const result = comments.getAllComments(options);
 
-      if (result.comments.length === 0) {
-        console.log('\nNo comments found.');
+        if (result.comments.length === 0) {
+          console.log('\nNo comments found.');
+          console.log('');
+          return;
+        }
+
+        const statusLabel = options.status || 'all';
+        console.log(
+          `\nComments (${statusLabel}, showing ${result.comments.length} of ${result.total}):`
+        );
+        for (const comment of result.comments) {
+          const excerpt = comment.body.slice(0, 40) + (comment.body.length > 40 ? '...' : '');
+          const statusBadge = comment.status === 'pending' ? '[PENDING]' : `[${comment.status}]`;
+          console.log(
+            `  ${statusBadge} ${comment.id} on ${comment.contentType}/${comment.contentId} by "${comment.author}" - "${excerpt}"`
+          );
+        }
         console.log('');
-        return;
-      }
-
-      const statusLabel = options.status || 'all';
-      console.log(`\nComments (${statusLabel}, showing ${result.comments.length} of ${result.total}):`);
-      for (const comment of result.comments) {
-        const excerpt = comment.body.slice(0, 40) + (comment.body.length > 40 ? '...' : '');
-        const statusBadge = comment.status === 'pending' ? '[PENDING]' : `[${comment.status}]`;
-        console.log(`  ${statusBadge} ${comment.id} on ${comment.contentType}/${comment.contentId} by "${comment.author}" - "${excerpt}"`);
-      }
-      console.log('');
-    }, 'List comments with filters');
+      },
+      'List comments with filters'
+    );
 
     // comments:pending - List pending comments (shorthand)
-    cli.register('comments:pending', async (args, ctx) => {
-      const comments = ctx.services.get('comments');
-      const result = comments.getModerationQueue({ limit: 50 });
+    cli.register(
+      'comments:pending',
+      async (args, ctx) => {
+        const comments = ctx.services.get('comments');
+        const result = comments.getModerationQueue({ limit: 50 });
 
-      if (result.comments.length === 0) {
-        console.log('\nNo pending comments.');
+        if (result.comments.length === 0) {
+          console.log('\nNo pending comments.');
+          console.log('');
+          return;
+        }
+
+        console.log(`\nPending comments (${result.total}):`);
+        for (const comment of result.comments) {
+          const excerpt = comment.body.slice(0, 40) + (comment.body.length > 40 ? '...' : '');
+          console.log(
+            `  [${comment.id}] on ${comment.contentType}/${comment.contentId} by "${comment.author}" - "${excerpt}"`
+          );
+        }
         console.log('');
-        return;
-      }
-
-      console.log(`\nPending comments (${result.total}):`);
-      for (const comment of result.comments) {
-        const excerpt = comment.body.slice(0, 40) + (comment.body.length > 40 ? '...' : '');
-        console.log(`  [${comment.id}] on ${comment.contentType}/${comment.contentId} by "${comment.author}" - "${excerpt}"`);
-      }
-      console.log('');
-    }, 'List pending comments for moderation');
+      },
+      'List pending comments for moderation'
+    );
 
     // comments:approve <id> - Approve comment
-    cli.register('comments:approve', async (args, ctx) => {
-      if (args.length < 1) {
-        console.error('Usage: comments:approve <id>');
-        throw new Error('Comment ID required');
-      }
+    cli.register(
+      'comments:approve',
+      async (args, ctx) => {
+        if (args.length < 1) {
+          console.error('Usage: comments:approve <id>');
+          throw new Error('Comment ID required');
+        }
 
-      const comments = ctx.services.get('comments');
-      const id = args[0];
+        const comments = ctx.services.get('comments');
+        const id = args[0];
 
-      const updated = await comments.approveComment(id);
-      console.log(`\nApproved comment ${id}`);
-      console.log(`  Author: ${updated.author}`);
-      console.log(`  On: ${updated.contentType}/${updated.contentId}`);
-      console.log('');
-    }, 'Approve a pending comment');
+        const updated = await comments.approveComment(id);
+        console.log(`\nApproved comment ${id}`);
+        console.log(`  Author: ${updated.author}`);
+        console.log(`  On: ${updated.contentType}/${updated.contentId}`);
+        console.log('');
+      },
+      'Approve a pending comment'
+    );
 
     // comments:spam <id> - Mark comment as spam
-    cli.register('comments:spam', async (args, ctx) => {
-      if (args.length < 1) {
-        console.error('Usage: comments:spam <id>');
-        throw new Error('Comment ID required');
-      }
+    cli.register(
+      'comments:spam',
+      async (args, ctx) => {
+        if (args.length < 1) {
+          console.error('Usage: comments:spam <id>');
+          throw new Error('Comment ID required');
+        }
 
-      const comments = ctx.services.get('comments');
-      const id = args[0];
+        const comments = ctx.services.get('comments');
+        const id = args[0];
 
-      const updated = await comments.spamComment(id);
-      console.log(`\nMarked comment ${id} as spam`);
-      console.log(`  Author: ${updated.author}`);
-      console.log('');
-    }, 'Mark comment as spam');
+        const updated = await comments.spamComment(id);
+        console.log(`\nMarked comment ${id} as spam`);
+        console.log(`  Author: ${updated.author}`);
+        console.log('');
+      },
+      'Mark comment as spam'
+    );
 
     // comments:trash <id> - Trash comment
-    cli.register('comments:trash', async (args, ctx) => {
-      if (args.length < 1) {
-        console.error('Usage: comments:trash <id>');
-        throw new Error('Comment ID required');
-      }
+    cli.register(
+      'comments:trash',
+      async (args, ctx) => {
+        if (args.length < 1) {
+          console.error('Usage: comments:trash <id>');
+          throw new Error('Comment ID required');
+        }
 
-      const comments = ctx.services.get('comments');
-      const id = args[0];
+        const comments = ctx.services.get('comments');
+        const id = args[0];
 
-      const updated = await comments.trashComment(id);
-      console.log(`\nTrashed comment ${id}`);
-      console.log('');
-    }, 'Move comment to trash');
+        const updated = await comments.trashComment(id);
+        console.log(`\nTrashed comment ${id}`);
+        console.log('');
+      },
+      'Move comment to trash'
+    );
 
     // comments:delete <id> - Permanently delete comment
-    cli.register('comments:delete', async (args, ctx) => {
-      if (args.length < 1) {
-        console.error('Usage: comments:delete <id>');
-        throw new Error('Comment ID required');
-      }
+    cli.register(
+      'comments:delete',
+      async (args, ctx) => {
+        if (args.length < 1) {
+          console.error('Usage: comments:delete <id>');
+          throw new Error('Comment ID required');
+        }
 
-      const comments = ctx.services.get('comments');
-      const id = args[0];
+        const comments = ctx.services.get('comments');
+        const id = args[0];
 
-      await comments.deleteComment(id);
-      console.log(`\nDeleted comment ${id}`);
-      console.log('');
-    }, 'Permanently delete comment');
+        await comments.deleteComment(id);
+        console.log(`\nDeleted comment ${id}`);
+        console.log('');
+      },
+      'Permanently delete comment'
+    );
 
     // comments:stats - Show comment statistics
-    cli.register('comments:stats', async (args, ctx) => {
-      const comments = ctx.services.get('comments');
-      const stats = comments.getStats();
+    cli.register(
+      'comments:stats',
+      async (args, ctx) => {
+        const comments = ctx.services.get('comments');
+        const stats = comments.getStats();
 
-      console.log('\nComment statistics:');
-      console.log(`  Total: ${stats.total}`);
-      if (Object.keys(stats.byStatus).length > 0) {
-        console.log('  By status:');
-        for (const [status, count] of Object.entries(stats.byStatus)) {
-          console.log(`    ${status}: ${count}`);
-        }
-      }
-      if (Object.keys(stats.byContentType).length > 0) {
-        console.log('  By content type:');
-        for (const [type, count] of Object.entries(stats.byContentType)) {
-          console.log(`    ${type}: ${count}`);
-        }
-      }
-      console.log('');
-    }, 'Show comment statistics');
-
-    // content:list <type> [--page=N] [--limit=N] [--search=term] [--filter="field=value"] - List content with pagination and filters
-    cli.register('content:list', async (args, ctx) => {
-      if (args.length === 0) {
-        console.error('Usage: content:list <type> [--page=N] [--limit=N] [--search=term] [--filter="field=value"]');
-        console.error('Example: node index.js content:list greeting --page=1 --limit=10');
-        console.error('Example: node index.js content:list user --filter="role=admin" --filter="created__gte=2024-01-01"');
-        console.error('\nFilter operators: eq (default), ne, gt, gte, lt, lte, contains, startswith, endswith, in');
-        throw new Error('Content type required');
-      }
-
-      // Parse type and options
-      const type = args[0];
-      const options = { page: 1, limit: 20, search: null, filters: {} };
-
-      for (const arg of args.slice(1)) {
-        if (arg.startsWith('--page=')) {
-          options.page = parseInt(arg.slice(7)) || 1;
-        } else if (arg.startsWith('--limit=')) {
-          options.limit = parseInt(arg.slice(8)) || 20;
-        } else if (arg.startsWith('--search=')) {
-          options.search = arg.slice(9);
-        } else if (arg.startsWith('--filter=')) {
-          // Parse filter in format "field=value" or "field__op=value"
-          const filterStr = arg.slice(9);
-          const eqIndex = filterStr.indexOf('=');
-          if (eqIndex > 0) {
-            const key = filterStr.slice(0, eqIndex);
-            const value = filterStr.slice(eqIndex + 1);
-            options.filters[key] = value;
+        console.log('\nComment statistics:');
+        console.log(`  Total: ${stats.total}`);
+        if (Object.keys(stats.byStatus).length > 0) {
+          console.log('  By status:');
+          for (const [status, count] of Object.entries(stats.byStatus)) {
+            console.log(`    ${status}: ${count}`);
           }
         }
-      }
-
-      // Convert empty filters object to null
-      if (Object.keys(options.filters).length === 0) {
-        options.filters = null;
-      }
-
-      if (!content.hasType(type)) {
-        console.error(`Unknown content type: "${type}"`);
-        console.error('Use "content:types" to see available types.');
-        throw new Error('Unknown content type');
-      }
-
-      const result = content.list(type, options);
-
-      if (result.total === 0) {
-        console.log(`\nNo ${type} content found.`);
-        if (options.search) {
-          console.log(`Search: "${options.search}" returned no results.`);
+        if (Object.keys(stats.byContentType).length > 0) {
+          console.log('  By content type:');
+          for (const [type, count] of Object.entries(stats.byContentType)) {
+            console.log(`    ${type}: ${count}`);
+          }
         }
+        console.log('');
+      },
+      'Show comment statistics'
+    );
+
+    // content:list <type> [--page=N] [--limit=N] [--search=term] [--filter="field=value"] - List content with pagination and filters
+    cli.register(
+      'content:list',
+      async (args, ctx) => {
+        if (args.length === 0) {
+          console.error(
+            'Usage: content:list <type> [--page=N] [--limit=N] [--search=term] [--filter="field=value"]'
+          );
+          console.error('Example: node index.js content:list greeting --page=1 --limit=10');
+          console.error(
+            'Example: node index.js content:list user --filter="role=admin" --filter="created__gte=2024-01-01"'
+          );
+          console.error(
+            '\nFilter operators: eq (default), ne, gt, gte, lt, lte, contains, startswith, endswith, in'
+          );
+          throw new Error('Content type required');
+        }
+
+        // Parse type and options
+        const type = args[0];
+        const options = { page: 1, limit: 20, search: null, filters: {} };
+
+        for (const arg of args.slice(1)) {
+          if (arg.startsWith('--page=')) {
+            options.page = parseInt(arg.slice(7)) || 1;
+          } else if (arg.startsWith('--limit=')) {
+            options.limit = parseInt(arg.slice(8)) || 20;
+          } else if (arg.startsWith('--search=')) {
+            options.search = arg.slice(9);
+          } else if (arg.startsWith('--filter=')) {
+            // Parse filter in format "field=value" or "field__op=value"
+            const filterStr = arg.slice(9);
+            const eqIndex = filterStr.indexOf('=');
+            if (eqIndex > 0) {
+              const key = filterStr.slice(0, eqIndex);
+              const value = filterStr.slice(eqIndex + 1);
+              options.filters[key] = value;
+            }
+          }
+        }
+
+        // Convert empty filters object to null
+        if (Object.keys(options.filters).length === 0) {
+          options.filters = null;
+        }
+
+        if (!content.hasType(type)) {
+          console.error(`Unknown content type: "${type}"`);
+          console.error('Use "content:types" to see available types.');
+          throw new Error('Unknown content type');
+        }
+
+        const result = content.list(type, options);
+
+        if (result.total === 0) {
+          console.log(`\nNo ${type} content found.`);
+          if (options.search) {
+            console.log(`Search: "${options.search}" returned no results.`);
+          }
+          if (options.filters) {
+            console.log(`Filters: ${JSON.stringify(options.filters)} returned no results.`);
+          }
+          console.log(`Create some with: content:create ${type} '{"field":"value"}'\n`);
+          return;
+        }
+
+        const startItem = (result.page - 1) * result.limit + 1;
+        const endItem = Math.min(result.page * result.limit, result.total);
+
+        // Show filters in header if any
+        const filterInfo = options.filters ? ` [filtered]` : '';
+        console.log(
+          `\n${type} content${filterInfo} (showing ${startItem}-${endItem} of ${result.total}):\n`
+        );
+
+        for (const item of result.items) {
+          console.log(`  ID: ${item.id}`);
+          console.log(`  Created: ${item.created}`);
+
+          // Show user fields (exclude system fields)
+          const userFields = Object.entries(item).filter(
+            ([k]) => !['id', 'type', 'created', 'updated'].includes(k)
+          );
+
+          for (const [key, value] of userFields) {
+            const displayValue =
+              typeof value === 'string' && value.length > 50
+                ? value.substring(0, 47) + '...'
+                : JSON.stringify(value);
+            console.log(`  ${key}: ${displayValue}`);
+          }
+
+          console.log('');
+        }
+
+        if (result.pages > 1) {
+          console.log(`Page ${result.page} of ${result.pages}`);
+        }
+
+        // Show active filters
         if (options.filters) {
-          console.log(`Filters: ${JSON.stringify(options.filters)} returned no results.`);
+          console.log(
+            `Active filters: ${Object.entries(options.filters)
+              .map(([k, v]) => `${k}=${v}`)
+              .join(', ')}`
+          );
         }
-        console.log(`Create some with: content:create ${type} '{"field":"value"}'\n`);
-        return;
-      }
+      },
+      'List content with pagination and filters'
+    );
 
-      const startItem = (result.page - 1) * result.limit + 1;
-      const endItem = Math.min(result.page * result.limit, result.total);
+    // content:search <query> - Search across all content types
+    cli.register(
+      'content:search',
+      async (args, ctx) => {
+        if (args.length === 0) {
+          console.error('Usage: content:search <query>');
+          console.error('Example: node index.js content:search hello');
+          throw new Error('Search query required');
+        }
 
-      // Show filters in header if any
-      const filterInfo = options.filters ? ` [filtered]` : '';
-      console.log(`\n${type} content${filterInfo} (showing ${startItem}-${endItem} of ${result.total}):\n`);
+        const query = args.join(' ');
+        const results = content.search(query);
 
-      for (const item of result.items) {
-        console.log(`  ID: ${item.id}`);
-        console.log(`  Created: ${item.created}`);
+        if (results.length === 0) {
+          console.log(`\nNo results found for "${query}".\n`);
+          return;
+        }
 
-        // Show user fields (exclude system fields)
-        const userFields = Object.entries(item)
-          .filter(([k]) => !['id', 'type', 'created', 'updated'].includes(k));
+        console.log(`\nFound ${results.length} result(s) for "${query}":\n`);
 
-        for (const [key, value] of userFields) {
-          const displayValue = typeof value === 'string' && value.length > 50
-            ? value.substring(0, 47) + '...'
-            : JSON.stringify(value);
-          console.log(`  ${key}: ${displayValue}`);
+        for (const { type, item } of results) {
+          // Find the matching field(s) for context
+          const matchingFields = [];
+          for (const [key, value] of Object.entries(item)) {
+            if (typeof value === 'string' && value.toLowerCase().includes(query.toLowerCase())) {
+              const displayValue = value.length > 40 ? value.substring(0, 37) + '...' : value;
+              matchingFields.push(`${key}="${displayValue}"`);
+            }
+          }
+
+          console.log(`  [${type}] ${item.id}: ${matchingFields.join(', ')}`);
         }
 
         console.log('');
-      }
-
-      if (result.pages > 1) {
-        console.log(`Page ${result.page} of ${result.pages}`);
-      }
-
-      // Show active filters
-      if (options.filters) {
-        console.log(`Active filters: ${Object.entries(options.filters).map(([k, v]) => `${k}=${v}`).join(', ')}`);
-      }
-    }, 'List content with pagination and filters');
-
-    // content:search <query> - Search across all content types
-    cli.register('content:search', async (args, ctx) => {
-      if (args.length === 0) {
-        console.error('Usage: content:search <query>');
-        console.error('Example: node index.js content:search hello');
-        throw new Error('Search query required');
-      }
-
-      const query = args.join(' ');
-      const results = content.search(query);
-
-      if (results.length === 0) {
-        console.log(`\nNo results found for "${query}".\n`);
-        return;
-      }
-
-      console.log(`\nFound ${results.length} result(s) for "${query}":\n`);
-
-      for (const { type, item } of results) {
-        // Find the matching field(s) for context
-        const matchingFields = [];
-        for (const [key, value] of Object.entries(item)) {
-          if (typeof value === 'string' && value.toLowerCase().includes(query.toLowerCase())) {
-            const displayValue = value.length > 40 ? value.substring(0, 37) + '...' : value;
-            matchingFields.push(`${key}="${displayValue}"`);
-          }
-        }
-
-        console.log(`  [${type}] ${item.id}: ${matchingFields.join(', ')}`);
-      }
-
-      console.log('');
-    }, 'Search across all content types');
+      },
+      'Search across all content types'
+    );
 
     // content:create <type> <json> - Create content from JSON
-    cli.register('content:create', async (args, ctx) => {
-      if (args.length < 2) {
-        console.error('Usage: content:create <type> <json>');
-        console.error('Example: node index.js content:create greeting \'{"name":"Ernie","message":"Hello!"}\'');
-        throw new Error('Type and JSON data required');
-      }
+    cli.register(
+      'content:create',
+      async (args, ctx) => {
+        if (args.length < 2) {
+          console.error('Usage: content:create <type> <json>');
+          console.error(
+            'Example: node index.js content:create greeting \'{"name":"Ernie","message":"Hello!"}\''
+          );
+          throw new Error('Type and JSON data required');
+        }
 
-      const type = args[0];
-      const jsonStr = args.slice(1).join(' ');
+        const type = args[0];
+        const jsonStr = args.slice(1).join(' ');
 
-      if (!content.hasType(type)) {
-        console.error(`Unknown content type: "${type}"`);
-        console.error('Use "content:types" to see available types.');
-        throw new Error('Unknown content type');
-      }
+        if (!content.hasType(type)) {
+          console.error(`Unknown content type: "${type}"`);
+          console.error('Use "content:types" to see available types.');
+          throw new Error('Unknown content type');
+        }
 
-      let data;
-      try {
-        data = JSON.parse(jsonStr);
-      } catch (error) {
-        console.error('Invalid JSON:', error.message);
-        throw new Error('Invalid JSON');
-      }
+        let data;
+        try {
+          data = JSON.parse(jsonStr);
+        } catch (error) {
+          console.error('Invalid JSON:', error.message);
+          throw new Error('Invalid JSON');
+        }
 
-      const item = await content.create(type, data);
-      console.log('\nCreated:');
-      console.log(JSON.stringify(item, null, 2));
-      console.log('');
-    }, 'Create content from JSON');
+        const item = await content.create(type, data);
+        console.log('\nCreated:');
+        console.log(JSON.stringify(item, null, 2));
+        console.log('');
+      },
+      'Create content from JSON'
+    );
 
     // content:delete <type> <id> - Delete content
-    cli.register('content:delete', async (args, ctx) => {
-      if (args.length < 2) {
-        console.error('Usage: content:delete <type> <id>');
-        console.error('Example: node index.js content:delete greeting 1705123456789-x7k9m');
-        throw new Error('Type and ID required');
-      }
+    cli.register(
+      'content:delete',
+      async (args, ctx) => {
+        if (args.length < 2) {
+          console.error('Usage: content:delete <type> <id>');
+          console.error('Example: node index.js content:delete greeting 1705123456789-x7k9m');
+          throw new Error('Type and ID required');
+        }
 
-      const [type, id] = args;
+        const [type, id] = args;
 
-      if (!content.hasType(type)) {
-        console.error(`Unknown content type: "${type}"`);
-        throw new Error('Unknown content type');
-      }
+        if (!content.hasType(type)) {
+          console.error(`Unknown content type: "${type}"`);
+          throw new Error('Unknown content type');
+        }
 
-      const deleted = await content.remove(type, id);
+        const deleted = await content.remove(type, id);
 
-      if (deleted) {
-        console.log(`Deleted ${type}/${id}`);
-      } else {
-        console.log(`Not found: ${type}/${id}`);
-      }
-    }, 'Delete content by type and ID');
+        if (deleted) {
+          console.log(`Deleted ${type}/${id}`);
+        } else {
+          console.log(`Not found: ${type}/${id}`);
+        }
+      },
+      'Delete content by type and ID'
+    );
 
     // ==================================================
     // Revision CLI Commands
     // ==================================================
 
     // content:revisions <type> <id> - List revisions for an item
-    cli.register('content:revisions', async (args, ctx) => {
-      if (args.length < 2) {
-        console.error('Usage: content:revisions <type> <id>');
-        console.error('Example: content:revisions greeting abc123');
-        throw new Error('Type and ID required');
-      }
-
-      const [type, id] = args;
-
-      if (!content.hasType(type)) {
-        console.error(`Unknown content type: "${type}"`);
-        throw new Error('Unknown content type');
-      }
-
-      const current = content.read(type, id);
-      if (!current) {
-        console.error(`Content not found: ${type}/${id}`);
-        throw new Error('Content not found');
-      }
-
-      const revisions = content.getRevisions(type, id);
-
-      console.log(`\nRevisions for ${type}/${id}:`);
-      console.log(`  ${current.updated} (current)`);
-
-      if (revisions.length === 0) {
-        console.log('  (no previous revisions)');
-      } else {
-        for (const rev of revisions) {
-          console.log(`  ${rev.timestamp}`);
+    cli.register(
+      'content:revisions',
+      async (args, ctx) => {
+        if (args.length < 2) {
+          console.error('Usage: content:revisions <type> <id>');
+          console.error('Example: content:revisions greeting abc123');
+          throw new Error('Type and ID required');
         }
-      }
 
-      console.log('');
-    }, 'List revisions for a content item');
+        const [type, id] = args;
+
+        if (!content.hasType(type)) {
+          console.error(`Unknown content type: "${type}"`);
+          throw new Error('Unknown content type');
+        }
+
+        const current = content.read(type, id);
+        if (!current) {
+          console.error(`Content not found: ${type}/${id}`);
+          throw new Error('Content not found');
+        }
+
+        const revisions = content.getRevisions(type, id);
+
+        console.log(`\nRevisions for ${type}/${id}:`);
+        console.log(`  ${current.updated} (current)`);
+
+        if (revisions.length === 0) {
+          console.log('  (no previous revisions)');
+        } else {
+          for (const rev of revisions) {
+            console.log(`  ${rev.timestamp}`);
+          }
+        }
+
+        console.log('');
+      },
+      'List revisions for a content item'
+    );
 
     // content:revert <type> <id> <timestamp> - Revert to a revision
-    cli.register('content:revert', async (args, ctx) => {
-      if (args.length < 3) {
-        console.error('Usage: content:revert <type> <id> <timestamp>');
-        console.error('Example: content:revert greeting abc123 2024-01-15T11:30:00.000Z');
-        throw new Error('Type, ID, and timestamp required');
-      }
+    cli.register(
+      'content:revert',
+      async (args, ctx) => {
+        if (args.length < 3) {
+          console.error('Usage: content:revert <type> <id> <timestamp>');
+          console.error('Example: content:revert greeting abc123 2024-01-15T11:30:00.000Z');
+          throw new Error('Type, ID, and timestamp required');
+        }
 
-      const [type, id, timestamp] = args;
+        const [type, id, timestamp] = args;
 
-      if (!content.hasType(type)) {
-        console.error(`Unknown content type: "${type}"`);
-        throw new Error('Unknown content type');
-      }
+        if (!content.hasType(type)) {
+          console.error(`Unknown content type: "${type}"`);
+          throw new Error('Unknown content type');
+        }
 
-      const restored = await content.revertTo(type, id, timestamp);
+        const restored = await content.revertTo(type, id, timestamp);
 
-      if (!restored) {
-        console.error(`Revision not found: ${type}/${id}@${timestamp}`);
-        throw new Error('Revision not found');
-      }
+        if (!restored) {
+          console.error(`Revision not found: ${type}/${id}@${timestamp}`);
+          throw new Error('Revision not found');
+        }
 
-      console.log(`Reverted ${type}/${id} to ${timestamp}`);
-      console.log('(previous version saved as new revision)');
-    }, 'Revert content to a previous revision');
+        console.log(`Reverted ${type}/${id} to ${timestamp}`);
+        console.log('(previous version saved as new revision)');
+      },
+      'Revert content to a previous revision'
+    );
 
     // content:diff <type> <id> <ts1> <ts2> - Show diff between revisions
-    cli.register('content:diff', async (args, ctx) => {
-      if (args.length < 4) {
-        console.error('Usage: content:diff <type> <id> <ts1> <ts2>');
-        console.error('Use "current" for ts1 or ts2 to compare with current version');
-        console.error('Example: content:diff greeting abc123 2024-01-15T11:00:00.000Z current');
-        throw new Error('Type, ID, and two timestamps required');
-      }
+    cli.register(
+      'content:diff',
+      async (args, ctx) => {
+        if (args.length < 4) {
+          console.error('Usage: content:diff <type> <id> <ts1> <ts2>');
+          console.error('Use "current" for ts1 or ts2 to compare with current version');
+          console.error('Example: content:diff greeting abc123 2024-01-15T11:00:00.000Z current');
+          throw new Error('Type, ID, and two timestamps required');
+        }
 
-      const [type, id, ts1, ts2] = args;
+        const [type, id, ts1, ts2] = args;
 
-      if (!content.hasType(type)) {
-        console.error(`Unknown content type: "${type}"`);
-        throw new Error('Unknown content type');
-      }
+        if (!content.hasType(type)) {
+          console.error(`Unknown content type: "${type}"`);
+          throw new Error('Unknown content type');
+        }
 
-      const diff = content.diffRevisions(type, id, ts1, ts2);
+        const diff = content.diffRevisions(type, id, ts1, ts2);
 
-      if (!diff) {
-        console.error('Could not compute diff (one or both versions not found)');
-        throw new Error('Diff failed');
-      }
+        if (!diff) {
+          console.error('Could not compute diff (one or both versions not found)');
+          throw new Error('Diff failed');
+        }
 
-      console.log(`\nDiff: ${type}/${id}`);
-      console.log(`  From: ${diff.ts1}`);
-      console.log(`  To:   ${diff.ts2}`);
-      console.log('');
+        console.log(`\nDiff: ${type}/${id}`);
+        console.log(`  From: ${diff.ts1}`);
+        console.log(`  To:   ${diff.ts2}`);
+        console.log('');
 
-      if (diff.changes.length === 0) {
-        console.log('  No changes detected.');
-      } else {
-        for (const change of diff.changes) {
-          const fromStr = JSON.stringify(change.from);
-          const toStr = JSON.stringify(change.to);
+        if (diff.changes.length === 0) {
+          console.log('  No changes detected.');
+        } else {
+          for (const change of diff.changes) {
+            const fromStr = JSON.stringify(change.from);
+            const toStr = JSON.stringify(change.to);
 
-          if (change.type === 'added') {
-            console.log(`  + ${change.field}: ${toStr}`);
-          } else if (change.type === 'removed') {
-            console.log(`  - ${change.field}: ${fromStr}`);
-          } else {
-            console.log(`  ~ ${change.field}:`);
-            console.log(`      from: ${fromStr}`);
-            console.log(`      to:   ${toStr}`);
+            if (change.type === 'added') {
+              console.log(`  + ${change.field}: ${toStr}`);
+            } else if (change.type === 'removed') {
+              console.log(`  - ${change.field}: ${fromStr}`);
+            } else {
+              console.log(`  ~ ${change.field}:`);
+              console.log(`      from: ${fromStr}`);
+              console.log(`      to:   ${toStr}`);
+            }
           }
         }
-      }
 
-      console.log('');
-    }, 'Show diff between two revisions');
+        console.log('');
+      },
+      'Show diff between two revisions'
+    );
 
     // revisions:prune [--keep=N] - Prune old revisions across all content
-    cli.register('revisions:prune', async (args, ctx) => {
-      let keep = 10;
+    cli.register(
+      'revisions:prune',
+      async (args, ctx) => {
+        let keep = 10;
 
-      for (const arg of args) {
-        if (arg.startsWith('--keep=')) {
-          keep = parseInt(arg.slice(7)) || 10;
-        }
-      }
-
-      console.log(`Pruning revisions (keeping ${keep} per item)...`);
-
-      let totalDeleted = 0;
-      let itemsProcessed = 0;
-
-      // Iterate through all content types
-      for (const { type } of content.listTypes()) {
-        const items = content.listAll(type);
-
-        for (const item of items) {
-          const deleted = content.pruneRevisions(type, item.id, keep);
-          if (deleted > 0) {
-            totalDeleted += deleted;
-            itemsProcessed++;
+        for (const arg of args) {
+          if (arg.startsWith('--keep=')) {
+            keep = parseInt(arg.slice(7)) || 10;
           }
         }
-      }
 
-      if (totalDeleted === 0) {
-        console.log('No revisions to prune.');
-      } else {
-        console.log(`Deleted ${totalDeleted} revision(s) from ${itemsProcessed} item(s).`);
-      }
-    }, 'Prune old revisions across all content');
+        console.log(`Pruning revisions (keeping ${keep} per item)...`);
+
+        let totalDeleted = 0;
+        let itemsProcessed = 0;
+
+        // Iterate through all content types
+        for (const { type } of content.listTypes()) {
+          const items = content.listAll(type);
+
+          for (const item of items) {
+            const deleted = content.pruneRevisions(type, item.id, keep);
+            if (deleted > 0) {
+              totalDeleted += deleted;
+              itemsProcessed++;
+            }
+          }
+        }
+
+        if (totalDeleted === 0) {
+          console.log('No revisions to prune.');
+        } else {
+          console.log(`Deleted ${totalDeleted} revision(s) from ${itemsProcessed} item(s).`);
+        }
+      },
+      'Prune old revisions across all content'
+    );
 
     // ==================================================
     // Workflow CLI Commands
     // ==================================================
 
     // content:publish <type> <id> - Publish content
-    cli.register('content:publish', async (args, ctx) => {
-      if (args.length < 2) {
-        console.error('Usage: content:publish <type> <id>');
-        throw new Error('Type and ID required');
-      }
+    cli.register(
+      'content:publish',
+      async (args, ctx) => {
+        if (args.length < 2) {
+          console.error('Usage: content:publish <type> <id>');
+          throw new Error('Type and ID required');
+        }
 
-      const [type, id] = args;
+        const [type, id] = args;
 
-      if (!content.hasType(type)) {
-        console.error(`Unknown content type: "${type}"`);
-        throw new Error('Unknown content type');
-      }
+        if (!content.hasType(type)) {
+          console.error(`Unknown content type: "${type}"`);
+          throw new Error('Unknown content type');
+        }
 
-      const item = await content.publish(type, id);
+        const item = await content.publish(type, id);
 
-      if (!item) {
-        console.error(`Not found: ${type}/${id}`);
-        throw new Error('Content not found');
-      }
+        if (!item) {
+          console.error(`Not found: ${type}/${id}`);
+          throw new Error('Content not found');
+        }
 
-      console.log(`Published ${type}/${id}`);
-    }, 'Publish content');
+        console.log(`Published ${type}/${id}`);
+      },
+      'Publish content'
+    );
 
     // content:unpublish <type> <id> - Unpublish content
-    cli.register('content:unpublish', async (args, ctx) => {
-      if (args.length < 2) {
-        console.error('Usage: content:unpublish <type> <id>');
-        throw new Error('Type and ID required');
-      }
+    cli.register(
+      'content:unpublish',
+      async (args, ctx) => {
+        if (args.length < 2) {
+          console.error('Usage: content:unpublish <type> <id>');
+          throw new Error('Type and ID required');
+        }
 
-      const [type, id] = args;
+        const [type, id] = args;
 
-      if (!content.hasType(type)) {
-        console.error(`Unknown content type: "${type}"`);
-        throw new Error('Unknown content type');
-      }
+        if (!content.hasType(type)) {
+          console.error(`Unknown content type: "${type}"`);
+          throw new Error('Unknown content type');
+        }
 
-      const item = await content.unpublish(type, id);
+        const item = await content.unpublish(type, id);
 
-      if (!item) {
-        console.error(`Not found: ${type}/${id}`);
-        throw new Error('Content not found');
-      }
+        if (!item) {
+          console.error(`Not found: ${type}/${id}`);
+          throw new Error('Content not found');
+        }
 
-      console.log(`Unpublished ${type}/${id} (status: draft)`);
-    }, 'Unpublish content (set to draft)');
+        console.log(`Unpublished ${type}/${id} (status: draft)`);
+      },
+      'Unpublish content (set to draft)'
+    );
 
     // content:archive <type> <id> - Archive content
-    cli.register('content:archive', async (args, ctx) => {
-      if (args.length < 2) {
-        console.error('Usage: content:archive <type> <id>');
-        throw new Error('Type and ID required');
-      }
+    cli.register(
+      'content:archive',
+      async (args, ctx) => {
+        if (args.length < 2) {
+          console.error('Usage: content:archive <type> <id>');
+          throw new Error('Type and ID required');
+        }
 
-      const [type, id] = args;
+        const [type, id] = args;
 
-      if (!content.hasType(type)) {
-        console.error(`Unknown content type: "${type}"`);
-        throw new Error('Unknown content type');
-      }
+        if (!content.hasType(type)) {
+          console.error(`Unknown content type: "${type}"`);
+          throw new Error('Unknown content type');
+        }
 
-      const item = await content.archive(type, id);
+        const item = await content.archive(type, id);
 
-      if (!item) {
-        console.error(`Not found: ${type}/${id}`);
-        throw new Error('Content not found');
-      }
+        if (!item) {
+          console.error(`Not found: ${type}/${id}`);
+          throw new Error('Content not found');
+        }
 
-      console.log(`Archived ${type}/${id}`);
-    }, 'Archive content');
+        console.log(`Archived ${type}/${id}`);
+      },
+      'Archive content'
+    );
 
     // content:schedule <type> <id> <datetime> - Schedule publishing
-    cli.register('content:schedule', async (args, ctx) => {
-      if (args.length < 3) {
-        console.error('Usage: content:schedule <type> <id> <datetime>');
-        console.error('Example: content:schedule article abc123 "2024-01-20T09:00:00Z"');
-        throw new Error('Type, ID, and datetime required');
-      }
+    cli.register(
+      'content:schedule',
+      async (args, ctx) => {
+        if (args.length < 3) {
+          console.error('Usage: content:schedule <type> <id> <datetime>');
+          console.error('Example: content:schedule article abc123 "2024-01-20T09:00:00Z"');
+          throw new Error('Type, ID, and datetime required');
+        }
 
-      const [type, id, datetime] = args;
+        const [type, id, datetime] = args;
 
-      if (!content.hasType(type)) {
-        console.error(`Unknown content type: "${type}"`);
-        throw new Error('Unknown content type');
-      }
+        if (!content.hasType(type)) {
+          console.error(`Unknown content type: "${type}"`);
+          throw new Error('Unknown content type');
+        }
 
-      const publishDate = new Date(datetime);
-      if (isNaN(publishDate.getTime())) {
-        console.error(`Invalid datetime: "${datetime}"`);
-        throw new Error('Invalid datetime');
-      }
+        const publishDate = new Date(datetime);
+        if (isNaN(publishDate.getTime())) {
+          console.error(`Invalid datetime: "${datetime}"`);
+          throw new Error('Invalid datetime');
+        }
 
-      const item = await content.schedulePublish(type, id, publishDate);
+        const item = await content.schedulePublish(type, id, publishDate);
 
-      if (!item) {
-        console.error(`Not found: ${type}/${id}`);
-        throw new Error('Content not found');
-      }
+        if (!item) {
+          console.error(`Not found: ${type}/${id}`);
+          throw new Error('Content not found');
+        }
 
-      console.log(`Scheduled ${type}/${id} for ${publishDate.toISOString()}`);
-    }, 'Schedule content for future publishing');
+        console.log(`Scheduled ${type}/${id} for ${publishDate.toISOString()}`);
+      },
+      'Schedule content for future publishing'
+    );
 
     // content:status <type> [--status=draft] - List content by status
-    cli.register('content:status', async (args, ctx) => {
-      if (args.length < 1) {
-        console.error('Usage: content:status <type> [--status=draft|pending|published|archived|all]');
-        throw new Error('Type required');
-      }
-
-      const type = args[0];
-      let status = 'all';
-
-      for (const arg of args.slice(1)) {
-        if (arg.startsWith('--status=')) {
-          status = arg.slice(9);
+    cli.register(
+      'content:status',
+      async (args, ctx) => {
+        if (args.length < 1) {
+          console.error(
+            'Usage: content:status <type> [--status=draft|pending|published|archived|all]'
+          );
+          throw new Error('Type required');
         }
-      }
 
-      if (!content.hasType(type)) {
-        console.error(`Unknown content type: "${type}"`);
-        throw new Error('Unknown content type');
-      }
+        const type = args[0];
+        let status = 'all';
 
-      const result = content.getByStatus(type, status, { limit: 50 });
+        for (const arg of args.slice(1)) {
+          if (arg.startsWith('--status=')) {
+            status = arg.slice(9);
+          }
+        }
 
-      if (result.total === 0) {
-        console.log(`\nNo ${type} items with status "${status}".`);
-        return;
-      }
+        if (!content.hasType(type)) {
+          console.error(`Unknown content type: "${type}"`);
+          throw new Error('Unknown content type');
+        }
 
-      const statusLabel = status === 'all' ? 'All' : status.charAt(0).toUpperCase() + status.slice(1);
-      console.log(`\n${statusLabel} ${type} items (${result.total} total):\n`);
+        const result = content.getByStatus(type, status, { limit: 50 });
 
-      for (const item of result.items) {
-        const itemStatus = item.status || 'draft';
-        const title = item.title || item.name || item.id;
-        const created = item.created ? item.created.split('T')[0] : '';
-        const scheduled = item.scheduledAt ? ` (scheduled: ${item.scheduledAt.split('T')[0]})` : '';
-        console.log(`  ${item.id} - ${title} [${itemStatus}] (created ${created})${scheduled}`);
-      }
+        if (result.total === 0) {
+          console.log(`\nNo ${type} items with status "${status}".`);
+          return;
+        }
 
-      console.log('');
-    }, 'List content by status');
+        const statusLabel =
+          status === 'all' ? 'All' : status.charAt(0).toUpperCase() + status.slice(1);
+        console.log(`\n${statusLabel} ${type} items (${result.total} total):\n`);
+
+        for (const item of result.items) {
+          const itemStatus = item.status || 'draft';
+          const title = item.title || item.name || item.id;
+          const created = item.created ? item.created.split('T')[0] : '';
+          const scheduled = item.scheduledAt
+            ? ` (scheduled: ${item.scheduledAt.split('T')[0]})`
+            : '';
+          console.log(`  ${item.id} - ${title} [${itemStatus}] (created ${created})${scheduled}`);
+        }
+
+        console.log('');
+      },
+      'List content by status'
+    );
 
     // workflow:process - Manually run scheduled publish check
-    cli.register('workflow:process', async (args, ctx) => {
-      console.log('Processing scheduled content...\n');
+    cli.register(
+      'workflow:process',
+      async (args, ctx) => {
+        console.log('Processing scheduled content...\n');
 
-      const published = await content.processScheduled();
+        const published = await content.processScheduled();
 
-      if (published.length === 0) {
-        console.log('No scheduled content ready for publishing.');
-      } else {
-        console.log(`Published ${published.length} item(s):`);
-        for (const item of published) {
-          console.log(`  ${item.type}/${item.id}`);
+        if (published.length === 0) {
+          console.log('No scheduled content ready for publishing.');
+        } else {
+          console.log(`Published ${published.length} item(s):`);
+          for (const item of published) {
+            console.log(`  ${item.type}/${item.id}`);
+          }
         }
-      }
-    }, 'Process scheduled content (auto-publish)');
+      },
+      'Process scheduled content (auto-publish)'
+    );
 
     // workflow:status - Show workflow configuration
-    cli.register('workflow:status', async (args, ctx) => {
-      const config = content.getWorkflowConfig();
+    cli.register(
+      'workflow:status',
+      async (args, ctx) => {
+        const config = content.getWorkflowConfig();
 
-      console.log('\nWorkflow Configuration:');
-      console.log('=======================');
-      console.log(`  Enabled:        ${config.enabled ? 'Yes' : 'No'}`);
-      console.log(`  Default Status: ${config.defaultStatus}`);
-      console.log(`  Check Interval: ${config.scheduleCheckInterval}s`);
-      console.log(`  Valid Statuses: ${config.statuses.join(', ')}`);
-      console.log('');
-    }, 'Show workflow configuration');
+        console.log('\nWorkflow Configuration:');
+        console.log('=======================');
+        console.log(`  Enabled:        ${config.enabled ? 'Yes' : 'No'}`);
+        console.log(`  Default Status: ${config.defaultStatus}`);
+        console.log(`  Check Interval: ${config.scheduleCheckInterval}s`);
+        console.log(`  Valid Statuses: ${config.statuses.join(', ')}`);
+        console.log('');
+      },
+      'Show workflow configuration'
+    );
 
     // ==================================================
     // Search CLI Commands
     // ==================================================
 
     // search:query <query> [--type=article] [--limit=20] - Search content
-    cli.register('search:query', async (args, ctx) => {
-      if (args.length === 0) {
-        console.error('Usage: search:query <query> [--type=article] [--limit=20]');
-        console.error('Example: search:query "hello world"');
-        console.error('Example: search:query title:welcome -draft');
-        throw new Error('Query required');
-      }
-
-      // Parse arguments
-      const queryParts = [];
-      let types = null;
-      let limit = 20;
-
-      for (const arg of args) {
-        if (arg.startsWith('--type=')) {
-          types = [arg.slice(7)];
-        } else if (arg.startsWith('--limit=')) {
-          limit = parseInt(arg.slice(8)) || 20;
-        } else {
-          queryParts.push(arg);
+    cli.register(
+      'search:query',
+      async (args, ctx) => {
+        if (args.length === 0) {
+          console.error('Usage: search:query <query> [--type=article] [--limit=20]');
+          console.error('Example: search:query "hello world"');
+          console.error('Example: search:query title:welcome -draft');
+          throw new Error('Query required');
         }
-      }
 
-      const query = queryParts.join(' ');
-      const result = search.search(query, { types, limit, highlight: true });
+        // Parse arguments
+        const queryParts = [];
+        let types = null;
+        let limit = 20;
 
-      if (result.total === 0) {
-        console.log(`\nNo results for "${query}"\n`);
-        return;
-      }
-
-      console.log(`\nSearch results for "${query}" (${result.total} found, ${result.took}ms):\n`);
-
-      for (const hit of result.results) {
-        const title = hit.item?.title || hit.item?.name || hit.id;
-        console.log(`  [${hit.score.toFixed(2)}] ${hit.type}/${hit.id} - ${title}`);
-
-        if (hit.highlights) {
-          for (const [field, snippet] of Object.entries(hit.highlights)) {
-            console.log(`         "${snippet}"`);
+        for (const arg of args) {
+          if (arg.startsWith('--type=')) {
+            types = [arg.slice(7)];
+          } else if (arg.startsWith('--limit=')) {
+            limit = parseInt(arg.slice(8)) || 20;
+          } else {
+            queryParts.push(arg);
           }
         }
-      }
 
-      console.log('');
-    }, 'Search content');
+        const query = queryParts.join(' ');
+        const result = search.search(query, { types, limit, highlight: true });
+
+        if (result.total === 0) {
+          console.log(`\nNo results for "${query}"\n`);
+          return;
+        }
+
+        console.log(`\nSearch results for "${query}" (${result.total} found, ${result.took}ms):\n`);
+
+        for (const hit of result.results) {
+          const title = hit.item?.title || hit.item?.name || hit.id;
+          console.log(`  [${hit.score.toFixed(2)}] ${hit.type}/${hit.id} - ${title}`);
+
+          if (hit.highlights) {
+            for (const [field, snippet] of Object.entries(hit.highlights)) {
+              console.log(`         "${snippet}"`);
+            }
+          }
+        }
+
+        console.log('');
+      },
+      'Search content'
+    );
 
     // search:rebuild [type] - Rebuild search index
-    cli.register('search:rebuild', async (args, ctx) => {
-      const type = args[0] || null;
+    cli.register(
+      'search:rebuild',
+      async (args, ctx) => {
+        const type = args[0] || null;
 
-      console.log('Rebuilding search index...');
+        console.log('Rebuilding search index...');
 
-      const result = search.buildIndex(type);
+        const result = search.buildIndex(type);
 
-      console.log(`Indexed ${result.docs} items across ${result.types} types`);
+        console.log(`Indexed ${result.docs} items across ${result.types} types`);
 
-      const stats = search.getStats();
-      for (const [typeName, typeStats] of Object.entries(stats.typeStats)) {
-        console.log(`  ${typeName}: ${typeStats.docs} items, ${typeStats.terms} terms`);
-      }
-    }, 'Rebuild search index');
+        const stats = search.getStats();
+        for (const [typeName, typeStats] of Object.entries(stats.typeStats)) {
+          console.log(`  ${typeName}: ${typeStats.docs} items, ${typeStats.terms} terms`);
+        }
+      },
+      'Rebuild search index'
+    );
 
     // search:stats - Show search index statistics
-    cli.register('search:stats', async (args, ctx) => {
-      const stats = search.getStats();
+    cli.register(
+      'search:stats',
+      async (args, ctx) => {
+        const stats = search.getStats();
 
-      console.log('\nSearch Index Statistics:');
-      console.log('========================');
-      console.log(`  Enabled:      ${stats.enabled ? 'Yes' : 'No'}`);
-      console.log(`  Total Docs:   ${stats.totalDocs}`);
-      console.log(`  Total Terms:  ${stats.totalTerms}`);
-      console.log(`  Last Rebuild: ${stats.lastRebuild || 'never'}`);
-      console.log(`  Fuzzy:        ${stats.config.fuzzy ? 'Yes' : 'No'}`);
-      console.log(`  Min Word Len: ${stats.config.minWordLength}`);
-      console.log('');
-
-      if (Object.keys(stats.typeStats).length > 0) {
-        console.log('  Per-Type Stats:');
-        for (const [type, typeStats] of Object.entries(stats.typeStats)) {
-          console.log(`    ${type}: ${typeStats.docs} docs, ${typeStats.terms} terms`);
-        }
+        console.log('\nSearch Index Statistics:');
+        console.log('========================');
+        console.log(`  Enabled:      ${stats.enabled ? 'Yes' : 'No'}`);
+        console.log(`  Total Docs:   ${stats.totalDocs}`);
+        console.log(`  Total Terms:  ${stats.totalTerms}`);
+        console.log(`  Last Rebuild: ${stats.lastRebuild || 'never'}`);
+        console.log(`  Fuzzy:        ${stats.config.fuzzy ? 'Yes' : 'No'}`);
+        console.log(`  Min Word Len: ${stats.config.minWordLength}`);
         console.log('');
-      }
-    }, 'Show search index statistics');
+
+        if (Object.keys(stats.typeStats).length > 0) {
+          console.log('  Per-Type Stats:');
+          for (const [type, typeStats] of Object.entries(stats.typeStats)) {
+            console.log(`    ${type}: ${typeStats.docs} docs, ${typeStats.terms} terms`);
+          }
+          console.log('');
+        }
+      },
+      'Show search index statistics'
+    );
 
     // ==================================================
     // i18n CLI Commands
     // ==================================================
 
     // i18n:list - List available locales
-    cli.register('i18n:list', async (args, ctx) => {
-      const locales = i18n.getAvailableLocales();
-      const defaultLocale = i18n.getDefaultLocale();
+    cli.register(
+      'i18n:list',
+      async (args, ctx) => {
+        const locales = i18n.getAvailableLocales();
+        const defaultLocale = i18n.getDefaultLocale();
 
-      console.log('\nAvailable Locales:');
-      console.log('==================');
+        console.log('\nAvailable Locales:');
+        console.log('==================');
 
-      for (const locale of locales) {
-        const isDefault = locale.code === defaultLocale ? ' (default)' : '';
-        const stats = i18n.getCompletionStats(locale.code);
-        console.log(`  ${locale.code} - ${locale.name}${isDefault}`);
-        console.log(`    Keys: ${stats.translated}/${stats.total} (${stats.percentage}% complete)`);
-      }
+        for (const locale of locales) {
+          const isDefault = locale.code === defaultLocale ? ' (default)' : '';
+          const stats = i18n.getCompletionStats(locale.code);
+          console.log(`  ${locale.code} - ${locale.name}${isDefault}`);
+          console.log(
+            `    Keys: ${stats.translated}/${stats.total} (${stats.percentage}% complete)`
+          );
+        }
 
-      console.log('');
-    }, 'List available locales');
+        console.log('');
+      },
+      'List available locales'
+    );
 
     // i18n:export <locale> - Export translations
-    cli.register('i18n:export', async (args, ctx) => {
-      if (args.length === 0) {
-        console.error('Usage: i18n:export <locale> [--output=file.json]');
-        throw new Error('Locale required');
-      }
-
-      const locale = args[0];
-      let outputFile = null;
-
-      for (const arg of args.slice(1)) {
-        if (arg.startsWith('--output=')) {
-          outputFile = arg.slice(9);
+    cli.register(
+      'i18n:export',
+      async (args, ctx) => {
+        if (args.length === 0) {
+          console.error('Usage: i18n:export <locale> [--output=file.json]');
+          throw new Error('Locale required');
         }
-      }
 
-      const data = i18n.exportTranslations(locale);
+        const locale = args[0];
+        let outputFile = null;
 
-      if (outputFile) {
-        const { writeFileSync } = await import('node:fs');
-        writeFileSync(outputFile, JSON.stringify(data, null, 2) + '\n');
-        console.log(`Exported ${locale} to ${outputFile}`);
-        console.log(`  ${Object.keys(data.translations).length} keys`);
-      } else {
-        console.log(JSON.stringify(data, null, 2));
-      }
-    }, 'Export translations for a locale');
+        for (const arg of args.slice(1)) {
+          if (arg.startsWith('--output=')) {
+            outputFile = arg.slice(9);
+          }
+        }
+
+        const data = i18n.exportTranslations(locale);
+
+        if (outputFile) {
+          const { writeFileSync } = await import('node:fs');
+          writeFileSync(outputFile, JSON.stringify(data, null, 2) + '\n');
+          console.log(`Exported ${locale} to ${outputFile}`);
+          console.log(`  ${Object.keys(data.translations).length} keys`);
+        } else {
+          console.log(JSON.stringify(data, null, 2));
+        }
+      },
+      'Export translations for a locale'
+    );
 
     // i18n:import <locale> <file> - Import translations
-    cli.register('i18n:import', async (args, ctx) => {
-      if (args.length < 2) {
-        console.error('Usage: i18n:import <locale> <file> [--replace]');
-        throw new Error('Locale and file required');
-      }
+    cli.register(
+      'i18n:import',
+      async (args, ctx) => {
+        if (args.length < 2) {
+          console.error('Usage: i18n:import <locale> <file> [--replace]');
+          throw new Error('Locale and file required');
+        }
 
-      const locale = args[0];
-      const filePath = args[1];
-      const merge = !args.includes('--replace');
+        const locale = args[0];
+        const filePath = args[1];
+        const merge = !args.includes('--replace');
 
-      const { readFileSync, existsSync } = await import('node:fs');
+        const { readFileSync, existsSync } = await import('node:fs');
 
-      if (!existsSync(filePath)) {
-        console.error(`File not found: ${filePath}`);
-        throw new Error('File not found');
-      }
+        if (!existsSync(filePath)) {
+          console.error(`File not found: ${filePath}`);
+          throw new Error('File not found');
+        }
 
-      const json = readFileSync(filePath, 'utf-8');
-      const data = JSON.parse(json);
+        const json = readFileSync(filePath, 'utf-8');
+        const data = JSON.parse(json);
 
-      const result = i18n.importTranslations(locale, data, merge);
+        const result = i18n.importTranslations(locale, data, merge);
 
-      console.log(`Imported translations to ${locale}`);
-      console.log(`  Added: ${result.added}`);
-      console.log(`  Updated: ${result.updated}`);
-    }, 'Import translations from JSON file');
+        console.log(`Imported translations to ${locale}`);
+        console.log(`  Added: ${result.added}`);
+        console.log(`  Updated: ${result.updated}`);
+      },
+      'Import translations from JSON file'
+    );
 
     // i18n:missing [locale] - Show missing translations
-    cli.register('i18n:missing', async (args, ctx) => {
-      const locale = args[0] || null;
-      const locales = locale ? [locale] : i18n.getAvailableLocales().map(l => l.code);
-      const defaultLocale = i18n.getDefaultLocale();
+    cli.register(
+      'i18n:missing',
+      async (args, ctx) => {
+        const locale = args[0] || null;
+        const locales = locale ? [locale] : i18n.getAvailableLocales().map((l) => l.code);
+        const defaultLocale = i18n.getDefaultLocale();
 
-      console.log('\nMissing Translations:');
-      console.log('=====================');
+        console.log('\nMissing Translations:');
+        console.log('=====================');
 
-      for (const code of locales) {
-        if (code === defaultLocale) continue; // Skip default locale
+        for (const code of locales) {
+          if (code === defaultLocale) continue; // Skip default locale
 
-        const missing = i18n.getMissingKeys(code);
+          const missing = i18n.getMissingKeys(code);
 
-        if (missing.length === 0) {
-          console.log(`  ${code}: Complete!`);
-        } else {
-          console.log(`  ${code}: ${missing.length} missing`);
-          for (const key of missing.slice(0, 10)) {
-            console.log(`    - ${key}`);
-          }
-          if (missing.length > 10) {
-            console.log(`    ... and ${missing.length - 10} more`);
+          if (missing.length === 0) {
+            console.log(`  ${code}: Complete!`);
+          } else {
+            console.log(`  ${code}: ${missing.length} missing`);
+            for (const key of missing.slice(0, 10)) {
+              console.log(`    - ${key}`);
+            }
+            if (missing.length > 10) {
+              console.log(`    ... and ${missing.length - 10} more`);
+            }
           }
         }
-      }
 
-      console.log('');
-    }, 'Show missing translations');
+        console.log('');
+      },
+      'Show missing translations'
+    );
 
     // i18n:add <code> - Add new locale
-    cli.register('i18n:add', async (args, ctx) => {
-      if (args.length === 0) {
-        console.error('Usage: i18n:add <locale-code>');
-        console.error('Example: i18n:add de');
-        throw new Error('Locale code required');
-      }
-
-      const code = args[0];
-
-      try {
-        const created = i18n.createLocale(code);
-        if (created) {
-          console.log(`Created locale: ${code}`);
-          console.log('Add translations in /locales/' + code + '.json');
-        } else {
-          console.log(`Locale ${code} already exists`);
+    cli.register(
+      'i18n:add',
+      async (args, ctx) => {
+        if (args.length === 0) {
+          console.error('Usage: i18n:add <locale-code>');
+          console.error('Example: i18n:add de');
+          throw new Error('Locale code required');
         }
-      } catch (error) {
-        console.error(`Error: ${error.message}`);
-        throw error;
-      }
-    }, 'Add a new locale');
+
+        const code = args[0];
+
+        try {
+          const created = i18n.createLocale(code);
+          if (created) {
+            console.log(`Created locale: ${code}`);
+            console.log('Add translations in /locales/' + code + '.json');
+          } else {
+            console.log(`Locale ${code} already exists`);
+          }
+        } catch (error) {
+          console.error(`Error: ${error.message}`);
+          throw error;
+        }
+      },
+      'Add a new locale'
+    );
 
     // i18n:set <locale> <key> <value> - Set a translation
-    cli.register('i18n:set', async (args, ctx) => {
-      if (args.length < 3) {
-        console.error('Usage: i18n:set <locale> <key> <value>');
-        throw new Error('Locale, key, and value required');
-      }
+    cli.register(
+      'i18n:set',
+      async (args, ctx) => {
+        if (args.length < 3) {
+          console.error('Usage: i18n:set <locale> <key> <value>');
+          throw new Error('Locale, key, and value required');
+        }
 
-      const [locale, key, ...valueParts] = args;
-      const value = valueParts.join(' ');
+        const [locale, key, ...valueParts] = args;
+        const value = valueParts.join(' ');
 
-      i18n.setTranslation(locale, key, value);
-      i18n.saveLocale(locale);
+        i18n.setTranslation(locale, key, value);
+        i18n.saveLocale(locale);
 
-      console.log(`Set ${locale}.${key} = "${value}"`);
-    }, 'Set a translation key');
+        console.log(`Set ${locale}.${key} = "${value}"`);
+      },
+      'Set a translation key'
+    );
 
     // ==================================================
     // Audit CLI Commands
     // ==================================================
 
     // audit:list - Query audit logs
-    cli.register('audit:list', async (args, ctx) => {
-      const filters = {};
-      const options = { limit: 50 };
+    cli.register(
+      'audit:list',
+      async (args, ctx) => {
+        const filters = {};
+        const options = { limit: 50 };
 
-      // Parse arguments
-      for (const arg of args) {
-        if (arg.startsWith('--user=')) {
-          filters.username = arg.slice(7);
-        } else if (arg.startsWith('--action=')) {
-          filters.action = arg.slice(9);
-        } else if (arg.startsWith('--days=')) {
-          filters.days = parseInt(arg.slice(7));
-        } else if (arg.startsWith('--result=')) {
-          filters.result = arg.slice(9);
-        } else if (arg.startsWith('--limit=')) {
-          options.limit = parseInt(arg.slice(8));
-        } else if (arg.startsWith('--ip=')) {
-          filters.ip = arg.slice(5);
-        }
-      }
-
-      // Default to 7 days if not specified
-      if (!filters.days && !filters.from && !filters.to) {
-        filters.days = 7;
-      }
-
-      const result = audit.query(filters, options);
-
-      console.log(`\nRecent audit events (last ${filters.days || 30} days):`);
-      console.log('='.repeat(60));
-
-      if (result.entries.length === 0) {
-        console.log('  No events found matching filters');
-      } else {
-        for (const entry of result.entries) {
-          const time = entry.timestamp.replace('T', ' ').slice(0, 19);
-          const user = entry.username || 'anonymous';
-          const ip = entry.ip ? ` from ${entry.ip}` : '';
-          const resultStr = entry.result === 'success' ? '' : ` - ${entry.result}`;
-          const errorStr = entry.error ? ` (${entry.error})` : '';
-
-          // Format details for common actions
-          let details = '';
-          if (entry.action.startsWith('content.') && entry.details) {
-            details = ` ${entry.details.type}/${entry.details.id}`;
+        // Parse arguments
+        for (const arg of args) {
+          if (arg.startsWith('--user=')) {
+            filters.username = arg.slice(7);
+          } else if (arg.startsWith('--action=')) {
+            filters.action = arg.slice(9);
+          } else if (arg.startsWith('--days=')) {
+            filters.days = parseInt(arg.slice(7));
+          } else if (arg.startsWith('--result=')) {
+            filters.result = arg.slice(9);
+          } else if (arg.startsWith('--limit=')) {
+            options.limit = parseInt(arg.slice(8));
+          } else if (arg.startsWith('--ip=')) {
+            filters.ip = arg.slice(5);
           }
-
-          console.log(`  ${time} [${entry.action}] ${user}${details}${ip}${resultStr}${errorStr}`);
         }
-      }
 
-      console.log(`\nTotal: ${result.total} events (showing ${result.entries.length})`);
-      console.log('');
-    }, 'Query audit logs');
+        // Default to 7 days if not specified
+        if (!filters.days && !filters.from && !filters.to) {
+          filters.days = 7;
+        }
+
+        const result = audit.query(filters, options);
+
+        console.log(`\nRecent audit events (last ${filters.days || 30} days):`);
+        console.log('='.repeat(60));
+
+        if (result.entries.length === 0) {
+          console.log('  No events found matching filters');
+        } else {
+          for (const entry of result.entries) {
+            const time = entry.timestamp.replace('T', ' ').slice(0, 19);
+            const user = entry.username || 'anonymous';
+            const ip = entry.ip ? ` from ${entry.ip}` : '';
+            const resultStr = entry.result === 'success' ? '' : ` - ${entry.result}`;
+            const errorStr = entry.error ? ` (${entry.error})` : '';
+
+            // Format details for common actions
+            let details = '';
+            if (entry.action.startsWith('content.') && entry.details) {
+              details = ` ${entry.details.type}/${entry.details.id}`;
+            }
+
+            console.log(
+              `  ${time} [${entry.action}] ${user}${details}${ip}${resultStr}${errorStr}`
+            );
+          }
+        }
+
+        console.log(`\nTotal: ${result.total} events (showing ${result.entries.length})`);
+        console.log('');
+      },
+      'Query audit logs'
+    );
 
     // audit:stats - Show audit statistics
-    cli.register('audit:stats', async (args, ctx) => {
-      let days = 30;
+    cli.register(
+      'audit:stats',
+      async (args, ctx) => {
+        let days = 30;
 
-      for (const arg of args) {
-        if (arg.startsWith('--days=')) {
-          days = parseInt(arg.slice(7));
+        for (const arg of args) {
+          if (arg.startsWith('--days=')) {
+            days = parseInt(arg.slice(7));
+          }
         }
-      }
 
-      const stats = audit.getStats({ days });
+        const stats = audit.getStats({ days });
 
-      console.log(`\nAudit statistics (last ${days} days):`);
-      console.log('='.repeat(40));
-      console.log(`  Total events: ${stats.total.toLocaleString()}`);
+        console.log(`\nAudit statistics (last ${days} days):`);
+        console.log('='.repeat(40));
+        console.log(`  Total events: ${stats.total.toLocaleString()}`);
 
-      console.log('\n  By action:');
-      const actions = Object.entries(stats.byAction).slice(0, 10);
-      for (const [action, count] of actions) {
-        console.log(`    ${action}: ${count}`);
-      }
-
-      console.log('\n  By user:');
-      const users = Object.entries(stats.byUser).slice(0, 10);
-      for (const [user, count] of users) {
-        console.log(`    ${user}: ${count}`);
-      }
-
-      console.log('\n  By result:');
-      for (const [result, count] of Object.entries(stats.byResult)) {
-        console.log(`    ${result}: ${count}`);
-      }
-
-      if (Object.keys(stats.topIPs).length > 0) {
-        console.log('\n  Top IPs:');
-        for (const [ip, count] of Object.entries(stats.topIPs).slice(0, 5)) {
-          console.log(`    ${ip}: ${count}`);
+        console.log('\n  By action:');
+        const actions = Object.entries(stats.byAction).slice(0, 10);
+        for (const [action, count] of actions) {
+          console.log(`    ${action}: ${count}`);
         }
-      }
 
-      console.log('');
-    }, 'Show audit statistics');
+        console.log('\n  By user:');
+        const users = Object.entries(stats.byUser).slice(0, 10);
+        for (const [user, count] of users) {
+          console.log(`    ${user}: ${count}`);
+        }
+
+        console.log('\n  By result:');
+        for (const [result, count] of Object.entries(stats.byResult)) {
+          console.log(`    ${result}: ${count}`);
+        }
+
+        if (Object.keys(stats.topIPs).length > 0) {
+          console.log('\n  Top IPs:');
+          for (const [ip, count] of Object.entries(stats.topIPs).slice(0, 5)) {
+            console.log(`    ${ip}: ${count}`);
+          }
+        }
+
+        console.log('');
+      },
+      'Show audit statistics'
+    );
 
     // audit:export - Export audit logs
-    cli.register('audit:export', async (args, ctx) => {
-      const filters = {};
-      let outputFile = null;
-      let format = 'json';
+    cli.register(
+      'audit:export',
+      async (args, ctx) => {
+        const filters = {};
+        let outputFile = null;
+        let format = 'json';
 
-      for (const arg of args) {
-        if (arg.startsWith('--from=')) {
-          filters.from = arg.slice(7);
-        } else if (arg.startsWith('--to=')) {
-          filters.to = arg.slice(5);
-        } else if (arg.startsWith('--days=')) {
-          filters.days = parseInt(arg.slice(7));
-        } else if (arg.startsWith('--output=')) {
-          outputFile = arg.slice(9);
-        } else if (arg.startsWith('--format=')) {
-          format = arg.slice(9);
-        } else if (arg.startsWith('--action=')) {
-          filters.action = arg.slice(9);
-        } else if (arg.startsWith('--user=')) {
-          filters.username = arg.slice(7);
+        for (const arg of args) {
+          if (arg.startsWith('--from=')) {
+            filters.from = arg.slice(7);
+          } else if (arg.startsWith('--to=')) {
+            filters.to = arg.slice(5);
+          } else if (arg.startsWith('--days=')) {
+            filters.days = parseInt(arg.slice(7));
+          } else if (arg.startsWith('--output=')) {
+            outputFile = arg.slice(9);
+          } else if (arg.startsWith('--format=')) {
+            format = arg.slice(9);
+          } else if (arg.startsWith('--action=')) {
+            filters.action = arg.slice(9);
+          } else if (arg.startsWith('--user=')) {
+            filters.username = arg.slice(7);
+          }
         }
-      }
 
-      const data = audit.exportLogs(filters, format);
+        const data = audit.exportLogs(filters, format);
 
-      if (outputFile) {
-        const { writeFileSync } = await import('node:fs');
-        writeFileSync(outputFile, data);
-        const result = audit.query(filters, { limit: Number.MAX_SAFE_INTEGER });
-        console.log(`Exported ${result.total} audit entries to ${outputFile}`);
-      } else {
-        console.log(data);
-      }
-    }, 'Export audit logs');
+        if (outputFile) {
+          const { writeFileSync } = await import('node:fs');
+          writeFileSync(outputFile, data);
+          const result = audit.query(filters, { limit: Number.MAX_SAFE_INTEGER });
+          console.log(`Exported ${result.total} audit entries to ${outputFile}`);
+        } else {
+          console.log(data);
+        }
+      },
+      'Export audit logs'
+    );
 
     // audit:prune - Delete old audit logs
-    cli.register('audit:prune', async (args, ctx) => {
-      let days = null;
+    cli.register(
+      'audit:prune',
+      async (args, ctx) => {
+        let days = null;
 
-      for (const arg of args) {
-        if (arg.startsWith('--days=')) {
-          days = parseInt(arg.slice(7));
+        for (const arg of args) {
+          if (arg.startsWith('--days=')) {
+            days = parseInt(arg.slice(7));
+          }
         }
-      }
 
-      const result = audit.prune(days);
+        const result = audit.prune(days);
 
-      if (result.deleted > 0) {
-        console.log(`Pruned ${result.deleted} audit entries`);
-        console.log(`Deleted files:`);
-        for (const file of result.files) {
-          console.log(`  - ${file}`);
+        if (result.deleted > 0) {
+          console.log(`Pruned ${result.deleted} audit entries`);
+          console.log(`Deleted files:`);
+          for (const file of result.files) {
+            console.log(`  - ${file}`);
+          }
+        } else {
+          console.log('No audit entries to prune');
         }
-      } else {
-        console.log('No audit entries to prune');
-      }
-    }, 'Delete old audit logs');
+      },
+      'Delete old audit logs'
+    );
 
     // cache:stats - Show cache statistics
-    cli.register('cache:stats', async (args, ctx) => {
-      const stats = cache.stats();
+    cli.register(
+      'cache:stats',
+      async (args, ctx) => {
+        const stats = cache.stats();
 
-      console.log('\nCache Statistics:');
-      console.log('=================');
-      console.log(`  Status:   ${context.config.site.cache?.enabled ? 'Enabled' : 'Disabled'}`);
-      console.log(`  TTL:      ${context.config.site.cache?.ttl || 300}s`);
-      console.log(`  Size:     ${stats.size} entries`);
-      console.log(`  Hits:     ${stats.hits}`);
-      console.log(`  Misses:   ${stats.misses}`);
-      console.log(`  Hit Rate: ${stats.hitRate}`);
-      console.log(`  Sets:     ${stats.sets}`);
-      console.log(`  Deletes:  ${stats.deletes}`);
-      console.log(`  Clears:   ${stats.clears}`);
+        console.log('\nCache Statistics:');
+        console.log('=================');
+        console.log(`  Status:   ${context.config.site.cache?.enabled ? 'Enabled' : 'Disabled'}`);
+        console.log(`  TTL:      ${context.config.site.cache?.ttl || 300}s`);
+        console.log(`  Size:     ${stats.size} entries`);
+        console.log(`  Hits:     ${stats.hits}`);
+        console.log(`  Misses:   ${stats.misses}`);
+        console.log(`  Hit Rate: ${stats.hitRate}`);
+        console.log(`  Sets:     ${stats.sets}`);
+        console.log(`  Deletes:  ${stats.deletes}`);
+        console.log(`  Clears:   ${stats.clears}`);
 
-      if (stats.keys.length > 0 && stats.keys.length <= 20) {
-        console.log('\n  Cached keys:');
-        for (const key of stats.keys) {
-          const ttlRemaining = cache.ttl(key);
-          console.log(`    - ${key} (TTL: ${ttlRemaining}s)`);
+        if (stats.keys.length > 0 && stats.keys.length <= 20) {
+          console.log('\n  Cached keys:');
+          for (const key of stats.keys) {
+            const ttlRemaining = cache.ttl(key);
+            console.log(`    - ${key} (TTL: ${ttlRemaining}s)`);
+          }
+        } else if (stats.keys.length > 20) {
+          console.log(`\n  ${stats.keys.length} keys cached (too many to list)`);
         }
-      } else if (stats.keys.length > 20) {
-        console.log(`\n  ${stats.keys.length} keys cached (too many to list)`);
-      }
 
-      console.log('');
-    }, 'Show cache statistics');
+        console.log('');
+      },
+      'Show cache statistics'
+    );
 
     // cache:clear [pattern] - Clear cache
-    cli.register('cache:clear', async (args, ctx) => {
-      const pattern = args[0] || null;
+    cli.register(
+      'cache:clear',
+      async (args, ctx) => {
+        const pattern = args[0] || null;
 
-      if (pattern) {
-        const count = cache.clear(pattern);
-        console.log(`Cleared ${count} cache entries matching "${pattern}"`);
-      } else {
-        const count = cache.clear();
-        console.log(`Cleared all ${count} cache entries`);
-      }
-    }, 'Clear cache (all or matching pattern)');
+        if (pattern) {
+          const count = cache.clear(pattern);
+          console.log(`Cleared ${count} cache entries matching "${pattern}"`);
+        } else {
+          const count = cache.clear();
+          console.log(`Cleared all ${count} cache entries`);
+        }
+      },
+      'Clear cache (all or matching pattern)'
+    );
 
     // csrf:status - Show CSRF protection status
-    cli.register('csrf:status', async (args, ctx) => {
-      const status = auth.getCSRFStatus();
+    cli.register(
+      'csrf:status',
+      async (args, ctx) => {
+        const status = auth.getCSRFStatus();
 
-      console.log('\nCSRF Protection Status:');
-      console.log('=======================');
-      console.log(`  Enabled:       ${status.enabled ? 'Yes' : 'No'}`);
-      console.log(`  Token Expiry:  ${status.tokenExpiry}s`);
-      console.log(`  Active Tokens: ${status.activeTokenCount}`);
-      console.log('');
-    }, 'Show CSRF protection status');
+        console.log('\nCSRF Protection Status:');
+        console.log('=======================');
+        console.log(`  Enabled:       ${status.enabled ? 'Yes' : 'No'}`);
+        console.log(`  Token Expiry:  ${status.tokenExpiry}s`);
+        console.log(`  Active Tokens: ${status.activeTokenCount}`);
+        console.log('');
+      },
+      'Show CSRF protection status'
+    );
 
     // csrf:clear - Clear all CSRF tokens
-    cli.register('csrf:clear', async (args, ctx) => {
-      const count = auth.clearCSRFTokens();
-      console.log(`Cleared ${count} CSRF token(s)`);
-      console.log('All users will need to refresh forms to get new tokens.');
-    }, 'Clear all CSRF tokens (force re-auth)');
+    cli.register(
+      'csrf:clear',
+      async (args, ctx) => {
+        const count = auth.clearCSRFTokens();
+        console.log(`Cleared ${count} CSRF token(s)`);
+        console.log('All users will need to refresh forms to get new tokens.');
+      },
+      'Clear all CSRF tokens (force re-auth)'
+    );
 
     // ==================================================
     // Rate Limiting CLI Commands
     // ==================================================
 
     // ratelimit:status - Show rate limiting status
-    cli.register('ratelimit:status', async (args, ctx) => {
-      const config = ratelimit.getConfig();
-      const blocked = ratelimit.getBlocked();
-      const stats = ratelimit.getStats();
+    cli.register(
+      'ratelimit:status',
+      async (args, ctx) => {
+        const config = ratelimit.getConfig();
+        const blocked = ratelimit.getBlocked();
+        const stats = ratelimit.getStats();
 
-      console.log('\nRate Limiting Status:');
-      console.log('=====================');
-      console.log(`  Enabled: ${config.enabled ? 'Yes' : 'No'}`);
-      console.log('');
-      console.log('  Limits:');
-      console.log(`    login: ${config.login.points} requests / ${config.login.duration}s (block: ${config.login.blockDuration}s)`);
-      console.log(`    api:   ${config.api.points} requests / ${config.api.duration}s`);
-      console.log(`    admin: ${config.admin.points} requests / ${config.admin.duration}s`);
-      console.log('');
-      console.log(`  Tracked entries: ${stats.totalEntries}`);
-      console.log(`  Total timestamps: ${stats.totalTimestamps}`);
-      console.log(`  Memory estimate: ~${Math.round(stats.memoryEstimate / 1024)}KB`);
-      console.log('');
+        console.log('\nRate Limiting Status:');
+        console.log('=====================');
+        console.log(`  Enabled: ${config.enabled ? 'Yes' : 'No'}`);
+        console.log('');
+        console.log('  Limits:');
+        console.log(
+          `    login: ${config.login.points} requests / ${config.login.duration}s (block: ${config.login.blockDuration}s)`
+        );
+        console.log(`    api:   ${config.api.points} requests / ${config.api.duration}s`);
+        console.log(`    admin: ${config.admin.points} requests / ${config.admin.duration}s`);
+        console.log('');
+        console.log(`  Tracked entries: ${stats.totalEntries}`);
+        console.log(`  Total timestamps: ${stats.totalTimestamps}`);
+        console.log(`  Memory estimate: ~${Math.round(stats.memoryEstimate / 1024)}KB`);
+        console.log('');
 
-      if (blocked.length === 0) {
-        console.log('  Currently blocked: 0 IPs');
-      } else {
-        console.log(`  Currently blocked: ${blocked.length} IP(s)`);
-        for (const entry of blocked) {
-          // Extract IP from key (e.g., "login:192.168.1.1" -> "192.168.1.1")
-          const ip = entry.key.split(':').slice(1).join(':');
-          console.log(`    ${ip} - blocked until ${entry.blockedUntilFormatted} (${entry.reason})`);
+        if (blocked.length === 0) {
+          console.log('  Currently blocked: 0 IPs');
+        } else {
+          console.log(`  Currently blocked: ${blocked.length} IP(s)`);
+          for (const entry of blocked) {
+            // Extract IP from key (e.g., "login:192.168.1.1" -> "192.168.1.1")
+            const ip = entry.key.split(':').slice(1).join(':');
+            console.log(
+              `    ${ip} - blocked until ${entry.blockedUntilFormatted} (${entry.reason})`
+            );
+          }
         }
-      }
-      console.log('');
-    }, 'Show rate limiting status and blocked IPs');
+        console.log('');
+      },
+      'Show rate limiting status and blocked IPs'
+    );
 
     // ratelimit:clear [ip] - Clear rate limit blocks
-    cli.register('ratelimit:clear', async (args, ctx) => {
-      const ip = args[0] || null;
+    cli.register(
+      'ratelimit:clear',
+      async (args, ctx) => {
+        const ip = args[0] || null;
 
-      if (ip) {
-        const count = ratelimit.clearKey(ip);
-        if (count > 0) {
-          console.log(`Cleared rate limit data for ${ip}`);
-        } else {
-          console.log(`No rate limit data found for ${ip}`);
-        }
-      } else {
-        const count = ratelimit.clearKey(null);
-        console.log(`Cleared all rate limit data (${count} entries)`);
-      }
-    }, 'Clear rate limit blocks (all or specific IP)');
-
-    // ratelimit:block <ip> [duration] - Manually block an IP
-    cli.register('ratelimit:block', async (args, ctx) => {
-      if (args.length === 0) {
-        console.error('Usage: ratelimit:block <ip> [duration_seconds]');
-        console.error('Example: ratelimit:block 192.168.1.50 3600');
-        throw new Error('IP address required');
-      }
-
-      const ip = args[0];
-      const duration = parseInt(args[1]) || 3600; // Default 1 hour
-
-      const result = ratelimit.blockKey(ip, duration, 'manual');
-      console.log(`Blocked ${ip} until ${result.blockedUntilFormatted} (${duration}s)`);
-    }, 'Manually block an IP address');
-
-    // tasks:list - Show all scheduled tasks
-    cli.register('tasks:list', async (args, ctx) => {
-      const tasks = scheduler.list();
-
-      if (tasks.length === 0) {
-        console.log('\nNo scheduled tasks registered.');
-        console.log('Modules can register tasks via hook_schedule.\n');
-        return;
-      }
-
-      console.log('\nScheduled tasks:');
-
-      for (const task of tasks) {
-        console.log(`  ${task.name}`);
-        console.log(`    Schedule: ${task.cronExpr} (${scheduler.describeCron(task.cronExpr)})`);
-        console.log(`    Last run: ${task.lastRun ? scheduler.formatDate(task.lastRun) : 'never'}`);
-        console.log(`    Next run: ${scheduler.formatDate(task.nextRun)}`);
-        console.log(`    Status: ${task.lastStatus}${task.lastError ? ` (${task.lastError})` : ''}`);
-        console.log('');
-      }
-    }, 'Show all scheduled tasks');
-
-    // tasks:run <name> - Manually run a task
-    cli.register('tasks:run', async (args, ctx) => {
-      if (args.length === 0) {
-        console.error('Usage: tasks:run <name>');
-        console.error('Example: tasks:run tasks:cleanup');
-        throw new Error('Task name required');
-      }
-
-      const name = args[0];
-
-      try {
-        const result = await scheduler.run(name);
-
-        if (result.status === 'success') {
-          if (result.result) {
-            console.log(`Result: ${typeof result.result === 'string' ? result.result : JSON.stringify(result.result)}`);
+        if (ip) {
+          const count = ratelimit.clearKey(ip);
+          if (count > 0) {
+            console.log(`Cleared rate limit data for ${ip}`);
+          } else {
+            console.log(`No rate limit data found for ${ip}`);
           }
         } else {
-          console.error(`Failed: ${result.error}`);
+          const count = ratelimit.clearKey(null);
+          console.log(`Cleared all rate limit data (${count} entries)`);
         }
-      } catch (error) {
-        console.error(`Error: ${error.message}`);
-        throw error;
-      }
-    }, 'Manually run a scheduled task');
+      },
+      'Clear rate limit blocks (all or specific IP)'
+    );
+
+    // ratelimit:block <ip> [duration] - Manually block an IP
+    cli.register(
+      'ratelimit:block',
+      async (args, ctx) => {
+        if (args.length === 0) {
+          console.error('Usage: ratelimit:block <ip> [duration_seconds]');
+          console.error('Example: ratelimit:block 192.168.1.50 3600');
+          throw new Error('IP address required');
+        }
+
+        const ip = args[0];
+        const duration = parseInt(args[1]) || 3600; // Default 1 hour
+
+        const result = ratelimit.blockKey(ip, duration, 'manual');
+        console.log(`Blocked ${ip} until ${result.blockedUntilFormatted} (${duration}s)`);
+      },
+      'Manually block an IP address'
+    );
+
+    // tasks:list - Show all scheduled tasks
+    cli.register(
+      'tasks:list',
+      async (args, ctx) => {
+        const tasks = scheduler.list();
+
+        if (tasks.length === 0) {
+          console.log('\nNo scheduled tasks registered.');
+          console.log('Modules can register tasks via hook_schedule.\n');
+          return;
+        }
+
+        console.log('\nScheduled tasks:');
+
+        for (const task of tasks) {
+          console.log(`  ${task.name}`);
+          console.log(`    Schedule: ${task.cronExpr} (${scheduler.describeCron(task.cronExpr)})`);
+          console.log(
+            `    Last run: ${task.lastRun ? scheduler.formatDate(task.lastRun) : 'never'}`
+          );
+          console.log(`    Next run: ${scheduler.formatDate(task.nextRun)}`);
+          console.log(
+            `    Status: ${task.lastStatus}${task.lastError ? ` (${task.lastError})` : ''}`
+          );
+          console.log('');
+        }
+      },
+      'Show all scheduled tasks'
+    );
+
+    // tasks:run <name> - Manually run a task
+    cli.register(
+      'tasks:run',
+      async (args, ctx) => {
+        if (args.length === 0) {
+          console.error('Usage: tasks:run <name>');
+          console.error('Example: tasks:run tasks:cleanup');
+          throw new Error('Task name required');
+        }
+
+        const name = args[0];
+
+        try {
+          const result = await scheduler.run(name);
+
+          if (result.status === 'success') {
+            if (result.result) {
+              console.log(
+                `Result: ${typeof result.result === 'string' ? result.result : JSON.stringify(result.result)}`
+              );
+            }
+          } else {
+            console.error(`Failed: ${result.error}`);
+          }
+        } catch (error) {
+          console.error(`Error: ${error.message}`);
+          throw error;
+        }
+      },
+      'Manually run a scheduled task'
+    );
 
     // tasks:history [name] - Show recent task runs
-    cli.register('tasks:history', async (args, ctx) => {
-      const name = args[0] || null;
-      const limit = 20;
+    cli.register(
+      'tasks:history',
+      async (args, ctx) => {
+        const name = args[0] || null;
+        const limit = 20;
 
-      const history = scheduler.history(name, limit);
+        const history = scheduler.history(name, limit);
 
-      if (history.length === 0) {
-        if (name) {
-          console.log(`\nNo history found for task: ${name}\n`);
-        } else {
-          console.log('\nNo task history found.\n');
+        if (history.length === 0) {
+          if (name) {
+            console.log(`\nNo history found for task: ${name}\n`);
+          } else {
+            console.log('\nNo task history found.\n');
+          }
+          return;
         }
-        return;
-      }
 
-      const title = name ? `Task history for "${name}":` : 'Recent task runs:';
-      console.log(`\n${title}\n`);
+        const title = name ? `Task history for "${name}":` : 'Recent task runs:';
+        console.log(`\n${title}\n`);
 
-      for (const entry of history) {
-        const started = new Date(entry.startedAt);
-        const dateStr = started.toLocaleString('en-US', {
-          month: 'short',
-          day: 'numeric',
-          hour: '2-digit',
-          minute: '2-digit',
-        });
+        for (const entry of history) {
+          const started = new Date(entry.startedAt);
+          const dateStr = started.toLocaleString('en-US', {
+            month: 'short',
+            day: 'numeric',
+            hour: '2-digit',
+            minute: '2-digit',
+          });
 
-        const status = entry.status === 'success' ? '+' : 'x';
-        const duration = entry.duration ? `${entry.duration}ms` : '-';
+          const status = entry.status === 'success' ? '+' : 'x';
+          const duration = entry.duration ? `${entry.duration}ms` : '-';
 
-        console.log(`  ${status} [${dateStr}] ${entry.name} (${duration})`);
+          console.log(`  ${status} [${dateStr}] ${entry.name} (${duration})`);
 
-        if (entry.status === 'error' && entry.result) {
-          console.log(`    Error: ${entry.result}`);
+          if (entry.status === 'error' && entry.result) {
+            console.log(`    Error: ${entry.result}`);
+          }
         }
-      }
 
-      console.log('');
-    }, 'Show recent task runs');
+        console.log('');
+      },
+      'Show recent task runs'
+    );
 
     // ==================================================
     // Import/Export CLI Commands
     // ==================================================
 
     // export:content [types...] - Export content to JSON
-    cli.register('export:content', async (args, ctx) => {
-      // Parse arguments: types and options
-      const types = [];
-      let outputFile = null;
-      let includeMedia = false;
+    cli.register(
+      'export:content',
+      async (args, ctx) => {
+        // Parse arguments: types and options
+        const types = [];
+        let outputFile = null;
+        let includeMedia = false;
 
-      for (const arg of args) {
-        if (arg.startsWith('--output=')) {
-          outputFile = arg.slice(9);
-        } else if (arg === '--include-media') {
-          includeMedia = true;
-        } else if (!arg.startsWith('--')) {
-          types.push(arg);
+        for (const arg of args) {
+          if (arg.startsWith('--output=')) {
+            outputFile = arg.slice(9);
+          } else if (arg === '--include-media') {
+            includeMedia = true;
+          } else if (!arg.startsWith('--')) {
+            types.push(arg);
+          }
         }
-      }
 
-      // Export content
-      const data = transfer.exportContent(
-        types.length > 0 ? types : null,
-        { includeMedia }
-      );
+        // Export content
+        const data = transfer.exportContent(types.length > 0 ? types : null, { includeMedia });
 
-      // Calculate totals for summary
-      let totalItems = 0;
-      const typeCounts = [];
-      for (const [type, items] of Object.entries(data.content)) {
-        totalItems += items.length;
-        typeCounts.push(`${items.length} ${type}(s)`);
-      }
+        // Calculate totals for summary
+        let totalItems = 0;
+        const typeCounts = [];
+        for (const [type, items] of Object.entries(data.content)) {
+          totalItems += items.length;
+          typeCounts.push(`${items.length} ${type}(s)`);
+        }
 
-      // Output to file or stdout
-      if (outputFile) {
-        const { writeFileSync } = await import('node:fs');
-        writeFileSync(outputFile, JSON.stringify(data, null, 2) + '\n');
-        console.log(`Exported ${totalItems} item(s) to ${outputFile}`);
-        console.log(`  ${typeCounts.join(', ')}`);
-      } else {
-        // Write to stdout for piping
-        console.log(JSON.stringify(data, null, 2));
-        // Summary to stderr so it doesn't interfere with piping
-        console.error(`\nExported ${totalItems} item(s)`);
-        console.error(`  ${typeCounts.join(', ')}`);
-      }
-    }, 'Export content to JSON (stdout or --output=file)');
+        // Output to file or stdout
+        if (outputFile) {
+          const { writeFileSync } = await import('node:fs');
+          writeFileSync(outputFile, JSON.stringify(data, null, 2) + '\n');
+          console.log(`Exported ${totalItems} item(s) to ${outputFile}`);
+          console.log(`  ${typeCounts.join(', ')}`);
+        } else {
+          // Write to stdout for piping
+          console.log(JSON.stringify(data, null, 2));
+          // Summary to stderr so it doesn't interfere with piping
+          console.error(`\nExported ${totalItems} item(s)`);
+          console.error(`  ${typeCounts.join(', ')}`);
+        }
+      },
+      'Export content to JSON (stdout or --output=file)'
+    );
 
     // export:site --output=backup.json - Full site export
-    cli.register('export:site', async (args, ctx) => {
-      let outputFile = null;
+    cli.register(
+      'export:site',
+      async (args, ctx) => {
+        let outputFile = null;
 
-      for (const arg of args) {
-        if (arg.startsWith('--output=')) {
-          outputFile = arg.slice(9);
+        for (const arg of args) {
+          if (arg.startsWith('--output=')) {
+            outputFile = arg.slice(9);
+          }
         }
-      }
 
-      const data = transfer.exportSite({ includeMedia: true });
+        const data = transfer.exportSite({ includeMedia: true });
 
-      // Calculate totals
-      let totalItems = 0;
-      for (const items of Object.values(data.content)) {
-        totalItems += items.length;
-      }
-
-      if (outputFile) {
-        const { writeFileSync } = await import('node:fs');
-        writeFileSync(outputFile, JSON.stringify(data, null, 2) + '\n');
-        console.log(`Full site exported to ${outputFile}`);
-        console.log(`  ${totalItems} content item(s)`);
-        console.log(`  ${Object.keys(data.content).length} content type(s)`);
-        if (data.media) {
-          console.log(`  ${data.media.length} media file(s) in manifest`);
+        // Calculate totals
+        let totalItems = 0;
+        for (const items of Object.values(data.content)) {
+          totalItems += items.length;
         }
-      } else {
-        console.log(JSON.stringify(data, null, 2));
-        console.error(`\nFull site exported`);
-        console.error(`  ${totalItems} content item(s)`);
-      }
-    }, 'Export full site (content + config + media manifest)');
+
+        if (outputFile) {
+          const { writeFileSync } = await import('node:fs');
+          writeFileSync(outputFile, JSON.stringify(data, null, 2) + '\n');
+          console.log(`Full site exported to ${outputFile}`);
+          console.log(`  ${totalItems} content item(s)`);
+          console.log(`  ${Object.keys(data.content).length} content type(s)`);
+          if (data.media) {
+            console.log(`  ${data.media.length} media file(s) in manifest`);
+          }
+        } else {
+          console.log(JSON.stringify(data, null, 2));
+          console.error(`\nFull site exported`);
+          console.error(`  ${totalItems} content item(s)`);
+        }
+      },
+      'Export full site (content + config + media manifest)'
+    );
 
     // import:content <file> [--dry-run] [--overwrite] - Import content
-    cli.register('import:content', async (args, ctx) => {
-      if (args.length === 0) {
-        console.error('Usage: import:content <file> [--dry-run] [--overwrite]');
-        console.error('Example: import:content backup.json --dry-run');
-        throw new Error('File path required');
-      }
-
-      // Parse arguments
-      const filePath = args[0];
-      let dryRun = false;
-      let overwrite = false;
-
-      for (const arg of args.slice(1)) {
-        if (arg === '--dry-run') dryRun = true;
-        if (arg === '--overwrite') overwrite = true;
-      }
-
-      // Read and parse file
-      const { readFileSync, existsSync } = await import('node:fs');
-
-      if (!existsSync(filePath)) {
-        console.error(`File not found: ${filePath}`);
-        throw new Error('File not found');
-      }
-
-      let data;
-      try {
-        const json = readFileSync(filePath, 'utf-8');
-        data = transfer.parseImportData(json);
-      } catch (error) {
-        console.error(`Failed to parse file: ${error.message}`);
-        throw error;
-      }
-
-      // Check compatibility
-      const compat = transfer.checkCompatibility(data);
-      if (compat.warnings.length > 0) {
-        console.log('Warnings:');
-        for (const warn of compat.warnings) {
-          console.log(`  ⚠ ${warn}`);
+    cli.register(
+      'import:content',
+      async (args, ctx) => {
+        if (args.length === 0) {
+          console.error('Usage: import:content <file> [--dry-run] [--overwrite]');
+          console.error('Example: import:content backup.json --dry-run');
+          throw new Error('File path required');
         }
-      }
 
-      if (!compat.compatible) {
-        console.error('Compatibility errors:');
-        for (const err of compat.errors) {
-          console.error(`  ✗ ${err}`);
+        // Parse arguments
+        const filePath = args[0];
+        let dryRun = false;
+        let overwrite = false;
+
+        for (const arg of args.slice(1)) {
+          if (arg === '--dry-run') dryRun = true;
+          if (arg === '--overwrite') overwrite = true;
         }
-        throw new Error('Import not compatible with current system');
-      }
 
-      // Perform import
-      const result = await transfer.importContent(data, { dryRun, overwrite });
+        // Read and parse file
+        const { readFileSync, existsSync } = await import('node:fs');
 
-      if (dryRun) {
-        console.log('Dry run - no changes made');
-        console.log('Would import:');
-      } else {
-        console.log('Import complete:');
-      }
-
-      for (const [type, stats] of Object.entries(result.details)) {
-        const parts = [];
-        if (stats.created > 0) parts.push(`${stats.created} new`);
-        if (stats.updated > 0) parts.push(`${stats.updated} updated`);
-        if (stats.skipped > 0) parts.push(`${stats.skipped} skipped`);
-        if (stats.errors > 0) parts.push(`${stats.errors} errors`);
-        console.log(`  - ${stats.total} ${type}(s) (${parts.join(', ')})`);
-      }
-
-      console.log(`\nTotal: ${result.stats.total} items`);
-      console.log(`  Created: ${result.stats.created}`);
-      console.log(`  Updated: ${result.stats.updated}`);
-      console.log(`  Skipped: ${result.stats.skipped}`);
-
-      if (result.errors.length > 0) {
-        console.log(`\nErrors (${result.errors.length}):`);
-        for (const err of result.errors.slice(0, 5)) {
-          console.log(`  ✗ ${err.type}/${err.id}: ${err.error}`);
+        if (!existsSync(filePath)) {
+          console.error(`File not found: ${filePath}`);
+          throw new Error('File not found');
         }
-        if (result.errors.length > 5) {
-          console.log(`  ... and ${result.errors.length - 5} more`);
+
+        let data;
+        try {
+          const json = readFileSync(filePath, 'utf-8');
+          data = transfer.parseImportData(json);
+        } catch (error) {
+          console.error(`Failed to parse file: ${error.message}`);
+          throw error;
         }
-      }
-    }, 'Import content from JSON file');
+
+        // Check compatibility
+        const compat = transfer.checkCompatibility(data);
+        if (compat.warnings.length > 0) {
+          console.log('Warnings:');
+          for (const warn of compat.warnings) {
+            console.log(`  ⚠ ${warn}`);
+          }
+        }
+
+        if (!compat.compatible) {
+          console.error('Compatibility errors:');
+          for (const err of compat.errors) {
+            console.error(`  ✗ ${err}`);
+          }
+          throw new Error('Import not compatible with current system');
+        }
+
+        // Perform import
+        const result = await transfer.importContent(data, { dryRun, overwrite });
+
+        if (dryRun) {
+          console.log('Dry run - no changes made');
+          console.log('Would import:');
+        } else {
+          console.log('Import complete:');
+        }
+
+        for (const [type, stats] of Object.entries(result.details)) {
+          const parts = [];
+          if (stats.created > 0) parts.push(`${stats.created} new`);
+          if (stats.updated > 0) parts.push(`${stats.updated} updated`);
+          if (stats.skipped > 0) parts.push(`${stats.skipped} skipped`);
+          if (stats.errors > 0) parts.push(`${stats.errors} errors`);
+          console.log(`  - ${stats.total} ${type}(s) (${parts.join(', ')})`);
+        }
+
+        console.log(`\nTotal: ${result.stats.total} items`);
+        console.log(`  Created: ${result.stats.created}`);
+        console.log(`  Updated: ${result.stats.updated}`);
+        console.log(`  Skipped: ${result.stats.skipped}`);
+
+        if (result.errors.length > 0) {
+          console.log(`\nErrors (${result.errors.length}):`);
+          for (const err of result.errors.slice(0, 5)) {
+            console.log(`  ✗ ${err.type}/${err.id}: ${err.error}`);
+          }
+          if (result.errors.length > 5) {
+            console.log(`  ... and ${result.errors.length - 5} more`);
+          }
+        }
+      },
+      'Import content from JSON file'
+    );
 
     // ==================================================
     // Plugin CLI Commands
     // ==================================================
 
     // plugins:list - List all plugins
-    cli.register('plugins:list', async (args, ctx) => {
-      const discovered = plugins.discover();
-      const loaded = plugins.listPlugins();
-      const enabled = plugins.getEnabledPlugins();
+    cli.register(
+      'plugins:list',
+      async (args, ctx) => {
+        const discovered = plugins.discover();
+        const loaded = plugins.listPlugins();
+        const enabled = plugins.getEnabledPlugins();
 
-      if (discovered.length === 0) {
-        console.log('\nNo plugins found in ./plugins/');
-        console.log('Create one with: plugins:create <name>\n');
-        return;
-      }
-
-      console.log('\nPlugins:');
-
-      for (const info of discovered) {
-        const plugin = loaded.find(p => p.name === info.name);
-        const isEnabled = enabled.includes(info.name);
-        const status = plugin?.status || (info.valid ? 'not loaded' : 'invalid');
-
-        let statusIcon = ' ';
-        if (status === 'active') statusIcon = '✓';
-        else if (status === 'loaded') statusIcon = '○';
-        else if (status === 'error' || status === 'invalid') statusIcon = '✗';
-
-        const version = info.manifest?.version || '?';
-        const desc = info.manifest?.description || '(no description)';
-        const enabledStr = isEnabled ? 'enabled' : 'disabled';
-
-        console.log(`  ${statusIcon} ${info.name} (${version}) - ${enabledStr} - ${desc}`);
-
-        if (!info.valid) {
-          for (const err of info.errors) {
-            console.log(`      Error: ${err}`);
-          }
-        } else if (plugin?.error) {
-          console.log(`      Error: ${plugin.error}`);
+        if (discovered.length === 0) {
+          console.log('\nNo plugins found in ./plugins/');
+          console.log('Create one with: plugins:create <name>\n');
+          return;
         }
-      }
 
-      console.log('\nStatus: ✓ active, ○ loaded, ✗ error, (space) not loaded');
-      console.log('');
-    }, 'List all installed plugins');
+        console.log('\nPlugins:');
+
+        for (const info of discovered) {
+          const plugin = loaded.find((p) => p.name === info.name);
+          const isEnabled = enabled.includes(info.name);
+          const status = plugin?.status || (info.valid ? 'not loaded' : 'invalid');
+
+          let statusIcon = ' ';
+          if (status === 'active') statusIcon = '✓';
+          else if (status === 'loaded') statusIcon = '○';
+          else if (status === 'error' || status === 'invalid') statusIcon = '✗';
+
+          const version = info.manifest?.version || '?';
+          const desc = info.manifest?.description || '(no description)';
+          const enabledStr = isEnabled ? 'enabled' : 'disabled';
+
+          console.log(`  ${statusIcon} ${info.name} (${version}) - ${enabledStr} - ${desc}`);
+
+          if (!info.valid) {
+            for (const err of info.errors) {
+              console.log(`      Error: ${err}`);
+            }
+          } else if (plugin?.error) {
+            console.log(`      Error: ${plugin.error}`);
+          }
+        }
+
+        console.log('\nStatus: ✓ active, ○ loaded, ✗ error, (space) not loaded');
+        console.log('');
+      },
+      'List all installed plugins'
+    );
 
     // plugins:enable <name> - Enable a plugin
-    cli.register('plugins:enable', async (args, ctx) => {
-      if (args.length === 0) {
-        console.error('Usage: plugins:enable <name>');
-        throw new Error('Plugin name required');
-      }
-
-      const name = args[0];
-      const discovered = plugins.discover();
-      const pluginInfo = discovered.find(p => p.name === name);
-
-      if (!pluginInfo) {
-        console.error(`Plugin not found: ${name}`);
-        console.error('Use "plugins:list" to see available plugins.');
-        throw new Error('Plugin not found');
-      }
-
-      if (!pluginInfo.valid) {
-        console.error(`Plugin '${name}' has validation errors:`);
-        for (const err of pluginInfo.errors) {
-          console.error(`  - ${err}`);
+    cli.register(
+      'plugins:enable',
+      async (args, ctx) => {
+        if (args.length === 0) {
+          console.error('Usage: plugins:enable <name>');
+          throw new Error('Plugin name required');
         }
-        throw new Error('Invalid plugin');
-      }
 
-      // Check if already enabled
-      const enabled = plugins.getEnabledPlugins();
-      if (enabled.includes(name)) {
-        console.log(`Plugin '${name}' is already enabled.`);
-        return;
-      }
+        const name = args[0];
+        const discovered = plugins.discover();
+        const pluginInfo = discovered.find((p) => p.name === name);
 
-      // Update site.json
-      const { readFileSync, writeFileSync } = await import('node:fs');
-      const configPath = join(baseDir, 'config', 'site.json');
-      const siteConfig = JSON.parse(readFileSync(configPath, 'utf-8'));
+        if (!pluginInfo) {
+          console.error(`Plugin not found: ${name}`);
+          console.error('Use "plugins:list" to see available plugins.');
+          throw new Error('Plugin not found');
+        }
 
-      if (!siteConfig.plugins) {
-        siteConfig.plugins = { enabled: [], directory: './plugins' };
-      }
-      if (!siteConfig.plugins.enabled) {
-        siteConfig.plugins.enabled = [];
-      }
+        if (!pluginInfo.valid) {
+          console.error(`Plugin '${name}' has validation errors:`);
+          for (const err of pluginInfo.errors) {
+            console.error(`  - ${err}`);
+          }
+          throw new Error('Invalid plugin');
+        }
 
-      siteConfig.plugins.enabled.push(name);
-      writeFileSync(configPath, JSON.stringify(siteConfig, null, 2) + '\n');
+        // Check if already enabled
+        const enabled = plugins.getEnabledPlugins();
+        if (enabled.includes(name)) {
+          console.log(`Plugin '${name}' is already enabled.`);
+          return;
+        }
 
-      console.log(`Enabled plugin: ${name}`);
-      console.log('Restart required to activate.');
-    }, 'Enable a plugin (requires restart)');
+        // Update site.json
+        const { readFileSync, writeFileSync } = await import('node:fs');
+        const configPath = join(baseDir, 'config', 'site.json');
+        const siteConfig = JSON.parse(readFileSync(configPath, 'utf-8'));
+
+        if (!siteConfig.plugins) {
+          siteConfig.plugins = { enabled: [], directory: './plugins' };
+        }
+        if (!siteConfig.plugins.enabled) {
+          siteConfig.plugins.enabled = [];
+        }
+
+        siteConfig.plugins.enabled.push(name);
+        writeFileSync(configPath, JSON.stringify(siteConfig, null, 2) + '\n');
+
+        console.log(`Enabled plugin: ${name}`);
+        console.log('Restart required to activate.');
+      },
+      'Enable a plugin (requires restart)'
+    );
 
     // plugins:disable <name> - Disable a plugin
-    cli.register('plugins:disable', async (args, ctx) => {
-      if (args.length === 0) {
-        console.error('Usage: plugins:disable <name>');
-        throw new Error('Plugin name required');
-      }
+    cli.register(
+      'plugins:disable',
+      async (args, ctx) => {
+        if (args.length === 0) {
+          console.error('Usage: plugins:disable <name>');
+          throw new Error('Plugin name required');
+        }
 
-      const name = args[0];
-      const enabled = plugins.getEnabledPlugins();
+        const name = args[0];
+        const enabled = plugins.getEnabledPlugins();
 
-      if (!enabled.includes(name)) {
-        console.log(`Plugin '${name}' is not enabled.`);
-        return;
-      }
+        if (!enabled.includes(name)) {
+          console.log(`Plugin '${name}' is not enabled.`);
+          return;
+        }
 
-      // Update site.json
-      const { readFileSync, writeFileSync } = await import('node:fs');
-      const configPath = join(baseDir, 'config', 'site.json');
-      const siteConfig = JSON.parse(readFileSync(configPath, 'utf-8'));
+        // Update site.json
+        const { readFileSync, writeFileSync } = await import('node:fs');
+        const configPath = join(baseDir, 'config', 'site.json');
+        const siteConfig = JSON.parse(readFileSync(configPath, 'utf-8'));
 
-      siteConfig.plugins.enabled = siteConfig.plugins.enabled.filter(p => p !== name);
-      writeFileSync(configPath, JSON.stringify(siteConfig, null, 2) + '\n');
+        siteConfig.plugins.enabled = siteConfig.plugins.enabled.filter((p) => p !== name);
+        writeFileSync(configPath, JSON.stringify(siteConfig, null, 2) + '\n');
 
-      console.log(`Disabled plugin: ${name}`);
-      console.log('Restart required to deactivate.');
-    }, 'Disable a plugin (requires restart)');
+        console.log(`Disabled plugin: ${name}`);
+        console.log('Restart required to deactivate.');
+      },
+      'Disable a plugin (requires restart)'
+    );
 
     // plugins:create <name> - Create a new plugin scaffold
-    cli.register('plugins:create', async (args, ctx) => {
-      if (args.length === 0) {
-        console.error('Usage: plugins:create <name>');
-        console.error('Example: plugins:create my-plugin');
-        throw new Error('Plugin name required');
-      }
-
-      const name = args[0];
-
-      try {
-        const result = plugins.createPluginScaffold(name);
-        console.log(`Created plugin scaffold at ${result.path}/`);
-        for (const file of result.files) {
-          console.log(`  ${file}`);
+    cli.register(
+      'plugins:create',
+      async (args, ctx) => {
+        if (args.length === 0) {
+          console.error('Usage: plugins:create <name>');
+          console.error('Example: plugins:create my-plugin');
+          throw new Error('Plugin name required');
         }
-        console.log('\nTo enable: plugins:enable ' + name);
-      } catch (error) {
-        console.error(`Failed to create plugin: ${error.message}`);
-        throw error;
-      }
-    }, 'Create a new plugin scaffold');
+
+        const name = args[0];
+
+        try {
+          const result = plugins.createPluginScaffold(name);
+          console.log(`Created plugin scaffold at ${result.path}/`);
+          for (const file of result.files) {
+            console.log(`  ${file}`);
+          }
+          console.log('\nTo enable: plugins:enable ' + name);
+        } catch (error) {
+          console.error(`Failed to create plugin: ${error.message}`);
+          throw error;
+        }
+      },
+      'Create a new plugin scaffold'
+    );
 
     // plugins:validate <name> - Validate a plugin
-    cli.register('plugins:validate', async (args, ctx) => {
-      if (args.length === 0) {
-        console.error('Usage: plugins:validate <name>');
-        throw new Error('Plugin name required');
-      }
-
-      const name = args[0];
-      const discovered = plugins.discover();
-      const pluginInfo = discovered.find(p => p.name === name);
-
-      if (!pluginInfo) {
-        console.error(`Plugin not found: ${name}`);
-        throw new Error('Plugin not found');
-      }
-
-      if (!pluginInfo.valid) {
-        console.log(`\nPlugin '${name}' is INVALID:\n`);
-        for (const err of pluginInfo.errors) {
-          console.log(`  ✗ ${err}`);
+    cli.register(
+      'plugins:validate',
+      async (args, ctx) => {
+        if (args.length === 0) {
+          console.error('Usage: plugins:validate <name>');
+          throw new Error('Plugin name required');
         }
-        console.log('');
-        throw new Error('Plugin validation failed');
-      }
 
-      const manifest = pluginInfo.manifest;
-      console.log(`\nPlugin '${name}' is valid\n`);
-      console.log(`  Version: ${manifest.version}`);
-      console.log(`  Description: ${manifest.description}`);
-      if (manifest.author) {
-        console.log(`  Author: ${manifest.author}`);
-      }
-      console.log(`  Permissions: ${manifest.permissions?.length > 0 ? manifest.permissions.join(', ') : 'none'}`);
-      console.log(`  Dependencies: ${manifest.dependencies?.length > 0 ? manifest.dependencies.join(', ') : 'none'}`);
-      if (manifest.minCoreVersion) {
-        console.log(`  Min Core Version: ${manifest.minCoreVersion}`);
-      }
-      console.log('');
-    }, 'Validate a plugin manifest and permissions');
-
-    // ==================================================
-    // Hot-Swap Plugin Commands
-    // ==================================================
-
-    // plugins:activate <name> - Hot-load a plugin without restart
-    cli.register('plugins:activate', async (args, ctx) => {
-      if (args.length === 0) {
-        console.error('Usage: plugins:activate <name>');
-        throw new Error('Plugin name required');
-      }
-
-      const name = args[0];
-      const plugin = plugins.getPlugin(name);
-
-      if (!plugin) {
-        // Plugin not loaded yet, try to load it
+        const name = args[0];
         const discovered = plugins.discover();
-        const pluginInfo = discovered.find(p => p.name === name);
+        const pluginInfo = discovered.find((p) => p.name === name);
 
         if (!pluginInfo) {
           console.error(`Plugin not found: ${name}`);
@@ -4052,271 +4462,362 @@ export async function boot(baseDir, options = {}) {
         }
 
         if (!pluginInfo.valid) {
-          console.error(`Plugin '${name}' has validation errors`);
-          throw new Error('Invalid plugin');
+          console.log(`\nPlugin '${name}' is INVALID:\n`);
+          for (const err of pluginInfo.errors) {
+            console.log(`  ✗ ${err}`);
+          }
+          console.log('');
+          throw new Error('Plugin validation failed');
         }
 
-        // Load the plugin first
-        await plugins.loadPlugin(pluginInfo.path, ctx);
-      }
+        const manifest = pluginInfo.manifest;
+        console.log(`\nPlugin '${name}' is valid\n`);
+        console.log(`  Version: ${manifest.version}`);
+        console.log(`  Description: ${manifest.description}`);
+        if (manifest.author) {
+          console.log(`  Author: ${manifest.author}`);
+        }
+        console.log(
+          `  Permissions: ${manifest.permissions?.length > 0 ? manifest.permissions.join(', ') : 'none'}`
+        );
+        console.log(
+          `  Dependencies: ${manifest.dependencies?.length > 0 ? manifest.dependencies.join(', ') : 'none'}`
+        );
+        if (manifest.minCoreVersion) {
+          console.log(`  Min Core Version: ${manifest.minCoreVersion}`);
+        }
+        console.log('');
+      },
+      'Validate a plugin manifest and permissions'
+    );
 
-      // Activate the plugin (hot-swap mode)
-      await plugins.activatePlugin(name, true);
-      console.log(`Plugin '${name}' activated (hot-loaded)`);
-    }, 'Hot-load and activate a plugin without restart');
+    // ==================================================
+    // Hot-Swap Plugin Commands
+    // ==================================================
+
+    // plugins:activate <name> - Hot-load a plugin without restart
+    cli.register(
+      'plugins:activate',
+      async (args, ctx) => {
+        if (args.length === 0) {
+          console.error('Usage: plugins:activate <name>');
+          throw new Error('Plugin name required');
+        }
+
+        const name = args[0];
+        const plugin = plugins.getPlugin(name);
+
+        if (!plugin) {
+          // Plugin not loaded yet, try to load it
+          const discovered = plugins.discover();
+          const pluginInfo = discovered.find((p) => p.name === name);
+
+          if (!pluginInfo) {
+            console.error(`Plugin not found: ${name}`);
+            throw new Error('Plugin not found');
+          }
+
+          if (!pluginInfo.valid) {
+            console.error(`Plugin '${name}' has validation errors`);
+            throw new Error('Invalid plugin');
+          }
+
+          // Load the plugin first
+          await plugins.loadPlugin(pluginInfo.path, ctx);
+        }
+
+        // Activate the plugin (hot-swap mode)
+        await plugins.activatePlugin(name, true);
+        console.log(`Plugin '${name}' activated (hot-loaded)`);
+      },
+      'Hot-load and activate a plugin without restart'
+    );
 
     // plugins:deactivate <name> - Hot-unload a plugin without restart
-    cli.register('plugins:deactivate', async (args, ctx) => {
-      if (args.length === 0) {
-        console.error('Usage: plugins:deactivate <name>');
-        throw new Error('Plugin name required');
-      }
+    cli.register(
+      'plugins:deactivate',
+      async (args, ctx) => {
+        if (args.length === 0) {
+          console.error('Usage: plugins:deactivate <name>');
+          throw new Error('Plugin name required');
+        }
 
-      const name = args[0];
-      const plugin = plugins.getPlugin(name);
+        const name = args[0];
+        const plugin = plugins.getPlugin(name);
 
-      if (!plugin) {
-        console.error(`Plugin '${name}' is not loaded`);
-        throw new Error('Plugin not loaded');
-      }
+        if (!plugin) {
+          console.error(`Plugin '${name}' is not loaded`);
+          throw new Error('Plugin not loaded');
+        }
 
-      if (plugin.status !== 'active') {
-        console.log(`Plugin '${name}' is not active (status: ${plugin.status})`);
-        return;
-      }
+        if (plugin.status !== 'active') {
+          console.log(`Plugin '${name}' is not active (status: ${plugin.status})`);
+          return;
+        }
 
-      await plugins.deactivatePlugin(name);
-      console.log(`Plugin '${name}' deactivated (hot-unloaded)`);
-    }, 'Hot-unload a plugin without restart');
+        await plugins.deactivatePlugin(name);
+        console.log(`Plugin '${name}' deactivated (hot-unloaded)`);
+      },
+      'Hot-unload a plugin without restart'
+    );
 
     // plugins:reload <name> - Reload a plugin (deactivate + reactivate)
-    cli.register('plugins:reload', async (args, ctx) => {
-      if (args.length === 0) {
-        console.error('Usage: plugins:reload <name>');
-        throw new Error('Plugin name required');
-      }
+    cli.register(
+      'plugins:reload',
+      async (args, ctx) => {
+        if (args.length === 0) {
+          console.error('Usage: plugins:reload <name>');
+          throw new Error('Plugin name required');
+        }
 
-      const name = args[0];
-      const plugin = plugins.getPlugin(name);
+        const name = args[0];
+        const plugin = plugins.getPlugin(name);
 
-      if (!plugin) {
-        console.error(`Plugin '${name}' is not loaded`);
-        throw new Error('Plugin not loaded');
-      }
+        if (!plugin) {
+          console.error(`Plugin '${name}' is not loaded`);
+          throw new Error('Plugin not loaded');
+        }
 
-      await plugins.reloadPlugin(name);
-      console.log(`Plugin '${name}' reloaded`);
-    }, 'Reload a plugin (hot-swap: deactivate + reactivate)');
+        await plugins.reloadPlugin(name);
+        console.log(`Plugin '${name}' reloaded`);
+      },
+      'Reload a plugin (hot-swap: deactivate + reactivate)'
+    );
 
     // plugins:changes - Show recent plugin file changes
-    cli.register('plugins:changes', async (args, ctx) => {
-      const limit = parseInt(args[0]) || 10;
-      const changes = watcher.getRecentPluginChanges(limit);
+    cli.register(
+      'plugins:changes',
+      async (args, ctx) => {
+        const limit = parseInt(args[0]) || 10;
+        const changes = watcher.getRecentPluginChanges(limit);
 
-      if (changes.length === 0) {
-        console.log('\nNo recent plugin changes detected.');
-        console.log('The watcher tracks changes to plugins/ directory.\n');
-        return;
-      }
-
-      console.log('\nRecent plugin changes:\n');
-
-      for (const change of changes) {
-        const icon = change.type === 'CREATED' ? '+' :
-                     change.type === 'DELETED' ? '-' :
-                     change.type === 'MODIFIED' ? '~' : ' ';
-        console.log(`  ${icon} [${change.timestamp.split('T')[1].slice(0, 8)}] ${change.path}`);
-        if (change.message) {
-          console.log(`      ${change.message}`);
+        if (changes.length === 0) {
+          console.log('\nNo recent plugin changes detected.');
+          console.log('The watcher tracks changes to plugins/ directory.\n');
+          return;
         }
-      }
 
-      console.log('');
-    }, 'Show recent plugin file changes');
+        console.log('\nRecent plugin changes:\n');
 
-    // plugins:watch - Show real-time plugin file changes (continuous)
-    cli.register('plugins:watch', async (args, ctx) => {
-      console.log('\nWatching plugins for changes...');
-      console.log('Press Ctrl+C to stop.\n');
-
-      const mode = plugins.getAutoReloadMode();
-      console.log(`Auto-reload mode: ${mode}`);
-      console.log('');
-
-      // Keep the process running and show changes as they happen
-      // The watcher is already running, we just need to subscribe
-      const unsubscribe = watcher.onPluginChange((change) => {
-        const { pluginName, changeType, path, timestamp } = change;
-        const time = timestamp.split('T')[1].slice(0, 8);
-        console.log(`[${time}] ${path} changed`);
-
-        if (mode === true) {
-          // handlePluginChange is called by boot's subscriber
-          // We just show what happened
-        } else if (mode === 'prompt') {
-          console.log(`         Run 'plugins:reload ${pluginName}' to apply`);
-        }
-      });
-
-      // Keep process alive until interrupted
-      await new Promise((resolve) => {
-        process.on('SIGINT', () => {
-          unsubscribe();
-          console.log('\n\nStopped watching.');
-          resolve();
-        });
-      });
-    }, 'Show real-time plugin file changes (continuous)');
-
-    // plugins:autoload [on|off|prompt] - Toggle auto-reload mode
-    cli.register('plugins:autoload', async (args, ctx) => {
-      if (args.length === 0) {
-        // Show current status
-        const mode = plugins.getAutoReloadMode();
-        const changed = plugins.getChangedPlugins();
-
-        console.log(`\nPlugin Auto-Reload Status`);
-        console.log('='.repeat(40));
-        console.log(`Mode: ${mode}`);
-        console.log(`Watch debounce: ${plugins.getWatchDebounce()}ms`);
-
-        if (changed.length > 0) {
-          console.log(`\nPlugins with pending changes:`);
-          for (const c of changed) {
-            console.log(`  - ${c.name} (${c.changeType}, ${c.files.length} file(s))`);
+        for (const change of changes) {
+          const icon =
+            change.type === 'CREATED'
+              ? '+'
+              : change.type === 'DELETED'
+                ? '-'
+                : change.type === 'MODIFIED'
+                  ? '~'
+                  : ' ';
+          console.log(`  ${icon} [${change.timestamp.split('T')[1].slice(0, 8)}] ${change.path}`);
+          if (change.message) {
+            console.log(`      ${change.message}`);
           }
-        } else {
-          console.log(`\nNo plugins with pending changes.`);
         }
 
         console.log('');
-        return;
-      }
+      },
+      'Show recent plugin file changes'
+    );
 
-      const setting = args[0].toLowerCase();
+    // plugins:watch - Show real-time plugin file changes (continuous)
+    cli.register(
+      'plugins:watch',
+      async (args, ctx) => {
+        console.log('\nWatching plugins for changes...');
+        console.log('Press Ctrl+C to stop.\n');
 
-      if (setting === 'on' || setting === 'true') {
-        plugins.enableAutoReload(true);
-        console.log('Auto-reload mode: ON');
-        console.log('Plugins will automatically reload when files change.');
-      } else if (setting === 'off' || setting === 'false') {
-        plugins.disableAutoReload();
-        console.log('Auto-reload mode: OFF');
-        console.log('Plugin file changes will be ignored.');
-      } else if (setting === 'prompt') {
-        plugins.enableAutoReload('prompt');
-        console.log('Auto-reload mode: PROMPT');
-        console.log('Plugin file changes will be logged but not auto-reloaded.');
-      } else {
-        console.error('Usage: plugins:autoload [on|off|prompt]');
-        console.error('  on     - Automatically reload plugins on file change');
-        console.error('  off    - Ignore plugin file changes');
-        console.error('  prompt - Log changes but require manual reload');
-        throw new Error('Invalid setting');
-      }
-    }, 'Toggle plugin auto-reload mode (on|off|prompt)');
+        const mode = plugins.getAutoReloadMode();
+        console.log(`Auto-reload mode: ${mode}`);
+        console.log('');
+
+        // Keep the process running and show changes as they happen
+        // The watcher is already running, we just need to subscribe
+        const unsubscribe = watcher.onPluginChange((change) => {
+          const { pluginName, changeType, path, timestamp } = change;
+          const time = timestamp.split('T')[1].slice(0, 8);
+          console.log(`[${time}] ${path} changed`);
+
+          if (mode === true) {
+            // handlePluginChange is called by boot's subscriber
+            // We just show what happened
+          } else if (mode === 'prompt') {
+            console.log(`         Run 'plugins:reload ${pluginName}' to apply`);
+          }
+        });
+
+        // Keep process alive until interrupted
+        await new Promise((resolve) => {
+          process.on('SIGINT', () => {
+            unsubscribe();
+            console.log('\n\nStopped watching.');
+            resolve();
+          });
+        });
+      },
+      'Show real-time plugin file changes (continuous)'
+    );
+
+    // plugins:autoload [on|off|prompt] - Toggle auto-reload mode
+    cli.register(
+      'plugins:autoload',
+      async (args, ctx) => {
+        if (args.length === 0) {
+          // Show current status
+          const mode = plugins.getAutoReloadMode();
+          const changed = plugins.getChangedPlugins();
+
+          console.log(`\nPlugin Auto-Reload Status`);
+          console.log('='.repeat(40));
+          console.log(`Mode: ${mode}`);
+          console.log(`Watch debounce: ${plugins.getWatchDebounce()}ms`);
+
+          if (changed.length > 0) {
+            console.log(`\nPlugins with pending changes:`);
+            for (const c of changed) {
+              console.log(`  - ${c.name} (${c.changeType}, ${c.files.length} file(s))`);
+            }
+          } else {
+            console.log(`\nNo plugins with pending changes.`);
+          }
+
+          console.log('');
+          return;
+        }
+
+        const setting = args[0].toLowerCase();
+
+        if (setting === 'on' || setting === 'true') {
+          plugins.enableAutoReload(true);
+          console.log('Auto-reload mode: ON');
+          console.log('Plugins will automatically reload when files change.');
+        } else if (setting === 'off' || setting === 'false') {
+          plugins.disableAutoReload();
+          console.log('Auto-reload mode: OFF');
+          console.log('Plugin file changes will be ignored.');
+        } else if (setting === 'prompt') {
+          plugins.enableAutoReload('prompt');
+          console.log('Auto-reload mode: PROMPT');
+          console.log('Plugin file changes will be logged but not auto-reloaded.');
+        } else {
+          console.error('Usage: plugins:autoload [on|off|prompt]');
+          console.error('  on     - Automatically reload plugins on file change');
+          console.error('  off    - Ignore plugin file changes');
+          console.error('  prompt - Log changes but require manual reload');
+          throw new Error('Invalid setting');
+        }
+      },
+      'Toggle plugin auto-reload mode (on|off|prompt)'
+    );
 
     // plugins:reload-changed - Reload all plugins with pending changes
-    cli.register('plugins:reload-changed', async (args, ctx) => {
-      const changed = plugins.getChangedPlugins();
+    cli.register(
+      'plugins:reload-changed',
+      async (args, ctx) => {
+        const changed = plugins.getChangedPlugins();
 
-      if (changed.length === 0) {
-        console.log('\nNo plugins with pending changes.\n');
-        return;
-      }
-
-      console.log(`\nReloading ${changed.length} changed plugin(s)...`);
-
-      const result = await plugins.reloadChangedPlugins();
-
-      if (result.reloaded.length > 0) {
-        console.log(`\nReloaded:`);
-        for (const name of result.reloaded) {
-          console.log(`  ✓ ${name}`);
+        if (changed.length === 0) {
+          console.log('\nNo plugins with pending changes.\n');
+          return;
         }
-      }
 
-      if (result.failed.length > 0) {
-        console.log(`\nFailed:`);
-        for (const { name, error } of result.failed) {
-          console.log(`  ✗ ${name}: ${error}`);
+        console.log(`\nReloading ${changed.length} changed plugin(s)...`);
+
+        const result = await plugins.reloadChangedPlugins();
+
+        if (result.reloaded.length > 0) {
+          console.log(`\nReloaded:`);
+          for (const name of result.reloaded) {
+            console.log(`  ✓ ${name}`);
+          }
         }
-      }
 
-      console.log('');
-    }, 'Reload all plugins with pending changes');
+        if (result.failed.length > 0) {
+          console.log(`\nFailed:`);
+          for (const { name, error } of result.failed) {
+            console.log(`  ✗ ${name}: ${error}`);
+          }
+        }
+
+        console.log('');
+      },
+      'Reload all plugins with pending changes'
+    );
 
     // import:site <file> [--dry-run] - Import full site
-    cli.register('import:site', async (args, ctx) => {
-      if (args.length === 0) {
-        console.error('Usage: import:site <file> [--dry-run] [--import-config]');
-        console.error('Example: import:site backup.json --dry-run');
-        throw new Error('File path required');
-      }
+    cli.register(
+      'import:site',
+      async (args, ctx) => {
+        if (args.length === 0) {
+          console.error('Usage: import:site <file> [--dry-run] [--import-config]');
+          console.error('Example: import:site backup.json --dry-run');
+          throw new Error('File path required');
+        }
 
-      // Parse arguments
-      const filePath = args[0];
-      let dryRun = false;
-      let importConfig = false;
+        // Parse arguments
+        const filePath = args[0];
+        let dryRun = false;
+        let importConfig = false;
 
-      for (const arg of args.slice(1)) {
-        if (arg === '--dry-run') dryRun = true;
-        if (arg === '--import-config') importConfig = true;
-      }
+        for (const arg of args.slice(1)) {
+          if (arg === '--dry-run') dryRun = true;
+          if (arg === '--import-config') importConfig = true;
+        }
 
-      // Read and parse file
-      const { readFileSync, existsSync } = await import('node:fs');
+        // Read and parse file
+        const { readFileSync, existsSync } = await import('node:fs');
 
-      if (!existsSync(filePath)) {
-        console.error(`File not found: ${filePath}`);
-        throw new Error('File not found');
-      }
+        if (!existsSync(filePath)) {
+          console.error(`File not found: ${filePath}`);
+          throw new Error('File not found');
+        }
 
-      let data;
-      try {
-        const json = readFileSync(filePath, 'utf-8');
-        data = transfer.parseImportData(json);
-      } catch (error) {
-        console.error(`Failed to parse file: ${error.message}`);
-        throw error;
-      }
+        let data;
+        try {
+          const json = readFileSync(filePath, 'utf-8');
+          data = transfer.parseImportData(json);
+        } catch (error) {
+          console.error(`Failed to parse file: ${error.message}`);
+          throw error;
+        }
 
-      // Perform import
-      const result = await transfer.importSite(data, { dryRun, importConfig });
+        // Perform import
+        const result = await transfer.importSite(data, { dryRun, importConfig });
 
-      if (dryRun) {
-        console.log('Dry run - no changes made\n');
-      }
+        if (dryRun) {
+          console.log('Dry run - no changes made\n');
+        }
 
-      // Content results
-      console.log('Content import:');
-      console.log(`  Total: ${result.content.stats.total}`);
-      console.log(`  Created: ${result.content.stats.created}`);
-      console.log(`  Updated: ${result.content.stats.updated}`);
-      console.log(`  Skipped: ${result.content.stats.skipped}`);
+        // Content results
+        console.log('Content import:');
+        console.log(`  Total: ${result.content.stats.total}`);
+        console.log(`  Created: ${result.content.stats.created}`);
+        console.log(`  Updated: ${result.content.stats.updated}`);
+        console.log(`  Skipped: ${result.content.stats.skipped}`);
 
-      // Config results
-      console.log('\nConfig import:');
-      if (result.config.site.imported) {
-        console.log('  ✓ site.json imported');
-      } else if (result.config.site.wouldImport) {
-        console.log('  ○ site.json would be imported');
-      } else if (result.config.site.skipped) {
-        console.log('  - site.json skipped (use --import-config)');
-      }
+        // Config results
+        console.log('\nConfig import:');
+        if (result.config.site.imported) {
+          console.log('  ✓ site.json imported');
+        } else if (result.config.site.wouldImport) {
+          console.log('  ○ site.json would be imported');
+        } else if (result.config.site.skipped) {
+          console.log('  - site.json skipped (use --import-config)');
+        }
 
-      if (result.config.modules.imported) {
-        console.log('  ✓ modules.json imported (restart required)');
-      } else if (result.config.modules.wouldImport) {
-        console.log('  ○ modules.json would be imported');
-      } else if (result.config.modules.skipped) {
-        console.log('  - modules.json skipped (use --import-config)');
-      }
+        if (result.config.modules.imported) {
+          console.log('  ✓ modules.json imported (restart required)');
+        } else if (result.config.modules.wouldImport) {
+          console.log('  ○ modules.json would be imported');
+        } else if (result.config.modules.skipped) {
+          console.log('  - modules.json skipped (use --import-config)');
+        }
 
-      if (!result.success) {
-        console.log('\n⚠ Import completed with errors');
-      }
-    }, 'Import full site from JSON file');
+        if (!result.success) {
+          console.log('\n⚠ Import completed with errors');
+        }
+      },
+      'Import full site from JSON file'
+    );
 
     log(`[boot] ✓ ${PHASES.REGISTER} complete`);
 
@@ -4364,12 +4865,13 @@ export async function boot(baseDir, options = {}) {
     if (context.config.site.privacy?.autoCreate !== false) {
       try {
         const pages = content.list('page').items || [];
-        const hasPrivacy = pages.some(p => p.slug === 'privacy-policy');
+        const hasPrivacy = pages.some((p) => p.slug === 'privacy-policy');
         if (!hasPrivacy) {
           await content.create('page', {
             title: 'Privacy Policy',
             slug: 'privacy-policy',
-            body: '<h2>Privacy Policy</h2>' +
+            body:
+              '<h2>Privacy Policy</h2>' +
               '<p>This privacy policy describes how we collect, use, and protect your personal information.</p>' +
               '<h3>Information We Collect</h3>' +
               '<p>We may collect information you provide directly, such as your name and email address when you create an account or submit a form.</p>' +
@@ -4381,7 +4883,7 @@ export async function boot(baseDir, options = {}) {
               '<p>You have the right to access, correct, or delete your personal information. Contact us to exercise these rights.</p>' +
               '<h3>Contact</h3>' +
               '<p>For privacy-related inquiries, please contact the site administrator.</p>',
-            status: 'published'
+            status: 'published',
           });
           log('[boot] Auto-created privacy policy page at /privacy-policy');
         }
@@ -4400,7 +4902,9 @@ export async function boot(baseDir, options = {}) {
       // Watcher needs the full context to make smart decisions.
       watcher.start(baseDir, context.config.site);
       const devMode = context.config.site.env === 'development';
-      log(`[boot] File watcher started (dev mode: ${devMode ? 'hot config reload enabled' : 'hot reload disabled'})`);
+      log(
+        `[boot] File watcher started (dev mode: ${devMode ? 'hot config reload enabled' : 'hot reload disabled'})`
+      );
 
       // Subscribe to plugin changes
       // WHY SUBSCRIBE:
@@ -4447,7 +4951,6 @@ export async function boot(baseDir, options = {}) {
     log(`[boot] ✓ ${PHASES.READY} complete`);
 
     return context;
-
   } catch (error) {
     // WHY CATCH AT TOP LEVEL:
     // Add phase context to error message for easier debugging.
