@@ -24,13 +24,17 @@ pre-commit:
     # WHY the shell guard: running `lefthook run pre-commit` manually with no
     # staged files expands `{staged_files}` to empty, and biome without file
     # args falls back to scanning the whole project — which is both slow AND
-    # can clobber un-staged work in flight (learned the hard way). The guard
-    # short-circuits the job when there's nothing staged that matches glob.
+    # can clobber un-staged work in flight (learned the hard way). The
+    # `set -- {staged_files}` idiom assigns the substituted file list to
+    # positional parameters: `$#` is the count (handles 0/1/many cleanly),
+    # `"$@"` expands word-split-safely. Avoids the `[: too many arguments`
+    # error the previous `[ -z "..." ]` form produced when many files staged.
     - name: biome
       glob: "*.{ts,tsx,js,mjs,cjs,json,jsonc}"
       run: |
-        if [ -z "{staged_files}" ]; then exit 0; fi
-        npx biome check --write {staged_files}
+        set -- {staged_files}
+        [ "$#" -eq 0 ] && exit 0
+        npx biome check --write "$@"
       stage_fixed: true
 
 pre-push:
