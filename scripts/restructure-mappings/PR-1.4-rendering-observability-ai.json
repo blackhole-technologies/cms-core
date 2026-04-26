@@ -1,0 +1,17 @@
+[
+  { "from": "core/render.ts", "to": "src/core/rendering/render.ts" },
+  { "from": "core/template.ts", "to": "src/core/rendering/template.ts" },
+  { "from": "core/theme-engine.ts", "to": "src/core/rendering/theme-engine.ts" },
+  { "from": "core/theme-settings.ts", "to": "src/core/rendering/theme-settings.ts" },
+  { "from": "core/theme-system.ts", "to": "src/core/rendering/theme-system.ts" },
+  { "from": "core/audit.ts", "to": "src/core/observability/audit.ts" },
+  { "from": "core/analytics.ts", "to": "src/core/observability/analytics.ts" },
+  { "from": "core/activity.ts", "to": "src/core/observability/activity.ts" },
+  { "from": "core/status.ts", "to": "src/core/observability/status.ts" },
+  { "from": "core/watcher.ts", "to": "src/core/observability/watcher.ts" },
+  { "from": "core/ai-agents.ts", "to": "src/core/ai/ai-agents.ts" },
+  { "from": "core/ai-provider-manager.ts", "to": "src/core/ai/ai-provider-manager.ts" },
+  { "from": "core/ai-rate-limiter.ts", "to": "src/core/ai/ai-rate-limiter.ts" },
+  { "from": "core/ai-registry.ts", "to": "src/core/ai/ai-registry.ts" },
+  { "from": "core/ai-stats.ts", "to": "src/core/ai/ai-stats.ts" }
+]

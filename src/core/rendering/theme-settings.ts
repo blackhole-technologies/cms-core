@@ -20,9 +20,9 @@
  * while users can customize without modifying theme files
  */
 
-import { readFileSync, writeFileSync, existsSync, mkdirSync, readdirSync } from 'node:fs';
-import { join, dirname } from 'node:path';
-import * as hooks from './hooks.ts';
+import { existsSync, mkdirSync, readdirSync, readFileSync, writeFileSync } from 'node:fs';
+import { dirname, join } from 'node:path';
+import * as hooks from '../../../core/hooks.ts';
 
 // ============================================================================
 // Types
@@ -270,7 +270,7 @@ export function getSetting(themeName: string | null, key: string): unknown {
 export async function setSetting(
   themeName: string | null,
   key: string,
-  value: unknown,
+  value: unknown
 ): Promise<boolean> {
   if (!baseDir) {
     throw new Error('[theme-settings] Not initialized. Call init() first.');
@@ -289,7 +289,7 @@ export async function setSetting(
   if (!validateSettingValue(schema.type, value)) {
     throw new Error(
       `[theme-settings] Invalid value type for "${key}". ` +
-        `Expected ${schema.type}, got ${typeof value}`,
+        `Expected ${schema.type}, got ${typeof value}`
     );
   }
 
@@ -316,7 +316,7 @@ export async function setSetting(
  */
 export async function saveSettings(
   themeName: string | null,
-  settings: SettingsValues,
+  settings: SettingsValues
 ): Promise<boolean> {
   if (!baseDir) {
     throw new Error('[theme-settings] Not initialized. Call init() first.');
@@ -335,7 +335,7 @@ export async function saveSettings(
     if (!validateSettingValue(schema.type, value)) {
       throw new Error(
         `[theme-settings] Invalid value type for "${key}". ` +
-          `Expected ${schema.type}, got ${typeof value}`,
+          `Expected ${schema.type}, got ${typeof value}`
       );
     }
   }
@@ -393,7 +393,10 @@ export async function resetSettings(themeName: string | null): Promise<boolean> 
 
   if (existsSync(settingsPath)) {
     try {
-      allSettings = JSON.parse(readFileSync(settingsPath, 'utf-8')) as Record<string, SettingsValues>;
+      allSettings = JSON.parse(readFileSync(settingsPath, 'utf-8')) as Record<
+        string,
+        SettingsValues
+      >;
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
       console.error('[theme-settings] Failed to load theme settings:', message);
@@ -470,7 +473,10 @@ export function getColorSchemes(themeName: string | null): Record<string, Record
 /**
  * Apply a color scheme to theme settings
  */
-export async function applyColorScheme(themeName: string | null, schemeName: string): Promise<boolean> {
+export async function applyColorScheme(
+  themeName: string | null,
+  schemeName: string
+): Promise<boolean> {
   if (!baseDir) {
     throw new Error('[theme-settings] Not initialized. Call init() first.');
   }
@@ -479,9 +485,7 @@ export async function applyColorScheme(themeName: string | null, schemeName: str
   const metadata = loadThemeMetadata(theme);
 
   if (!metadata.color_schemes || !metadata.color_schemes[schemeName]) {
-    throw new Error(
-      `[theme-settings] Color scheme "${schemeName}" not found in theme "${theme}"`,
-    );
+    throw new Error(`[theme-settings] Color scheme "${schemeName}" not found in theme "${theme}"`);
   }
 
   const scheme = metadata.color_schemes[schemeName];

@@ -24,10 +24,10 @@
  * We debounce to handle this, but it's not perfect.
  */
 
-import { watch, existsSync, mkdirSync, appendFileSync, readFileSync } from 'node:fs';
 import type { FSWatcher } from 'node:fs';
-import { join, basename, dirname, relative } from 'node:path';
-import * as config from './config.ts';
+import { appendFileSync, existsSync, mkdirSync, readFileSync, watch } from 'node:fs';
+import { basename, dirname, join, relative } from 'node:path';
+import * as config from '../../../core/config.ts';
 
 // ============= Types =============
 
@@ -157,10 +157,13 @@ function debounce(key: string, callback: () => void): void {
   if (debounceMap.has(key)) {
     clearTimeout(debounceMap.get(key));
   }
-  debounceMap.set(key, setTimeout(() => {
-    debounceMap.delete(key);
-    callback();
-  }, DEBOUNCE_MS));
+  debounceMap.set(
+    key,
+    setTimeout(() => {
+      debounceMap.delete(key);
+      callback();
+    }, DEBOUNCE_MS)
+  );
 }
 
 /**
@@ -179,18 +182,19 @@ function handleModuleChange(eventType: string, filename: string, fullPath: strin
           const manifest = JSON.parse(readFileSync(fullPath, 'utf-8'));
           const moduleName = manifest.name || basename(dirname(fullPath));
           knownModules.add(moduleName);
-          logEvent('CREATED', relativePath,
-            `New module detected: ${moduleName} — restart to activate`);
+          logEvent(
+            'CREATED',
+            relativePath,
+            `New module detected: ${moduleName} — restart to activate`
+          );
         } catch {
-          logEvent('CREATED', relativePath,
-            'New module detected — restart to activate');
+          logEvent('CREATED', relativePath, 'New module detected — restart to activate');
         }
       } else {
         // Manifest deleted
         const moduleName = basename(dirname(fullPath));
         knownModules.delete(moduleName);
-        logEvent('DELETED', relativePath,
-          `Module removed: ${moduleName} — restart to deactivate`);
+        logEvent('DELETED', relativePath, `Module removed: ${moduleName} — restart to deactivate`);
       }
     } else if (eventType === 'change') {
       logEvent('MODIFIED', relativePath);
@@ -202,11 +206,9 @@ function handleModuleChange(eventType: string, filename: string, fullPath: strin
   if (filename === 'index.js') {
     const moduleName = basename(dirname(fullPath));
     if (eventType === 'change') {
-      logEvent('MODIFIED', relativePath,
-        `Module code changed: ${moduleName} — restart to apply`);
+      logEvent('MODIFIED', relativePath, `Module code changed: ${moduleName} — restart to apply`);
     } else if (eventType === 'rename' && existsSync(fullPath)) {
-      logEvent('CREATED', relativePath,
-        `Module code added: ${moduleName} — restart to apply`);
+      logEvent('CREATED', relativePath, `Module code added: ${moduleName} — restart to apply`);
     }
     return;
   }
@@ -236,17 +238,14 @@ function handleThemeChange(eventType: string, filename: string, fullPath: string
         const manifest = JSON.parse(readFileSync(fullPath, 'utf-8'));
         const themeName = manifest.name || basename(dirname(fullPath));
         knownThemes.add(themeName);
-        logEvent('CREATED', relativePath,
-          `New theme detected: ${themeName}`);
+        logEvent('CREATED', relativePath, `New theme detected: ${themeName}`);
       } catch {
-        logEvent('CREATED', relativePath,
-          'New theme detected');
+        logEvent('CREATED', relativePath, 'New theme detected');
       }
     } else if (eventType === 'rename' && !existsSync(fullPath)) {
       const themeName = basename(dirname(fullPath));
       knownThemes.delete(themeName);
-      logEvent('DELETED', relativePath,
-        `Theme removed: ${themeName}`);
+      logEvent('DELETED', relativePath, `Theme removed: ${themeName}`);
     } else if (eventType === 'change') {
       logEvent('MODIFIED', relativePath);
     }
@@ -291,22 +290,22 @@ function handlePluginChange(eventType: string, filename: string, fullPath: strin
           const manifest = JSON.parse(readFileSync(fullPath, 'utf-8'));
           const name = manifest.name || pluginName;
           knownPlugins.add(name);
-          logEvent('CREATED', relativePath,
-            `New plugin detected: ${name}`);
+          logEvent('CREATED', relativePath, `New plugin detected: ${name}`);
           notifyPluginChange(name, 'created', relativePath);
         } catch {
-          logEvent('CREATED', relativePath,
-            'New plugin detected (manifest parse error)');
+          logEvent('CREATED', relativePath, 'New plugin detected (manifest parse error)');
         }
       } else {
         knownPlugins.delete(pluginName);
-        logEvent('DELETED', relativePath,
-          `Plugin removed: ${pluginName}`);
+        logEvent('DELETED', relativePath, `Plugin removed: ${pluginName}`);
         notifyPluginChange(pluginName, 'deleted', relativePath);
       }
     } else if (eventType === 'change') {
-      logEvent('MODIFIED', relativePath,
-        `Plugin manifest changed: ${pluginName} — reload to apply`);
+      logEvent(
+        'MODIFIED',
+        relativePath,
+        `Plugin manifest changed: ${pluginName} — reload to apply`
+      );
       notifyPluginChange(pluginName, 'manifest', relativePath);
     }
     return;
@@ -315,12 +314,10 @@ function handlePluginChange(eventType: string, filename: string, fullPath: strin
   // index.js changes - plugin code modified
   if (filename === 'index.js') {
     if (eventType === 'change') {
-      logEvent('MODIFIED', relativePath,
-        `Plugin code changed: ${pluginName} — reload to apply`);
+      logEvent('MODIFIED', relativePath, `Plugin code changed: ${pluginName} — reload to apply`);
       notifyPluginChange(pluginName, 'code', relativePath);
     } else if (eventType === 'rename' && existsSync(fullPath)) {
-      logEvent('CREATED', relativePath,
-        `Plugin code added: ${pluginName}`);
+      logEvent('CREATED', relativePath, `Plugin code added: ${pluginName}`);
       notifyPluginChange(pluginName, 'code', relativePath);
     }
     return;
@@ -329,16 +326,13 @@ function handlePluginChange(eventType: string, filename: string, fullPath: strin
   // config.json changes - plugin configuration modified
   if (filename === 'config.json') {
     if (eventType === 'change') {
-      logEvent('MODIFIED', relativePath,
-        `Plugin config changed: ${pluginName} — reload to apply`);
+      logEvent('MODIFIED', relativePath, `Plugin config changed: ${pluginName} — reload to apply`);
       notifyPluginChange(pluginName, 'config', relativePath);
     } else if (eventType === 'rename') {
       if (existsSync(fullPath)) {
-        logEvent('CREATED', relativePath,
-          `Plugin config added: ${pluginName}`);
+        logEvent('CREATED', relativePath, `Plugin config added: ${pluginName}`);
       } else {
-        logEvent('DELETED', relativePath,
-          `Plugin config removed: ${pluginName}`);
+        logEvent('DELETED', relativePath, `Plugin config removed: ${pluginName}`);
       }
       notifyPluginChange(pluginName, 'config', relativePath);
     }
@@ -405,7 +399,7 @@ export function onPluginChange(callback: (event: PluginChangeEvent) => void): ()
  */
 export function getRecentPluginChanges(limit = 10) {
   return recentEvents
-    .filter(e => e.path.startsWith('plugins/'))
+    .filter((e) => e.path.startsWith('plugins/'))
     .slice(-limit)
     .reverse();
 }
@@ -432,20 +426,16 @@ function handleConfigChange(eventType: string, filename: string, fullPath: strin
       const configName = filename.replace('.json', '');
       try {
         config.reload(configName);
-        logEvent('RELOADED', relativePath,
-          `Config reloaded: ${filename}`);
+        logEvent('RELOADED', relativePath, `Config reloaded: ${filename}`);
       } catch (error) {
-        logEvent('ERROR', relativePath,
-          `Config reload failed: ${(error as Error).message}`);
+        logEvent('ERROR', relativePath, `Config reload failed: ${(error as Error).message}`);
       }
     }
   } else if (eventType === 'rename') {
     if (existsSync(fullPath)) {
-      logEvent('CREATED', relativePath,
-        `New config file: ${filename}`);
+      logEvent('CREATED', relativePath, `New config file: ${filename}`);
     } else {
-      logEvent('DELETED', relativePath,
-        `Config file removed: ${filename}`);
+      logEvent('DELETED', relativePath, `Config file removed: ${filename}`);
     }
   }
 }
@@ -541,12 +531,12 @@ export function start(dir: string, cfg: SiteConfig): boolean {
   }
 
   // Log startup
-  const hotReloadStatus = siteConfig?.env === 'development'
-    ? 'hot config reload enabled'
-    : 'hot reload disabled (not in development)';
+  const hotReloadStatus =
+    siteConfig?.env === 'development'
+      ? 'hot config reload enabled'
+      : 'hot reload disabled (not in development)';
 
-  logEvent('WATCHING', watchedNames.join(', '),
-    `File watcher started (${hotReloadStatus})`);
+  logEvent('WATCHING', watchedNames.join(', '), `File watcher started (${hotReloadStatus})`);
 
   return true;
 }

@@ -18,9 +18,16 @@
  * /content/.activity/<year>/<month>.json
  */
 
-import { existsSync, mkdirSync, readFileSync, writeFileSync, readdirSync, unlinkSync } from 'node:fs';
-import { join } from 'node:path';
 import { randomUUID } from 'node:crypto';
+import {
+  existsSync,
+  mkdirSync,
+  readdirSync,
+  readFileSync,
+  unlinkSync,
+  writeFileSync,
+} from 'node:fs';
+import { join } from 'node:path';
 
 // ============================================================================
 // Types
@@ -221,8 +228,8 @@ const ACTION_LABELS: Record<string, string> = {
 let config: ActivityConfig = {
   enabled: true,
   aggregateWindow: 5 * 60 * 1000, // 5 minutes - group activities within this window
-  retention: 90,                   // Days to keep activity data
-  maxPerFeed: 100,                // Max items in a single feed query
+  retention: 90, // Days to keep activity data
+  maxPerFeed: 100, // Max items in a single feed query
 };
 
 /**
@@ -257,7 +264,11 @@ let flushInterval: ReturnType<typeof setInterval> | null = null;
  * @param contentSvc - Content service
  * @param activityConfig - Activity configuration
  */
-export function init(dir: string, contentSvc: ContentService | null, activityConfig: Partial<ActivityConfig> = {}): void {
+export function init(
+  dir: string,
+  contentSvc: ContentService | null,
+  activityConfig: Partial<ActivityConfig> = {}
+): void {
   baseDir = dir;
   contentService = contentSvc;
 
@@ -350,18 +361,26 @@ function persistActivitiesToDb(activities: ActivityEntry[]): void {
   if (!dbPool || activities.length === 0) return;
 
   for (const a of activities) {
-    dbPool.query(
-      `INSERT INTO activity (id, action, actor_id, actor_username, actor_type,
+    dbPool
+      .query(
+        `INSERT INTO activity (id, action, actor_id, actor_username, actor_type,
                              target_type, target_id, target_title, data, timestamp)
        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
        ON CONFLICT (id) DO NOTHING`,
-      [
-        a.id, a.action,
-        a.actor?.id || null, a.actor?.username || 'system', a.actor?.type || 'user',
-        a.target?.type || null, a.target?.id || null, a.target?.title || null,
-        JSON.stringify(a.data || {}), a.timestamp,
-      ]
-    ).catch((err: Error) => console.warn(`[activity] Failed to persist to DB: ${err.message}`));
+        [
+          a.id,
+          a.action,
+          a.actor?.id || null,
+          a.actor?.username || 'system',
+          a.actor?.type || 'user',
+          a.target?.type || null,
+          a.target?.id || null,
+          a.target?.title || null,
+          JSON.stringify(a.data || {}),
+          a.timestamp,
+        ]
+      )
+      .catch((err: Error) => console.warn(`[activity] Failed to persist to DB: ${err.message}`));
   }
 }
 
@@ -371,7 +390,9 @@ function persistActivitiesToDb(activities: ActivityEntry[]): void {
  * @param options - Filter options
  * @returns Activities or null
  */
-async function queryActivitiesFromDb(options: DbQueryOptions = {}): Promise<ActivityEntry[] | null> {
+async function queryActivitiesFromDb(
+  options: DbQueryOptions = {}
+): Promise<ActivityEntry[] | null> {
   if (!dbPool) return null;
 
   const { action, actorId, targetType, targetId, from, to, limit, offset } = options;
@@ -419,9 +440,22 @@ async function queryActivitiesFromDb(options: DbQueryOptions = {}): Promise<Acti
     return result.rows.map((r: Record<string, unknown>) => ({
       id: r.id as string,
       action: r.action as string,
-      actor: { id: r.actor_id as string | null, username: r.actor_username as string, type: r.actor_type as string },
-      target: r.target_type ? { type: r.target_type as string, id: r.target_id as string | null, title: r.target_title as string | null } : null,
-      data: typeof r.data === 'string' ? JSON.parse(r.data) as Record<string, unknown> : ((r.data || {}) as Record<string, unknown>),
+      actor: {
+        id: r.actor_id as string | null,
+        username: r.actor_username as string,
+        type: r.actor_type as string,
+      },
+      target: r.target_type
+        ? {
+            type: r.target_type as string,
+            id: r.target_id as string | null,
+            title: r.target_title as string | null,
+          }
+        : null,
+      data:
+        typeof r.data === 'string'
+          ? (JSON.parse(r.data) as Record<string, unknown>)
+          : ((r.data || {}) as Record<string, unknown>),
       timestamp: new Date(r.timestamp as string).toISOString(),
     }));
   } catch (error: unknown) {
@@ -442,12 +476,30 @@ async function countActivitiesFromDb(options: DbQueryOptions = {}): Promise<numb
   const params: unknown[] = [];
   let idx = 1;
 
-  if (from) { conditions.push(`timestamp >= $${idx++}`); params.push(from); }
-  if (to) { conditions.push(`timestamp <= $${idx++}`); params.push(to); }
-  if (action) { conditions.push(`action = $${idx++}`); params.push(action); }
-  if (actorId) { conditions.push(`actor_id = $${idx++}`); params.push(actorId); }
-  if (targetType) { conditions.push(`target_type = $${idx++}`); params.push(targetType); }
-  if (targetId) { conditions.push(`target_id = $${idx++}`); params.push(targetId); }
+  if (from) {
+    conditions.push(`timestamp >= $${idx++}`);
+    params.push(from);
+  }
+  if (to) {
+    conditions.push(`timestamp <= $${idx++}`);
+    params.push(to);
+  }
+  if (action) {
+    conditions.push(`action = $${idx++}`);
+    params.push(action);
+  }
+  if (actorId) {
+    conditions.push(`actor_id = $${idx++}`);
+    params.push(actorId);
+  }
+  if (targetType) {
+    conditions.push(`target_type = $${idx++}`);
+    params.push(targetType);
+  }
+  if (targetId) {
+    conditions.push(`target_id = $${idx++}`);
+    params.push(targetId);
+  }
 
   const where = conditions.length > 0 ? `WHERE ${conditions.join(' AND ')}` : '';
 
@@ -503,7 +555,12 @@ export function flush(): void {
  * @param data - Additional data
  * @returns Created activity
  */
-export function record(action: string, actor: UserInput | null, target: { type?: string; id?: string; title?: string; name?: string } | null = null, data: Record<string, unknown> = {}): ActivityEntry | null {
+export function record(
+  action: string,
+  actor: UserInput | null,
+  target: { type?: string; id?: string; title?: string; name?: string } | null = null,
+  data: Record<string, unknown> = {}
+): ActivityEntry | null {
   if (!config.enabled || !activityDir) return null;
 
   const activity: ActivityEntry = {
@@ -514,11 +571,13 @@ export function record(action: string, actor: UserInput | null, target: { type?:
       username: actor?.username || actor?.email || 'system',
       type: actor?.type || 'user',
     },
-    target: target ? {
-      type: target.type || null,
-      id: target.id || null,
-      title: target.title || target.name || null,
-    } : null,
+    target: target
+      ? {
+          type: target.type || null,
+          id: target.id || null,
+          title: target.title || target.name || null,
+        }
+      : null,
     data: data || {},
     timestamp: new Date().toISOString(),
   };
@@ -583,7 +642,18 @@ export function getFeed(options: FeedOptions = {}): FeedResult | Promise<FeedRes
 
   // DB mode: query from database (returns promise -- callers must handle)
   if (dbPool) {
-    return _getFeedFromDb({ action, actorId, targetType, from: fromDate.toISOString(), to: toDate.toISOString(), limit: aggregate ? 500 : limit, offset: aggregate ? 0 : offset, aggregate, requestedLimit: limit, requestedOffset: offset });
+    return _getFeedFromDb({
+      action,
+      actorId,
+      targetType,
+      from: fromDate.toISOString(),
+      to: toDate.toISOString(),
+      limit: aggregate ? 500 : limit,
+      offset: aggregate ? 0 : offset,
+      aggregate,
+      requestedLimit: limit,
+      requestedOffset: offset,
+    });
   }
 
   const files = getFilesInRange(fromDate, toDate);
@@ -637,9 +707,28 @@ export function getFeed(options: FeedOptions = {}): FeedResult | Promise<FeedRes
  * Internal: get feed from database (async).
  */
 async function _getFeedFromDb(opts: DbFeedOptions): Promise<FeedResult> {
-  const { action, actorId, targetType, from, to, limit, offset, aggregate, requestedLimit, requestedOffset } = opts;
+  const {
+    action,
+    actorId,
+    targetType,
+    from,
+    to,
+    limit,
+    offset,
+    aggregate,
+    requestedLimit,
+    requestedOffset,
+  } = opts;
 
-  let dbActivities = await queryActivitiesFromDb({ action, actorId, targetType, from, to, limit, offset });
+  let dbActivities = await queryActivitiesFromDb({
+    action,
+    actorId,
+    targetType,
+    from,
+    to,
+    limit,
+    offset,
+  });
   if (!dbActivities) dbActivities = [];
 
   if (aggregate) {
@@ -660,7 +749,14 @@ async function _getFeedFromDb(opts: DbFeedOptions): Promise<FeedResult> {
     activity.relativeTime = getRelativeTime(activity.timestamp);
   }
 
-  return { activities: dbActivities, total: dbActivities.length, limit: limit ?? 50, offset: offset ?? 0, from, to };
+  return {
+    activities: dbActivities,
+    total: dbActivities.length,
+    limit: limit ?? 50,
+    offset: offset ?? 0,
+    from,
+    to,
+  };
 }
 
 /**
@@ -686,7 +782,9 @@ export function aggregateActivities(activities: ActivityEntry[]): ActivityEntry[
       // Collect fields that changed
       if (activity.data?.fields) {
         const fields = activity.data.fields as string[];
-        current.data.allFields = current.data.allFields || [...((current.data.fields as string[]) || [])];
+        current.data.allFields = current.data.allFields || [
+          ...((current.data.fields as string[]) || []),
+        ];
         const allFields = current.data.allFields as string[];
         for (const field of fields) {
           if (!allFields.includes(field)) {
@@ -737,7 +835,10 @@ function canAggregate(a: ActivityEntry, b: ActivityEntry): boolean {
  * @param options - Feed options
  * @returns Feed result
  */
-export function getForUser(userId: string, options: FeedOptions = {}): FeedResult | Promise<FeedResult> {
+export function getForUser(
+  userId: string,
+  options: FeedOptions = {}
+): FeedResult | Promise<FeedResult> {
   return getFeed({ ...options, actorId: userId });
 }
 
@@ -749,14 +850,12 @@ export function getForUser(userId: string, options: FeedOptions = {}): FeedResul
  * @param options - Feed options
  * @returns Content feed result
  */
-export function getForContent(type: string, id: string, options: FeedOptions = {}): ContentFeedResult | Promise<ContentFeedResult> {
-  const {
-    days = 90,
-    from = null,
-    to = null,
-    limit = 100,
-    offset = 0,
-  } = options;
+export function getForContent(
+  type: string,
+  id: string,
+  options: FeedOptions = {}
+): ContentFeedResult | Promise<ContentFeedResult> {
+  const { days = 90, from = null, to = null, limit = 100, offset = 0 } = options;
 
   flush();
 
@@ -765,7 +864,14 @@ export function getForContent(type: string, id: string, options: FeedOptions = {
 
   // DB mode: query directly
   if (dbPool) {
-    return _getForContentFromDb(type, id, fromDate.toISOString(), toDate.toISOString(), limit, offset);
+    return _getForContentFromDb(
+      type,
+      id,
+      fromDate.toISOString(),
+      toDate.toISOString(),
+      limit,
+      offset
+    );
   }
 
   const files = getFilesInRange(fromDate, toDate);
@@ -777,7 +883,7 @@ export function getForContent(type: string, id: string, options: FeedOptions = {
   }
 
   // Filter by target
-  let filtered = allActivities.filter((activity: ActivityEntry) => {
+  const filtered = allActivities.filter((activity: ActivityEntry) => {
     if (!activity.target) return false;
     return activity.target.type === type && activity.target.id === id;
   });
@@ -807,8 +913,22 @@ export function getForContent(type: string, id: string, options: FeedOptions = {
 /**
  * Internal: get content activities from database (async).
  */
-async function _getForContentFromDb(type: string, id: string, from: string, to: string, limit: number, offset: number): Promise<ContentFeedResult> {
-  let activities = await queryActivitiesFromDb({ targetType: type, targetId: id, from, to, limit, offset });
+async function _getForContentFromDb(
+  type: string,
+  id: string,
+  from: string,
+  to: string,
+  limit: number,
+  offset: number
+): Promise<ContentFeedResult> {
+  let activities = await queryActivitiesFromDb({
+    targetType: type,
+    targetId: id,
+    from,
+    to,
+    limit,
+    offset,
+  });
   if (!activities) activities = [];
 
   for (const activity of activities) {
@@ -839,7 +959,11 @@ export function getRecent(limit: number = 10): ActivityEntry[] {
  * @returns Activity stats
  */
 export function getStats(options: FeedOptions = {}): ActivityStats {
-  const result = getFeed({ ...options, limit: Number.MAX_SAFE_INTEGER, aggregate: false }) as FeedResult;
+  const result = getFeed({
+    ...options,
+    limit: Number.MAX_SAFE_INTEGER,
+    aggregate: false,
+  }) as FeedResult;
 
   const stats: ActivityStats = {
     total: result.total,
@@ -852,7 +976,10 @@ export function getStats(options: FeedOptions = {}): ActivityStats {
     topContent: [],
   };
 
-  const topContentMap: Record<string, { type: string; id: string; title: string | null; count: number }> = {};
+  const topContentMap: Record<
+    string,
+    { type: string; id: string; title: string | null; count: number }
+  > = {};
 
   for (const activity of result.activities) {
     // By action
@@ -864,7 +991,8 @@ export function getStats(options: FeedOptions = {}): ActivityStats {
 
     // By target type
     if (activity.target?.type) {
-      stats.byTargetType[activity.target.type] = (stats.byTargetType[activity.target.type] || 0) + 1;
+      stats.byTargetType[activity.target.type] =
+        (stats.byTargetType[activity.target.type] || 0) + 1;
     }
 
     // By day
@@ -892,14 +1020,10 @@ export function getStats(options: FeedOptions = {}): ActivityStats {
     .slice(0, 10);
 
   // Sort by action count
-  stats.byAction = Object.fromEntries(
-    Object.entries(stats.byAction).sort((a, b) => b[1] - a[1])
-  );
+  stats.byAction = Object.fromEntries(Object.entries(stats.byAction).sort((a, b) => b[1] - a[1]));
 
   // Sort by actor count
-  stats.byActor = Object.fromEntries(
-    Object.entries(stats.byActor).sort((a, b) => b[1] - a[1])
-  );
+  stats.byActor = Object.fromEntries(Object.entries(stats.byActor).sort((a, b) => b[1] - a[1]));
 
   return stats;
 }
@@ -1008,36 +1132,82 @@ export function prune(olderThanDays: number | null = null): { deleted: number } 
  * Convenience methods for recording common activities
  */
 
-export function recordContentCreate(user: UserInput, type: string, id: string, title: string): ActivityEntry | null {
+export function recordContentCreate(
+  user: UserInput,
+  type: string,
+  id: string,
+  title: string
+): ActivityEntry | null {
   return record(ACTIVITY_TYPES.CONTENT_CREATE!, user, { type, id, title });
 }
 
-export function recordContentUpdate(user: UserInput, type: string, id: string, title: string, fields: string[] = []): ActivityEntry | null {
+export function recordContentUpdate(
+  user: UserInput,
+  type: string,
+  id: string,
+  title: string,
+  fields: string[] = []
+): ActivityEntry | null {
   return record(ACTIVITY_TYPES.CONTENT_UPDATE!, user, { type, id, title }, { fields });
 }
 
-export function recordContentDelete(user: UserInput, type: string, id: string, title: string): ActivityEntry | null {
+export function recordContentDelete(
+  user: UserInput,
+  type: string,
+  id: string,
+  title: string
+): ActivityEntry | null {
   return record(ACTIVITY_TYPES.CONTENT_DELETE!, user, { type, id, title });
 }
 
-export function recordContentPublish(user: UserInput, type: string, id: string, title: string): ActivityEntry | null {
+export function recordContentPublish(
+  user: UserInput,
+  type: string,
+  id: string,
+  title: string
+): ActivityEntry | null {
   return record(ACTIVITY_TYPES.CONTENT_PUBLISH!, user, { type, id, title });
 }
 
-export function recordContentUnpublish(user: UserInput, type: string, id: string, title: string): ActivityEntry | null {
+export function recordContentUnpublish(
+  user: UserInput,
+  type: string,
+  id: string,
+  title: string
+): ActivityEntry | null {
   return record(ACTIVITY_TYPES.CONTENT_UNPUBLISH!, user, { type, id, title });
 }
 
-export function recordContentClone(user: UserInput, type: string, id: string, title: string, sourceId: string): ActivityEntry | null {
+export function recordContentClone(
+  user: UserInput,
+  type: string,
+  id: string,
+  title: string,
+  sourceId: string
+): ActivityEntry | null {
   return record(ACTIVITY_TYPES.CONTENT_CLONE!, user, { type, id, title }, { sourceId });
 }
 
-export function recordComment(user: UserInput, type: string, id: string, title: string, commentId: string): ActivityEntry | null {
+export function recordComment(
+  user: UserInput,
+  type: string,
+  id: string,
+  title: string,
+  commentId: string
+): ActivityEntry | null {
   return record(ACTIVITY_TYPES.CONTENT_COMMENT!, user, { type, id, title }, { commentId });
 }
 
-export function recordMediaUpload(user: UserInput, filename: string, mediaId: string): ActivityEntry | null {
-  return record(ACTIVITY_TYPES.MEDIA_UPLOAD!, user, { type: 'media', id: mediaId, title: filename });
+export function recordMediaUpload(
+  user: UserInput,
+  filename: string,
+  mediaId: string
+): ActivityEntry | null {
+  return record(ACTIVITY_TYPES.MEDIA_UPLOAD!, user, {
+    type: 'media',
+    id: mediaId,
+    title: filename,
+  });
 }
 
 export function recordUserLogin(user: UserInput): ActivityEntry | null {
@@ -1045,7 +1215,12 @@ export function recordUserLogin(user: UserInput): ActivityEntry | null {
 }
 
 export function recordSystemBackup(details: Record<string, unknown> = {}): ActivityEntry | null {
-  return record(ACTIVITY_TYPES.SYSTEM_BACKUP!, { type: 'system', username: 'system' }, null, details);
+  return record(
+    ACTIVITY_TYPES.SYSTEM_BACKUP!,
+    { type: 'system', username: 'system' },
+    null,
+    details
+  );
 }
 
 /**

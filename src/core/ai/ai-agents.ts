@@ -178,7 +178,11 @@ interface SeoService {
 
 /** AI provider manager interface */
 interface AIProviderManagerRef {
-  routeToProvider: (operation: string, args: unknown[], model: unknown) => Promise<AIProviderResponse>;
+  routeToProvider: (
+    operation: string,
+    args: unknown[],
+    model: unknown
+  ) => Promise<AIProviderResponse>;
 }
 
 /** Boot context */
@@ -217,14 +221,18 @@ function registerBuiltinTools(): void {
     name: 'readContent',
     description: 'Read a single content item by type and ID',
     parameters: {
-      type: { type: 'string', description: 'Content type (e.g., "article", "page")', required: true },
-      id: { type: 'string', description: 'Content item ID', required: true }
+      type: {
+        type: 'string',
+        description: 'Content type (e.g., "article", "page")',
+        required: true,
+      },
+      id: { type: 'string', description: 'Content item ID', required: true },
     },
     execute: (params) => {
       if (!contentService) return { error: 'Content service not available' };
       const item = contentService.get(params.type as string, params.id as string);
       return item || { error: `Not found: ${params.type}/${params.id}` };
-    }
+    },
   });
 
   registerTool({
@@ -233,18 +241,18 @@ function registerBuiltinTools(): void {
     parameters: {
       type: { type: 'string', description: 'Content type', required: true },
       limit: { type: 'number', description: 'Max items to return (default 10)' },
-      status: { type: 'string', description: 'Filter by status (e.g., "published")' }
+      status: { type: 'string', description: 'Filter by status (e.g., "published")' },
     },
     execute: (params) => {
       if (!contentService) return { error: 'Content service not available' };
       const result = contentService.list(params.type as string);
       let items = result.items || [];
       if (params.status) {
-        items = items.filter(i => i.status === params.status);
+        items = items.filter((i) => i.status === params.status);
       }
       const limit = (params.limit as number) || 10;
       return { items: items.slice(0, limit), total: items.length };
-    }
+    },
   });
 
   registerTool({
@@ -252,13 +260,16 @@ function registerBuiltinTools(): void {
     description: 'Create a new content item',
     parameters: {
       type: { type: 'string', description: 'Content type', required: true },
-      data: { type: 'object', description: 'Content data object', required: true }
+      data: { type: 'object', description: 'Content data object', required: true },
     },
     execute: async (params) => {
       if (!contentService) return { error: 'Content service not available' };
-      const item = await contentService.create(params.type as string, params.data as Record<string, unknown>);
+      const item = await contentService.create(
+        params.type as string,
+        params.data as Record<string, unknown>
+      );
       return { id: item.id, created: true };
-    }
+    },
   });
 
   registerTool({
@@ -267,27 +278,31 @@ function registerBuiltinTools(): void {
     parameters: {
       type: { type: 'string', description: 'Content type', required: true },
       id: { type: 'string', description: 'Content item ID', required: true },
-      data: { type: 'object', description: 'Fields to update', required: true }
+      data: { type: 'object', description: 'Fields to update', required: true },
     },
     execute: async (params) => {
       if (!contentService) return { error: 'Content service not available' };
-      await contentService.update(params.type as string, params.id as string, params.data as Record<string, unknown>);
+      await contentService.update(
+        params.type as string,
+        params.id as string,
+        params.data as Record<string, unknown>
+      );
       return { id: params.id, updated: true };
-    }
+    },
   });
 
   registerTool({
     name: 'getContentTypeSchema',
     description: 'Get the field schema for a content type',
     parameters: {
-      type: { type: 'string', description: 'Content type name', required: true }
+      type: { type: 'string', description: 'Content type name', required: true },
     },
     execute: (params) => {
       if (!contentService) return { error: 'Content service not available' };
       const types = contentService.getContentTypes?.() || {};
       const schema = types[params.type as string];
       return schema || { error: `Unknown content type: ${params.type}` };
-    }
+    },
   });
 
   registerTool({
@@ -296,12 +311,12 @@ function registerBuiltinTools(): void {
     parameters: {
       title: { type: 'string', description: 'Content title', required: true },
       body: { type: 'string', description: 'Content body HTML', required: true },
-      keyword: { type: 'string', description: 'Focus keyword' }
+      keyword: { type: 'string', description: 'Focus keyword' },
     },
     execute: (params) => {
       if (!seoService?.analyze) return { error: 'SEO service not available' };
       return seoService.analyze(params as Record<string, unknown>);
-    }
+    },
   });
 }
 
@@ -313,49 +328,49 @@ function registerBuiltinAgents(): void {
     name: 'Field Agent',
     description: 'Auto-fills content fields based on title and content type context',
     systemPrompt: `You are a content field assistant for a CMS. Given a content type schema and a title, generate appropriate values for each field. Return a JSON object with field names as keys and generated values as values. Be concise and relevant. For body fields, write 2-3 paragraphs of relevant content. For summary fields, write 1-2 sentences.`,
-    tools: ['getContentTypeSchema', 'listContent']
+    tools: ['getContentTypeSchema', 'listContent'],
   });
 
   registerAgent('seo-agent', {
     name: 'SEO Agent',
     description: 'Analyzes content and provides SEO recommendations',
     systemPrompt: `You are an SEO specialist for a CMS. Analyze the provided content and return JSON with: { "metaDescription": "...", "suggestions": ["..."], "score": 0-100, "keywords": ["..."] }. Focus on: title optimization, keyword usage, readability, meta description quality, heading structure.`,
-    tools: ['readContent', 'analyzeSeo', 'listContent']
+    tools: ['readContent', 'analyzeSeo', 'listContent'],
   });
 
   registerAgent('content-moderator', {
     name: 'Content Moderator',
     description: 'Reviews content for policy compliance, profanity, and quality issues',
     systemPrompt: `You are a content moderator for a CMS. Review the provided content and return JSON with: { "approved": true/false, "issues": [{ "type": "profanity|spam|quality|policy", "severity": "low|medium|high", "description": "..." }], "score": 0-100, "recommendation": "approve|review|reject" }. Flag profanity, spam patterns, very low quality content, and potential policy violations. Be reasonable — not every minor issue should block publication.`,
-    tools: ['readContent', 'listContent']
+    tools: ['readContent', 'listContent'],
   });
 
   registerAgent('taxonomy-tagger', {
     name: 'Taxonomy Tagger',
     description: 'Automatically suggests tags and categories based on content analysis',
     systemPrompt: `You are a taxonomy specialist for a CMS. Analyze the provided content and suggest relevant tags and categories. Return JSON with: { "suggestedTags": ["tag1", "tag2"], "suggestedCategories": ["cat1"], "confidence": 0-100, "reasoning": "..." }. Use existing tags when possible. Suggest 3-7 tags that accurately describe the content topic, audience, and format.`,
-    tools: ['readContent', 'listContent', 'getContentTypeSchema']
+    tools: ['readContent', 'listContent', 'getContentTypeSchema'],
   });
 
   registerAgent('translation-agent', {
     name: 'Translation Agent',
     description: 'Translates content fields to a target language',
     systemPrompt: `You are a professional translator for a CMS. Translate the provided content into the requested target language. Return JSON with: { "translations": { "fieldName": "translated value", ... }, "sourceLanguage": "detected language", "targetLanguage": "requested language", "confidence": 0-100 }. Preserve HTML tags. Maintain tone and style. Adapt cultural references where appropriate.`,
-    tools: ['readContent', 'getContentTypeSchema']
+    tools: ['readContent', 'getContentTypeSchema'],
   });
 
   registerAgent('accessibility-checker', {
     name: 'Accessibility Checker',
     description: 'Audits content for accessibility issues and WCAG compliance',
     systemPrompt: `You are an accessibility specialist auditing CMS content for WCAG 2.1 compliance. Analyze the provided content and return JSON with: { "score": 0-100, "level": "A|AA|AAA", "issues": [{ "type": "alt-text|heading-order|color-contrast|link-text|language", "severity": "error|warning|notice", "field": "...", "description": "...", "suggestion": "..." }], "passed": ["check1", "check2"] }. Check: images without alt text, heading hierarchy, link text quality, reading level, semantic HTML usage.`,
-    tools: ['readContent', 'listContent']
+    tools: ['readContent', 'listContent'],
   });
 
   registerAgent('content-summarizer', {
     name: 'Content Summarizer',
     description: 'Generates summaries, excerpts, and social media descriptions',
     systemPrompt: `You are a content editor for a CMS. Generate various summaries of the provided content. Return JSON with: { "summary": "2-3 sentence summary", "excerpt": "1 sentence excerpt", "socialMedia": { "twitter": "280 char max", "facebook": "longer social description", "linkedin": "professional summary" }, "keywords": ["key", "terms"] }. Maintain the original tone. Highlight key points. Make social descriptions engaging.`,
-    tools: ['readContent', 'getContentTypeSchema']
+    tools: ['readContent', 'getContentTypeSchema'],
   });
 }
 
@@ -387,7 +402,11 @@ function buildUserMessage(input: string, context: ExecutionContext): string {
 export function init(ctx: BootContext): void {
   contentService = ctx?.services?.get?.('content') as ContentService | null;
   aiProviderManager = ctx?.services?.get?.('ai-provider-manager') as AIProviderManagerRef | null;
-  try { seoService = ctx?.services?.get?.('seo') as SeoService | null; } catch { seoService = null; }
+  try {
+    seoService = ctx?.services?.get?.('seo') as SeoService | null;
+  } catch {
+    seoService = null;
+  }
 
   registerBuiltinTools();
   registerBuiltinAgents();
@@ -423,11 +442,11 @@ export function getAgent(id: string): AgentEntry | undefined {
  * List all registered agents.
  */
 export function listAgents(): AgentSummary[] {
-  return Array.from(agents.values()).map(a => ({
+  return Array.from(agents.values()).map((a) => ({
     id: a.id,
     name: a.name,
     description: a.description,
-    tools: a.tools || []
+    tools: a.tools || [],
   }));
 }
 
@@ -435,10 +454,10 @@ export function listAgents(): AgentSummary[] {
  * List all registered tools.
  */
 export function listTools(): ToolSummary[] {
-  return Array.from(tools.values()).map(t => ({
+  return Array.from(tools.values()).map((t) => ({
     name: t.name,
     description: t.description,
-    parameters: t.parameters
+    parameters: t.parameters,
   }));
 }
 
@@ -449,7 +468,11 @@ export function listTools(): ToolSummary[] {
  * @param context - Additional context (content type, content ID, etc.)
  * @returns Execution result with text and tool call log
  */
-export async function executeAgent(agentId: string, input: string, context: ExecutionContext = {}): Promise<AgentResult> {
+export async function executeAgent(
+  agentId: string,
+  input: string,
+  context: ExecutionContext = {}
+): Promise<AgentResult> {
   const agent = agents.get(agentId);
   if (!agent) {
     throw new Error(`Unknown agent: ${agentId}`);
@@ -461,18 +484,18 @@ export async function executeAgent(agentId: string, input: string, context: Exec
 
   // Build tool definitions for the AI provider
   const agentTools: ToolSummary[] = (agent.tools || [])
-    .map(name => tools.get(name))
+    .map((name) => tools.get(name))
     .filter((t): t is ToolDefinition => t !== undefined)
-    .map(t => ({
+    .map((t) => ({
       name: t.name,
       description: t.description,
-      parameters: t.parameters
+      parameters: t.parameters,
     }));
 
   // Build messages
   const messages: ChatMessage[] = [
     { role: 'system', content: agent.systemPrompt },
-    { role: 'user', content: buildUserMessage(input, context) }
+    { role: 'user', content: buildUserMessage(input, context) },
   ];
 
   const toolCallLog: ToolCallLogEntry[] = [];
@@ -496,7 +519,11 @@ export async function executeAgent(agentId: string, input: string, context: Exec
       for (const call of response.toolCalls) {
         const tool = tools.get(call.name);
         if (!tool) {
-          messages.push({ role: 'tool', name: call.name, content: JSON.stringify({ error: `Unknown tool: ${call.name}` }) });
+          messages.push({
+            role: 'tool',
+            name: call.name,
+            content: JSON.stringify({ error: `Unknown tool: ${call.name}` }),
+          });
           continue;
         }
 
@@ -515,11 +542,16 @@ export async function executeAgent(agentId: string, input: string, context: Exec
     }
 
     // No tool calls — this is the final response
-    const text = response?.content || response?.message || response?.text || JSON.stringify(response);
+    const text =
+      response?.content || response?.message || response?.text || JSON.stringify(response);
     return { result: text, toolCalls: toolCallLog };
   }
 
-  return { result: 'Agent reached maximum iterations without completing.', toolCalls: toolCallLog, error: true };
+  return {
+    result: 'Agent reached maximum iterations without completing.',
+    toolCalls: toolCallLog,
+    error: true,
+  };
 }
 
 // ============================================
@@ -542,7 +574,9 @@ export function createThread(options: ThreadOptions = {}): ThreadCreateResult {
   const threadId = `thread_${++threadCounter}_${Date.now().toString(36)}`;
   threads.set(threadId, {
     messages: [],
-    systemPrompt: options.systemPrompt || 'You are a helpful CMS assistant. Help users manage content, answer questions about the CMS, and provide guidance on site administration.',
+    systemPrompt:
+      options.systemPrompt ||
+      'You are a helpful CMS assistant. Help users manage content, answer questions about the CMS, and provide guidance on site administration.',
     agentId: options.agentId || null,
     createdAt: new Date().toISOString(),
     updatedAt: new Date().toISOString(),
@@ -559,7 +593,11 @@ export function createThread(options: ThreadOptions = {}): ThreadCreateResult {
  * @param context - Additional context (content type, etc.)
  * @returns Response with text and metadata
  */
-export async function sendMessage(threadId: string, message: string, context: ExecutionContext = {}): Promise<SendMessageResult> {
+export async function sendMessage(
+  threadId: string,
+  message: string,
+  context: ExecutionContext = {}
+): Promise<SendMessageResult> {
   const thread = threads.get(threadId);
   if (!thread) {
     throw new Error(`Thread not found: ${threadId}`);
@@ -577,21 +615,25 @@ export async function sendMessage(threadId: string, message: string, context: Ex
   if (thread.agentId) {
     const result = await executeAgent(thread.agentId, message, context);
     const response = result.result || 'No response generated.';
-    thread.messages.push({ role: 'assistant', content: response, timestamp: new Date().toISOString() });
+    thread.messages.push({
+      role: 'assistant',
+      content: response,
+      timestamp: new Date().toISOString(),
+    });
     return { response, threadId, messageCount: thread.messages.length };
   }
 
   // Build messages array for the AI provider
   const messages: ChatMessage[] = [
     { role: 'system', content: thread.systemPrompt },
-    ...thread.messages.map(m => ({ role: m.role, content: m.content }))
+    ...thread.messages.map((m) => ({ role: m.role, content: m.content })),
   ];
 
   // Get agent tools for the assistant
   const assistantTools: ToolSummary[] = ['readContent', 'listContent', 'getContentTypeSchema']
-    .map(name => tools.get(name))
+    .map((name) => tools.get(name))
     .filter((t): t is ToolDefinition => t !== undefined)
-    .map(t => ({ name: t.name, description: t.description, parameters: t.parameters }));
+    .map((t) => ({ name: t.name, description: t.description, parameters: t.parameters }));
 
   try {
     const result = await aiProviderManager.routeToProvider('chat', messages, {
@@ -600,13 +642,26 @@ export async function sendMessage(threadId: string, message: string, context: Ex
       maxTokens: 1024,
     } as unknown as string);
 
-    const response = typeof result === 'string' ? result : ((result as AIProviderResponse)?.content || (result as AIProviderResponse)?.message || JSON.stringify(result));
-    thread.messages.push({ role: 'assistant', content: response, timestamp: new Date().toISOString() });
+    const response =
+      typeof result === 'string'
+        ? result
+        : (result as AIProviderResponse)?.content ||
+          (result as AIProviderResponse)?.message ||
+          JSON.stringify(result);
+    thread.messages.push({
+      role: 'assistant',
+      content: response,
+      timestamp: new Date().toISOString(),
+    });
 
     return { response, threadId, messageCount: thread.messages.length };
   } catch (error: unknown) {
     const errMsg = `I'm sorry, I encountered an error: ${error instanceof Error ? error.message : String(error)}`;
-    thread.messages.push({ role: 'assistant', content: errMsg, timestamp: new Date().toISOString() });
+    thread.messages.push({
+      role: 'assistant',
+      content: errMsg,
+      timestamp: new Date().toISOString(),
+    });
     return { response: errMsg, threadId, messageCount: thread.messages.length };
   }
 }

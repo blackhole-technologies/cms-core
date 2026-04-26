@@ -17,9 +17,14 @@
  * - Fail-safe: individual check failures don't crash the system
  */
 
-import { existsSync, accessSync, statfsSync, constants as fsConstants } from 'node:fs';
+import {
+  accessSync,
+  existsSync,
+  constants as fsConstants,
+  readFileSync,
+  statfsSync,
+} from 'node:fs';
 import { join } from 'node:path';
-import { readFileSync } from 'node:fs';
 
 // ============= Types =============
 
@@ -60,7 +65,22 @@ interface AdminStatus {
 /** Minimal services map */
 interface ServicesMap {
   has(key: string): boolean;
-  get(key: string): { trigger?(event: string, ctx: unknown): Promise<unknown>; stats?(): { hitRate: string; size: number; hits: number; misses: number }; getStats?(): { failed: number; pending: number; running: number; enabled?: boolean; totalDocs?: number; totalTerms?: number }; listTypes?(): Array<{ type: string }>; listAll?(type: string): unknown[] } | undefined;
+  get(key: string):
+    | {
+        trigger?(event: string, ctx: unknown): Promise<unknown>;
+        stats?(): { hitRate: string; size: number; hits: number; misses: number };
+        getStats?(): {
+          failed: number;
+          pending: number;
+          running: number;
+          enabled?: boolean;
+          totalDocs?: number;
+          totalTerms?: number;
+        };
+        listTypes?(): Array<{ type: string }>;
+        listAll?(type: string): unknown[];
+      }
+    | undefined;
 }
 
 // ============= State =============
@@ -148,7 +168,7 @@ export async function runAllChecks(useCache = true): Promise<StatusReport> {
   const checkPromises = [];
   for (const [name, checkFn] of checks) {
     checkPromises.push(
-      runSingleCheck(name, checkFn).then(result => {
+      runSingleCheck(name, checkFn).then((result) => {
         report.checks[name] = result;
       })
     );
@@ -205,7 +225,10 @@ export async function runCheck(name: string): Promise<CheckResult> {
  * @returns {Promise<Object>} Check result
  * @private
  */
-async function runSingleCheck(name: string, checkFn: () => Promise<CheckResult>): Promise<CheckResult> {
+async function runSingleCheck(
+  name: string,
+  checkFn: () => Promise<CheckResult>
+): Promise<CheckResult> {
   try {
     const result = await checkFn();
 
@@ -224,7 +247,6 @@ async function runSingleCheck(name: string, checkFn: () => Promise<CheckResult>)
     }
 
     return result;
-
   } catch (error) {
     const err = error as Error;
     return {
@@ -414,14 +436,17 @@ export async function formatForAdmin(): Promise<AdminStatus> {
  *
  * @returns {Promise<Array>} List of recommendations
  */
-export async function getRecommendations(): Promise<Array<{ priority: string; check: string; action: string }>> {
+export async function getRecommendations(): Promise<
+  Array<{ priority: string; check: string; action: string }>
+> {
   const report = await getStatus();
   const recommendations: Array<{ priority: string; check: string; action: string }> = [];
 
   for (const [name, result] of Object.entries(report.checks)) {
     if (result.status === 'error' || result.status === 'warning') {
       // Extract action from details if available
-      const action = (result.details['action'] as string | undefined) || getDefaultRecommendation(name, result);
+      const action =
+        (result.details['action'] as string | undefined) || getDefaultRecommendation(name, result);
       if (action) {
         recommendations.push({
           priority: result.status === 'error' ? 'high' : 'medium',
@@ -516,7 +541,7 @@ function registerBuiltinChecks() {
       const contentPath = join(baseDir!, 'content');
       if (existsSync(contentPath)) {
         const stats = statfsSync(contentPath);
-        const freeGB = (stats.bavail * stats.bsize) / (1024 ** 3);
+        const freeGB = (stats.bavail * stats.bsize) / 1024 ** 3;
 
         if (freeGB < 1) {
           return {
