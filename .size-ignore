@@ -27,7 +27,7 @@ core/graphql.js                           # 1171 lines — ports in PR 1.9; extr
 core/backup.js                            # 994 lines — ports and splits in PR 1.9
 core/webform.js                           # 987 lines — ports and splits in PR 1.9
 core/jsonapi.js                           # 974 lines — ports in PR 1.9
-core/cache-backend.js                     # 909 lines — ports in PR 1.9; replaced by PG-backed cache in Phase 3
+src/core/storage/cache-backend.js         # 909 lines — ports in PR 1.9; replaced by PG-backed cache in Phase 3
 core/contact.js                           # 886 lines — ports in PR 1.9
 core/transfer.js                          # 862 lines — ports in PR 1.9
 core/constraints.js                       # 832 lines — ports in PR 1.9
@@ -44,15 +44,15 @@ core/lib/DependencyInjection/Container.js # 503 lines — ports in PR 1.9
 # === Phase 2 — Postgres foundation + Field API ===
 #
 core/content.ts                           # 4992 lines — replaced by operations layer + repositories (PR 2.10)
-core/fields.ts                            # 1781 lines — replaced by Field API registries (PR 2.11–2.13)
-core/field-storage.ts                     # 1161 lines — replaced by FieldStorageSchemaBuilder (PR 2.5)
-core/database.ts                          # 1247 lines — replaced by DatabaseAdapter + Drizzle (PR 2.8)
-core/pg-client.ts                         # 1108 lines — replaced by Drizzle connection factory (PR 2.1)
-core/content-types.ts                     # 927 lines — replaced by EntityTypeSchemaBuilder + schema config (PR 2.4)
-core/entity.ts                            # 736 lines — split across repositories (PR 2.10)
-core/entity-types.ts                      # 657 lines — replaced by entity_type_definitions metadata (PR 2.3)
-core/entity-reference.ts                  # 813 lines — absorbed into relationship field type (PR 2.11)
-core/entity-view-builder.ts               # 638 lines — replaced by FieldFormatter (PR 2.13)
+src/core/entities/fields.ts               # 1781 lines — replaced by Field API registries (PR 2.11–2.13)
+src/core/entities/field-storage.ts        # 1161 lines — replaced by FieldStorageSchemaBuilder (PR 2.5)
+src/core/storage/database.ts              # 1247 lines — replaced by DatabaseAdapter + Drizzle (PR 2.8)
+src/core/storage/pg-client.ts             # 1108 lines — replaced by Drizzle connection factory (PR 2.1)
+src/core/entities/content-types.ts        # 927 lines — replaced by EntityTypeSchemaBuilder + schema config (PR 2.4)
+src/core/entities/entity.ts               # 736 lines — split across repositories (PR 2.10)
+src/core/entities/entity-types.ts         # 657 lines — replaced by entity_type_definitions metadata (PR 2.3)
+src/core/entities/entity-reference.ts     # 813 lines — absorbed into relationship field type (PR 2.11)
+src/core/entities/entity-view-builder.ts  # 638 lines — replaced by FieldFormatter (PR 2.13)
 core/display-modes.ts                     # 744 lines — replaced by FieldFormatter + display-mode config (PR 2.13)
 core/archetypes.ts                        # 733 lines — overlap-with-content-types resolved per ADR in Phase 4 config work
 core/blueprints.ts                        # 539 lines — resolved by Phase 4 config management

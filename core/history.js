@@ -20,13 +20,20 @@
  * - maxEntriesPerUser: Prevents unlimited growth for power users
  */
 
-import { existsSync, readFileSync, writeFileSync, mkdirSync, readdirSync, unlinkSync } from 'node:fs';
+import {
+  existsSync,
+  mkdirSync,
+  readdirSync,
+  readFileSync,
+  unlinkSync,
+  writeFileSync,
+} from 'node:fs';
 import { join } from 'node:path';
 
 /**
  * Database pool for PostgreSQL history persistence.
  * When non-null, read history is stored in `content_history` table.
- * @type {import('./pg-client.js').PgPool | null}
+ * @type {import('../src/core/storage/pg-client.ts').PgPool | null}
  */
 let dbPool = null;
 
@@ -54,7 +61,7 @@ export function init(cfg = {}, baseDir) {
     enabled: cfg.enabled !== false, // Default enabled
     maxEntriesPerUser: cfg.maxEntriesPerUser || 1000,
     trackAnonymous: cfg.trackAnonymous || false,
-    ...cfg
+    ...cfg,
   };
 
   historyDir = join(baseDir, 'content', 'history');
@@ -103,7 +110,7 @@ function saveUserHistory(userId, history) {
 
 /**
  * Set database pool for PostgreSQL history persistence.
- * @param {import('./pg-client.js').PgPool} pool
+ * @param {import('../src/core/storage/pg-client.ts').PgPool} pool
  */
 export async function initDb(pool) {
   dbPool = pool;
@@ -115,13 +122,15 @@ export async function initDb(pool) {
  */
 function persistViewToDb(userId, contentType, contentId, viewedAtMs) {
   if (!dbPool) return;
-  dbPool.query(
-    `INSERT INTO content_history (user_id, content_type, content_id, viewed_at)
+  dbPool
+    .query(
+      `INSERT INTO content_history (user_id, content_type, content_id, viewed_at)
      VALUES ($1, $2, $3, $4)
      ON CONFLICT (user_id, content_type, content_id) DO UPDATE SET
        viewed_at = EXCLUDED.viewed_at`,
-    [userId, contentType, contentId, new Date(viewedAtMs).toISOString()]
-  ).catch(err => console.warn(`[history] Failed to persist view to DB: ${err.message}`));
+      [userId, contentType, contentId, new Date(viewedAtMs).toISOString()]
+    )
+    .catch((err) => console.warn(`[history] Failed to persist view to DB: ${err.message}`));
 }
 
 /**
@@ -130,13 +139,15 @@ function persistViewToDb(userId, contentType, contentId, viewedAtMs) {
 function persistLastVisitToDb(userId, lastVisit) {
   if (!dbPool) return;
   // Use a special sentinel row to track lastVisit
-  dbPool.query(
-    `INSERT INTO content_history (user_id, content_type, content_id, viewed_at)
+  dbPool
+    .query(
+      `INSERT INTO content_history (user_id, content_type, content_id, viewed_at)
      VALUES ($1, '_meta', '_lastVisit', $2)
      ON CONFLICT (user_id, content_type, content_id) DO UPDATE SET
        viewed_at = EXCLUDED.viewed_at`,
-    [userId, lastVisit]
-  ).catch(err => console.warn(`[history] Failed to persist lastVisit to DB: ${err.message}`));
+      [userId, lastVisit]
+    )
+    .catch((err) => console.warn(`[history] Failed to persist lastVisit to DB: ${err.message}`));
 }
 
 /**
@@ -144,10 +155,9 @@ function persistLastVisitToDb(userId, lastVisit) {
  */
 function clearHistoryFromDb(userId) {
   if (!dbPool) return;
-  dbPool.query(
-    `DELETE FROM content_history WHERE user_id = $1`,
-    [userId]
-  ).catch(err => console.warn(`[history] Failed to clear history from DB: ${err.message}`));
+  dbPool
+    .query(`DELETE FROM content_history WHERE user_id = $1`, [userId])
+    .catch((err) => console.warn(`[history] Failed to clear history from DB: ${err.message}`));
 }
 
 /**
@@ -424,7 +434,7 @@ export function getReadHistory(userId, options = {}) {
 
   // Filter by contentType if specified
   if (options.contentType) {
-    entries = entries.filter(e => e.contentType === options.contentType);
+    entries = entries.filter((e) => e.contentType === options.contentType);
   }
 
   // Sort by timestamp descending (newest first)
@@ -507,7 +517,7 @@ export function getStats() {
     return { totalUsers: 0, totalReads: 0 };
   }
 
-  const files = readdirSync(historyDir).filter(f => f.endsWith('.json'));
+  const files = readdirSync(historyDir).filter((f) => f.endsWith('.json'));
   let totalReads = 0;
 
   for (const file of files) {
@@ -521,6 +531,6 @@ export function getStats() {
 
   return {
     totalUsers: files.length,
-    totalReads
+    totalReads,
   };
 }

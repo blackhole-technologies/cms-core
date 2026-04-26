@@ -29,8 +29,8 @@
  *    Useful for discovering popular content.
  */
 
-import { readFileSync, writeFileSync, existsSync, mkdirSync, readdirSync } from 'node:fs';
-import { join, dirname } from 'node:path';
+import { existsSync, mkdirSync, readdirSync, readFileSync, writeFileSync } from 'node:fs';
+import { dirname, join } from 'node:path';
 
 // ===========================================
 // Module State
@@ -39,7 +39,7 @@ import { join, dirname } from 'node:path';
 /**
  * Database pool for PostgreSQL favorites persistence.
  * When non-null, favorites are stored in `favorites` table.
- * @type {import('./pg-client.js').PgPool | null}
+ * @type {import('../src/core/storage/pg-client.ts').PgPool | null}
  */
 let dbPool = null;
 
@@ -115,7 +115,7 @@ function saveUserFavorites(userId, favorites) {
 
 /**
  * Set database pool for PostgreSQL favorites persistence.
- * @param {import('./pg-client.js').PgPool} pool
+ * @param {import('../src/core/storage/pg-client.ts').PgPool} pool
  */
 export async function initDb(pool) {
   dbPool = pool;
@@ -139,7 +139,7 @@ async function loadUserFavoritesFromDb(userId) {
       [userId]
     );
 
-    return result.rows.map(r => ({
+    return result.rows.map((r) => ({
       userId: r.user_id,
       contentType: r.content_type,
       contentId: r.content_id,
@@ -157,13 +157,15 @@ async function loadUserFavoritesFromDb(userId) {
  */
 function persistFavoriteToDb(fav) {
   if (!dbPool) return;
-  dbPool.query(
-    `INSERT INTO favorites (user_id, content_type, content_id, label, added_at)
+  dbPool
+    .query(
+      `INSERT INTO favorites (user_id, content_type, content_id, label, added_at)
      VALUES ($1, $2, $3, $4, $5)
      ON CONFLICT (user_id, content_type, content_id) DO UPDATE SET
        label = EXCLUDED.label`,
-    [fav.userId, fav.contentType, fav.contentId, fav.label, fav.addedAt]
-  ).catch(err => console.warn(`[favorites] Failed to persist to DB: ${err.message}`));
+      [fav.userId, fav.contentType, fav.contentId, fav.label, fav.addedAt]
+    )
+    .catch((err) => console.warn(`[favorites] Failed to persist to DB: ${err.message}`));
 }
 
 /**
@@ -171,10 +173,13 @@ function persistFavoriteToDb(fav) {
  */
 function deleteFavoriteFromDb(userId, contentType, contentId) {
   if (!dbPool) return;
-  dbPool.query(
-    `DELETE FROM favorites WHERE user_id = $1 AND content_type = $2 AND content_id = $3`,
-    [userId, contentType, contentId]
-  ).catch(err => console.warn(`[favorites] Failed to delete from DB: ${err.message}`));
+  dbPool
+    .query(`DELETE FROM favorites WHERE user_id = $1 AND content_type = $2 AND content_id = $3`, [
+      userId,
+      contentType,
+      contentId,
+    ])
+    .catch((err) => console.warn(`[favorites] Failed to delete from DB: ${err.message}`));
 }
 
 /**
@@ -182,10 +187,9 @@ function deleteFavoriteFromDb(userId, contentType, contentId) {
  */
 function clearUserFavoritesFromDb(userId) {
   if (!dbPool) return;
-  dbPool.query(
-    `DELETE FROM favorites WHERE user_id = $1`,
-    [userId]
-  ).catch(err => console.warn(`[favorites] Failed to clear favorites from DB: ${err.message}`));
+  dbPool
+    .query(`DELETE FROM favorites WHERE user_id = $1`, [userId])
+    .catch((err) => console.warn(`[favorites] Failed to clear favorites from DB: ${err.message}`));
 }
 
 // ===========================================
@@ -239,7 +243,7 @@ export function addFavorite(userId, contentType, contentId, label = null) {
 
   // Check if already favorited
   const existing = favorites.find(
-    f => f.contentType === contentType && f.contentId === contentId
+    (f) => f.contentType === contentType && f.contentId === contentId
   );
 
   if (existing) {
@@ -289,7 +293,7 @@ export function removeFavorite(userId, contentType, contentId) {
   const initialLength = favorites.length;
 
   const filtered = favorites.filter(
-    f => !(f.contentType === contentType && f.contentId === contentId)
+    (f) => !(f.contentType === contentType && f.contentId === contentId)
   );
 
   if (filtered.length === initialLength) {
@@ -340,9 +344,7 @@ export function toggleFavorite(userId, contentType, contentId, label = null) {
  */
 export function isFavorite(userId, contentType, contentId) {
   const favorites = loadUserFavorites(userId);
-  return favorites.some(
-    f => f.contentType === contentType && f.contentId === contentId
-  );
+  return favorites.some((f) => f.contentType === contentType && f.contentId === contentId);
 }
 
 /**
@@ -377,13 +379,13 @@ export function getFavorites(userId, options = {}) {
 
   // Filter by content type
   if (contentType) {
-    favorites = favorites.filter(f => f.contentType === contentType);
+    favorites = favorites.filter((f) => f.contentType === contentType);
   }
 
   // Validate content still exists and include content data if requested
   if (contentService) {
     favorites = favorites
-      .map(f => {
+      .map((f) => {
         const content = contentService.read(f.contentType, f.contentId);
         if (!content) return null; // Content was deleted
 
@@ -392,7 +394,7 @@ export function getFavorites(userId, options = {}) {
         }
         return f;
       })
-      .filter(f => f !== null);
+      .filter((f) => f !== null);
   }
 
   // Sort
@@ -443,7 +445,7 @@ export function updateLabel(userId, contentType, contentId, label) {
   const favorites = loadUserFavorites(userId);
 
   const favorite = favorites.find(
-    f => f.contentType === contentType && f.contentId === contentId
+    (f) => f.contentType === contentType && f.contentId === contentId
   );
 
   if (!favorite) {
@@ -478,7 +480,7 @@ export function getPopularFavorites(limit = 10, contentType = null) {
   // Count favorites across all users
   const counts = new Map(); // "type:id" -> count
 
-  const files = readdirSync(favoritesDir).filter(f => f.endsWith('.json'));
+  const files = readdirSync(favoritesDir).filter((f) => f.endsWith('.json'));
 
   for (const file of files) {
     try {
@@ -492,10 +494,7 @@ export function getPopularFavorites(limit = 10, contentType = null) {
         const key = `${fav.contentType}:${fav.contentId}`;
         counts.set(key, (counts.get(key) || 0) + 1);
       }
-    } catch (error) {
-      // Skip invalid files
-      continue;
-    }
+    } catch (error) {}
   }
 
   // Convert to array and sort by count
@@ -514,7 +513,7 @@ export function getPopularFavorites(limit = 10, contentType = null) {
 
       return result;
     })
-    .filter(item => item.content) // Only include items that still exist
+    .filter((item) => item.content) // Only include items that still exist
     .sort((a, b) => b.count - a.count)
     .slice(0, limit);
 
@@ -536,19 +535,17 @@ export function getFavoriteCount(contentType, contentId) {
   }
 
   let count = 0;
-  const files = readdirSync(favoritesDir).filter(f => f.endsWith('.json'));
+  const files = readdirSync(favoritesDir).filter((f) => f.endsWith('.json'));
 
   for (const file of files) {
     try {
       const data = readFileSync(join(favoritesDir, file), 'utf-8');
       const userFavorites = JSON.parse(data);
 
-      if (userFavorites.some(f => f.contentType === contentType && f.contentId === contentId)) {
+      if (userFavorites.some((f) => f.contentType === contentType && f.contentId === contentId)) {
         count++;
       }
-    } catch (error) {
-      continue;
-    }
+    } catch (error) {}
   }
 
   return count;
@@ -567,8 +564,8 @@ export function getUsersWithFavorites() {
   }
 
   return readdirSync(favoritesDir)
-    .filter(f => f.endsWith('.json'))
-    .map(f => f.replace('.json', ''));
+    .filter((f) => f.endsWith('.json'))
+    .map((f) => f.replace('.json', ''));
 }
 
 /**

@@ -96,7 +96,11 @@ export interface EntityView {
 type FieldFormatter = (value: unknown, settings: Record<string, unknown>) => string;
 
 /** Preprocessor function signature — mutates view in-place before render */
-type ViewPreprocessor = (view: EntityView, entity: Record<string, unknown>, displayMode: string) => void;
+type ViewPreprocessor = (
+  view: EntityView,
+  entity: Record<string, unknown>,
+  displayMode: string
+) => void;
 
 /** The public entity view builder API surface */
 export interface EntityViewBuilderAPI {
@@ -146,7 +150,12 @@ const preprocessHooks: Record<string, ViewPreprocessor[]> = {};
  * Different contexts need different representations. Full article view shows
  * everything; teaser shows title + summary; search results show snippet + link.
  */
-export function defineDisplayMode(entityType: string, bundle: string, displayMode: string, config: DisplayModeConfig): void {
+export function defineDisplayMode(
+  entityType: string,
+  bundle: string,
+  displayMode: string,
+  config: DisplayModeConfig
+): void {
   if (!entityType || typeof entityType !== 'string') {
     throw new Error('Entity type must be a non-empty string');
   }
@@ -187,7 +196,11 @@ export function defineDisplayMode(entityType: string, bundle: string, displayMod
  * @param {string} displayMode - Display mode name
  * @returns {Object|null} Display mode config or null if not found
  */
-export function getDisplayMode(entityType: string, bundle: string, displayMode: string): DisplayModeConfig | null {
+export function getDisplayMode(
+  entityType: string,
+  bundle: string,
+  displayMode: string
+): DisplayModeConfig | null {
   return displayModes[entityType]?.[bundle]?.[displayMode] ?? null;
 }
 
@@ -240,7 +253,11 @@ export function listFormatters(): string[] {
  * @param {Object} [settings={}] - Formatter-specific settings
  * @returns {*} Formatted value
  */
-export function formatField(fieldValue: unknown, formatterType: string, settings: Record<string, unknown> = {}): string {
+export function formatField(
+  fieldValue: unknown,
+  formatterType: string,
+  settings: Record<string, unknown> = {}
+): string {
   const formatter = fieldFormatters[formatterType];
 
   if (!formatter) {
@@ -301,7 +318,10 @@ export function registerPreprocessor(entityType: string, preprocessor: ViewPrepr
  *   ]
  * }
  */
-export function buildView(entity: Record<string, unknown>, displayMode: string = 'full'): EntityView {
+export function buildView(
+  entity: Record<string, unknown>,
+  displayMode: string = 'full'
+): EntityView {
   if (!entity || typeof entity !== 'object') {
     throw new Error('Entity must be an object');
   }
@@ -314,7 +334,9 @@ export function buildView(entity: Record<string, unknown>, displayMode: string =
 
   // If no config exists, build default view with all fields
   if (!config) {
-    console.warn(`[entity-view-builder] No display mode "${displayMode}" for ${entityType}:${bundle}, using default`);
+    console.warn(
+      `[entity-view-builder] No display mode "${displayMode}" for ${entityType}:${bundle}, using default`
+    );
     return buildDefaultView(entity, entityType, bundle, displayMode);
   }
 
@@ -379,7 +401,12 @@ export function buildView(entity: Record<string, unknown>, displayMode: string =
  * @param {string} displayMode - Display mode name
  * @returns {Object} View structure
  */
-function buildDefaultView(entity: Record<string, unknown>, entityType: string, bundle: string, displayMode: string): EntityView {
+function buildDefaultView(
+  entity: Record<string, unknown>,
+  entityType: string,
+  bundle: string,
+  displayMode: string
+): EntityView {
   const fields: ViewField[] = [];
 
   // WHY CHECK entity.fields THEN entity:
@@ -390,7 +417,19 @@ function buildDefaultView(entity: Record<string, unknown>, entityType: string, b
   // Build field list with all fields visible
   // WHY FILTER METADATA FIELDS:
   // Skip internal metadata like id, type, bundle, entityType, etc.
-  const metadataFields = new Set(['id', 'type', 'bundle', 'entityType', 'created', 'updated', 'status', 'isDefaultRevision', 'publishedAt', 'scheduledAt', '_layout']);
+  const metadataFields = new Set([
+    'id',
+    'type',
+    'bundle',
+    'entityType',
+    'created',
+    'updated',
+    'status',
+    'isDefaultRevision',
+    'publishedAt',
+    'scheduledAt',
+    '_layout',
+  ]);
 
   for (const [fieldName, fieldValue] of Object.entries(entityFields)) {
     // Skip metadata fields in default view
@@ -534,7 +573,7 @@ registerFormatter('date', (value: unknown, settings: Record<string, unknown> = {
     full: { dateStyle: 'full', timeStyle: 'short' },
   };
 
-  const options = formats[format] ?? formats['medium'] as Intl.DateTimeFormatOptions;
+  const options = formats[format] ?? (formats['medium'] as Intl.DateTimeFormatOptions);
 
   return date.toLocaleString('en-US', options);
 });
@@ -608,7 +647,10 @@ function initializeDefaultDisplayModes(): void {
  * @param {Object} services - Legacy services registry
  * @param {Object} container - DI container
  */
-export function register(services: Record<string, unknown> | null, container: Record<string, unknown> | null): void {
+export function register(
+  services: Record<string, unknown> | null,
+  container: Record<string, unknown> | null
+): void {
   // Initialize default display modes
   initializeDefaultDisplayModes();
 
@@ -626,13 +668,23 @@ export function register(services: Record<string, unknown> | null, container: Re
 
   // Legacy pattern
   if (services && typeof services.register === 'function') {
-    (services.register as (name: string, factory: () => EntityViewBuilderAPI) => void)('entity_view_builder', () => api);
+    (services.register as (name: string, factory: () => EntityViewBuilderAPI) => void)(
+      'entity_view_builder',
+      () => api
+    );
   }
 
   // New container pattern
   if (container && typeof container.register === 'function') {
-    (container.register as (name: string, factory: () => EntityViewBuilderAPI, opts: Record<string, unknown>) => void)(
-      'entity_view_builder', () => api, { tags: ['service', 'entity', 'rendering'], singleton: true }
-    );
+    (
+      container.register as (
+        name: string,
+        factory: () => EntityViewBuilderAPI,
+        opts: Record<string, unknown>
+      ) => void
+    )('entity_view_builder', () => api, {
+      tags: ['service', 'entity', 'rendering'],
+      singleton: true,
+    });
   }
 }

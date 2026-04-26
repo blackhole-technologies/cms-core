@@ -16,9 +16,9 @@
  * @version 1.0.0
  */
 
-import { readFileSync, writeFileSync, mkdirSync, readdirSync, unlinkSync, existsSync } from 'fs';
-import { join } from 'path';
 import { createHash } from 'crypto';
+import { existsSync, mkdirSync, readdirSync, readFileSync, unlinkSync, writeFileSync } from 'fs';
+import { join } from 'path';
 
 // ===========================================
 // Constants
@@ -32,16 +32,16 @@ const STATS_FILE = 'cache-stats.json';
  * Standard cache bins
  */
 const STANDARD_BINS = [
-  'default',              // General cache
-  'render',               // Render array cache
-  'data',                 // Processed data cache
-  'page',                 // Full page cache
-  'dynamic_page_cache',   // Partial page cache
-  'config',               // Configuration cache
-  'discovery',            // Plugin/service discovery cache
-  'bootstrap',            // Early bootstrap cache
-  'menu',                 // Menu cache
-  'entity',               // Entity cache
+  'default', // General cache
+  'render', // Render array cache
+  'data', // Processed data cache
+  'page', // Full page cache
+  'dynamic_page_cache', // Partial page cache
+  'config', // Configuration cache
+  'discovery', // Plugin/service discovery cache
+  'bootstrap', // Early bootstrap cache
+  'menu', // Menu cache
+  'entity', // Entity cache
 ];
 
 /**
@@ -235,7 +235,7 @@ export function set(cid, data, expire = CACHE_DEFAULT, tags = [], bin = 'default
   if (expire === CACHE_PERMANENT) {
     expiresAt = 0; // Never expires
   } else if (expire === CACHE_DEFAULT) {
-    expiresAt = now + (DEFAULT_TTL * 1000);
+    expiresAt = now + DEFAULT_TTL * 1000;
   } else {
     expiresAt = expire;
   }
@@ -441,7 +441,7 @@ export function getCurrentTagChecksum(tags) {
   }
 
   // Get timestamps for all tags
-  const timestamps = tags.map(tag => {
+  const timestamps = tags.map((tag) => {
     return tagChecksums.get(tag) || 0;
   });
 
@@ -531,7 +531,7 @@ export function getCacheContextKeys(contexts, request = {}) {
     return '';
   }
 
-  const keys = contexts.map(context => {
+  const keys = contexts.map((context) => {
     return `${context}:${getCacheContext(context, request)}`;
   });
 
@@ -554,7 +554,7 @@ registerCacheContext('user', (req) => req.user?.id || 'anonymous');
 registerCacheContext('user.roles', (req) => req.user?.roles?.sort().join(',') || 'anonymous');
 registerCacheContext('url', (req) => req.url || '');
 registerCacheContext('url.path', (req) => req.path || '');
-registerCacheContext('url.query_args', (req) => req.query ? JSON.stringify(req.query) : '');
+registerCacheContext('url.query_args', (req) => (req.query ? JSON.stringify(req.query) : ''));
 registerCacheContext('session', (req) => req.sessionId || '');
 registerCacheContext('theme', (req) => req.theme || 'default');
 registerCacheContext('languages', (req) => req.language || 'en');
@@ -794,9 +794,10 @@ export function getStatistics() {
     binStats[binName] = binStorage.size;
   }
 
-  const hitRate = statistics.hits + statistics.misses > 0
-    ? ((statistics.hits / (statistics.hits + statistics.misses)) * 100).toFixed(1) + '%'
-    : 'N/A';
+  const hitRate =
+    statistics.hits + statistics.misses > 0
+      ? ((statistics.hits / (statistics.hits + statistics.misses)) * 100).toFixed(1) + '%'
+      : 'N/A';
 
   return {
     ...statistics,

@@ -218,10 +218,12 @@ export class Database {
     if (data.length === 0) {
       return 1;
     }
-    const maxId = Math.max(...data.map(row => {
-      const val = row[idField];
-      return typeof val === 'number' ? val : 0;
-    }));
+    const maxId = Math.max(
+      ...data.map((row) => {
+        const val = row[idField];
+        return typeof val === 'number' ? val : 0;
+      })
+    );
     return maxId + 1;
   }
 }
@@ -270,7 +272,7 @@ export class SelectQuery {
       // Select all fields from alias
       this.selectFields.push({ alias, field: '*' });
     } else if (Array.isArray(fields)) {
-      fields.forEach(field => {
+      fields.forEach((field) => {
         this.selectFields.push({ alias, field, fieldAlias: null });
       });
     } else {
@@ -375,7 +377,12 @@ export class SelectQuery {
   /**
    * Add JOIN
    */
-  join(table: string, alias: string, condition: string, type: 'INNER' | 'LEFT' | 'RIGHT' = 'INNER'): this {
+  join(
+    table: string,
+    alias: string,
+    condition: string,
+    type: 'INNER' | 'LEFT' | 'RIGHT' = 'INNER'
+  ): this {
     this.joins.push({ table, alias, condition, type });
     return this;
   }
@@ -493,7 +500,7 @@ export class SelectQuery {
       const newRows: Row[] = [];
 
       for (const row of rows) {
-        const matchingRows = joinTable.filter(joinRow => {
+        const matchingRows = joinTable.filter((joinRow) => {
           return this.evaluateJoinCondition(row, joinRow, join.condition);
         });
 
@@ -501,7 +508,7 @@ export class SelectQuery {
           // For outer joins, include row with null joined fields
           newRows.push({ ...row, [join.alias]: null });
         } else {
-          matchingRows.forEach(joinRow => {
+          matchingRows.forEach((joinRow) => {
             newRows.push({ ...row, [join.alias]: joinRow });
           });
         }
@@ -540,7 +547,7 @@ export class SelectQuery {
     }
 
     // Check if it's a joined table
-    const join = this.joins.find(j => j.alias === alias);
+    const join = this.joins.find((j) => j.alias === alias);
     if (join && row[alias]) {
       const joinedRow = row[alias] as Row;
       return joinedRow[field];
@@ -553,7 +560,7 @@ export class SelectQuery {
    * Apply conditions to rows
    */
   private applyConditions(rows: Row[]): Row[] {
-    return rows.filter(row => {
+    return rows.filter((row) => {
       return this.conditionGroups[0]!.evaluate(row, this.tableAlias);
     });
   }
@@ -564,11 +571,13 @@ export class SelectQuery {
   private applyGroupBy(rows: Row[]): Row[] {
     const groups: Record<string, Row[]> = {};
 
-    rows.forEach(row => {
-      const key = this.groupByFields.map(field => {
-        const fieldName = field.replace(`${this.tableAlias}.`, '');
-        return row[fieldName];
-      }).join('|');
+    rows.forEach((row) => {
+      const key = this.groupByFields
+        .map((field) => {
+          const fieldName = field.replace(`${this.tableAlias}.`, '');
+          return row[fieldName];
+        })
+        .join('|');
 
       if (!groups[key]) {
         groups[key] = [];
@@ -577,15 +586,15 @@ export class SelectQuery {
     });
 
     // Return first row from each group (simplified - real implementation would handle aggregates)
-    return Object.values(groups).map(group => group[0]!);
+    return Object.values(groups).map((group) => group[0]!);
   }
 
   /**
    * Apply HAVING conditions
    */
   private applyHaving(rows: Row[]): Row[] {
-    return rows.filter(row => {
-      return this.havingConditions.every(condition => {
+    return rows.filter((row) => {
+      return this.havingConditions.every((condition) => {
         const fieldName = condition.field.replace(`${this.tableAlias}.`, '');
         return evaluateOperator(row[fieldName], condition.value, condition.operator);
       });
@@ -596,7 +605,7 @@ export class SelectQuery {
    * Apply ORDER BY
    */
   private applyOrderBy(rows: Row[]): Row[] {
-    if (this.orderByFields.some(f => f.direction === 'RANDOM')) {
+    if (this.orderByFields.some((f) => f.direction === 'RANDOM')) {
       return rows.sort(() => Math.random() - 0.5);
     }
 
@@ -607,8 +616,8 @@ export class SelectQuery {
         const bVal = b[fieldName];
 
         let comparison = 0;
-        if (aVal as number < (bVal as number)) comparison = -1;
-        if (aVal as number > (bVal as number)) comparison = 1;
+        if ((aVal as number) < (bVal as number)) comparison = -1;
+        if ((aVal as number) > (bVal as number)) comparison = 1;
 
         if (comparison !== 0) {
           return orderField.direction === 'DESC' ? -comparison : comparison;
@@ -623,7 +632,7 @@ export class SelectQuery {
    */
   private applyDistinct(rows: Row[]): Row[] {
     const seen = new Set<string>();
-    return rows.filter(row => {
+    return rows.filter((row) => {
       const key = JSON.stringify(row);
       if (seen.has(key)) {
         return false;
@@ -641,7 +650,7 @@ export class SelectQuery {
       return rows;
     }
 
-    return rows.map(row => {
+    return rows.map((row) => {
       const newRow: Row = {};
 
       this.selectFields.forEach(({ alias, field, fieldAlias }) => {
@@ -650,7 +659,7 @@ export class SelectQuery {
           if (alias === this.tableAlias) {
             Object.assign(newRow, row);
           } else {
-            const join = this.joins.find(j => j.alias === alias);
+            const join = this.joins.find((j) => j.alias === alias);
             if (join && row[alias]) {
               Object.assign(newRow, row[alias] as Row);
             }
@@ -781,7 +790,7 @@ export class UpdateQuery {
 
     let updatedCount = 0;
 
-    const newRows = rows.map(row => {
+    const newRows = rows.map((row) => {
       if (this.conditionGroup.evaluate(row)) {
         updatedCount++;
         return { ...row, ...this.updateFields };
@@ -826,7 +835,7 @@ export class DeleteQuery {
   async execute(): Promise<number> {
     const rows = await this.db.loadTable(this.table);
 
-    const newRows = rows.filter(row => {
+    const newRows = rows.filter((row) => {
       return !this.conditionGroup.evaluate(row);
     });
 
@@ -890,7 +899,7 @@ export class ConditionGroup {
    * Evaluate conditions against row
    */
   evaluate(row: Row, alias: string | null = null): boolean {
-    const conditionResults = this.conditions.map(condition => {
+    const conditionResults = this.conditions.map((condition) => {
       let fieldName = condition.field;
 
       // Remove alias prefix if present
@@ -910,14 +919,14 @@ export class ConditionGroup {
       return evaluateOperator(fieldValue, condition.value, condition.operator);
     });
 
-    const groupResults = this.groups.map(group => group.evaluate(row, alias));
+    const groupResults = this.groups.map((group) => group.evaluate(row, alias));
 
     const allResults = [...conditionResults, ...groupResults];
 
     if (this.type === 'AND') {
-      return allResults.every(result => result);
+      return allResults.every((result) => result);
     } else {
-      return allResults.some(result => result);
+      return allResults.some((result) => result);
     }
   }
 }
@@ -953,9 +962,11 @@ function evaluateOperator(fieldValue: unknown, value: unknown, operator: string)
       return new RegExp(`^${pattern}$`, 'i').test(String(fieldValue));
     }
     case 'BETWEEN':
-      return Array.isArray(value) &&
+      return (
+        Array.isArray(value) &&
         (fieldValue as number) >= (value[0] as number) &&
-        (fieldValue as number) <= (value[1] as number);
+        (fieldValue as number) <= (value[1] as number)
+      );
     default:
       throw new DatabaseError(`Unsupported operator: ${operator}`);
   }
@@ -999,9 +1010,9 @@ export class ResultSet {
    */
   fetchCol(column: number | string = 0): unknown[] {
     if (typeof column === 'number') {
-      return this.rows.map(row => Object.values(row)[column]);
+      return this.rows.map((row) => Object.values(row)[column]);
     }
-    return this.rows.map(row => row[column]);
+    return this.rows.map((row) => row[column]);
   }
 
   /**
@@ -1067,7 +1078,7 @@ export class Schema {
     // Create empty table with schema metadata
     const tableData = {
       _schema: spec,
-      _rows: [] as Row[]
+      _rows: [] as Row[],
     };
 
     await fs.writeFile(tablePath, JSON.stringify(tableData, null, 2), 'utf-8');
@@ -1112,9 +1123,9 @@ export class Schema {
 
     // Add field to all existing rows with default value
     const defaultValue = spec.default !== undefined ? spec.default : null;
-    const newRows = rows.map(row => ({
+    const newRows = rows.map((row) => ({
       ...row,
-      [field]: defaultValue
+      [field]: defaultValue,
     }));
 
     await this.db.saveTable(table, newRows);
@@ -1126,7 +1137,7 @@ export class Schema {
   async dropField(table: string, field: string): Promise<void> {
     const rows = await this.db.loadTable(table);
 
-    const newRows = rows.map(row => {
+    const newRows = rows.map((row) => {
       const { [field]: _removed, ...rest } = row;
       return rest;
     });
@@ -1202,10 +1213,15 @@ export class Schema {
   /**
    * Change field (rename and/or modify spec)
    */
-  async changeField(table: string, field: string, newName: string, _spec: FieldSpec): Promise<void> {
+  async changeField(
+    table: string,
+    field: string,
+    newName: string,
+    _spec: FieldSpec
+  ): Promise<void> {
     const rows = await this.db.loadTable(table);
 
-    const newRows = rows.map(row => {
+    const newRows = rows.map((row) => {
       if (field !== newName) {
         const value = row[field];
         const { [field]: _removed, ...rest } = row;

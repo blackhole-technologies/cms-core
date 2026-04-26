@@ -26,6 +26,10 @@
  */
 
 import { join } from 'node:path';
+import * as contentTypes from '../src/core/entities/content-types.ts';
+import * as entity from '../src/core/entities/entity.ts';
+import * as entityReference from '../src/core/entities/entity-reference.ts';
+import * as fields from '../src/core/entities/fields.ts';
 import * as auth from '../src/core/security/auth.ts';
 import * as ban from '../src/core/security/ban.ts';
 import * as captcha from '../src/core/security/captcha.ts';
@@ -54,7 +58,6 @@ import * as config from './config.ts';
 import * as configManagement from './config-management.js';
 import * as contact from './contact.js';
 import * as content from './content.ts';
-import * as contentTypes from './content-types.ts';
 import * as contextual from './contextual.ts';
 import * as cron from './cron.ts';
 import * as dependencies from './dependencies.ts';
@@ -62,11 +65,8 @@ import * as discovery from './discovery.ts';
 import * as displayModes from './display-modes.ts';
 import * as editor from './editor.ts';
 import * as email from './email.js';
-import * as entity from './entity.ts';
-import * as entityReference from './entity-reference.ts';
 import * as favorites from './favorites.js';
 import * as feeds from './feeds.ts';
-import * as fields from './fields.ts';
 import * as forms from './forms.ts';
 import * as functionCallPlugins from './function-call-plugins.ts';
 import * as graphql from './graphql.js';
@@ -220,7 +220,7 @@ export async function boot(baseDir, options = {}) {
     }
     if (dbConfig && dbConfig.enabled) {
       try {
-        const { createPool } = await import('./pg-client.ts');
+        const { createPool } = await import('../src/core/storage/pg-client.ts');
         const { runMigrations } = await import('./database/migrations.js');
 
         log('[boot] PostgreSQL enabled — connecting...');

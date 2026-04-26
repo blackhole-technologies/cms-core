@@ -30,7 +30,14 @@
  * Structure: /storage/field_storage/{entity_type}__field_{field_name}.json
  */
 
-import { readFileSync, writeFileSync, existsSync, mkdirSync, readdirSync, unlinkSync } from 'node:fs';
+import {
+  existsSync,
+  mkdirSync,
+  readdirSync,
+  readFileSync,
+  unlinkSync,
+  writeFileSync,
+} from 'node:fs';
 import { join } from 'node:path';
 
 // ============================================
@@ -117,73 +124,73 @@ interface FieldStorageInitOptions {
  * Each field type defines its storage columns
  */
 const FIELD_TYPES: Record<string, FieldTypeDefinition> = {
-  'string': {
+  string: {
     columns: { value: 'string' },
-    settings: { max_length: 255 }
+    settings: { max_length: 255 },
   },
-  'string_long': {
+  string_long: {
     columns: { value: 'text' },
-    settings: {}
+    settings: {},
   },
-  'text': {
+  text: {
     columns: { value: 'text', format: 'string' },
-    settings: { default_format: 'plain_text' }
+    settings: { default_format: 'plain_text' },
   },
-  'text_long': {
+  text_long: {
     columns: { value: 'text', format: 'string' },
-    settings: { default_format: 'plain_text' }
+    settings: { default_format: 'plain_text' },
   },
-  'text_with_summary': {
+  text_with_summary: {
     columns: { value: 'text', summary: 'text', format: 'string' },
-    settings: { default_format: 'plain_text', display_summary: true }
+    settings: { default_format: 'plain_text', display_summary: true },
   },
-  'integer': {
+  integer: {
     columns: { value: 'int' },
-    settings: { min: null, max: null }
+    settings: { min: null, max: null },
   },
-  'decimal': {
+  decimal: {
     columns: { value: 'decimal' },
-    settings: { precision: 10, scale: 2 }
+    settings: { precision: 10, scale: 2 },
   },
-  'float': {
+  float: {
     columns: { value: 'float' },
-    settings: {}
+    settings: {},
   },
-  'boolean': {
+  boolean: {
     columns: { value: 'bool' },
-    settings: {}
+    settings: {},
   },
-  'email': {
+  email: {
     columns: { value: 'string' },
-    settings: {}
+    settings: {},
   },
-  'link': {
+  link: {
     columns: { uri: 'string', title: 'string', options: 'json' },
-    settings: { link_type: 16 } // external + internal
+    settings: { link_type: 16 }, // external + internal
   },
-  'datetime': {
+  datetime: {
     columns: { value: 'datetime' },
-    settings: { datetime_type: 'datetime' }
+    settings: { datetime_type: 'datetime' },
   },
-  'timestamp': {
+  timestamp: {
     columns: { value: 'int' },
-    settings: {}
+    settings: {},
   },
-  'entity_reference': {
+  entity_reference: {
     columns: { target_id: 'int' },
-    settings: { target_type: null }
+    settings: { target_type: null },
   },
-  'file': {
+  file: {
     columns: { target_id: 'int', display: 'bool', description: 'string' },
-    settings: { file_directory: '', file_extensions: 'txt' }
+    settings: { file_directory: '', file_extensions: 'txt' },
   },
-  'image': {
+  image: {
     columns: {
       target_id: 'int',
       alt: 'string',
       title: 'string',
       width: 'int',
-      height: 'int'
+      height: 'int',
     },
     settings: {
       file_directory: '',
@@ -194,21 +201,21 @@ const FIELD_TYPES: Record<string, FieldTypeDefinition> = {
       alt_field: true,
       alt_field_required: true,
       title_field: false,
-      title_field_required: false
-    }
+      title_field_required: false,
+    },
   },
-  'list_string': {
+  list_string: {
     columns: { value: 'string' },
-    settings: { allowed_values: [] }
+    settings: { allowed_values: [] },
   },
-  'list_integer': {
+  list_integer: {
     columns: { value: 'int' },
-    settings: { allowed_values: [] }
+    settings: { allowed_values: [] },
   },
-  'list_float': {
+  list_float: {
     columns: { value: 'float' },
-    settings: { allowed_values: [] }
-  }
+    settings: { allowed_values: [] },
+  },
 };
 
 // Storage paths
@@ -319,7 +326,7 @@ export function createFieldStorage(definition: FieldStorageInput): FieldStorageD
     type,
     cardinality = 1,
     translatable = false,
-    settings = {}
+    settings = {},
   } = definition;
 
   // Validation
@@ -335,7 +342,7 @@ export function createFieldStorage(definition: FieldStorageInput): FieldStorageD
   if (!FIELD_TYPES[type]) {
     throw new Error(`Unknown field type: ${type}`);
   }
-  if (typeof cardinality !== 'number' || (cardinality < -1 || cardinality === 0)) {
+  if (typeof cardinality !== 'number' || cardinality < -1 || cardinality === 0) {
     throw new Error('cardinality must be a positive integer or -1 for unlimited');
   }
 
@@ -357,7 +364,7 @@ export function createFieldStorage(definition: FieldStorageInput): FieldStorageD
     cardinality,
     translatable,
     settings: mergedSettings,
-    created: new Date().toISOString()
+    created: new Date().toISOString(),
   };
 
   // Save to disk
@@ -515,7 +522,7 @@ export function createFieldConfig(config: FieldConfigInput): FieldConfigDef {
     description = '',
     required = false,
     default_value = [],
-    settings = {}
+    settings = {},
   } = config;
 
   // Validation
@@ -554,7 +561,7 @@ export function createFieldConfig(config: FieldConfigInput): FieldConfigDef {
     required,
     default_value: Array.isArray(default_value) ? default_value : [default_value],
     settings,
-    created: new Date().toISOString()
+    created: new Date().toISOString(),
   };
 
   // Save to disk
@@ -596,12 +603,15 @@ export function updateFieldConfig(config: FieldConfigInput): FieldConfigDef {
     ...config,
     description: config.description ?? existing.description,
     required: config.required ?? existing.required,
-    default_value: config.default_value !== undefined
-      ? (Array.isArray(config.default_value) ? config.default_value : [config.default_value])
-      : existing.default_value,
+    default_value:
+      config.default_value !== undefined
+        ? Array.isArray(config.default_value)
+          ? config.default_value
+          : [config.default_value]
+        : existing.default_value,
     settings: config.settings ?? existing.settings,
     created: existing.created,
-    updated: new Date().toISOString()
+    updated: new Date().toISOString(),
   };
 
   // Save to disk
@@ -624,7 +634,11 @@ export function updateFieldConfig(config: FieldConfigInput): FieldConfigDef {
  * @param {string} fieldName - Field name
  * @returns {Object|null} Field config or null if not found
  */
-export function getFieldConfig(entityType: string, bundle: string, fieldName: string): FieldConfigDef | null {
+export function getFieldConfig(
+  entityType: string,
+  bundle: string,
+  fieldName: string
+): FieldConfigDef | null {
   const cacheKey = `${entityType}.${bundle}.${fieldName}`;
 
   // Check cache first
@@ -657,7 +671,10 @@ export function getFieldConfig(entityType: string, bundle: string, fieldName: st
  * @param {string|null} bundle - Optional bundle filter
  * @returns {Array} Array of field configurations
  */
-export function loadFieldConfigs(entityType: string, bundle: string | null = null): FieldConfigDef[] {
+export function loadFieldConfigs(
+  entityType: string,
+  bundle: string | null = null
+): FieldConfigDef[] {
   const configs: FieldConfigDef[] = [];
 
   if (!existsSync(fieldConfigDir!)) {
@@ -730,7 +747,13 @@ export function deleteFieldConfig(entityType: string, bundle: string, fieldName:
  * @param {number|null} revisionId - Revision ID (null for current)
  * @returns {Array} Array of field values
  */
-export function loadFieldValues(entityType: string, entityId: number | string, fieldName: string, langcode: string = 'en', revisionId: number | null = null): Record<string, unknown>[] {
+export function loadFieldValues(
+  entityType: string,
+  entityId: number | string,
+  fieldName: string,
+  langcode: string = 'en',
+  revisionId: number | null = null
+): Record<string, unknown>[] {
   const storage = getFieldStorage(entityType, fieldName);
   if (!storage) {
     throw new Error(`Field storage not found: ${entityType}.${fieldName}`);
@@ -774,7 +797,14 @@ export function loadFieldValues(entityType: string, entityId: number | string, f
  * @param {string} langcode - Language code (default 'en')
  * @param {number|null} revisionId - Revision ID
  */
-export function saveFieldValues(entityType: string, entityId: number | string, fieldName: string, values: Record<string, unknown>[] | Record<string, unknown>, langcode: string = 'en', revisionId: number | null = null): void {
+export function saveFieldValues(
+  entityType: string,
+  entityId: number | string,
+  fieldName: string,
+  values: Record<string, unknown>[] | Record<string, unknown>,
+  langcode: string = 'en',
+  revisionId: number | null = null
+): void {
   const storage = getFieldStorage(entityType, fieldName);
   if (!storage) {
     throw new Error(`Field storage not found: ${entityType}.${fieldName}`);
@@ -831,7 +861,7 @@ export function saveFieldValues(entityType: string, entityId: number | string, f
       revision_id: revisionId || 0,
       langcode,
       delta,
-      ...value
+      ...value,
     });
   });
 
@@ -848,7 +878,13 @@ export function saveFieldValues(entityType: string, entityId: number | string, f
  * @param {string|null} langcode - Language code (null to delete all languages)
  * @param {number|null} revisionId - Revision ID (null to delete all revisions)
  */
-export function deleteFieldValues(entityType: string, entityId: number | string, fieldName: string, langcode: string | null = null, revisionId: number | null = null): void {
+export function deleteFieldValues(
+  entityType: string,
+  entityId: number | string,
+  fieldName: string,
+  langcode: string | null = null,
+  revisionId: number | null = null
+): void {
   const storage = getFieldStorage(entityType, fieldName);
   if (!storage) {
     return; // Silently ignore if storage doesn't exist
@@ -1007,7 +1043,9 @@ export class FieldItemList {
     // Validate cardinality
     if (this.storage && this.storage.cardinality !== -1) {
       if (valuesArray.length > this.storage.cardinality) {
-        throw new Error(`Cannot set ${valuesArray.length} values, cardinality is ${this.storage.cardinality}`);
+        throw new Error(
+          `Cannot set ${valuesArray.length} values, cardinality is ${this.storage.cardinality}`
+        );
       }
     }
 
@@ -1060,7 +1098,9 @@ function _loadAllFieldStorages(): void {
   for (const file of files) {
     if (file.endsWith('.json') && !file.includes('__field_')) {
       try {
-        const storage = JSON.parse(readFileSync(join(fieldStorageDir!, file), 'utf8')) as FieldStorageDef;
+        const storage = JSON.parse(
+          readFileSync(join(fieldStorageDir!, file), 'utf8')
+        ) as FieldStorageDef;
         const cacheKey = `${storage.entity_type}.${storage.field_name}`;
         fieldStorageCache.set(cacheKey, storage);
       } catch (error) {
@@ -1083,7 +1123,9 @@ function _loadAllFieldConfigs(): void {
   for (const file of files) {
     if (file.endsWith('.json')) {
       try {
-        const config = JSON.parse(readFileSync(join(fieldConfigDir!, file), 'utf8')) as FieldConfigDef;
+        const config = JSON.parse(
+          readFileSync(join(fieldConfigDir!, file), 'utf8')
+        ) as FieldConfigDef;
         const cacheKey = `${config.entity_type}.${config.bundle}.${config.field_name}`;
         fieldConfigCache.set(cacheKey, config);
       } catch (error) {

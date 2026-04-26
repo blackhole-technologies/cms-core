@@ -31,7 +31,7 @@ import { dirname, relative, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { parseArgs } from 'node:util';
 
-import { Project } from 'ts-morph';
+import { Project, SyntaxKind } from 'ts-morph';
 
 export interface Mapping {
   /** Source path, relative to projectRoot. */
@@ -169,28 +169,88 @@ export function restructure(options: RestructureOptions): RestructureReport {
  * ts-morph's `SourceFile.move()` strips extensions from rewritten imports
  * (TS-conventional output), which breaks Node ESM's runtime resolver.
  *
+ * Covers three reference sites that all share the same gap:
+ *   1. Static `import ... from '...'` declarations.
+ *   2. Dynamic `import('...')` call expressions.
+ *   3. JSDoc `@type {import('...')}` type references in `.js` files.
+ *
  * Idempotent — running on already-extensionful imports is a no-op.
  */
 function preserveImportExtensions(project: Project): void {
   const candidateExts = ['.ts', '.tsx', '.js', '.mjs', '.cjs'] as const;
   const extRegex = /\.(ts|tsx|js|mjs|cjs|jsx|json)$/;
 
+  /**
+   * Looks up `spec` in the in-memory project graph by trying each candidate
+   * extension in order. Returns `spec + matchedExtension` if found, or null
+   * if the specifier should be left alone (bare specifier, already has an
+   * extension, or no project file matches at the resolved location).
+   */
+  function findExtensionFor(spec: string, sfDir: string): string | null {
+    if (!spec.startsWith('./') && !spec.startsWith('../')) return null;
+    if (extRegex.test(spec)) return null;
+    // Check the in-memory project graph rather than the file system —
+    // moves performed via SourceFile.move() are not flushed to disk until
+    // project.saveSync(), and this function runs before that flush.
+    for (const ext of candidateExts) {
+      const candidate = resolve(sfDir, spec + ext);
+      if (project.getSourceFile(candidate)) {
+        return spec + ext;
+      }
+    }
+    return null;
+  }
+
   for (const sf of project.getSourceFiles()) {
     const sfDir = dirname(sf.getFilePath());
+
+    // (1) Static `import ... from '...'` and `export ... from '...'`.
     for (const imp of sf.getImportDeclarations()) {
-      const spec = imp.getModuleSpecifierValue();
-      if (!spec.startsWith('./') && !spec.startsWith('../')) continue;
-      if (extRegex.test(spec)) continue;
-      // Check the in-memory project graph rather than the file system —
-      // moves performed via SourceFile.move() are not flushed to disk until
-      // project.saveSync(), and this function runs before that flush.
-      for (const ext of candidateExts) {
-        const candidate = resolve(sfDir, spec + ext);
-        if (project.getSourceFile(candidate)) {
-          imp.setModuleSpecifier(spec + ext);
-          break;
-        }
-      }
+      const fixed = findExtensionFor(imp.getModuleSpecifierValue(), sfDir);
+      if (fixed) imp.setModuleSpecifier(fixed);
+    }
+
+    // (2) Dynamic `import('...')` calls. ts-morph rewrites the path during
+    // SourceFile.move() but doesn't preserve the extension; re-add it here
+    // so Node ESM's runtime resolver can still find the target.
+    for (const call of sf.getDescendantsOfKind(SyntaxKind.CallExpression)) {
+      if (call.getExpression().getKind() !== SyntaxKind.ImportKeyword) continue;
+      const args = call.getArguments();
+      if (args.length === 0) continue;
+      const first = args[0];
+      if (!first || first.getKind() !== SyntaxKind.StringLiteral) continue;
+      const lit = first.asKindOrThrow(SyntaxKind.StringLiteral);
+      const fixed = findExtensionFor(lit.getLiteralValue(), sfDir);
+      if (fixed) lit.setLiteralValue(fixed);
+    }
+
+    // (3) ImportTypeNode references — both inline TypeScript types like
+    // `let x: import('./foo.ts').Bar` AND JSDoc `@type {import('...')}` types
+    // in `.js` files. They share the same TypeScript AST node (ImportType)
+    // and the same extension-preservation gap.
+    //
+    // Note: ts-morph's default forEachDescendant / getDescendantsOfKind on a
+    // SourceFile does NOT walk INTO JSDoc subtrees — JSDoc nodes hang off
+    // parents via `getJsDocs()` rather than via regular child links. We
+    // collect ImportTypeNodes from BOTH the regular AST and from each JSDoc
+    // subtree explicitly. (Inline-TS ImportTypes pre-existed; JSDoc support
+    // landed in PR 1.3 after the cms-core entities/storage move surfaced
+    // pg-client.js JSDoc imports losing their extension.)
+    const allImportTypes = [
+      ...sf.getDescendantsOfKind(SyntaxKind.ImportType),
+      ...sf
+        .getDescendantsOfKind(SyntaxKind.JSDoc)
+        .flatMap((jsDoc) => jsDoc.getDescendantsOfKind(SyntaxKind.ImportType)),
+    ];
+    for (const importType of allImportTypes) {
+      const arg = importType.getArgument();
+      if (arg.getKind() !== SyntaxKind.LiteralType) continue;
+      const literalType = arg.asKindOrThrow(SyntaxKind.LiteralType);
+      const inner = literalType.getLiteral();
+      if (inner.getKind() !== SyntaxKind.StringLiteral) continue;
+      const stringLit = inner.asKindOrThrow(SyntaxKind.StringLiteral);
+      const fixed = findExtensionFor(stringLit.getLiteralValue(), sfDir);
+      if (fixed) stringLit.setLiteralValue(fixed);
     }
   }
 }
@@ -198,7 +258,42 @@ function preserveImportExtensions(project: Project): void {
 function snapshotImports(project: Project): Map<string, string[]> {
   const snap = new Map<string, string[]>();
   for (const sf of project.getSourceFiles()) {
-    const specs = sf.getImportDeclarations().map((i) => i.getModuleSpecifierValue());
+    const specs: string[] = [];
+
+    // Static `import ... from '...'` / `export ... from '...'`.
+    for (const imp of sf.getImportDeclarations()) {
+      specs.push(`static:${imp.getModuleSpecifierValue()}`);
+    }
+
+    // Dynamic `import('...')` calls.
+    for (const call of sf.getDescendantsOfKind(SyntaxKind.CallExpression)) {
+      if (call.getExpression().getKind() !== SyntaxKind.ImportKeyword) continue;
+      const args = call.getArguments();
+      const first = args[0];
+      if (!first || first.getKind() !== SyntaxKind.StringLiteral) continue;
+      const lit = first.asKindOrThrow(SyntaxKind.StringLiteral);
+      specs.push(`dynamic:${lit.getLiteralValue()}`);
+    }
+
+    // ImportTypeNode — both inline TS and JSDoc-wrapped (the latter is not
+    // reached by the source file's default descendant walk; collect via the
+    // JSDoc subtree explicitly).
+    const allImportTypes = [
+      ...sf.getDescendantsOfKind(SyntaxKind.ImportType),
+      ...sf
+        .getDescendantsOfKind(SyntaxKind.JSDoc)
+        .flatMap((jsDoc) => jsDoc.getDescendantsOfKind(SyntaxKind.ImportType)),
+    ];
+    for (const importType of allImportTypes) {
+      const arg = importType.getArgument();
+      if (arg.getKind() !== SyntaxKind.LiteralType) continue;
+      const literalType = arg.asKindOrThrow(SyntaxKind.LiteralType);
+      const inner = literalType.getLiteral();
+      if (inner.getKind() !== SyntaxKind.StringLiteral) continue;
+      const stringLit = inner.asKindOrThrow(SyntaxKind.StringLiteral);
+      specs.push(`importType:${stringLit.getLiteralValue()}`);
+    }
+
     snap.set(sf.getFilePath(), specs);
   }
   return snap;

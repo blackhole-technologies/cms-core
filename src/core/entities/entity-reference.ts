@@ -50,7 +50,7 @@
  * Uses only Node.js standard library and existing content/fields modules.
  */
 
-import * as hooks from './hooks.ts';
+import * as hooks from '../../../core/hooks.ts';
 
 // ============================================
 // TYPE DEFINITIONS
@@ -96,11 +96,23 @@ export interface AutocompleteResult {
 
 /** Content module interface — the subset used by entity-reference */
 interface ContentModuleRef {
-  load: (type: string, id: string, opts?: Record<string, unknown>) => Promise<Record<string, unknown> | null>;
+  load: (
+    type: string,
+    id: string,
+    opts?: Record<string, unknown>
+  ) => Promise<Record<string, unknown> | null>;
   getSchema: (type: string) => { fields?: Record<string, Record<string, unknown>> } | null;
   getTypes?: () => string[];
-  query: (type: string, filters: Record<string, unknown>, opts?: Record<string, unknown>) => Promise<Record<string, unknown>[]>;
-  update: (type: string, id: string, data: Record<string, unknown>) => Promise<Record<string, unknown>>;
+  query: (
+    type: string,
+    filters: Record<string, unknown>,
+    opts?: Record<string, unknown>
+  ) => Promise<Record<string, unknown>[]>;
+  update: (
+    type: string,
+    id: string,
+    data: Record<string, unknown>
+  ) => Promise<Record<string, unknown>>;
   delete: (type: string, id: string) => Promise<boolean>;
   [key: string]: unknown;
 }
@@ -121,7 +133,7 @@ let fieldsModule: FieldsModuleRef | null = null;
 let config: ReferenceConfig = {
   cacheResolvedRefs: true,
   maxDepth: 3,
-  autocompleteLimit: 25
+  autocompleteLimit: 25,
 };
 
 // Resolved reference cache: { "type:id": resolvedValue }
@@ -138,7 +150,11 @@ const refCache: Map<string, Record<string, unknown>> = new Map();
  * @param {Object} fields - Fields module
  * @param {Object} cfg - Configuration
  */
-export function init(content: ContentModuleRef, fields: FieldsModuleRef | null, cfg: Partial<ReferenceConfig> = {}): void {
+export function init(
+  content: ContentModuleRef,
+  fields: FieldsModuleRef | null,
+  cfg: Partial<ReferenceConfig> = {}
+): void {
   contentModule = content;
   fieldsModule = fields;
   config = { ...config, ...cfg };
@@ -171,17 +187,20 @@ export function getConfig(): ReferenceConfig {
  * @param {string|string[]} targetId - ID(s) of target content
  * @returns {Object} Reference object
  */
-export function createReference(targetType: string, targetId: string | string[]): ReferenceValue | null {
+export function createReference(
+  targetType: string,
+  targetId: string | string[]
+): ReferenceValue | null {
   if (!targetType) {
     throw new Error('Reference target type is required');
   }
 
   if (Array.isArray(targetId)) {
     // Multi-value reference
-    const validIds = targetId.filter(id => id != null && id !== '');
+    const validIds = targetId.filter((id) => id != null && id !== '');
     return {
       _ref: targetType,
-      ids: validIds
+      ids: validIds,
     };
   } else {
     // Single reference
@@ -190,7 +209,7 @@ export function createReference(targetType: string, targetId: string | string[])
     }
     return {
       _ref: targetType,
-      id: targetId
+      id: targetId,
     };
   }
 }
@@ -199,7 +218,9 @@ export function createReference(targetType: string, targetId: string | string[])
  * Check if value is a reference object
  */
 export function isReference(value: unknown): value is ReferenceValue {
-  return value !== null && typeof value === 'object' && '_ref' in (value as Record<string, unknown>);
+  return (
+    value !== null && typeof value === 'object' && '_ref' in (value as Record<string, unknown>)
+  );
 }
 
 /**
@@ -230,7 +251,10 @@ export function getReferencedIds(value: unknown): string[] {
  * @param {Object} options - Resolution options
  * @returns {Object|null} Resolved content or null
  */
-export async function resolveReference(ref: unknown, options: Record<string, unknown> = {}): Promise<Record<string, unknown> | null> {
+export async function resolveReference(
+  ref: unknown,
+  options: Record<string, unknown> = {}
+): Promise<Record<string, unknown> | null> {
   if (!isReference(ref)) {
     return (ref as Record<string, unknown>) ?? null;
   }
@@ -277,7 +301,11 @@ export async function resolveReference(ref: unknown, options: Record<string, unk
  * @param {Object} options - Resolution options
  * @returns {Object} Content with resolved references
  */
-export async function resolveReferences(content: Record<string, unknown>, depth: number = 1, options: Record<string, unknown> = {}): Promise<Record<string, unknown>> {
+export async function resolveReferences(
+  content: Record<string, unknown>,
+  depth: number = 1,
+  options: Record<string, unknown> = {}
+): Promise<Record<string, unknown>> {
   if (!content || depth <= 0 || depth > config.maxDepth) {
     return content;
   }
@@ -342,7 +370,11 @@ export async function resolveReferences(content: Record<string, unknown>, depth:
  * @param {Object} options - Query options
  * @returns {Array} Array of { type, id, field } objects
  */
-export async function findReferencesTo(targetType: string, targetId: string, options: Record<string, unknown> = {}): Promise<ReverseReference[]> {
+export async function findReferencesTo(
+  targetType: string,
+  targetId: string,
+  options: Record<string, unknown> = {}
+): Promise<ReverseReference[]> {
   const references: ReverseReference[] = [];
 
   // Get all content types
@@ -357,8 +389,10 @@ export async function findReferencesTo(targetType: string, targetId: string, opt
     // Find reference fields that target this type
     const refFields = [];
     for (const [fieldName, fieldDef] of Object.entries(schema.fields)) {
-      if ((fieldDef.type === 'reference' || fieldDef.type === 'references') &&
-          fieldDef.target === targetType) {
+      if (
+        (fieldDef.type === 'reference' || fieldDef.type === 'references') &&
+        fieldDef.target === targetType
+      ) {
         refFields.push(fieldName);
       }
     }
@@ -385,7 +419,7 @@ export async function findReferencesTo(targetType: string, targetId: string, opt
             type: item.type as string,
             id: item.id as string,
             field: fieldName,
-            content: options.includeContent ? item : undefined
+            content: options.includeContent ? item : undefined,
           });
         }
       }
@@ -525,10 +559,10 @@ async function handleCascadeDelete(data: Record<string, unknown>): Promise<void>
 
   // Handle restrict: prevent deletion
   if (restrict.length > 0) {
-    const list = restrict.map(r => `${r.type}:${r.id}`).join(', ');
+    const list = restrict.map((r) => `${r.type}:${r.id}`).join(', ');
     throw new Error(
       `Cannot delete ${type}:${id} - referenced by: ${list}. ` +
-      `Delete those items first or change cascade setting.`
+        `Delete those items first or change cascade setting.`
     );
   }
 
@@ -541,7 +575,9 @@ async function handleCascadeDelete(data: Record<string, unknown>): Promise<void>
     if (isReference(value)) {
       if ('ids' in value && Array.isArray((value as MultiReference).ids)) {
         // Multi-value: remove this ID
-        (value as MultiReference).ids = (value as MultiReference).ids.filter((refId: string) => refId !== id);
+        (value as MultiReference).ids = (value as MultiReference).ids.filter(
+          (refId: string) => refId !== id
+        );
       } else if ('id' in value && (value as SingleReference).id === id) {
         // Single value: set to null
         content[ref.field] = null;
@@ -579,7 +615,11 @@ export async function deleteWithCascade(type: string, id: string): Promise<boole
  * @param {Object} options - Search options
  * @returns {Array} Matching content items
  */
-export async function searchReferenceable(targetType: string, query: string, options: Record<string, unknown> = {}): Promise<AutocompleteResult[]> {
+export async function searchReferenceable(
+  targetType: string,
+  query: string,
+  options: Record<string, unknown> = {}
+): Promise<AutocompleteResult[]> {
   const limit = (options.limit as number) || config.autocompleteLimit;
 
   // Get schema to find searchable fields
@@ -601,15 +641,15 @@ export async function searchReferenceable(targetType: string, query: string, opt
   // Query content
   const results = await contentModule!.query(targetType, filters, {
     limit,
-    sort: options.sort || { created: 'desc' }
+    sort: options.sort || { created: 'desc' },
   });
 
   // Format for autocomplete
-  return results.map(item => ({
+  return results.map((item) => ({
     value: item.id as string,
     label: (item.title || item.name || item.label || item.id) as string,
     type: item.type as string,
-    _content: options.includeContent ? item : undefined
+    _content: options.includeContent ? item : undefined,
   }));
 }
 
@@ -634,7 +674,7 @@ export function clearReferenceCache(type?: string | Record<string, unknown>, id?
 export function getCacheStats(): { size: number; enabled: boolean } {
   return {
     size: refCache.size,
-    enabled: config.cacheResolvedRefs
+    enabled: config.cacheResolvedRefs,
   };
 }
 
@@ -649,7 +689,11 @@ function registerReferenceFields(fields: FieldsModuleRef): void {
   // Single reference field
   if (!fields.getFieldType('reference')) {
     fields.registerFieldType('reference', {
-      render(value: Record<string, unknown> | null, field: Record<string, unknown>, content: Record<string, unknown>) {
+      render(
+        value: Record<string, unknown> | null,
+        field: Record<string, unknown>,
+        content: Record<string, unknown>
+      ) {
         const refId = value?.id;
         if (!refId) {
           return '<em>No reference</em>';
@@ -663,7 +707,11 @@ function registerReferenceFields(fields: FieldsModuleRef): void {
         `;
       },
 
-      widget(field: Record<string, unknown>, value: Record<string, unknown> | null, errors: string[]) {
+      widget(
+        field: Record<string, unknown>,
+        value: Record<string, unknown> | null,
+        errors: string[]
+      ) {
         const targetType = field.target || 'content';
         const currentId = value?.id || '';
 
@@ -706,28 +754,34 @@ function registerReferenceFields(fields: FieldsModuleRef): void {
         }
 
         return null;
-      }
+      },
     });
   }
 
   // Multi-value reference field
   if (!fields.getFieldType('references')) {
     fields.registerFieldType('references', {
-      render(value: Record<string, unknown> | null, field: Record<string, unknown>, content: Record<string, unknown>) {
+      render(
+        value: Record<string, unknown> | null,
+        field: Record<string, unknown>,
+        content: Record<string, unknown>
+      ) {
         const ids = (value?.ids || []) as string[];
         if (ids.length === 0) {
           return '<em>No references</em>';
         }
 
         const targetType = field.target || value?._ref;
-        const items = ids.map((id: string) =>
-          `<li>${targetType}:${id}</li>`
-        ).join('');
+        const items = ids.map((id: string) => `<li>${targetType}:${id}</li>`).join('');
 
         return `<ul class="references-display">${items}</ul>`;
       },
 
-      widget(field: Record<string, unknown>, value: Record<string, unknown> | null, errors: string[]) {
+      widget(
+        field: Record<string, unknown>,
+        value: Record<string, unknown> | null,
+        errors: string[]
+      ) {
         const targetType = field.target || 'content';
         const currentIds = (value?.ids || []) as string[];
 
@@ -738,12 +792,16 @@ function registerReferenceFields(fields: FieldsModuleRef): void {
               value='${JSON.stringify(value || {})}'
               class="references-value" />
             <div class="references-selected">
-              ${currentIds.map((id: string) => `
+              ${currentIds
+                .map(
+                  (id: string) => `
                 <span class="reference-tag" data-id="${id}">
                   ${id}
                   <button type="button" class="remove-reference">×</button>
                 </span>
-              `).join('')}
+              `
+                )
+                .join('')}
             </div>
             <input type="text"
               class="references-autocomplete"
@@ -779,7 +837,7 @@ function registerReferenceFields(fields: FieldsModuleRef): void {
         }
 
         return null;
-      }
+      },
     });
   }
 }
@@ -809,5 +867,5 @@ export default {
   deleteWithCascade,
   searchReferenceable,
   clearReferenceCache,
-  getCacheStats
+  getCacheStats,
 };

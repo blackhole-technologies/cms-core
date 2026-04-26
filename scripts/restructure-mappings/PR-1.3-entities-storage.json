@@ -1,0 +1,12 @@
+[
+  { "from": "core/entity.ts", "to": "src/core/entities/entity.ts" },
+  { "from": "core/entity-types.ts", "to": "src/core/entities/entity-types.ts" },
+  { "from": "core/entity-reference.ts", "to": "src/core/entities/entity-reference.ts" },
+  { "from": "core/entity-view-builder.ts", "to": "src/core/entities/entity-view-builder.ts" },
+  { "from": "core/content-types.ts", "to": "src/core/entities/content-types.ts" },
+  { "from": "core/fields.ts", "to": "src/core/entities/fields.ts" },
+  { "from": "core/field-storage.ts", "to": "src/core/entities/field-storage.ts" },
+  { "from": "core/database.ts", "to": "src/core/storage/database.ts" },
+  { "from": "core/pg-client.ts", "to": "src/core/storage/pg-client.ts" },
+  { "from": "core/cache-backend.js", "to": "src/core/storage/cache-backend.js" }
+]
