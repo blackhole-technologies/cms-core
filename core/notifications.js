@@ -32,9 +32,9 @@
  * Users can configure which channels receive which notification types.
  */
 
-import { readFileSync, writeFileSync, existsSync, mkdirSync } from 'node:fs';
-import { join } from 'node:path';
 import { randomBytes } from 'node:crypto';
+import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
+import { join } from 'node:path';
 
 // ============================================
 // STATE
@@ -67,7 +67,7 @@ let contentDir = null;
  * Database pool for PostgreSQL persistence.
  * When non-null, notifications and preferences are stored in
  * `notifications` and `notification_preferences` tables.
- * @type {import('./pg-client.js').PgPool | null}
+ * @type {import('../src/core/storage/pg-client.ts').PgPool | null}
  */
 let dbPool = null;
 
@@ -86,14 +86,14 @@ let webhooksService = null;
  */
 let config = {
   enabled: true,
-  maxPerUser: 100,      // Max notifications to keep per user
+  maxPerUser: 100, // Max notifications to keep per user
   defaultChannels: ['app'],
   emailTemplates: {
     'content.published': 'notification',
     'content.commented': 'comment',
     'user.welcome': 'welcome',
-    'default': 'notification'
-  }
+    default: 'notification',
+  },
 };
 
 /**
@@ -108,7 +108,7 @@ const DEFAULT_PREFERENCES = {
   'workflow.approved': { app: true, email: false },
   'workflow.rejected': { app: true, email: true },
   'user.welcome': { app: true, email: true },
-  'system.alert': { app: true, email: false }
+  'system.alert': { app: true, email: false },
 };
 
 // ============================================
@@ -212,7 +212,7 @@ function savePreferences() {
 
 /**
  * Set database pool for PostgreSQL notification persistence.
- * @param {import('./pg-client.js').PgPool} pool
+ * @param {import('../src/core/storage/pg-client.ts').PgPool} pool
  */
 export async function initDb(pool) {
   dbPool = pool;
@@ -243,16 +243,18 @@ async function loadNotificationsFromDb() {
         title: r.title || '',
         message: r.message || '',
         link: r.link || null,
-        data: typeof r.data === 'string' ? JSON.parse(r.data) : (r.data || {}),
+        data: typeof r.data === 'string' ? JSON.parse(r.data) : r.data || {},
         read: r.read || false,
         readAt: r.read_at ? new Date(r.read_at).toISOString() : undefined,
         createdAt: new Date(r.created_at).toISOString(),
-        channels: typeof r.channels === 'string' ? JSON.parse(r.channels) : (r.channels || ['app']),
+        channels: typeof r.channels === 'string' ? JSON.parse(r.channels) : r.channels || ['app'],
       };
     }
 
     if (Object.keys(notifications).length > 0) {
-      console.log(`[notifications] Restored ${Object.keys(notifications).length} notification(s) from database`);
+      console.log(
+        `[notifications] Restored ${Object.keys(notifications).length} notification(s) from database`
+      );
     }
   } catch (error) {
     console.warn(`[notifications] Failed to load from database: ${error.message}`);
@@ -273,13 +275,14 @@ async function loadPreferencesFromDb() {
     preferences = {};
     for (const row of result.rows) {
       const r = row;
-      preferences[r.user_id] = typeof r.preferences === 'string'
-        ? JSON.parse(r.preferences)
-        : (r.preferences || {});
+      preferences[r.user_id] =
+        typeof r.preferences === 'string' ? JSON.parse(r.preferences) : r.preferences || {};
     }
 
     if (Object.keys(preferences).length > 0) {
-      console.log(`[notifications] Restored preferences for ${Object.keys(preferences).length} user(s) from database`);
+      console.log(
+        `[notifications] Restored preferences for ${Object.keys(preferences).length} user(s) from database`
+      );
     }
   } catch (error) {
     console.warn(`[notifications] Failed to load preferences from database: ${error.message}`);
@@ -291,16 +294,28 @@ async function loadPreferencesFromDb() {
  */
 function persistNotificationToDb(n) {
   if (!dbPool) return;
-  dbPool.query(
-    `INSERT INTO notifications (id, user_id, type, title, message, link, data, read, read_at, created_at, channels)
+  dbPool
+    .query(
+      `INSERT INTO notifications (id, user_id, type, title, message, link, data, read, read_at, created_at, channels)
      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
      ON CONFLICT (id) DO UPDATE SET
        read = EXCLUDED.read,
        read_at = EXCLUDED.read_at`,
-    [n.id, n.userId, n.type, n.title, n.message, n.link,
-     JSON.stringify(n.data || {}), n.read || false, n.readAt || null,
-     n.createdAt, JSON.stringify(n.channels || ['app'])]
-  ).catch(err => console.warn(`[notifications] Failed to persist to DB: ${err.message}`));
+      [
+        n.id,
+        n.userId,
+        n.type,
+        n.title,
+        n.message,
+        n.link,
+        JSON.stringify(n.data || {}),
+        n.read || false,
+        n.readAt || null,
+        n.createdAt,
+        JSON.stringify(n.channels || ['app']),
+      ]
+    )
+    .catch((err) => console.warn(`[notifications] Failed to persist to DB: ${err.message}`));
 }
 
 /**
@@ -308,10 +323,9 @@ function persistNotificationToDb(n) {
  */
 function deleteNotificationFromDb(id) {
   if (!dbPool) return;
-  dbPool.query(
-    `DELETE FROM notifications WHERE id = $1`,
-    [id]
-  ).catch(err => console.warn(`[notifications] Failed to delete from DB: ${err.message}`));
+  dbPool
+    .query(`DELETE FROM notifications WHERE id = $1`, [id])
+    .catch((err) => console.warn(`[notifications] Failed to delete from DB: ${err.message}`));
 }
 
 /**
@@ -319,14 +333,18 @@ function deleteNotificationFromDb(id) {
  */
 function persistPreferencesToDb(userId, prefs) {
   if (!dbPool) return;
-  dbPool.query(
-    `INSERT INTO notification_preferences (user_id, preferences, updated_at)
+  dbPool
+    .query(
+      `INSERT INTO notification_preferences (user_id, preferences, updated_at)
      VALUES ($1, $2, NOW())
      ON CONFLICT (user_id) DO UPDATE SET
        preferences = EXCLUDED.preferences,
        updated_at = NOW()`,
-    [userId, JSON.stringify(prefs)]
-  ).catch(err => console.warn(`[notifications] Failed to persist preferences to DB: ${err.message}`));
+      [userId, JSON.stringify(prefs)]
+    )
+    .catch((err) =>
+      console.warn(`[notifications] Failed to persist preferences to DB: ${err.message}`)
+    );
 }
 
 // ============================================
@@ -357,7 +375,8 @@ export async function send(userId, notification) {
 
   // Determine channels based on preferences
   const userPrefs = getUserPreferences(userId);
-  const typePrefs = userPrefs[notification.type] || DEFAULT_PREFERENCES[notification.type] || { app: true };
+  const typePrefs = userPrefs[notification.type] ||
+    DEFAULT_PREFERENCES[notification.type] || { app: true };
   const channels = [];
 
   if (typePrefs.app !== false) channels.push('app');
@@ -375,7 +394,7 @@ export async function send(userId, notification) {
     data: notification.data || {},
     read: false,
     createdAt: now,
-    channels
+    channels,
   };
 
   // Store in-app notification
@@ -390,17 +409,13 @@ export async function send(userId, notification) {
   if (channels.includes('email') && emailService) {
     try {
       const template = config.emailTemplates[notification.type] || config.emailTemplates.default;
-      await emailService.sendTemplate(
-        notification.email || `${userId}@example.com`,
-        template,
-        {
-          subject: notificationData.title,
-          title: notificationData.title,
-          message: notificationData.message,
-          link: notificationData.link,
-          type: notificationData.type
-        }
-      );
+      await emailService.sendTemplate(notification.email || `${userId}@example.com`, template, {
+        subject: notificationData.title,
+        title: notificationData.title,
+        message: notificationData.message,
+        link: notificationData.link,
+        type: notificationData.type,
+      });
     } catch (e) {
       console.error(`[notifications] Email send failed:`, e.message);
     }
@@ -462,21 +477,16 @@ export async function broadcast(notification, getUserIds) {
  * @returns {Object} { items, total, unread }
  */
 export function getForUser(userId, options = {}) {
-  const {
-    page = 1,
-    limit = 20,
-    unreadOnly = false,
-    type = null
-  } = options;
+  const { page = 1, limit = 20, unreadOnly = false, type = null } = options;
 
   let items = Object.values(notifications)
-    .filter(n => n.userId === userId)
-    .filter(n => !unreadOnly || !n.read)
-    .filter(n => !type || n.type === type)
+    .filter((n) => n.userId === userId)
+    .filter((n) => !unreadOnly || !n.read)
+    .filter((n) => !type || n.type === type)
     .sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
 
   const total = items.length;
-  const unread = items.filter(n => !n.read).length;
+  const unread = items.filter((n) => !n.read).length;
 
   // Paginate
   const start = (page - 1) * limit;
@@ -502,9 +512,7 @@ export function get(id) {
  * @returns {number} Unread count
  */
 export function getUnreadCount(userId) {
-  return Object.values(notifications)
-    .filter(n => n.userId === userId && !n.read)
-    .length;
+  return Object.values(notifications).filter((n) => n.userId === userId && !n.read).length;
 }
 
 // ============================================
@@ -551,10 +559,14 @@ export function markAllRead(userId) {
     saveNotifications();
     // Bulk update in DB: mark all as read for this user
     if (dbPool) {
-      dbPool.query(
-        `UPDATE notifications SET read = true, read_at = $1 WHERE user_id = $2 AND read = false`,
-        [now, userId]
-      ).catch(err => console.warn(`[notifications] Failed to bulk mark read in DB: ${err.message}`));
+      dbPool
+        .query(
+          `UPDATE notifications SET read = true, read_at = $1 WHERE user_id = $2 AND read = false`,
+          [now, userId]
+        )
+        .catch((err) =>
+          console.warn(`[notifications] Failed to bulk mark read in DB: ${err.message}`)
+        );
     }
   }
 
@@ -606,7 +618,7 @@ export function deleteRead(userId) {
  */
 function pruneUserNotifications(userId) {
   const userNotifications = Object.values(notifications)
-    .filter(n => n.userId === userId)
+    .filter((n) => n.userId === userId)
     .sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
 
   if (userNotifications.length > config.maxPerUser) {
@@ -643,7 +655,7 @@ export function getUserPreferences(userId) {
 export function setUserPreferences(userId, prefs) {
   preferences[userId] = {
     ...getUserPreferences(userId),
-    ...prefs
+    ...prefs,
   };
   savePreferences();
   persistPreferencesToDb(userId, preferences[userId]);
@@ -700,14 +712,14 @@ export function getStats() {
 
   return {
     total: all.length,
-    unread: all.filter(n => !n.read).length,
-    read: all.filter(n => n.read).length,
+    unread: all.filter((n) => !n.read).length,
+    read: all.filter((n) => n.read).length,
     byType,
     userCount: Object.keys(byUser).length,
     topUsers: Object.entries(byUser)
       .sort((a, b) => b[1] - a[1])
       .slice(0, 5)
-      .map(([userId, count]) => ({ userId, count }))
+      .map(([userId, count]) => ({ userId, count })),
   };
 }
 
@@ -718,18 +730,12 @@ export function getStats() {
  * @returns {Object} { items, total }
  */
 export function listAll(options = {}) {
-  const {
-    page = 1,
-    limit = 50,
-    unreadOnly = false,
-    type = null,
-    userId = null
-  } = options;
+  const { page = 1, limit = 50, unreadOnly = false, type = null, userId = null } = options;
 
   let items = Object.values(notifications)
-    .filter(n => !unreadOnly || !n.read)
-    .filter(n => !type || n.type === type)
-    .filter(n => !userId || n.userId === userId)
+    .filter((n) => !unreadOnly || !n.read)
+    .filter((n) => !type || n.type === type)
+    .filter((n) => !userId || n.userId === userId)
     .sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
 
   const total = items.length;

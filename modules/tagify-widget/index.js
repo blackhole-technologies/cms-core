@@ -37,7 +37,7 @@
  * }
  */
 
-import { registerFieldType, getFieldType } from '../../core/fields.ts';
+import { getFieldType, registerFieldType } from '../../src/core/entities/fields.ts';
 
 // Module state
 let initialized = false;
@@ -56,14 +56,14 @@ export async function hook_boot(context) {
   if (existingReferenceType) {
     registerFieldType('reference', {
       ...existingReferenceType,
-      render: renderTagifyWidget
+      render: renderTagifyWidget,
     });
   }
 
   if (existingReferencesType) {
     registerFieldType('references', {
       ...existingReferencesType,
-      render: renderTagifyWidget
+      render: renderTagifyWidget,
     });
   }
 
@@ -105,48 +105,73 @@ export async function hook_routes(register, context) {
   const assetsPath = join(__dirname, 'assets');
 
   // Serve static CSS
-  register('GET', '/modules/tagify-widget/assets/tagify.min.css', async (req, res) => {
-    try {
-      const content = await readFile(join(assetsPath, 'tagify.min.css'), 'utf-8');
-      res.writeHead(200, { 'Content-Type': 'text/css' });
-      res.end(content);
-    } catch (err) {
-      res.writeHead(404);
-      res.end('Not Found');
-    }
-  }, 'Tagify CSS');
+  register(
+    'GET',
+    '/modules/tagify-widget/assets/tagify.min.css',
+    async (req, res) => {
+      try {
+        const content = await readFile(join(assetsPath, 'tagify.min.css'), 'utf-8');
+        res.writeHead(200, { 'Content-Type': 'text/css' });
+        res.end(content);
+      } catch (err) {
+        res.writeHead(404);
+        res.end('Not Found');
+      }
+    },
+    'Tagify CSS'
+  );
 
   // Serve static JS
-  register('GET', '/modules/tagify-widget/assets/tagify.min.js', async (req, res) => {
-    try {
-      const content = await readFile(join(assetsPath, 'tagify.min.js'), 'utf-8');
-      res.writeHead(200, { 'Content-Type': 'application/javascript' });
-      res.end(content);
-    } catch (err) {
-      res.writeHead(404);
-      res.end('Not Found');
-    }
-  }, 'Tagify JS');
+  register(
+    'GET',
+    '/modules/tagify-widget/assets/tagify.min.js',
+    async (req, res) => {
+      try {
+        const content = await readFile(join(assetsPath, 'tagify.min.js'), 'utf-8');
+        res.writeHead(200, { 'Content-Type': 'application/javascript' });
+        res.end(content);
+      } catch (err) {
+        res.writeHead(404);
+        res.end('Not Found');
+      }
+    },
+    'Tagify JS'
+  );
 
   // API endpoint for autocomplete
-  register('GET', '/api/tagify/autocomplete', async (req, res) => {
-    await handleAutocomplete(req, res);
-  }, 'Tagify autocomplete API');
+  register(
+    'GET',
+    '/api/tagify/autocomplete',
+    async (req, res) => {
+      await handleAutocomplete(req, res);
+    },
+    'Tagify autocomplete API'
+  );
 
   // API endpoint for creating tags
-  register('POST', '/api/tagify/create-tag', async (req, res) => {
-    await handleCreateTag(req, res);
-  }, 'Create new tag');
+  register(
+    'POST',
+    '/api/tagify/create-tag',
+    async (req, res) => {
+      await handleCreateTag(req, res);
+    },
+    'Create new tag'
+  );
 
   // Demo/test page
-  register('GET', '/tagify/demo', async (req, res) => {
-    if (server && typeof server.html === 'function') {
-      server.html(res, renderDemoPage());
-    } else {
-      res.writeHead(200, { 'Content-Type': 'text/html' });
-      res.end(renderDemoPage());
-    }
-  }, 'Tagify widget demo page');
+  register(
+    'GET',
+    '/tagify/demo',
+    async (req, res) => {
+      if (server && typeof server.html === 'function') {
+        server.html(res, renderDemoPage());
+      } else {
+        res.writeHead(200, { 'Content-Type': 'text/html' });
+        res.end(renderDemoPage());
+      }
+    },
+    'Tagify widget demo page'
+  );
 }
 
 /**
@@ -191,13 +216,13 @@ async function renderTagifyWidget(field, value, options = {}) {
     dropdown: {
       enabled: 1,
       maxItems: 10,
-      closeOnSelect: true
+      closeOnSelect: true,
     },
     // Custom template support (Feature #6)
     tagTemplate: widgetSettings.tagTemplate || null,
     tagColorField: widgetSettings.tagColorField || null,
     tagIconField: widgetSettings.tagIconField || null,
-    ...widgetSettings
+    ...widgetSettings,
   };
 
   // Data attributes for client-side initialization
@@ -205,7 +230,7 @@ async function renderTagifyWidget(field, value, options = {}) {
     `data-tagify="true"`,
     `data-target="${escapeHtml(target || 'content')}"`,
     `data-vocabulary="${escapeHtml(vocabulary || '')}"`,
-    `data-settings='${JSON.stringify(settings)}'`
+    `data-settings='${JSON.stringify(settings)}'`,
   ].join(' ');
 
   // Hidden input for form submission
@@ -392,12 +417,12 @@ async function searchTaxonomyTerms(query, vocabulary, limit) {
     });
 
     // Limit results and format for Tagify
-    return results.slice(0, limit).map(term => {
+    return results.slice(0, limit).map((term) => {
       const tagData = {
         value: term.id,
         label: term.name,
         vocabularyId: term.vocabularyId,
-        slug: term.slug
+        slug: term.slug,
       };
 
       // Include color and icon if present
@@ -438,17 +463,13 @@ async function searchNodes(query, limit) {
     } else if (services?.get('contentTypes')) {
       const contentTypes = services.get('contentTypes');
       if (contentTypes.list && typeof contentTypes.list === 'function') {
-        types = contentTypes.list().map(t => ({ type: t.type || t }));
+        types = contentTypes.list().map((t) => ({ type: t.type || t }));
       }
     }
 
     // Fallback to common content types if listTypes not available
     if (!types || types.length === 0) {
-      types = [
-        { type: 'article' },
-        { type: 'page' },
-        { type: 'media-entity' }
-      ];
+      types = [{ type: 'article' }, { type: 'page' }, { type: 'media-entity' }];
     }
 
     let allNodes = [];
@@ -461,13 +482,10 @@ async function searchNodes(query, limit) {
         if (result && result.items) {
           allNodes = allNodes.concat(result.items);
         }
-      } catch (err) {
-        // Skip types that can't be listed
-        continue;
-      }
+      } catch (err) {}
     }
 
-    const filtered = allNodes.filter(node => {
+    const filtered = allNodes.filter((node) => {
       const title = (node.title || '').toLowerCase();
       return title.includes(queryLower);
     });
@@ -484,10 +502,10 @@ async function searchNodes(query, limit) {
     });
 
     // Limit and format
-    return filtered.slice(0, limit).map(node => ({
+    return filtered.slice(0, limit).map((node) => ({
       value: node.id,
       label: node.title || `Node ${node.id}`,
-      type: node.type
+      type: node.type,
     }));
   } catch (error) {
     console.error('[tagify-widget] Error searching nodes:', error);
@@ -966,37 +984,47 @@ async function handleCreateTag(req, res) {
 
     // Validate inputs
     if (!label || typeof label !== 'string' || label.trim().length === 0) {
-      return server ? server.json(res, { error: 'Label is required' }, 400) : res.end(JSON.stringify({ error: 'Label is required' }));
+      return server
+        ? server.json(res, { error: 'Label is required' }, 400)
+        : res.end(JSON.stringify({ error: 'Label is required' }));
     }
 
     if (!vocabulary || typeof vocabulary !== 'string') {
-      return server ? server.json(res, { error: 'Vocabulary is required' }, 400) : res.end(JSON.stringify({ error: 'Vocabulary is required' }));
+      return server
+        ? server.json(res, { error: 'Vocabulary is required' }, 400)
+        : res.end(JSON.stringify({ error: 'Vocabulary is required' }));
     }
 
     const trimmedLabel = label.trim();
 
     // Validate label length
     if (trimmedLabel.length > 255) {
-      return server ? server.json(res, { error: 'Label is too long (max 255 characters)' }, 400) : res.end(JSON.stringify({ error: 'Label is too long (max 255 characters)' }));
+      return server
+        ? server.json(res, { error: 'Label is too long (max 255 characters)' }, 400)
+        : res.end(JSON.stringify({ error: 'Label is too long (max 255 characters)' }));
     }
 
     // Get taxonomy service
     const taxonomy = services?.get('taxonomy');
     if (!taxonomy) {
       console.error('[tagify-widget] Taxonomy service not available');
-      return server ? server.json(res, { error: 'Taxonomy service unavailable' }, 500) : res.end(JSON.stringify({ error: 'Taxonomy service unavailable' }));
+      return server
+        ? server.json(res, { error: 'Taxonomy service unavailable' }, 500)
+        : res.end(JSON.stringify({ error: 'Taxonomy service unavailable' }));
     }
 
     // Check if vocabulary exists
     const vocab = taxonomy.getVocabulary(vocabulary);
     if (!vocab) {
-      return server ? server.json(res, { error: `Vocabulary "${vocabulary}" not found` }, 404) : res.end(JSON.stringify({ error: `Vocabulary "${vocabulary}" not found` }));
+      return server
+        ? server.json(res, { error: `Vocabulary "${vocabulary}" not found` }, 404)
+        : res.end(JSON.stringify({ error: `Vocabulary "${vocabulary}" not found` }));
     }
 
     // Check for duplicates (case-insensitive)
     const existing = taxonomy.searchTerms(vocabulary, trimmedLabel);
     const duplicate = existing.find(
-      term => term.name.toLowerCase() === trimmedLabel.toLowerCase()
+      (term) => term.name.toLowerCase() === trimmedLabel.toLowerCase()
     );
 
     if (duplicate) {
@@ -1005,7 +1033,7 @@ async function handleCreateTag(req, res) {
         value: duplicate.id,
         label: duplicate.name,
         slug: duplicate.slug,
-        existing: true
+        existing: true,
       };
       return server ? server.json(res, response) : res.end(JSON.stringify(response));
     }
@@ -1014,18 +1042,20 @@ async function handleCreateTag(req, res) {
     const newTerm = await taxonomy.createTerm({
       vocabularyId: vocabulary,
       name: trimmedLabel,
-      description: `Created via Tagify widget`
+      description: `Created via Tagify widget`,
     });
 
     // Log creation
-    console.log(`[tagify-widget] Created new term: "${newTerm.name}" (ID: ${newTerm.id}) in vocabulary "${vocabulary}"`);
+    console.log(
+      `[tagify-widget] Created new term: "${newTerm.name}" (ID: ${newTerm.id}) in vocabulary "${vocabulary}"`
+    );
 
     // Return new term
     const response = {
       value: newTerm.id,
       label: newTerm.name,
       slug: newTerm.slug,
-      existing: false
+      existing: false,
     };
     server ? server.json(res, response) : res.end(JSON.stringify(response));
   } catch (error) {
