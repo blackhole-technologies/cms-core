@@ -58,7 +58,7 @@
  * See processVariables() for implementation.
  */
 
-import { readFileSync, existsSync } from 'node:fs';
+import { existsSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 
 // ============================================================================
@@ -70,35 +70,35 @@ type TemplateData = Record<string, unknown>;
 
 /** i18n service interface for translation support */
 interface I18nService {
-    t(key: string, params: Record<string, string>, locale: string | null): string;
-    getDefaultLocale(): string;
+  t(key: string, params: Record<string, string>, locale: string | null): string;
+  getDefaultLocale(): string;
 }
 
 /** SDC (Single Directory Components) service interface */
 interface SDCService {
-    hasComponents(): boolean;
-    resetCssTracking(): void;
-    processComponents(
-        template: string,
-        data: TemplateData,
-        renderFn: (template: string, data: TemplateData) => string
-    ): string;
+  hasComponents(): boolean;
+  resetCssTracking(): void;
+  processComponents(
+    template: string,
+    data: TemplateData,
+    renderFn: (template: string, data: TemplateData) => string
+  ): string;
 }
 
 /** Embed field value shape */
 interface EmbedField {
-    url: string;
-    oembed?: {
-        html?: string;
-        type?: string;
-        title?: string;
-        thumbnail_url?: string;
-    };
+  url: string;
+  oembed?: {
+    html?: string;
+    type?: string;
+    title?: string;
+    thumbnail_url?: string;
+  };
 }
 
 /** Options for renderEmbedField */
 interface EmbedRenderOptions {
-    className?: string;
+  className?: string;
 }
 
 // ============================================================================
@@ -268,7 +268,8 @@ function isTruthy(value: unknown): boolean {
 function processEachBlocks(template: string, data: TemplateData): string {
   // Match innermost each blocks first (those without nested each blocks inside)
   // This regex matches each blocks that don't contain other each blocks
-  const innerEachRegex = /\{\{#each\s+((?:\.\.\/)*\w+(?:\.\w+)*)\}\}((?:(?!\{\{#each)[\s\S])*?)\{\{\/each\}\}/g;
+  const innerEachRegex =
+    /\{\{#each\s+((?:\.\.\/)*\w+(?:\.\w+)*)\}\}((?:(?!\{\{#each)[\s\S])*?)\{\{\/each\}\}/g;
 
   let result = template;
   let prevResult: string;
@@ -276,31 +277,38 @@ function processEachBlocks(template: string, data: TemplateData): string {
   // Process iteratively until no more each blocks (handles nesting inside-out)
   do {
     prevResult = result;
-    result = result.replace(innerEachRegex, (_match: string, varPath: string, innerTemplate: string) => {
-      const items = getNestedValue(data, varPath);
+    result = result.replace(
+      innerEachRegex,
+      (_match: string, varPath: string, innerTemplate: string) => {
+        const items = getNestedValue(data, varPath);
 
-      // If not an array or empty, return nothing
-      if (!Array.isArray(items) || items.length === 0) {
-        return '';
+        // If not an array or empty, return nothing
+        if (!Array.isArray(items) || items.length === 0) {
+          return '';
+        }
+
+        // Render inner template for each item
+        return items
+          .map((item: unknown, index: number) => {
+            // Create context for this iteration
+            // Item properties are merged with special @ variables
+            const itemContext: TemplateData = {
+              ...data, // Parent data still accessible
+              ...(typeof item === 'object' && item !== null
+                ? (item as TemplateData)
+                : { this: item }),
+              '@index': index,
+              '@first': index === 0,
+              '@last': index === items.length - 1,
+              __parent__: data, // Store parent context for ../ traversal
+            };
+
+            // Process if blocks and variables for this item
+            return processIfBlocks(innerTemplate, itemContext);
+          })
+          .join('');
       }
-
-      // Render inner template for each item
-      return items.map((item: unknown, index: number) => {
-        // Create context for this iteration
-        // Item properties are merged with special @ variables
-        const itemContext: TemplateData = {
-          ...data,           // Parent data still accessible
-          ...(typeof item === 'object' && item !== null ? item as TemplateData : { this: item }),
-          '@index': index,
-          '@first': index === 0,
-          '@last': index === items.length - 1,
-          '__parent__': data, // Store parent context for ../ traversal
-        };
-
-        // Process if blocks and variables for this item
-        return processIfBlocks(innerTemplate, itemContext);
-      }).join('');
-    });
+    );
   } while (result !== prevResult);
 
   return result;
@@ -356,9 +364,11 @@ function evaluateCondition(condExpr: string, data: TemplateData): boolean {
     const argRegex = /(?:"([^"]*)"|'([^']*)'|((?:\.\.\/)*@?\w+(?:\.\w+)*))/g;
     let m: RegExpExecArray | null;
     while ((m = argRegex.exec(argsRaw)) !== null) {
-      if (m[1] !== undefined) args.push(m[1]);        // double-quoted literal
-      else if (m[2] !== undefined) args.push(m[2]);    // single-quoted literal
-      else if (m[3] !== undefined) args.push(m[3]);    // variable path
+      if (m[1] !== undefined)
+        args.push(m[1]); // double-quoted literal
+      else if (m[2] !== undefined)
+        args.push(m[2]); // single-quoted literal
+      else if (m[3] !== undefined) args.push(m[3]); // variable path
     }
 
     // Resolve variable paths to values (literals stay as strings)
@@ -385,7 +395,8 @@ function evaluateCondition(condExpr: string, data: TemplateData): boolean {
       const collection = resolveArg(args[0]!);
       const item = resolveArg(args[1]!);
       if (Array.isArray(collection)) return collection.includes(item);
-      if (typeof collection === 'string' && typeof item === 'string') return collection.includes(item);
+      if (typeof collection === 'string' && typeof item === 'string')
+        return collection.includes(item);
       return false;
     }
     if (helper === 'or') {
@@ -404,7 +415,8 @@ function processIfBlocks(template: string, data: TemplateData): string {
   // Match {{#if CONDITION}}...{{/if}} where CONDITION can be:
   //   - simple path: myVar, ../parentVar, user.name.length
   //   - subexpression: (eq status 'draft'), (includes roles 'admin'), etc.
-  const innerIfRegex = /\{\{#if\s+((?:\([^)]+\))|(?:(?:\.\.\/)*@?\w+(?:\.\w+)*))\}\}((?:(?!\{\{#if)[\s\S])*?)\{\{\/if\}\}/g;
+  const innerIfRegex =
+    /\{\{#if\s+((?:\([^)]+\))|(?:(?:\.\.\/)*@?\w+(?:\.\w+)*))\}\}((?:(?!\{\{#if)[\s\S])*?)\{\{\/if\}\}/g;
 
   let result = template;
   let prevResult: string;
@@ -412,17 +424,20 @@ function processIfBlocks(template: string, data: TemplateData): string {
   // Process iteratively until no more if blocks (handles nesting inside-out)
   do {
     prevResult = result;
-    result = result.replace(innerIfRegex, (_match: string, condExpr: string, innerContent: string) => {
-      const isTrue = evaluateCondition(condExpr, data);
+    result = result.replace(
+      innerIfRegex,
+      (_match: string, condExpr: string, innerContent: string) => {
+        const isTrue = evaluateCondition(condExpr, data);
 
-      // Check for {{else}} block
-      const elseParts = innerContent.split(/\{\{else\}\}/);
-      const trueBranch = elseParts[0]!;
-      const falseBranch = elseParts[1] || '';
+        // Check for {{else}} block
+        const elseParts = innerContent.split(/\{\{else\}\}/);
+        const trueBranch = elseParts[0]!;
+        const falseBranch = elseParts[1] || '';
 
-      // Return appropriate branch (will be processed again in next iteration if nested)
-      return isTrue ? trueBranch : falseBranch;
-    });
+        // Return appropriate branch (will be processed again in next iteration if nested)
+        return isTrue ? trueBranch : falseBranch;
+      }
+    );
   } while (result !== prevResult);
 
   // Process {{#unless condition}}...{{/unless}} blocks
@@ -447,24 +462,28 @@ function processIfBlocks(template: string, data: TemplateData): string {
  */
 function processUnlessBlocks(template: string, data: TemplateData): string {
   // Support both simple paths AND subexpressions like (eq status 'draft')
-  const innerUnlessRegex = /\{\{#unless\s+((?:\([^)]+\))|(?:(?:\.\.\/)*@?\w+(?:\.\w+)*))\}\}((?:(?!\{\{#unless)[\s\S])*?)\{\{\/unless\}\}/g;
+  const innerUnlessRegex =
+    /\{\{#unless\s+((?:\([^)]+\))|(?:(?:\.\.\/)*@?\w+(?:\.\w+)*))\}\}((?:(?!\{\{#unless)[\s\S])*?)\{\{\/unless\}\}/g;
 
   let result = template;
   let prevResult: string;
 
   do {
     prevResult = result;
-    result = result.replace(innerUnlessRegex, (_match: string, condExpr: string, innerContent: string) => {
-      const isTrue = evaluateCondition(condExpr, data);
+    result = result.replace(
+      innerUnlessRegex,
+      (_match: string, condExpr: string, innerContent: string) => {
+        const isTrue = evaluateCondition(condExpr, data);
 
-      // Check for {{else}} block
-      const elseParts = innerContent.split(/\{\{else\}\}/);
-      const falseBranch = elseParts[0]!;
-      const trueBranch = elseParts[1] || '';
+        // Check for {{else}} block
+        const elseParts = innerContent.split(/\{\{else\}\}/);
+        const falseBranch = elseParts[0]!;
+        const trueBranch = elseParts[1] || '';
 
-      // Unless = inverse of if
-      return isTrue ? trueBranch : falseBranch;
-    });
+        // Unless = inverse of if
+        return isTrue ? trueBranch : falseBranch;
+      }
+    );
   } while (result !== prevResult);
 
   return result;
@@ -496,10 +515,13 @@ function processMustacheSections(template: string, data: TemplateData): string {
 
   do {
     prevResult = result;
-    result = result.replace(invertedRegex, (_match: string, varPath: string, innerContent: string) => {
-      const value = getNestedValue(data, varPath);
-      return isTruthy(value) ? '' : innerContent;
-    });
+    result = result.replace(
+      invertedRegex,
+      (_match: string, varPath: string, innerContent: string) => {
+        const value = getNestedValue(data, varPath);
+        return isTruthy(value) ? '' : innerContent;
+      }
+    );
   } while (result !== prevResult);
 
   // Process truthy/iteration sections {{#name}}...{{/name}}
@@ -508,40 +530,48 @@ function processMustacheSections(template: string, data: TemplateData): string {
 
   do {
     prevResult = result;
-    result = result.replace(sectionRegex, (_match: string, varPath: string, innerContent: string) => {
-      const value = getNestedValue(data, varPath);
+    result = result.replace(
+      sectionRegex,
+      (_match: string, varPath: string, innerContent: string) => {
+        const value = getNestedValue(data, varPath);
 
-      // If value is an array: iterate
-      if (Array.isArray(value)) {
-        if (value.length === 0) return '';
-        return value.map((item: unknown, index: number) => {
-          const itemContext: TemplateData = {
-            ...data,
-            ...(typeof item === 'object' && item !== null ? item as TemplateData : { this: item }),
-            '@index': index,
-            '@first': index === 0,
-            '@last': index === value.length - 1,
-            '__parent__': data,
-          };
-          // Recursively process inner content for nested sections
-          let rendered = processUnlessBlocks(innerContent, itemContext);
-          rendered = processMustacheSections(rendered, itemContext);
-          return processVariables(rendered, itemContext);
-        }).join('');
+        // If value is an array: iterate
+        if (Array.isArray(value)) {
+          if (value.length === 0) return '';
+          return value
+            .map((item: unknown, index: number) => {
+              const itemContext: TemplateData = {
+                ...data,
+                ...(typeof item === 'object' && item !== null
+                  ? (item as TemplateData)
+                  : { this: item }),
+                '@index': index,
+                '@first': index === 0,
+                '@last': index === value.length - 1,
+                __parent__: data,
+              };
+              // Recursively process inner content for nested sections
+              let rendered = processUnlessBlocks(innerContent, itemContext);
+              rendered = processMustacheSections(rendered, itemContext);
+              return processVariables(rendered, itemContext);
+            })
+            .join('');
+        }
+
+        // If truthy (non-array): render block once
+        if (isTruthy(value)) {
+          // If value is an object, merge its properties
+          const _blockContext: TemplateData =
+            typeof value === 'object' && value !== null
+              ? { ...data, ...(value as TemplateData), __parent__: data }
+              : data;
+          return innerContent;
+        }
+
+        // If falsy: skip
+        return '';
       }
-
-      // If truthy (non-array): render block once
-      if (isTruthy(value)) {
-        // If value is an object, merge its properties
-        const _blockContext: TemplateData = typeof value === 'object' && value !== null
-          ? { ...data, ...(value as TemplateData), '__parent__': data }
-          : data;
-        return innerContent;
-      }
-
-      // If falsy: skip
-      return '';
-    });
+    );
   } while (result !== prevResult);
 
   return result;
@@ -582,27 +612,30 @@ function processVariables(template: string, data: TemplateData): string {
   // Matches: {{t "key"}} or {{t "key" param="value" param2="value2"}}
   const tRegex = /\{\{t\s+"([^"]+)"(?:\s+([^}]+))?\}\}/g;
 
-  let result = template.replace(tRegex, (_match: string, key: string, paramsStr: string | undefined) => {
-    if (!i18nService) {
-      return key; // Return key if i18n not initialized
-    }
-
-    // Parse parameters if present
-    const params: Record<string, string> = {};
-    if (paramsStr) {
-      // Match param="value" patterns
-      const paramRegex = /(\w+)="([^"]*)"/g;
-      let paramMatch: RegExpExecArray | null;
-      while ((paramMatch = paramRegex.exec(paramsStr)) !== null) {
-        params[paramMatch[1]!] = paramMatch[2]!;
+  let result = template.replace(
+    tRegex,
+    (_match: string, key: string, paramsStr: string | undefined) => {
+      if (!i18nService) {
+        return key; // Return key if i18n not initialized
       }
+
+      // Parse parameters if present
+      const params: Record<string, string> = {};
+      if (paramsStr) {
+        // Match param="value" patterns
+        const paramRegex = /(\w+)="([^"]*)"/g;
+        let paramMatch: RegExpExecArray | null;
+        while ((paramMatch = paramRegex.exec(paramsStr)) !== null) {
+          params[paramMatch[1]!] = paramMatch[2]!;
+        }
+      }
+
+      // Get locale from data context or use default
+      const locale = (data._locale as string | null) || null;
+
+      return i18nService.t(key, params, locale);
     }
-
-    // Get locale from data context or use default
-    const locale = (data._locale as string | null) || null;
-
-    return i18nService.t(key, params, locale);
-  });
+  );
 
   // Process triple-brace {{{variable}}} FIRST (raw/unescaped output)
   // WHY TRIPLE BRACES:

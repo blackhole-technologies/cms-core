@@ -24,9 +24,9 @@
  *   }
  */
 
-import { checkLimit, createLimiter } from './ratelimit.ts';
-import { readFileSync, existsSync } from 'node:fs';
+import { existsSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
+import { checkLimit, createLimiter } from '../../../core/ratelimit.ts';
 
 // ============================================================================
 // Types
@@ -156,9 +156,7 @@ export function getProviderRateLimit(providerId: string): RateLimitConfig {
   const configLimits = loadRateLimitConfig();
 
   // Priority: config > defaults > fallback
-  return configLimits[providerId]
-    || DEFAULT_LIMITS[providerId]
-    || { points: 30, duration: 60 }; // fallback: 30/minute
+  return configLimits[providerId] || DEFAULT_LIMITS[providerId] || { points: 30, duration: 60 }; // fallback: 30/minute
 }
 
 /**
@@ -174,7 +172,10 @@ export function getProviderRateLimit(providerId: string): RateLimitConfig {
  *   throw new Error(result.error); // "Rate limit exceeded for openai. Try again in 45 seconds."
  * }
  */
-export function checkProviderLimit(providerId: string, options: CheckOptions = {}): ProviderLimitResult {
+export function checkProviderLimit(
+  providerId: string,
+  options: CheckOptions = {}
+): ProviderLimitResult {
   const limit = getProviderRateLimit(providerId);
 
   // Merge with any overrides
@@ -239,7 +240,10 @@ export function getProviderRateLimitStatus(providerIds: string[]): Record<string
     const key = `ai-provider:${providerId}`;
 
     // Check without consuming a request (just get status)
-    const result = checkLimit(key, { ...limit, reason: `ai-provider:${providerId}` }) as ProviderLimitResult;
+    const result = checkLimit(key, {
+      ...limit,
+      reason: `ai-provider:${providerId}`,
+    }) as ProviderLimitResult;
 
     status[providerId] = {
       limit: limit.points,
@@ -262,9 +266,17 @@ export function getProviderRateLimitStatus(providerIds: string[]): Record<string
  * @example
  * router.use(aiProviderRateLimit('providerId'), 'aiRateLimit', '/api/ai/:providerId/*');
  */
-export function aiProviderRateLimit(providerIdParam: string = 'providerId'): (req: HttpRequest, res: HttpResponse, ctx: RouteContext, next: NextFunction) => Promise<void> {
-  return async function aiRateLimitMiddleware(req: HttpRequest, res: HttpResponse, ctx: RouteContext, next: NextFunction): Promise<void> {
-    const providerId = ctx.params?.[providerIdParam] || (ctx[providerIdParam] as string | undefined);
+export function aiProviderRateLimit(
+  providerIdParam: string = 'providerId'
+): (req: HttpRequest, res: HttpResponse, ctx: RouteContext, next: NextFunction) => Promise<void> {
+  return async function aiRateLimitMiddleware(
+    req: HttpRequest,
+    res: HttpResponse,
+    ctx: RouteContext,
+    next: NextFunction
+  ): Promise<void> {
+    const providerId =
+      ctx.params?.[providerIdParam] || (ctx[providerIdParam] as string | undefined);
 
     if (!providerId) {
       // No provider specified, skip rate limiting
@@ -282,12 +294,14 @@ export function aiProviderRateLimit(providerIdParam: string = 'providerId'): (re
     if (!result.allowed) {
       res.setHeader('Retry-After', result.retryAfter || 0);
       res.writeHead(429, { 'Content-Type': 'application/json' });
-      res.end(JSON.stringify({
-        error: 'Rate Limit Exceeded',
-        message: result.error,
-        provider: result.provider,
-        retryAfter: result.retryAfter,
-      }));
+      res.end(
+        JSON.stringify({
+          error: 'Rate Limit Exceeded',
+          message: result.error,
+          provider: result.provider,
+          retryAfter: result.retryAfter,
+        })
+      );
       return;
     }
 

@@ -21,7 +21,7 @@
  */
 
 // @ts-expect-error -- lib/Plugin is plain JS without declaration files
-import { PluginManager } from './lib/Plugin/index.js';
+import { PluginManager } from '../../../core/lib/Plugin/index.js';
 import { checkProviderLimit } from './ai-rate-limiter.ts';
 
 // ============================================================================
@@ -88,7 +88,7 @@ interface RateLimitError extends Error {
  * Service state
  */
 let pluginManager: InstanceType<typeof PluginManager> | null = null;
-let providerCache: Map<string, AIProviderInstance> = new Map();
+const providerCache: Map<string, AIProviderInstance> = new Map();
 let services: ServiceContainer | null = null;
 let hooks: HookManager | null = null;
 let initialized: boolean = false;
@@ -104,7 +104,9 @@ let initialized: boolean = false;
  */
 export function init(ctx: BootContext): void {
   if (!ctx || !ctx.services || !ctx.hooks || !ctx.modulePaths) {
-    throw new Error('[ai-provider-manager] Invalid context: services, hooks, and modulePaths required');
+    throw new Error(
+      '[ai-provider-manager] Invalid context: services, hooks, and modulePaths required'
+    );
   }
 
   services = ctx.services;
@@ -165,7 +167,9 @@ export async function hasProvider(providerId: string): Promise<boolean> {
  * @param providerId - Provider plugin ID
  * @returns Provider definition or null
  */
-export async function getProviderDefinition(providerId: string): Promise<ProviderDefinition | null> {
+export async function getProviderDefinition(
+  providerId: string
+): Promise<ProviderDefinition | null> {
   if (!initialized || !pluginManager) {
     throw new Error('[ai-provider-manager] Service not initialized');
   }
@@ -185,7 +189,10 @@ export async function getProviderDefinition(providerId: string): Promise<Provide
  * @returns Provider instance
  * @throws If provider not found or invalid
  */
-export async function loadProvider(providerId: string, configuration: Record<string, unknown> = {}): Promise<AIProviderInstance> {
+export async function loadProvider(
+  providerId: string,
+  configuration: Record<string, unknown> = {}
+): Promise<AIProviderInstance> {
   if (!initialized || !pluginManager) {
     throw new Error('[ai-provider-manager] Service not initialized');
   }
@@ -198,7 +205,9 @@ export async function loadProvider(providerId: string, configuration: Record<str
 
   // WHY: Get provider configuration from config service if not passed
   if (!configuration.apiKey && services) {
-    const configService = services.get('config') as { get?: (key: string) => Record<string, unknown> | undefined } | null;
+    const configService = services.get('config') as {
+      get?: (key: string) => Record<string, unknown> | undefined;
+    } | null;
     if (configService && typeof configService.get === 'function') {
       const providerConfig = configService.get(`ai.providers.${providerId}`) || {};
       configuration = { ...providerConfig, ...configuration };
@@ -206,7 +215,10 @@ export async function loadProvider(providerId: string, configuration: Record<str
   }
 
   // WHY: Use PluginManager to create instance
-  const provider = await pluginManager.createInstance(providerId, configuration) as AIProviderInstance;
+  const provider = (await pluginManager.createInstance(
+    providerId,
+    configuration
+  )) as AIProviderInstance;
 
   // WHY: Validate that provider implements required methods
   const requiredMethods = ['getModels', 'isUsable', 'getSupportedOperations'] as const;
@@ -268,7 +280,11 @@ export async function getUsableProviders(): Promise<UsableProvider[]> {
  * @param modelSpec - Model specification (e.g., 'openai/gpt-4' or 'gpt-4')
  * @returns Operation result
  */
-export async function routeToProvider(operation: string, args: unknown[], modelSpec: string | null): Promise<unknown> {
+export async function routeToProvider(
+  operation: string,
+  args: unknown[],
+  modelSpec: string | null
+): Promise<unknown> {
   if (!initialized) {
     throw new Error('[ai-provider-manager] Service not initialized');
   }

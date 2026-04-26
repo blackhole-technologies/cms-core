@@ -28,8 +28,8 @@
  * }
  */
 
-import { join } from 'node:path';
 import { existsSync, readdirSync, readFileSync, writeFileSync } from 'node:fs';
+import { join } from 'node:path';
 
 // ============================================================================
 // Types
@@ -188,7 +188,9 @@ export function init(options: InitOptions = {}): void {
   const skinCount = skinCache.size;
   const adminSkinCount = adminSkinCache.size;
 
-  console.log(`[theme-engine] Initialized (${layoutCount} layouts, ${skinCount} skins, ${adminSkinCount} admin skins)`);
+  console.log(
+    `[theme-engine] Initialized (${layoutCount} layouts, ${skinCount} skins, ${adminSkinCount} admin skins)`
+  );
 }
 
 /**
@@ -200,8 +202,8 @@ function discoverLayouts(): void {
   if (!existsSync(layoutsDir)) return;
 
   const dirs = readdirSync(layoutsDir, { withFileTypes: true })
-    .filter(d => d.isDirectory())
-    .map(d => d.name);
+    .filter((d) => d.isDirectory())
+    .map((d) => d.name);
 
   for (const dir of dirs) {
     const manifestPath = join(layoutsDir, dir, 'manifest.json');
@@ -227,8 +229,8 @@ function discoverSkins(): void {
   if (!existsSync(skinsDir)) return;
 
   const dirs = readdirSync(skinsDir, { withFileTypes: true })
-    .filter(d => d.isDirectory())
-    .map(d => d.name);
+    .filter((d) => d.isDirectory())
+    .map((d) => d.name);
 
   for (const dir of dirs) {
     const manifestPath = join(skinsDir, dir, 'manifest.json');
@@ -254,8 +256,8 @@ function discoverAdminSkins(): void {
   if (!existsSync(adminSkinsDir)) return;
 
   const dirs = readdirSync(adminSkinsDir, { withFileTypes: true })
-    .filter(d => d.isDirectory())
-    .map(d => d.name);
+    .filter((d) => d.isDirectory())
+    .map((d) => d.name);
 
   for (const dir of dirs) {
     const manifestPath = join(adminSkinsDir, dir, 'manifest.json');
@@ -280,7 +282,7 @@ function discoverAdminSkins(): void {
  * List all available layouts
  */
 export function listLayouts(): LayoutListItem[] {
-  return Array.from(layoutCache.values()).map(l => ({
+  return Array.from(layoutCache.values()).map((l) => ({
     id: l.id,
     name: l.name,
     description: l.description,
@@ -335,7 +337,7 @@ export function listSkins(layoutId: string | null = null): SkinListItem[] {
   let skins: SkinManifest[] = Array.from(skinCache.values());
 
   if (layoutId) {
-    skins = skins.filter(s => {
+    skins = skins.filter((s) => {
       // If skin specifies compatible layouts, check it
       if (s.compatibleLayouts && s.compatibleLayouts.length > 0) {
         return s.compatibleLayouts.includes(layoutId);
@@ -350,7 +352,7 @@ export function listSkins(layoutId: string | null = null): SkinListItem[] {
     });
   }
 
-  return skins.map(s => ({
+  return skins.map((s) => ({
     id: s.id,
     name: s.name,
     description: s.description,
@@ -423,7 +425,7 @@ export function getSkinCSSPaths(skinId: string | undefined): string[] {
  * List admin skins
  */
 export function listAdminSkins(): AdminSkinListItem[] {
-  return Array.from(adminSkinCache.values()).map(s => ({
+  return Array.from(adminSkinCache.values()).map((s) => ({
     id: s.id,
     name: s.name,
     description: s.description,
@@ -443,7 +445,9 @@ export function getAdminSkin(id: string): SkinManifest | null {
  */
 export function getActiveAdminSkin(): SkinManifest | null {
   const skinId = config.adminTheme?.skin || 'default';
-  return getAdminSkin(skinId) || getAdminSkin('default') || adminSkinCache.values().next().value || null;
+  return (
+    getAdminSkin(skinId) || getAdminSkin('default') || adminSkinCache.values().next().value || null
+  );
 }
 
 /**
@@ -580,7 +584,7 @@ export function getThemeContext(): ThemeContext {
  */
 export function renderSkinCSS(): string {
   const paths = getSkinCSSPaths(getActiveSkin()?.id);
-  return paths.map(p => `<link rel="stylesheet" href="${p}">`).join('\n');
+  return paths.map((p) => `<link rel="stylesheet" href="${p}">`).join('\n');
 }
 
 /**
@@ -588,7 +592,7 @@ export function renderSkinCSS(): string {
  */
 export function renderAdminSkinCSS(): string {
   const paths = getAdminSkinCSSPaths(getActiveAdminSkin()?.id);
-  return paths.map(p => `<link rel="stylesheet" href="${p}">`).join('\n');
+  return paths.map((p) => `<link rel="stylesheet" href="${p}">`).join('\n');
 }
 
 // ============================================

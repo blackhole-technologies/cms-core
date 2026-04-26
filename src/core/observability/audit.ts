@@ -24,9 +24,18 @@
  * - export.content, export.site, import.content, import.site
  */
 
-import { existsSync, mkdirSync, readFileSync, writeFileSync, readdirSync, statSync, unlinkSync, rmdirSync } from 'node:fs';
-import { join } from 'node:path';
 import { randomUUID } from 'node:crypto';
+import {
+  existsSync,
+  mkdirSync,
+  readdirSync,
+  readFileSync,
+  rmdirSync,
+  statSync,
+  unlinkSync,
+  writeFileSync,
+} from 'node:fs';
+import { join } from 'node:path';
 
 // ============================================================================
 // Types
@@ -155,9 +164,9 @@ interface TargetUser {
  */
 let config: AuditConfig = {
   enabled: true,
-  retention: 90,            // Days to keep logs (0 = forever)
-  logLevel: 'info',         // info, warning, security
-  excludeActions: [],       // Actions to exclude from logging
+  retention: 90, // Days to keep logs (0 = forever)
+  logLevel: 'info', // info, warning, security
+  excludeActions: [], // Actions to exclude from logging
 };
 
 /**
@@ -293,13 +302,26 @@ function persistEntriesToDb(entries: AuditEntry[]): void {
   if (!dbPool || entries.length === 0) return;
 
   for (const e of entries) {
-    dbPool.query(
-      `INSERT INTO audit_log (id, timestamp, action, level, user_id, username, ip, user_agent, details, result, error)
+    dbPool
+      .query(
+        `INSERT INTO audit_log (id, timestamp, action, level, user_id, username, ip, user_agent, details, result, error)
        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
        ON CONFLICT (id) DO NOTHING`,
-      [e.id, e.timestamp, e.action, e.level, e.userId, e.username,
-       e.ip, e.userAgent, JSON.stringify(e.details || {}), e.result, e.error]
-    ).catch((err: Error) => console.warn(`[audit] Failed to persist to DB: ${err.message}`));
+        [
+          e.id,
+          e.timestamp,
+          e.action,
+          e.level,
+          e.userId,
+          e.username,
+          e.ip,
+          e.userAgent,
+          JSON.stringify(e.details || {}),
+          e.result,
+          e.error,
+        ]
+      )
+      .catch((err: Error) => console.warn(`[audit] Failed to persist to DB: ${err.message}`));
   }
 }
 
@@ -310,22 +332,36 @@ function persistEntriesToDb(entries: AuditEntry[]): void {
  * @param options - Query options
  * @returns Query result or null if no DB
  */
-async function queryFromDb(filters: QueryFilters, options: QueryOptions): Promise<QueryResult | null> {
+async function queryFromDb(
+  filters: QueryFilters,
+  options: QueryOptions
+): Promise<QueryResult | null> {
   if (!dbPool) return null;
 
   const {
-    action = null, userId = null, username = null, ip = null,
-    result = null, level = null, from = null, to = null,
-    days = null, search = null,
+    action = null,
+    userId = null,
+    username = null,
+    ip = null,
+    result = null,
+    level = null,
+    from = null,
+    to = null,
+    days = null,
+    search = null,
   } = filters;
 
   const { limit = 100, offset = 0, sortOrder = 'desc' } = options;
 
   const toDate = to ? new Date(to) : new Date();
   let fromDate: Date;
-  if (from) { fromDate = new Date(from); }
-  else if (days) { fromDate = new Date(toDate.getTime() - days * 24 * 60 * 60 * 1000); }
-  else { fromDate = new Date(toDate.getTime() - 30 * 24 * 60 * 60 * 1000); }
+  if (from) {
+    fromDate = new Date(from);
+  } else if (days) {
+    fromDate = new Date(toDate.getTime() - days * 24 * 60 * 60 * 1000);
+  } else {
+    fromDate = new Date(toDate.getTime() - 30 * 24 * 60 * 60 * 1000);
+  }
 
   const conditions: string[] = [`timestamp >= $1`, `timestamp <= $2`];
   const params: unknown[] = [fromDate.toISOString(), toDate.toISOString()];
@@ -340,13 +376,30 @@ async function queryFromDb(filters: QueryFilters, options: QueryOptions): Promis
       params.push(action);
     }
   }
-  if (userId) { conditions.push(`user_id = $${idx++}`); params.push(userId); }
-  if (username) { conditions.push(`username = $${idx++}`); params.push(username); }
-  if (ip) { conditions.push(`ip = $${idx++}`); params.push(ip); }
-  if (result) { conditions.push(`result = $${idx++}`); params.push(result); }
-  if (level) { conditions.push(`level = $${idx++}`); params.push(level); }
+  if (userId) {
+    conditions.push(`user_id = $${idx++}`);
+    params.push(userId);
+  }
+  if (username) {
+    conditions.push(`username = $${idx++}`);
+    params.push(username);
+  }
+  if (ip) {
+    conditions.push(`ip = $${idx++}`);
+    params.push(ip);
+  }
+  if (result) {
+    conditions.push(`result = $${idx++}`);
+    params.push(result);
+  }
+  if (level) {
+    conditions.push(`level = $${idx++}`);
+    params.push(level);
+  }
   if (search) {
-    conditions.push(`(action ILIKE $${idx} OR username ILIKE $${idx} OR details::text ILIKE $${idx})`);
+    conditions.push(
+      `(action ILIKE $${idx} OR username ILIKE $${idx} OR details::text ILIKE $${idx})`
+    );
     params.push(`%${search}%`);
     idx++;
   }
@@ -357,7 +410,8 @@ async function queryFromDb(filters: QueryFilters, options: QueryOptions): Promis
   try {
     // Get total count
     const countResult = await dbPool.query(
-      `SELECT COUNT(*) AS total FROM audit_log WHERE ${where}`, params
+      `SELECT COUNT(*) AS total FROM audit_log WHERE ${where}`,
+      params
     );
     const total = Number(countResult.rows[0]?.total) || 0;
 
@@ -380,13 +434,19 @@ async function queryFromDb(filters: QueryFilters, options: QueryOptions): Promis
       username: r.username as string | null,
       ip: r.ip as string | null,
       userAgent: r.user_agent as string | null,
-      details: typeof r.details === 'string' ? JSON.parse(r.details) as Record<string, unknown> : ((r.details || {}) as Record<string, unknown>),
+      details:
+        typeof r.details === 'string'
+          ? (JSON.parse(r.details) as Record<string, unknown>)
+          : ((r.details || {}) as Record<string, unknown>),
       result: r.result as string,
       error: r.error as string | null,
     }));
 
     return {
-      entries, total, limit, offset,
+      entries,
+      total,
+      limit,
+      offset,
       from: fromDate.toISOString(),
       to: toDate.toISOString(),
     };
@@ -444,7 +504,7 @@ function getClientIP(req: HttpRequest | undefined): string | null {
   // Check for forwarded headers (behind proxy)
   const forwarded = req.headers?.['x-forwarded-for'];
   if (forwarded) {
-    const forwardedStr = Array.isArray(forwarded) ? forwarded[0] ?? '' : forwarded;
+    const forwardedStr = Array.isArray(forwarded) ? (forwarded[0] ?? '') : forwarded;
     return (forwardedStr.split(',')[0] ?? '').trim();
   }
 
@@ -484,7 +544,11 @@ function getActionLevel(action: string): string {
  * @param context - Request context (req, user)
  * @returns Created entry or null if disabled
  */
-export function log(action: string, details: Record<string, unknown> = {}, context: LogContext = {}): AuditEntry | null {
+export function log(
+  action: string,
+  details: Record<string, unknown> = {},
+  context: LogContext = {}
+): AuditEntry | null {
   if (!config.enabled || !logsDir) return null;
 
   // Check if action is excluded
@@ -532,7 +596,10 @@ export function log(action: string, details: Record<string, unknown> = {}, conte
  * @param options - Query options
  * @returns Query result
  */
-export function query(filters: QueryFilters = {}, options: QueryOptions = {}): QueryResult | Promise<QueryResult | null> {
+export function query(
+  filters: QueryFilters = {},
+  options: QueryOptions = {}
+): QueryResult | Promise<QueryResult | null> {
   if (!logsDir && !dbPool) return { entries: [], total: 0, limit: 100, offset: 0 };
 
   // Flush pending writes first
@@ -556,11 +623,7 @@ export function query(filters: QueryFilters = {}, options: QueryOptions = {}): Q
     search = null,
   } = filters;
 
-  const {
-    limit = 100,
-    offset = 0,
-    sortOrder = 'desc',
-  } = options;
+  const { limit = 100, offset = 0, sortOrder = 'desc' } = options;
 
   // Determine date range
   const toDate = to ? new Date(to) : new Date();
@@ -586,7 +649,7 @@ export function query(filters: QueryFilters = {}, options: QueryOptions = {}): Q
   }
 
   // Apply filters
-  let filtered = allEntries.filter((entry: AuditEntry) => {
+  const filtered = allEntries.filter((entry: AuditEntry) => {
     const entryDate = new Date(entry.timestamp);
 
     // Date range filter
@@ -620,11 +683,9 @@ export function query(filters: QueryFilters = {}, options: QueryOptions = {}): Q
     // Search filter (searches action, username, details)
     if (search) {
       const searchLower = search.toLowerCase();
-      const searchable = [
-        entry.action,
-        entry.username,
-        JSON.stringify(entry.details),
-      ].join(' ').toLowerCase();
+      const searchable = [entry.action, entry.username, JSON.stringify(entry.details)]
+        .join(' ')
+        .toLowerCase();
 
       if (!searchable.includes(searchLower)) return false;
     }
@@ -687,7 +748,10 @@ function getLogFilesInRange(from: Date, to: Date): string[] {
  * @param options - Query options
  * @returns Query result
  */
-export function getByUser(userId: string, options: QueryOptions = {}): QueryResult | Promise<QueryResult | null> {
+export function getByUser(
+  userId: string,
+  options: QueryOptions = {}
+): QueryResult | Promise<QueryResult | null> {
   return query({ userId }, options);
 }
 
@@ -700,7 +764,10 @@ export function getByUser(userId: string, options: QueryOptions = {}): QueryResu
  * @returns Query result
  */
 export function getByContent(type: string, id: string, options: QueryOptions = {}): QueryResult {
-  const result = query({ action: 'content.*' }, { ...options, limit: Number.MAX_SAFE_INTEGER }) as QueryResult;
+  const result = query(
+    { action: 'content.*' },
+    { ...options, limit: Number.MAX_SAFE_INTEGER }
+  ) as QueryResult;
 
   // Filter by content type and id in details
   const filtered = result.entries.filter((entry: AuditEntry) => {
@@ -792,11 +859,14 @@ export function prune(olderThan: number | Date | null = null): PruneResult {
  * @returns Statistics
  */
 export function getStats(options: { days?: number; from?: string; to?: string } = {}): AuditStats {
-  const result = query({
-    days: options.days || 30,
-    from: options.from || null,
-    to: options.to || null,
-  }, { limit: Number.MAX_SAFE_INTEGER }) as QueryResult;
+  const result = query(
+    {
+      days: options.days || 30,
+      from: options.from || null,
+      to: options.to || null,
+    },
+    { limit: Number.MAX_SAFE_INTEGER }
+  ) as QueryResult;
 
   const stats: AuditStats = {
     total: result.total,
@@ -835,18 +905,16 @@ export function getStats(options: { days?: number; from?: string; to?: string } 
   }
 
   // Sort byAction by count descending
-  stats.byAction = Object.fromEntries(
-    Object.entries(stats.byAction).sort((a, b) => b[1] - a[1])
-  );
+  stats.byAction = Object.fromEntries(Object.entries(stats.byAction).sort((a, b) => b[1] - a[1]));
 
   // Sort byUser by count descending
-  stats.byUser = Object.fromEntries(
-    Object.entries(stats.byUser).sort((a, b) => b[1] - a[1])
-  );
+  stats.byUser = Object.fromEntries(Object.entries(stats.byUser).sort((a, b) => b[1] - a[1]));
 
   // Limit topIPs to top 10
   stats.topIPs = Object.fromEntries(
-    Object.entries(stats.topIPs).sort((a, b) => b[1] - a[1]).slice(0, 10)
+    Object.entries(stats.topIPs)
+      .sort((a, b) => b[1] - a[1])
+      .slice(0, 10)
   );
 
   return stats;
@@ -881,7 +949,10 @@ export async function getEntry(id: string): Promise<AuditEntry | null> {
         username: r.username as string | null,
         ip: r.ip as string | null,
         userAgent: r.user_agent as string | null,
-        details: typeof r.details === 'string' ? JSON.parse(r.details) as Record<string, unknown> : ((r.details || {}) as Record<string, unknown>),
+        details:
+          typeof r.details === 'string'
+            ? (JSON.parse(r.details) as Record<string, unknown>)
+            : ((r.details || {}) as Record<string, unknown>),
         result: r.result as string,
         error: r.error as string | null,
       };
@@ -924,11 +995,17 @@ export function listLogFiles(): LogFileInfo[] {
   if (!logsDir || !existsSync(logsDir)) return [];
 
   const files: LogFileInfo[] = [];
-  const years = readdirSync(logsDir).filter((f: string) => /^\d{4}$/.test(f)).sort().reverse();
+  const years = readdirSync(logsDir)
+    .filter((f: string) => /^\d{4}$/.test(f))
+    .sort()
+    .reverse();
 
   for (const year of years) {
     const yearDir = join(logsDir, year);
-    const months = readdirSync(yearDir).filter((f: string) => f.endsWith('.json')).sort().reverse();
+    const months = readdirSync(yearDir)
+      .filter((f: string) => f.endsWith('.json'))
+      .sort()
+      .reverse();
 
     for (const monthFile of months) {
       const path = join(yearDir, monthFile);
@@ -975,7 +1052,18 @@ export function exportLogs(filters: QueryFilters = {}, format: 'json' | 'csv' = 
   const result = query(filters, { limit: Number.MAX_SAFE_INTEGER }) as QueryResult;
 
   if (format === 'csv') {
-    const headers = ['id', 'timestamp', 'action', 'level', 'userId', 'username', 'ip', 'result', 'error', 'details'];
+    const headers = [
+      'id',
+      'timestamp',
+      'action',
+      'level',
+      'userId',
+      'username',
+      'ip',
+      'result',
+      'error',
+      'details',
+    ];
     const rows = result.entries.map((entry: AuditEntry) => [
       entry.id,
       entry.timestamp,
@@ -991,24 +1079,32 @@ export function exportLogs(filters: QueryFilters = {}, format: 'json' | 'csv' = 
 
     const csvRows: string[] = [headers.join(',')];
     for (const row of rows) {
-      csvRows.push(row.map((cell: string | null) => {
-        const str = String(cell);
-        if (str.includes(',') || str.includes('"') || str.includes('\n')) {
-          return `"${str.replace(/"/g, '""')}"`;
-        }
-        return str;
-      }).join(','));
+      csvRows.push(
+        row
+          .map((cell: string | null) => {
+            const str = String(cell);
+            if (str.includes(',') || str.includes('"') || str.includes('\n')) {
+              return `"${str.replace(/"/g, '""')}"`;
+            }
+            return str;
+          })
+          .join(',')
+      );
     }
 
     return csvRows.join('\n');
   }
 
-  return JSON.stringify({
-    exported: new Date().toISOString(),
-    filters,
-    total: result.total,
-    entries: result.entries,
-  }, null, 2);
+  return JSON.stringify(
+    {
+      exported: new Date().toISOString(),
+      filters,
+      total: result.total,
+      entries: result.entries,
+    },
+    null,
+    2
+  );
 }
 
 /**
@@ -1033,34 +1129,82 @@ export function isEnabled(): boolean {
  * Convenience logging functions for common actions
  */
 
-export function logAuth(action: string, user: UserContext | undefined, req: HttpRequest | undefined, details: Record<string, unknown> = {}, result: string = 'success', error: string | null = null): AuditEntry | null {
+export function logAuth(
+  action: string,
+  user: UserContext | undefined,
+  req: HttpRequest | undefined,
+  details: Record<string, unknown> = {},
+  result: string = 'success',
+  error: string | null = null
+): AuditEntry | null {
   return log(`auth.${action}`, details, { req, user, result, error });
 }
 
-export function logContent(action: string, type: string, id: string, user: UserContext | undefined, req: HttpRequest | undefined, extraDetails: Record<string, unknown> = {}): AuditEntry | null {
+export function logContent(
+  action: string,
+  type: string,
+  id: string,
+  user: UserContext | undefined,
+  req: HttpRequest | undefined,
+  extraDetails: Record<string, unknown> = {}
+): AuditEntry | null {
   return log(`content.${action}`, { type, id, ...extraDetails }, { req, user });
 }
 
-export function logUser(action: string, targetUser: TargetUser | undefined, user: UserContext | undefined, req: HttpRequest | undefined, extraDetails: Record<string, unknown> = {}): AuditEntry | null {
-  return log(`user.${action}`, { targetUserId: targetUser?.id, targetUsername: targetUser?.username, ...extraDetails }, { req, user });
+export function logUser(
+  action: string,
+  targetUser: TargetUser | undefined,
+  user: UserContext | undefined,
+  req: HttpRequest | undefined,
+  extraDetails: Record<string, unknown> = {}
+): AuditEntry | null {
+  return log(
+    `user.${action}`,
+    { targetUserId: targetUser?.id, targetUsername: targetUser?.username, ...extraDetails },
+    { req, user }
+  );
 }
 
-export function logPlugin(action: string, pluginName: string, user: UserContext | undefined, req: HttpRequest | undefined, extraDetails: Record<string, unknown> = {}): AuditEntry | null {
+export function logPlugin(
+  action: string,
+  pluginName: string,
+  user: UserContext | undefined,
+  req: HttpRequest | undefined,
+  extraDetails: Record<string, unknown> = {}
+): AuditEntry | null {
   return log(`plugin.${action}`, { plugin: pluginName, ...extraDetails }, { req, user });
 }
 
-export function logConfig(action: string, user: UserContext | undefined, req: HttpRequest | undefined, extraDetails: Record<string, unknown> = {}): AuditEntry | null {
+export function logConfig(
+  action: string,
+  user: UserContext | undefined,
+  req: HttpRequest | undefined,
+  extraDetails: Record<string, unknown> = {}
+): AuditEntry | null {
   return log(`config.${action}`, extraDetails, { req, user });
 }
 
-export function logExport(action: string, user: UserContext | undefined, req: HttpRequest | undefined, extraDetails: Record<string, unknown> = {}): AuditEntry | null {
+export function logExport(
+  action: string,
+  user: UserContext | undefined,
+  req: HttpRequest | undefined,
+  extraDetails: Record<string, unknown> = {}
+): AuditEntry | null {
   return log(`export.${action}`, extraDetails, { req, user });
 }
 
-export function logImport(action: string, user: UserContext | undefined, req: HttpRequest | undefined, extraDetails: Record<string, unknown> = {}): AuditEntry | null {
+export function logImport(
+  action: string,
+  user: UserContext | undefined,
+  req: HttpRequest | undefined,
+  extraDetails: Record<string, unknown> = {}
+): AuditEntry | null {
   return log(`import.${action}`, extraDetails, { req, user });
 }
 
-export function logSystem(action: string, details: Record<string, unknown> = {}): AuditEntry | null {
+export function logSystem(
+  action: string,
+  details: Record<string, unknown> = {}
+): AuditEntry | null {
   return log(`system.${action}`, details, {});
 }

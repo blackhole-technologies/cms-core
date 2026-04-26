@@ -28,7 +28,14 @@
  *   const total = await aiStats.getTotalCost();
  */
 
-import { existsSync, mkdirSync, readFileSync, writeFileSync, readdirSync, unlinkSync } from 'node:fs';
+import {
+  existsSync,
+  mkdirSync,
+  readdirSync,
+  readFileSync,
+  unlinkSync,
+  writeFileSync,
+} from 'node:fs';
 import { join } from 'node:path';
 
 // ============================================================================
@@ -250,13 +257,24 @@ function persistEventsToDb(events: FullAIEvent[]): void {
   if (!dbPool || events.length === 0) return;
 
   for (const e of events) {
-    dbPool.query(
-      `INSERT INTO ai_stats (timestamp, provider, operation, tokens_in, tokens_out,
+    dbPool
+      .query(
+        `INSERT INTO ai_stats (timestamp, provider, operation, tokens_in, tokens_out,
                               cost, response_time, status, error)
        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)`,
-      [e.timestamp, e.provider, e.operation, e.tokensIn, e.tokensOut,
-       e.cost, e.responseTime, e.status, e.error]
-    ).catch((err: Error) => console.warn(`[ai-stats] Failed to persist to DB: ${err.message}`));
+        [
+          e.timestamp,
+          e.provider,
+          e.operation,
+          e.tokensIn,
+          e.tokensOut,
+          e.cost,
+          e.responseTime,
+          e.status,
+          e.error,
+        ]
+      )
+      .catch((err: Error) => console.warn(`[ai-stats] Failed to persist to DB: ${err.message}`));
   }
 }
 
@@ -267,7 +285,11 @@ function persistEventsToDb(events: FullAIEvent[]): void {
  * @param provider - Filter by provider
  * @returns Array of events or null if no DB
  */
-async function queryEventsFromDb(startDate: string, endDate: string, provider: string | null = null): Promise<FullAIEvent[] | null> {
+async function queryEventsFromDb(
+  startDate: string,
+  endDate: string,
+  provider: string | null = null
+): Promise<FullAIEvent[] | null> {
   if (!dbPool) return null;
 
   const conditions: string[] = [`timestamp >= $1`, `timestamp < $2`];
@@ -595,7 +617,7 @@ export async function getByProvider(provider: string, days: number = 30): Promis
       try {
         const content = readFileSync(filePath, 'utf-8');
         const events = JSON.parse(content) as FullAIEvent[];
-        allEvents.push(...events.filter(e => e.provider === provider));
+        allEvents.push(...events.filter((e) => e.provider === provider));
       } catch {
         // Skip files with errors
       }
@@ -722,8 +744,8 @@ export function getAvailableDates(): string[] {
 
   const files = readdirSync(statsDir);
   return files
-    .filter(f => f.endsWith('.json'))
-    .map(f => f.replace('.json', ''))
+    .filter((f) => f.endsWith('.json'))
+    .map((f) => f.replace('.json', ''))
     .sort()
     .reverse(); // Most recent first
 }
@@ -831,28 +853,30 @@ export function listFullLogs(date: string, limit: number = 50): LogEntrySummary[
 
   try {
     const files = readdirSync(dayDir)
-      .filter(f => f.endsWith('.json'))
+      .filter((f) => f.endsWith('.json'))
       .sort()
       .reverse()
       .slice(0, limit);
 
-    return files.map(f => {
-      try {
-        const data = JSON.parse(readFileSync(join(dayDir, f), 'utf-8')) as StoredLogEntry;
-        // Return summary without full payloads
-        return {
-          id: data.id,
-          timestamp: data.timestamp,
-          provider: data.provider,
-          operation: data.operation,
-          status: data.status,
-          responseTime: data.responseTime,
-          error: data.error,
-        };
-      } catch {
-        return null;
-      }
-    }).filter((entry): entry is LogEntrySummary => entry !== null);
+    return files
+      .map((f) => {
+        try {
+          const data = JSON.parse(readFileSync(join(dayDir, f), 'utf-8')) as StoredLogEntry;
+          // Return summary without full payloads
+          return {
+            id: data.id,
+            timestamp: data.timestamp,
+            provider: data.provider,
+            operation: data.operation,
+            status: data.status,
+            responseTime: data.responseTime,
+            error: data.error,
+          };
+        } catch {
+          return null;
+        }
+      })
+      .filter((entry): entry is LogEntrySummary => entry !== null);
   } catch {
     return [];
   }

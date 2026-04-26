@@ -31,7 +31,15 @@
  * Pre-computed summaries for dashboard performance.
  */
 
-import { readFileSync, writeFileSync, existsSync, mkdirSync, readdirSync, statSync, unlinkSync } from 'node:fs';
+import {
+  existsSync,
+  mkdirSync,
+  readdirSync,
+  readFileSync,
+  statSync,
+  unlinkSync,
+  writeFileSync,
+} from 'node:fs';
 import { join } from 'node:path';
 
 // ============================================================================
@@ -71,7 +79,12 @@ interface TrackContext {
 
 /** Scheduler service interface */
 interface SchedulerService {
-  schedule: (id: string, expression: string, handler: () => Promise<void>, options?: Record<string, unknown>) => void;
+  schedule: (
+    id: string,
+    expression: string,
+    handler: () => Promise<void>,
+    options?: Record<string, unknown>
+  ) => void;
 }
 
 /** Hooks service interface */
@@ -105,7 +118,13 @@ interface UserActivityStats {
   totalLogins: number;
   totalCreates: number;
   totalUpdates: number;
-  topUsers: Array<{ userId: string; logins: number; creates: number; updates: number; total: number }>;
+  topUsers: Array<{
+    userId: string;
+    logins: number;
+    creates: number;
+    updates: number;
+    total: number;
+  }>;
 }
 
 /** Popular content entry */
@@ -146,7 +165,13 @@ interface AggregateCache {
   week?: DashboardSummary;
   month?: DashboardSummary;
   popularContent?: PopularContentEntry[];
-  topUsers?: Array<{ userId: string; logins: number; creates: number; updates: number; total: number }>;
+  topUsers?: Array<{
+    userId: string;
+    logins: number;
+    creates: number;
+    updates: number;
+    total: number;
+  }>;
 }
 
 /** System stats */
@@ -171,7 +196,7 @@ let config: AnalyticsConfig = {
   trackPageViews: true,
   trackApi: true,
   retention: 90,
-  aggregateSchedule: '0 * * * *'
+  aggregateSchedule: '0 * * * *',
 };
 
 /**
@@ -336,16 +361,28 @@ function persistEventsToDb(events: AnalyticsEvent[]): void {
   if (!dbPool || events.length === 0) return;
 
   for (const e of events) {
-    dbPool.query(
-      `INSERT INTO analytics_events (event, timestamp, ip, user_agent, user_id, data)
+    dbPool
+      .query(
+        `INSERT INTO analytics_events (event, timestamp, ip, user_agent, user_id, data)
        VALUES ($1, $2, $3, $4, $5, $6)`,
-      [
-        e.event, e.timestamp, e.ip || null, e.userAgent || null, e.userId || null,
-        JSON.stringify(Object.fromEntries(
-          Object.entries(e).filter(([k]) => !['event', 'timestamp', 'ip', 'userAgent', 'userId'].includes(k))
-        )),
-      ]
-    ).catch((err: Error) => console.warn(`[analytics] Failed to persist event to DB: ${err.message}`));
+        [
+          e.event,
+          e.timestamp,
+          e.ip || null,
+          e.userAgent || null,
+          e.userId || null,
+          JSON.stringify(
+            Object.fromEntries(
+              Object.entries(e).filter(
+                ([k]) => !['event', 'timestamp', 'ip', 'userAgent', 'userId'].includes(k)
+              )
+            )
+          ),
+        ]
+      )
+      .catch((err: Error) =>
+        console.warn(`[analytics] Failed to persist event to DB: ${err.message}`)
+      );
   }
 }
 
@@ -357,7 +394,11 @@ function persistEventsToDb(events: AnalyticsEvent[]): void {
  * @param eventType - Event type filter
  * @returns Events array or null
  */
-async function queryEventsFromDb(start: Date, end: Date, eventType: string | null = null): Promise<AnalyticsEvent[] | null> {
+async function queryEventsFromDb(
+  start: Date,
+  end: Date,
+  eventType: string | null = null
+): Promise<AnalyticsEvent[] | null> {
   if (!dbPool) return null;
 
   const conditions: string[] = [`timestamp >= $1`, `timestamp <= $2`];
@@ -379,7 +420,10 @@ async function queryEventsFromDb(start: Date, end: Date, eventType: string | nul
     );
 
     return result.rows.map((r: Record<string, unknown>) => {
-      const data = typeof r.data === 'string' ? JSON.parse(r.data) as Record<string, unknown> : ((r.data || {}) as Record<string, unknown>);
+      const data =
+        typeof r.data === 'string'
+          ? (JSON.parse(r.data) as Record<string, unknown>)
+          : ((r.data || {}) as Record<string, unknown>);
       return {
         event: r.event as string,
         timestamp: new Date(r.timestamp as string).toISOString(),
@@ -425,7 +469,11 @@ function getDayFile(dayKey: string): string {
  * @param data - Event data
  * @param context - Request context (ip, userAgent, userId)
  */
-export function track(event: string, data: Record<string, unknown> = {}, context: TrackContext = {}): void {
+export function track(
+  event: string,
+  data: Record<string, unknown> = {},
+  context: TrackContext = {}
+): void {
   if (!config.enabled) return;
 
   const now = new Date();
@@ -443,7 +491,7 @@ export function track(event: string, data: Record<string, unknown> = {}, context
     ...data,
     ip: context.ip || null,
     userAgent: context.userAgent || null,
-    userId: context.userId || null
+    userId: context.userId || null,
   };
 
   eventBuffer.push(record);
@@ -485,7 +533,13 @@ export function trackContentView(type: string, id: string, context: TrackContext
  * @param duration - Request duration in ms
  * @param context - Request context
  */
-export function trackApiRequest(method: string, path: string, status: number, duration: number, context: TrackContext = {}): void {
+export function trackApiRequest(
+  method: string,
+  path: string,
+  status: number,
+  duration: number,
+  context: TrackContext = {}
+): void {
   if (!config.trackApi) return;
   track('api.request', { method, path, status, duration }, context);
 }
@@ -544,7 +598,11 @@ export function flushBuffer(): void {
  * @param eventType - Filter by event type
  * @returns Events array (or Promise in DB mode)
  */
-export function getEvents(start: Date | string, end: Date | string, eventType: string | null = null): AnalyticsEvent[] | Promise<AnalyticsEvent[] | null> {
+export function getEvents(
+  start: Date | string,
+  end: Date | string,
+  eventType: string | null = null
+): AnalyticsEvent[] | Promise<AnalyticsEvent[] | null> {
   const startDate = new Date(start);
   const endDate = new Date(end);
 
@@ -592,9 +650,7 @@ export function getEvents(start: Date | string, end: Date | string, eventType: s
  * @returns Page view stats
  */
 export function getPageViews(options: { days?: number; groupBy?: string } = {}): PageViewStats {
-  const {
-    days = 30,
-  } = options;
+  const { days = 30 } = options;
 
   const end = new Date();
   const start = new Date();
@@ -628,7 +684,7 @@ export function getPageViews(options: { days?: number; groupBy?: string } = {}):
       .map(([path, count]) => ({ path, count })),
     byDay: Object.entries(byDay)
       .sort((a, b) => a[0].localeCompare(b[0]))
-      .map(([day, count]) => ({ day, count }))
+      .map(([day, count]) => ({ day, count })),
   };
 }
 
@@ -639,7 +695,10 @@ export function getPageViews(options: { days?: number; groupBy?: string } = {}):
  * @param id - Content ID (optional)
  * @returns Content stats
  */
-export function getContentStats(type: string | null = null, id: string | null = null): ContentStats {
+export function getContentStats(
+  type: string | null = null,
+  id: string | null = null
+): ContentStats {
   const end = new Date();
   const start = new Date();
   start.setDate(start.getDate() - 30);
@@ -678,7 +737,7 @@ export function getContentStats(type: string | null = null, id: string | null = 
       .map(([key, views]) => {
         const parts = key.split('/');
         return { type: parts[0] ?? '', id: parts[1] ?? '', views };
-      })
+      }),
   };
 }
 
@@ -708,7 +767,10 @@ export function getUserActivity(userId: string | null = null): UserActivityStats
   const updates = filterByUser(updateEvents);
 
   // Aggregate by user
-  const activityByUser: Record<string, { logins: number; creates: number; updates: number; total: number }> = {};
+  const activityByUser: Record<
+    string,
+    { logins: number; creates: number; updates: number; total: number }
+  > = {};
 
   const addActivity = (events: AnalyticsEvent[], type: 'logins' | 'creates' | 'updates'): void => {
     for (const event of events) {
@@ -732,7 +794,7 @@ export function getUserActivity(userId: string | null = null): UserActivityStats
     topUsers: Object.entries(activityByUser)
       .sort((a, b) => b[1].total - a[1].total)
       .slice(0, 10)
-      .map(([uid, stats]) => ({ userId: uid, ...stats }))
+      .map(([uid, stats]) => ({ userId: uid, ...stats })),
   };
 }
 
@@ -743,7 +805,10 @@ export function getUserActivity(userId: string | null = null): UserActivityStats
  * @param options - Query options
  * @returns Popular content entries
  */
-export function getPopularContent(type: string | null = null, options: { days?: number; limit?: number } = {}): PopularContentEntry[] {
+export function getPopularContent(
+  type: string | null = null,
+  options: { days?: number; limit?: number } = {}
+): PopularContentEntry[] {
   const { days = 30, limit = 10 } = options;
 
   const end = new Date();
@@ -753,9 +818,7 @@ export function getPopularContent(type: string | null = null, options: { days?: 
   const viewEvents = getEvents(start, end, 'content.view') as AnalyticsEvent[];
 
   // Filter by type
-  const filtered = type
-    ? viewEvents.filter((e: AnalyticsEvent) => e.type === type)
-    : viewEvents;
+  const filtered = type ? viewEvents.filter((e: AnalyticsEvent) => e.type === type) : viewEvents;
 
   // Aggregate
   const viewsByContent: Record<string, number> = {};
@@ -841,7 +904,7 @@ export function getSummary(period: string = 'week'): DashboardSummary {
     contentCreated: contentCreates.length,
     contentUpdated: contentUpdates.length,
     logins: logins.length,
-    searches: searches.length
+    searches: searches.length,
   };
 }
 
@@ -852,7 +915,10 @@ export function getSummary(period: string = 'week'): DashboardSummary {
  * @param options - Query options
  * @returns Chart data
  */
-export function getChartData(metric: string, options: { days?: number; groupBy?: string } = {}): ChartData {
+export function getChartData(
+  metric: string,
+  options: { days?: number; groupBy?: string } = {}
+): ChartData {
   const { days = 30 } = options;
 
   const end = new Date();
@@ -905,7 +971,7 @@ export function getChartData(metric: string, options: { days?: number; groupBy?:
     metric,
     labels,
     data,
-    total: events.length
+    total: events.length,
   };
 }
 
@@ -938,23 +1004,22 @@ export function runAggregation(): AggregateCache {
     week: weekSummary,
     month: monthSummary,
     popularContent,
-    topUsers: userActivity.topUsers
+    topUsers: userActivity.topUsers,
   };
 
   // Save to disk or DB
   if (dbPool) {
-    dbPool.query(
-      `INSERT INTO analytics_events (event, timestamp, ip, user_agent, user_id, data)
+    dbPool
+      .query(
+        `INSERT INTO analytics_events (event, timestamp, ip, user_agent, user_id, data)
        VALUES ('_aggregate_cache', NOW(), NULL, NULL, NULL, $1)
        ON CONFLICT DO NOTHING`,
-      [JSON.stringify(aggregateCache)]
-    ).catch(() => {});
+        [JSON.stringify(aggregateCache)]
+      )
+      .catch(() => {});
   } else {
     try {
-      writeFileSync(
-        join(aggregatesDir, 'summary.json'),
-        JSON.stringify(aggregateCache, null, 2)
-      );
+      writeFileSync(join(aggregatesDir, 'summary.json'), JSON.stringify(aggregateCache, null, 2));
     } catch (e: unknown) {
       const message = e instanceof Error ? e.message : String(e);
       console.error('[analytics] Failed to save aggregates:', message);
@@ -1063,7 +1128,7 @@ export function getStats(): SystemStats {
     totalEvents,
     totalDays,
     bufferSize: eventBuffer.length,
-    lastAggregation: aggregateCache.updatedAt || null
+    lastAggregation: aggregateCache.updatedAt || null,
   };
 }
 

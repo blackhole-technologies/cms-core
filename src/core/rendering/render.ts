@@ -8,7 +8,7 @@
  * @version 1.0.0
  */
 
-import { escapeHtml } from './utils.ts';
+import { escapeHtml } from '../../../core/utils.ts';
 
 // ===========================================
 // Types
@@ -58,7 +58,9 @@ interface RenderElement {
   '#cache'?: RenderCacheConfig;
   '#attached'?: Partial<AttachedAssets>;
   '#pre_render'?: Array<(element: RenderElement, context: RenderContext) => RenderElement | void>;
-  '#post_render'?: Array<(html: string, element: RenderElement, context: RenderContext) => string | void>;
+  '#post_render'?: Array<
+    (html: string, element: RenderElement, context: RenderContext) => string | void
+  >;
   '#attributes'?: HtmlAttributes;
   '#title'?: string;
   '#open'?: boolean;
@@ -134,7 +136,7 @@ class RenderContext {
       drupalSettings: {},
       html_head: [],
       html_head_link: [],
-      http_header: []
+      http_header: [],
     };
   }
 
@@ -145,11 +147,11 @@ class RenderContext {
     if (!other) return;
 
     if (other.cacheTags) {
-      other.cacheTags.forEach(tag => this.cacheTags.add(tag));
+      other.cacheTags.forEach((tag) => this.cacheTags.add(tag));
     }
 
     if (other.cacheContexts) {
-      other.cacheContexts.forEach(ctx => this.cacheContexts.add(ctx));
+      other.cacheContexts.forEach((ctx) => this.cacheContexts.add(ctx));
     }
 
     if (other.cacheMaxAge !== null && other.cacheMaxAge !== undefined) {
@@ -163,12 +165,12 @@ class RenderContext {
     if (other.attachedAssets) {
       const assets = other.attachedAssets;
       if (assets.library) {
-        assets.library.forEach(lib => this.attachedAssets.library.add(lib));
+        assets.library.forEach((lib) => this.attachedAssets.library.add(lib));
       }
       if (assets.drupalSettings) {
         Object.assign(this.attachedAssets.drupalSettings, assets.drupalSettings);
       }
-      (['html_head', 'html_head_link', 'http_header'] as const).forEach(key => {
+      (['html_head', 'html_head_link', 'http_header'] as const).forEach((key) => {
         if (assets[key]) {
           this.attachedAssets[key].push(...assets[key]);
         }
@@ -196,7 +198,10 @@ const themeRegistry: Map<string, RenderFunction> = new Map();
  * @param context - Optional render context
  * @returns Rendered HTML
  */
-export function render(element: RenderElement | null | undefined, context: RenderContext | null = null): string {
+export function render(
+  element: RenderElement | null | undefined,
+  context: RenderContext | null = null
+): string {
   if (!element || typeof element !== 'object') {
     return '';
   }
@@ -228,8 +233,8 @@ export function renderRoot(element: RenderElement): RenderRootResult {
       drupalSettings: context.attachedAssets.drupalSettings,
       html_head: context.attachedAssets.html_head,
       html_head_link: context.attachedAssets.html_head_link,
-      http_header: context.attachedAssets.http_header
-    }
+      http_header: context.attachedAssets.http_header,
+    },
   };
 }
 
@@ -260,7 +265,10 @@ export function renderPlain(element: RenderElement | null | undefined): string {
  * @param context - Render context
  * @returns Processed element
  */
-export function processElement(element: RenderElement | null, context: RenderContext): RenderElement | null {
+export function processElement(
+  element: RenderElement | null,
+  context: RenderContext
+): RenderElement | null {
   if (!element || element['#printed']) {
     return element;
   }
@@ -328,7 +336,7 @@ export function sortChildren(element: RenderElement | null | undefined): string[
     if (child && typeof child === 'object') {
       children.push({
         key,
-        weight: (child as RenderElement)['#weight'] || 0
+        weight: (child as RenderElement)['#weight'] || 0,
       });
     }
   }
@@ -341,7 +349,7 @@ export function sortChildren(element: RenderElement | null | undefined): string[
     return a.key.localeCompare(b.key);
   });
 
-  return children.map(c => c.key);
+  return children.map((c) => c.key);
 }
 
 /**
@@ -360,7 +368,7 @@ export function getCacheMetadata(element: RenderElement | null | undefined): Cac
   return {
     tags: cache.tags || [],
     contexts: cache.contexts || [],
-    maxAge: cache.max_age !== undefined ? cache.max_age : null
+    maxAge: cache.max_age !== undefined ? cache.max_age : null,
   };
 }
 
@@ -375,8 +383,8 @@ function bubbleCacheMetadata(element: RenderElement | null, context: RenderConte
 
   const cache = getCacheMetadata(element);
 
-  cache.tags.forEach(tag => context.cacheTags.add(tag));
-  cache.contexts.forEach(ctx => context.cacheContexts.add(ctx));
+  cache.tags.forEach((tag) => context.cacheTags.add(tag));
+  cache.contexts.forEach((ctx) => context.cacheContexts.add(ctx));
 
   if (cache.maxAge !== null) {
     if (context.cacheMaxAge === null) {
@@ -401,14 +409,14 @@ function bubbleAttachedAssets(element: RenderElement | null, context: RenderCont
 
   if (attached.library) {
     const libs = Array.isArray(attached.library) ? attached.library : [attached.library];
-    (libs as string[]).forEach(lib => context.attachedAssets.library.add(lib));
+    (libs as string[]).forEach((lib) => context.attachedAssets.library.add(lib));
   }
 
   if (attached.drupalSettings) {
     Object.assign(context.attachedAssets.drupalSettings, attached.drupalSettings);
   }
 
-  (['html_head', 'html_head_link', 'http_header'] as const).forEach(key => {
+  (['html_head', 'html_head_link', 'http_header'] as const).forEach((key) => {
     if (attached[key]) {
       const items = Array.isArray(attached[key]) ? attached[key] : [attached[key]];
       context.attachedAssets[key].push(...(items as unknown[]));
@@ -423,7 +431,10 @@ function bubbleAttachedAssets(element: RenderElement | null, context: RenderCont
  * @param context - Render context
  * @returns Rendered HTML
  */
-export function doRender(element: RenderElement | string | number | null | undefined, context: RenderContext): string {
+export function doRender(
+  element: RenderElement | string | number | null | undefined,
+  context: RenderContext
+): string {
   // Handle non-objects
   if (!element || typeof element !== 'object') {
     if (typeof element === 'string') return element;
@@ -512,7 +523,10 @@ export function doRender(element: RenderElement | string | number | null | undef
  * @param context - Render context
  * @returns Rendered children HTML
  */
-export function renderChildren(element: RenderElement | null | undefined, context: RenderContext): string {
+export function renderChildren(
+  element: RenderElement | null | undefined,
+  context: RenderContext
+): string {
   if (!element || typeof element !== 'object') {
     return '';
   }
@@ -619,7 +633,7 @@ function buildAttributes(attributes: HtmlAttributes | null | undefined): string 
 
     // Handle array values (like class)
     if (Array.isArray(value)) {
-      const joined = (value as string[]).filter(v => v).join(' ');
+      const joined = (value as string[]).filter((v) => v).join(' ');
       if (joined) {
         parts.push(`${escapeHtml(key)}="${escapeHtml(joined)}"`);
       }
@@ -738,8 +752,20 @@ registerElementType('html_tag', (element: RenderElement, context: RenderContext)
 
   // Self-closing tags
   const voidElements = new Set([
-    'area', 'base', 'br', 'col', 'embed', 'hr', 'img', 'input',
-    'link', 'meta', 'param', 'source', 'track', 'wbr'
+    'area',
+    'base',
+    'br',
+    'col',
+    'embed',
+    'hr',
+    'img',
+    'input',
+    'link',
+    'meta',
+    'param',
+    'source',
+    'track',
+    'wbr',
   ]);
 
   if (voidElements.has(tag)) {
@@ -774,19 +800,22 @@ registerElementType('link', (element: RenderElement, _context: RenderContext): s
 /**
  * Inline template element - simple template string
  */
-registerElementType('inline_template', (element: RenderElement, _context: RenderContext): string => {
-  const tmpl = (element['#template'] as string) || '';
-  const contextData = (element['#context'] as Record<string, unknown>) || {};
+registerElementType(
+  'inline_template',
+  (element: RenderElement, _context: RenderContext): string => {
+    const tmpl = (element['#template'] as string) || '';
+    const contextData = (element['#context'] as Record<string, unknown>) || {};
 
-  // Simple template replacement: {{ variable }}
-  let html = tmpl;
-  for (const [key, value] of Object.entries(contextData)) {
-    const regex = new RegExp(`{{\\s*${key}\\s*}}`, 'g');
-    html = html.replace(regex, escapeHtml(String(value)));
+    // Simple template replacement: {{ variable }}
+    let html = tmpl;
+    for (const [key, value] of Object.entries(contextData)) {
+      const regex = new RegExp(`{{\\s*${key}\\s*}}`, 'g');
+      html = html.replace(regex, escapeHtml(String(value)));
+    }
+
+    return html;
   }
-
-  return html;
-});
+);
 
 /**
  * Processed text element - text with format applied
@@ -831,7 +860,8 @@ registerElementType('details', (element: RenderElement, context: RenderContext):
  * Item list element - ul or ol list
  */
 registerElementType('item_list', (element: RenderElement, _context: RenderContext): string => {
-  const items = (element['#items'] as Array<string | { value?: string; attributes?: HtmlAttributes }>) || [];
+  const items =
+    (element['#items'] as Array<string | { value?: string; attributes?: HtmlAttributes }>) || [];
   const listType = (element['#list_type'] as string) || 'ul';
   const attributes = (element['#attributes'] as HtmlAttributes) || {};
   const title = element['#title'] as string | undefined;
@@ -841,17 +871,19 @@ registerElementType('item_list', (element: RenderElement, _context: RenderContex
     return '';
   }
 
-  const itemsHtml = items.map(item => {
-    if (typeof item === 'string') {
-      return `  <li>${escapeHtml(item)}</li>`;
-    }
-    if (typeof item === 'object') {
-      const itemAttrs = buildAttributes(item.attributes || {});
-      const value = item.value || '';
-      return `  <li${itemAttrs}>${escapeHtml(value)}</li>`;
-    }
-    return '';
-  }).join('\n');
+  const itemsHtml = items
+    .map((item) => {
+      if (typeof item === 'string') {
+        return `  <li>${escapeHtml(item)}</li>`;
+      }
+      if (typeof item === 'object') {
+        const itemAttrs = buildAttributes(item.attributes || {});
+        const value = item.value || '';
+        return `  <li${itemAttrs}>${escapeHtml(value)}</li>`;
+      }
+      return '';
+    })
+    .join('\n');
 
   let html = '';
   if (title) {
@@ -866,8 +898,11 @@ registerElementType('item_list', (element: RenderElement, _context: RenderContex
  * Table element - HTML table
  */
 registerElementType('table', (element: RenderElement, _context: RenderContext): string => {
-  const header = (element['#header'] as Array<string | { data?: string; attributes?: HtmlAttributes }>) || [];
-  const rows = (element['#rows'] as Array<{ data?: unknown[]; attributes?: HtmlAttributes } | unknown[]>) || [];
+  const header =
+    (element['#header'] as Array<string | { data?: string; attributes?: HtmlAttributes }>) || [];
+  const rows =
+    (element['#rows'] as Array<{ data?: unknown[]; attributes?: HtmlAttributes } | unknown[]>) ||
+    [];
   const attributes = (element['#attributes'] as HtmlAttributes) || {};
   const attrString = buildAttributes(attributes);
   const caption = element['#caption'] as string | undefined;
@@ -880,7 +915,7 @@ registerElementType('table', (element: RenderElement, _context: RenderContext): 
 
   if (header.length > 0) {
     html += '\n  <thead>\n    <tr>';
-    header.forEach(cell => {
+    header.forEach((cell) => {
       const cellObj = cell as { data?: string; attributes?: HtmlAttributes };
       const cellAttrs = buildAttributes(cellObj.attributes || {});
       const content = cellObj.data || cell;
@@ -891,13 +926,13 @@ registerElementType('table', (element: RenderElement, _context: RenderContext): 
 
   if (rows.length > 0) {
     html += '\n  <tbody>';
-    rows.forEach(row => {
+    rows.forEach((row) => {
       const rowObj = row as { data?: unknown[]; attributes?: HtmlAttributes };
       const rowAttrs = buildAttributes(rowObj.attributes || {});
       html += `\n    <tr${rowAttrs}>`;
 
       const cells = rowObj.data || row;
-      (Array.isArray(cells) ? cells : [cells]).forEach(cell => {
+      (Array.isArray(cells) ? cells : [cells]).forEach((cell) => {
         const cellObj = cell as { data?: string; attributes?: HtmlAttributes };
         const cellAttrs = buildAttributes(cellObj.attributes || {});
         const content = cellObj.data || cell;
@@ -925,7 +960,7 @@ registerElementType('form', (element: RenderElement, context: RenderContext): st
   const formAttrs: HtmlAttributes = {
     ...attributes,
     action,
-    method
+    method,
   };
   const attrString = buildAttributes(formAttrs);
 
@@ -949,7 +984,7 @@ registerElementType('textfield', (element: RenderElement, _context: RenderContex
     type,
     name,
     value,
-    required
+    required,
   };
   const attrString = buildAttributes(inputAttrs);
 
@@ -971,7 +1006,7 @@ registerElementType('textarea', (element: RenderElement, _context: RenderContext
     ...attributes,
     name,
     required,
-    rows: String(rows)
+    rows: String(rows),
   };
   if (cols) textareaAttrs.cols = String(cols);
 
@@ -995,7 +1030,7 @@ registerElementType('select', (element: RenderElement, _context: RenderContext):
     ...attributes,
     name,
     required,
-    multiple
+    multiple,
   };
   const attrString = buildAttributes(selectAttrs);
 
@@ -1024,7 +1059,7 @@ registerElementType('checkbox', (element: RenderElement, _context: RenderContext
     name,
     value,
     checked,
-    required
+    required,
   };
   const attrString = buildAttributes(inputAttrs);
 
@@ -1067,7 +1102,7 @@ registerElementType('button', (element: RenderElement, _context: RenderContext):
   const buttonAttrs: HtmlAttributes = {
     ...attributes,
     type,
-    name
+    name,
   };
   const attrString = buildAttributes(buttonAttrs);
 
@@ -1178,10 +1213,13 @@ function sanitizeHtml(html: string): string {
  * @param properties - Element properties
  * @returns Render array element
  */
-export function createElement(type: string, properties: Partial<RenderElement> = {}): RenderElement {
+export function createElement(
+  type: string,
+  properties: Partial<RenderElement> = {}
+): RenderElement {
   return {
     '#type': type,
-    ...properties
+    ...properties,
   };
 }
 

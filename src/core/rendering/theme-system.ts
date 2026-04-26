@@ -45,9 +45,9 @@
  * - Cache-aware (integrates with cache.js)
  */
 
-import { readFileSync, existsSync, readdirSync, statSync } from 'node:fs';
-import { join, basename, extname, dirname } from 'node:path';
-import { renderString, escapeHtml } from './template.ts';
+import { existsSync, readdirSync, readFileSync, statSync } from 'node:fs';
+import { basename, dirname, extname, join } from 'node:path';
+import { escapeHtml, renderString } from './template.ts';
 
 // ============================================================================
 // Types
@@ -234,7 +234,14 @@ const CORE_HOOKS: CoreHooksMap = {
     pattern: 'node__[bundle]__[view_mode]',
   },
   field: {
-    variables: { field: null, items: [], label: '', label_display: 'above', field_name: '', field_type: '' },
+    variables: {
+      field: null,
+      items: [],
+      label: '',
+      label_display: 'above',
+      field_name: '',
+      field_type: '',
+    },
     template: 'field',
     type: 'field',
     pattern: 'field__[field_name]__[bundle]',
@@ -331,7 +338,14 @@ const CORE_HOOKS: CoreHooksMap = {
     type: 'navigation',
   },
   menu_link: {
-    variables: { title: '', url: '', below: [], attributes: {}, is_expanded: false, in_active_trail: false },
+    variables: {
+      title: '',
+      url: '',
+      below: [],
+      attributes: {},
+      is_expanded: false,
+      in_active_trail: false,
+    },
     template: 'menu-link',
     type: 'navigation',
   },
@@ -1019,7 +1033,9 @@ export function renderHead(options: RenderHeadOptions = {}): string {
     } else if (tag.name && tag.content) {
       parts.push(`<meta name="${escapeHtml(tag.name)}" content="${escapeHtml(tag.content)}">`);
     } else if (tag.property && tag.content) {
-      parts.push(`<meta property="${escapeHtml(tag.property)}" content="${escapeHtml(tag.content)}">`);
+      parts.push(
+        `<meta property="${escapeHtml(tag.property)}" content="${escapeHtml(tag.content)}">`
+      );
     }
   }
 
@@ -1211,6 +1227,7 @@ function getFallbackTemplate(name: string): string | null {
  * Override loadTemplate to check fallbacks
  */
 const originalLoadTemplate = loadTemplate;
+
 export { originalLoadTemplate as _loadTemplate };
 
 // Re-export with fallback check

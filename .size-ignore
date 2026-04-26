@@ -71,7 +71,7 @@ core/layout-builder.ts                    # 1438 lines — refactored around nes
 #
 # === Phase 3 — Cache Tags ===
 #
-core/render.ts                            # 1234 lines — replaced by CacheableRenderContext + tagged invalidation
+src/core/rendering/render.ts              # 1234 lines — replaced by CacheableRenderContext + tagged invalidation
 
 #
 # === Phase 4 — Config Management with UUIDs + dependencies ===
@@ -91,10 +91,10 @@ src/core/security/csrf.ts                 # 519 lines — minor refactor during 
 # === Phase 6 — Admin module split + template modernization + a11y ===
 #
 modules/admin/index.js                    # 17545 lines — split into 7 feature routers (PR 6.2–6.8)
-core/template.ts                          # 886 lines — partials added PR 6.10; layout split PR 6.11
-core/theme-system.ts                      # 1271 lines — split during admin modernization
-core/theme-engine.ts                      # 646 lines — split during admin modernization
-core/theme-settings.ts                    # 638 lines — split during admin modernization
+src/core/rendering/template.ts            # 886 lines — partials added PR 6.10; layout split PR 6.11
+src/core/rendering/theme-system.ts        # 1271 lines — split during admin modernization
+src/core/rendering/theme-engine.ts        # 646 lines — split during admin modernization
+src/core/rendering/theme-settings.ts      # 638 lines — split during admin modernization
 core/accessibility.ts                     # 1214 lines — a11y pass (PR 6.15)
 core/contextual.ts                        # 629 lines — admin contextual links
 core/icons.ts                             # 820 lines — admin icon work
@@ -154,11 +154,11 @@ core/sitemap.ts                           # 819 lines — part of delivery API s
 #
 # === Phase 15 — Observability ===
 #
-core/analytics.ts                         # 1075 lines — replaced by /metrics Prometheus endpoint + pino logs
-core/activity.ts                          # 1067 lines — rolled into structured audit_log + pino
-core/audit.ts                             # 1066 lines — refactored around audit_log tamper-chain (Phase 7 + 15)
-core/status.ts                            # 804 lines — reduced to /health endpoint
-core/watcher.ts                           # 594 lines — split during observability pass
+src/core/observability/analytics.ts       # 1075 lines — replaced by /metrics Prometheus endpoint + pino logs
+src/core/observability/activity.ts        # 1067 lines — rolled into structured audit_log + pino
+src/core/observability/audit.ts           # 1066 lines — refactored around audit_log tamper-chain (Phase 7 + 15)
+src/core/observability/status.ts          # 804 lines — reduced to /health endpoint
+src/core/observability/watcher.ts         # 594 lines — split during observability pass
 core/locks.ts                             # 573 lines — replaced by PG advisory locks (Phase 2); cleanup Phase 15
 
 #
@@ -172,8 +172,8 @@ core/help.ts                              # 514 lines — minor refactor (14 LOC
 #
 # === AI subsystem — over-built for stage; candidate for separate package post-1.0 ===
 #
-core/ai-stats.ts                          # 882 lines — refactored during Phase 15 observability
-core/ai-agents.ts                         # 652 lines — AI subsystem refactor (post-1.0 extraction candidate)
+src/core/ai/ai-stats.ts                   # 882 lines — refactored during Phase 15 observability
+src/core/ai/ai-agents.ts                  # 652 lines — AI subsystem refactor (post-1.0 extraction candidate)
 modules/ai_dashboard/index.js             # 2449 lines — AI subsystem refactor (post-1.0 extraction candidate)
 modules/ai_image_alt/index.js             # 1687 lines — AI subsystem refactor (post-1.0 extraction candidate)
 

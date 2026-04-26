@@ -27,7 +27,7 @@
 // ============================================
 
 import * as fields from '../src/core/entities/fields.ts';
-import * as template from './template.ts';
+import * as template from '../src/core/rendering/template.ts';
 import * as validation from './validation.ts';
 
 // ============================================

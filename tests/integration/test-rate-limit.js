@@ -8,7 +8,7 @@
  * 4. Verify error includes retry information
  */
 
-import { checkProviderLimit } from '../../core/ai-rate-limiter.ts';
+import { checkProviderLimit } from '../../src/core/ai/ai-rate-limiter.ts';
 
 console.log('=== AI Provider Rate Limiting Test ===\n');
 
@@ -16,7 +16,9 @@ console.log('=== AI Provider Rate Limiting Test ===\n');
 console.log('Test 1: Requests within limit');
 for (let i = 1; i <= 3; i++) {
   const result = checkProviderLimit('test-provider', { points: 5, duration: 60 });
-  console.log(`Request ${i}: ${result.allowed ? '✓ ALLOWED' : '✗ BLOCKED'} (remaining: ${result.remaining})`);
+  console.log(
+    `Request ${i}: ${result.allowed ? '✓ ALLOWED' : '✗ BLOCKED'} (remaining: ${result.remaining})`
+  );
 }
 
 console.log('\nTest 2: Exceed the limit');
@@ -42,8 +44,12 @@ const result4 = checkProviderLimit('provider-b', { points: 2, duration: 60 });
 
 console.log(`Provider A request 1: ${result1.allowed ? '✓ ALLOWED' : '✗ BLOCKED'}`);
 console.log(`Provider A request 2: ${result2.allowed ? '✓ ALLOWED' : '✗ BLOCKED'}`);
-console.log(`Provider A request 3: ${result3.allowed ? '✗ BLOCKED (expected)' : '✓ ALLOWED (unexpected!)'}`);
-console.log(`Provider B request 1: ${result4.allowed ? '✓ ALLOWED (separate limit)' : '✗ BLOCKED (unexpected!)'}`);
+console.log(
+  `Provider A request 3: ${result3.allowed ? '✗ BLOCKED (expected)' : '✓ ALLOWED (unexpected!)'}`
+);
+console.log(
+  `Provider B request 1: ${result4.allowed ? '✓ ALLOWED (separate limit)' : '✗ BLOCKED (unexpected!)'}`
+);
 
 console.log('\n=== Test Complete ===');
 

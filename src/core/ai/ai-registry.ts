@@ -148,7 +148,9 @@ export function register(moduleInfo: AIModuleInfo): boolean {
   // Validate AI type
   const validTypes: AIModuleType[] = ['provider', 'tool', 'processor', 'agent'];
   if (!validTypes.includes(type)) {
-    console.error(`[ai-registry] Invalid AI type "${type}". Must be one of: ${validTypes.join(', ')}`);
+    console.error(
+      `[ai-registry] Invalid AI type "${type}". Must be one of: ${validTypes.join(', ')}`
+    );
     return false;
   }
 
@@ -248,7 +250,7 @@ export function getByType(type: AIModuleType): AIModuleMetadata[] {
   }
 
   return Array.from(moduleNames)
-    .map(name => registry.get(name))
+    .map((name) => registry.get(name))
     .filter((m): m is AIModuleMetadata => m !== undefined);
 }
 
@@ -305,7 +307,9 @@ export function updateStatus(name: string, status: AIModuleStatus): boolean {
 
   const validStatuses: AIModuleStatus[] = ['active', 'inactive', 'error'];
   if (!validStatuses.includes(status)) {
-    console.error(`[ai-registry] Invalid status "${status}". Must be one of: ${validStatuses.join(', ')}`);
+    console.error(
+      `[ai-registry] Invalid status "${status}". Must be one of: ${validStatuses.join(', ')}`
+    );
     return false;
   }
 
